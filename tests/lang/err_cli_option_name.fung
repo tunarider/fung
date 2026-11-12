@@ -1,0 +1,6 @@
+# The names in `bools` and `values` are option names (D69): letters,
+# digits, `_` and `-`, starting with a letter or `_`. A wrong one is the
+# script's mistake, not the command line's.
+import cli
+print(cli.parse([], bools: ["a b"]))
+# expect-error: E0403

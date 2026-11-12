@@ -1,0 +1,4 @@
+# Inside a tag too (D54): Ok(Err(…)).
+fn f() = Ok(Err("lost"))
+f()
+# expect-error: E0606

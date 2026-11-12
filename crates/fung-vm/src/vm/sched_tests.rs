@@ -81,7 +81,7 @@ fn run(src: &str) -> crate::testutil::Outcome {
 #[test]
 fn tasks_run_on_one_thread() {
     let o = run(
-        "me = this_thread()\nprint(scope(fn(s):\n  ts = map(0..1000, _ => spawn(s, fn(): sleep(1ms); this_thread() ;;))\n  all(map(ts, await), x => x == me)\n;;))",
+        "me = this_thread()\nprint(scope(fn(s):\n  ts = map(0..1000, _ => spawn(s, fn(): sleep(1ms); this_thread() ;;))\n  all(map(ts, await), x => x == Ok(me))\n;;)!)",
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("true\n", ""));
 }
@@ -136,7 +136,7 @@ fn a_stale_deadline_does_not_delay_a_deadlock() {
     let o = run(
         "(tx, rx) = channel()\nr = scope(fn(s):\n  spawn(s, () => send(tx, 1))\n  timeout(() => recv(rx), 1h)\n;;)\nprint(r)\n(_tx2, rx2) = channel()\nrecv(rx2)",
     );
-    assert_eq!(o.out, "Ok(1)\n");
+    assert_eq!(o.out, "Ok(Ok(Ok(1)))\n");
     assert!(o.err.starts_with(DEADLOCK), "{}", o.err);
     assert!(start.elapsed() < Duration::from_secs(5));
 }
@@ -145,7 +145,7 @@ fn a_stale_deadline_does_not_delay_a_deadlock() {
 #[test]
 fn stale_deadlines_do_not_pile_up() {
     let s = setup(
-        "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn():\n    for i in 0..5000: send(tx, i) ;;\n  ;;)\n  for i in 0..5000: timeout(() => recv(rx), 1h) ;;\n;;)\n(_tx2, rx2) = channel()\nrecv(rx2)",
+        "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn():\n    for i in 0..5000: send(tx, i) ;;\n  ;;)\n  for _i in 0..5000: timeout(() => recv(rx), 1h) ;;\n;;)\n(_tx2, rx2) = channel()\nrecv(rx2)",
         Opts::default(),
     )
     .unwrap_or_else(|e| panic!("{e:?}"));
@@ -161,7 +161,10 @@ fn a_long_swap_is_not_starved() {
     let o = run(
         "a = atom(0)\ndone = atom(false)\nfn slow(n, k):\n  if k == 0: n else: slow(n, k - 1) ;;\n;;\nr = timeout(() => scope(fn(s):\n  spawn(s, fn():\n    fn loop(i):\n      swap(a, n => n + 1)\n      if deref(done): i else: loop(i + 1) ;;\n    ;;\n    loop(0)\n  ;;)\n  swap(a, n => slow(n, 5000))\n  reset(done, true)\n  \"slow done\"\n;;), 5s)\nprint(r)",
     );
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("slow done\n", ""));
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("Ok(Ok(\"slow done\"))\n", "")
+    );
 }
 
 fn job_opts() -> Opts {
@@ -191,7 +194,7 @@ fn a_task_waiting_in_the_pool_queue_is_not_deadlocked() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        ("[\"done\", \"done\"]\n", "")
+        ("Ok([Ok(\"done\"), Ok(\"done\")])\n", "")
     );
     assert_eq!(crate::testutil::jobs::count("q1-seen"), 1);
 }
@@ -202,7 +205,7 @@ fn a_task_waiting_in_the_pool_queue_is_not_deadlocked() {
 fn a_queued_wait_job_is_dropped_on_cancel() {
     let s = setup(
         &format!(
-            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"q2\"))\n  until(() => pool_state() == [1, 0, 0])\n  r = timeout(() => count_job(\"q2c\"), 20ms)\n  open_latch(\"q2\")\n  r\n;;))",
+            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"q2\"))\n  wait_for(() => pool_state() == [1, 0, 0])\n  r = timeout(() => count_job(\"q2c\"), 20ms)\n  open_latch(\"q2\")\n  r\n;;))",
             crate::testutil::UNTIL
         ),
         job_opts(),
@@ -213,7 +216,7 @@ fn a_queued_wait_job_is_dropped_on_cancel() {
     s.rt.run().unwrap();
     assert_eq!(
         s.out.text(),
-        "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n"
+        "Ok(Err({kind: 'timeout, message: \"timed out after 20ms\"}))\n"
     );
     assert!(crate::testutil::jobs::until(
         || pool.queued() == 0 && pool.idle() == 1
@@ -301,7 +304,7 @@ fn open_when_parked(
 fn a_cancel_while_a_waited_job_runs_unwinds_after_it() {
     let (out, err, _) = open_when_parked(
         &format!(
-            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"cw\"))\n  until(() => pool_state() == [1, 0, 0])\n  settle_mark(\"cw\")\n  cancel(s)\n;;))",
+            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"cw\"))\n  wait_for(() => pool_state() == [1, 0, 0])\n  settle_mark(\"cw\")\n  cancel(s)\n;;))",
             crate::testutil::UNTIL
         ),
         "cw",
@@ -318,7 +321,7 @@ fn a_cancel_while_a_waited_job_runs_unwinds_after_it() {
 fn an_exit_while_a_waited_job_runs_ends_after_it() {
     let (out, err, r) = open_when_parked(
         &format!(
-            "{}scope(fn(s):\n  spawn(s, () => block_job(\"ew\"))\n  until(() => pool_state() == [1, 0, 0])\n  settle_mark(\"ew\")\n  exit(3)\n;;)",
+            "{}scope(fn(s):\n  spawn(s, () => block_job(\"ew\"))\n  wait_for(() => pool_state() == [1, 0, 0])\n  settle_mark(\"ew\")\n  exit(3)\n;;)",
             crate::testutil::UNTIL
         ),
         "ew",
@@ -329,7 +332,10 @@ fn an_exit_while_a_waited_job_runs_ends_after_it() {
 }
 
 fn run_jobs(src: &str) -> crate::testutil::Outcome {
-    exec(&format!("{}{src}", crate::testutil::UNTIL), job_opts())
+    exec(
+        &crate::testutil::imports_first(&format!("{}{src}", crate::testutil::UNTIL)),
+        job_opts(),
+    )
 }
 
 /// A task parked on a descriptor wakes when it is ready; no thread waits
@@ -337,9 +343,12 @@ fn run_jobs(src: &str) -> crate::testutil::Outcome {
 #[test]
 fn a_task_parked_on_io_wakes_when_ready() {
     let o = run_jobs(
-        "fd = pipe_pair(\"pr\")\nprint(scope(fn(s):\n  t = spawn(s, fn(): r = pipe_read(fd); [r, parks() > 0, offloads()] ;;)\n  until(() => waiting_io() == 1)\n  pipe_put(\"pr\", \"x\")\n  await(t)\n;;))",
+        "fd = pipe_pair(\"pr\")\nprint(scope(fn(s):\n  t = spawn(s, fn(): r = pipe_read(fd); [r, parks() > 0, offloads()] ;;)\n  wait_for(() => waiting_io() == 1)\n  pipe_put(\"pr\", \"x\")\n  await(t)\n;;))",
     );
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("[\"x\", true, 0]\n", ""));
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("Ok(Ok([\"x\", true, 0]))\n", "")
+    );
 }
 
 /// A wake from another thread while the run thread sleeps in the event
@@ -382,7 +391,7 @@ fn io_is_seen_between_turns_of_a_computing_task() {
     use crate::testutil::jobs;
     let s = setup(
         &format!(
-            "{}fd = pipe_pair(\"cp\")\nfn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(pipe_read(fd)) ;;)\n  spawn(s, fn():\n    until(() => waiting_io() == 1)\n    settle_mark(\"cp\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
+            "{}fd = pipe_pair(\"cp\")\nfn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(pipe_read(fd)) ;;)\n  spawn(s, fn():\n    wait_for(() => waiting_io() == 1)\n    settle_mark(\"cp\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
             crate::testutil::UNTIL
         ),
         job_opts(),
@@ -425,7 +434,7 @@ fn a_task_woken_from_another_thread_runs_beside_a_computing_task() {
     use crate::testutil::jobs;
     let s = setup(
         &format!(
-            "{}fn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(block_job(\"wb\")) ;;)\n  spawn(s, fn():\n    until(() => pool_state()[0] - pool_state()[1] == 1)\n    settle_mark(\"wb\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
+            "{}fn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(block_job(\"wb\")) ;;)\n  spawn(s, fn():\n    wait_for(() => pool_state()[0] - pool_state()[1] == 1)\n    settle_mark(\"wb\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
             crate::testutil::UNTIL
         ),
         job_opts(),
@@ -495,7 +504,7 @@ fn an_abandoned_inputs_queued_pool_jobs_do_not_run() {
     use crate::testutil::jobs;
     let s = setup(
         &format!(
-            "{}scope(fn(s):\n  spawn(s, () => block_job(\"q3\"))\n  until(() => pool_state() == [1, 0, 0])\n  with(() => nil, fn(_): settle_mark(\"q3-body\"); sleep(60s) ;;, fn(_): count_job(\"q3c\") ;;)\n;;)",
+            "{}scope(fn(s):\n  spawn(s, () => block_job(\"q3\"))\n  wait_for(() => pool_state() == [1, 0, 0])\n  with(() => nil, fn(_): settle_mark(\"q3-body\"); sleep(60s) ;;, fn(_): count_job(\"q3c\") ;;)\n;;)",
             crate::testutil::UNTIL
         ),
         job_opts(),
@@ -606,9 +615,9 @@ fn a_deadlock_report_names_a_sending_end_the_receiver_holds() {
         "{}",
         o.err
     );
-    let o = exec("(tx, rx) = channel()\nfor x in rx: x ;;", Opts::default());
+    let o = exec("(_tx, rx) = channel()\nfor x in rx: x ;;", Opts::default());
     assert!(
-        o.err.contains("sending end itself (the global `tx`)"),
+        o.err.contains("sending end itself (the global `_tx`)"),
         "{}",
         o.err
     );
@@ -636,10 +645,10 @@ fn a_deadlock_report_names_a_sending_end_the_receiver_holds() {
 /// for another task's line, as for a receive.
 #[test]
 fn a_deadlock_report_names_a_sending_end_wait_closed_holds() {
-    let o = exec("(tx, rx) = channel()\nwait_closed(rx)", Opts::default());
+    let o = exec("(_tx, rx) = channel()\nwait_closed(rx)", Opts::default());
     assert!(
         o.err.contains(
-            " help: this task waits for that channel to close, but it still holds its sending end itself (the global `tx`), so the channel cannot close: close it with `close(tx)` first, or leave the sending end to the producers only\n"
+            " help: this task waits for that channel to close, but it still holds its sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n"
         ),
         "{}",
         o.err
@@ -660,7 +669,7 @@ fn a_deadlock_report_names_a_sending_end_wait_closed_holds() {
 #[test]
 fn a_deadlock_report_lists_ten_places_at_most() {
     let fns: String = (0..12)
-        .map(|i| format!("fn w{i}(rx) = recv(rx)\n"))
+        .map(|i| format!("fn w{i}(ch) = recv(ch)\n"))
         .collect();
     let spawns: String = (0..12)
         .map(|i| format!("  spawn(s, () => w{i}(rx))\n"))
@@ -693,9 +702,9 @@ fn a_deadlock_report_lists_ten_places_at_most() {
 #[test]
 fn a_task_is_queued_once() {
     let o = exec_waiting(
-        "fn spin(n) = n == 0 then 0 else spin(n - 1) + 0\nscope(fn(s):\n  a = spawn(s, fn():\n    wake_self()\n    spin(3000)\n  ;;)\n  b = spawn(s, () => queue_has_dupes())\n  print(await(b), await(a))\n;;)",
+        "fn spin(k) = k == 0 then 0 else spin(k - 1) + 0\nscope(fn(s):\n  a = spawn(s, fn():\n    wake_self()\n    spin(3000)\n  ;;)\n  b = spawn(s, () => queue_has_dupes())\n  print(await(b), await(a))\n;;)",
     );
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("false 0\n", ""));
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(false) Ok(0)\n", ""));
 }
 
 fn seed_1(rt: &crate::vm::Runtime) {

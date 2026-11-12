@@ -54,9 +54,7 @@ options:
   --keep N         how many to keep (default 7)
   --pattern GLOB   which files are backups (default *.tar.gz)
   --dry-run        only print what would be deleted
-  -h, --help       show this help`
-
-known = ["keep", "pattern", "dry_run", "help"]
+  --help           show this help`
 
 # A mistake in the arguments: say what is wrong, point at --help, exit 2.
 fn usage_error(msg):
@@ -65,16 +63,14 @@ fn usage_error(msg):
   exit(2)
 ;;
 
-opts = match cli.parse(args, bools: ["dry-run", "help"]):
+opts = match cli.parse(args, bools: ["dry-run", "help"], values: ["keep", "pattern"]):
   Ok(o)  => o
   Err(e) => usage_error(e.message)
 ;;
-if get(opts.flags, "help", false) or "-h" in opts.rest:
+if get(opts.flags, "help", false):
   print(help)
   exit(0)
 ;;
-unknown = keys(opts.flags) |> filter(k => k not in known)
-if not is_empty(unknown): usage_error("unknown option --${replace(unknown[0], "_", "-")}") ;;
 
 dir = match opts.rest:
   [d] => d
@@ -106,7 +102,7 @@ try `prune.fung --help`
 $ echo $?
 2
 $ fung prune.fung --kep 2 /backups
-prune.fung: unknown option --kep
+prune.fung: unknown flag `--kep`
 try `prune.fung --help`
 $ fung prune.fung --help
 usage: prune.fung [options] DIR
@@ -118,29 +114,27 @@ options:
   --keep N         how many to keep (default 7)
   --pattern GLOB   which files are backups (default *.tar.gz)
   --dry-run        only print what would be deleted
-  -h, --help       show this help
+  --help           show this help
 ```
 
 ## 줄별 설명 {#how}
 
 - `help`: 도움말은 여러 줄 원시 문자열 하나로 둔다. 따옴표나 `$`를 신경 쓰지 않고 화면에 보일 모양 그대로 쓴다. 맨 위에 `usage:` 한 줄, 그 아래 무엇을 하는지, 옵션 목록과 기본값. 이 순서가 대부분의 명령줄 도구가 따르는 관례다.
-- `cli.parse(args, bools: […])`: `--name value`와 `--name=value`를 `flags` 맵에, 나머지 인자를 `rest` 리스트에 순서대로 넣어 `Ok`로 돌려준다. 같은 옵션을 두 번 주는 것처럼 잘못 친 명령줄은 `Err`라서, `match`로 받아 `usage_error`로 안내한다. 옵션 이름의 `-`는 `_`가 되어 `--dry-run`은 `flags.dry_run`이다. 옵션과 인자의 순서는 자유라 `prune.fung . --keep 3`도 된다. `--` 뒤의 인자는 모두 `rest`로 간다(`-`로 시작하는 파일 이름을 넘길 때).
-- `-h`: `cli.parse`는 `--`로 시작하는 것만 옵션으로 본다. 한 글자 옵션 `-h`는 `rest`에 들어오므로 직접 확인한다.
-- `known`·`unknown`: `cli.parse`는 모르는 옵션도 그대로 받아 준다. 오타(`--kep`)를 조용히 무시하면 기본값 7로 지워 버리므로, 아는 옵션 목록과 비교해서 막는다.
+- `cli.parse(args, bools: […], values: […])`: 받을 옵션을 모두 적는다. 스위치는 `bools`, 값을 받는 옵션은 `values`다. `--name value`와 `--name=value`를 `flags` 맵에, 나머지 인자를 `rest` 리스트에 순서대로 넣어 `Ok`로 돌려준다. 목록에 없는 옵션(오타 `--kep`), 한 글자 옵션(`-h`), 같은 옵션을 두 번 주는 것처럼 잘못 친 명령줄은 `Err`라서, `match`로 받아 `usage_error`로 안내한다. 오타를 말없이 넘기면 기본값 7로 지워 버리므로 이 검사가 중요하다. 옵션 이름의 `-`는 `_`가 되어 `--dry-run`은 `flags.dry_run`이다. 옵션과 인자의 순서는 자유라 `prune.fung . --keep 3`도 된다. `--` 뒤의 인자는 모두 `rest`로 간다(`-`로 시작하는 파일 이름을 넘길 때).
 - `usage_error`: 무엇이 틀렸는지 한 줄, 도움말 보는 법 한 줄을 표준 에러에 쓰고 종료 코드 2로 끝낸다. "사용법이 틀렸다"를 2로 알리는 것은 많은 명령의 관례다(`grep`, `ls` 등). `exit`는 돌아오지 않으므로 `match`의 가지에서 값 대신 불러도 된다.
 - `dir = match opts.rest: …`: 위치 인자가 정확히 하나인지 리스트 패턴으로 가른다. `[d]`는 원소가 하나인 리스트, `[]`는 빈 리스트, `_`는 나머지 전부다.
 - `keep = match parse_int(…)`: 숫자로 바뀌고 1 이상일 때만 받는다. guard `when n >= 1`이 범위를 함께 확인한다.
 - `fs.glob(…)! |> sort |> reverse`: 이름에 날짜가 들어 있으므로 이름순 정렬이 곧 시간순이다. 뒤집어서 최신이 앞에 오게 하고 `drop(backups, keep)`으로 앞의 `keep`개를 뺀 나머지가 지울 대상이다.
 - `if not dry: fs.remove(f)! ;;`: 미리 보기가 아니면 지운다. 지우기가 실패하면 `!`가 그 자리에서 멈춘다.
 
-:::box mistake 스위치 옵션을 `bools`에 빠뜨리기
+:::box mistake 스위치를 `values`에 적기
 
-`cli.parse`는 옵션 뒤에 `--`로 시작하지 않는 인자가 있으면 그것을 옵션의 값으로 가져간다. 값을 받지 않는 스위치(`--dry-run`)를 `bools`에 넣지 않으면, 바로 뒤의 디렉터리 이름이 스위치의 값이 되어 버린다. 그러면 디렉터리를 주지 않은 것이 되고, `--dry-run`의 값은 `true`가 아니라 문자열이다.
+`values`에 적은 옵션은 다음 인자를 값으로 가져간다. 값을 받지 않는 스위치(`--dry-run`)를 `values`에 적으면, 바로 뒤의 디렉터리 이름이 스위치의 값이 되어 버린다. 그러면 디렉터리를 주지 않은 것이 되고, `--dry-run`의 값은 `true`가 아니라 문자열이다. 스위치는 `bools`에 적는다.
 
 ```fung run
 import cli
 
-print(cli.parse(["--dry-run", "/backups"])!)
+print(cli.parse(["--dry-run", "/backups"], values: ["dry-run"])!)
 print(cli.parse(["--dry-run", "/backups"], bools: ["dry-run"])!)
 ```
 

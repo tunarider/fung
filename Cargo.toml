@@ -6,3 +6,12 @@ members = ["crates/fung-front", "crates/fung-vm", "crates/fung-cli"]
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
+
+# Every crate opts in with `[lints] workspace = true` (TL10, D84): each
+# `unsafe` block says why it is sound, and an `unsafe fn` body is not one
+# big unsafe block.
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"

@@ -6,7 +6,7 @@
 
 use std::fmt::Write;
 
-use super::{Op, Proto, decode_call};
+use super::{Op, Proto, decode_call, decode_slot_type};
 use crate::consts::{format, format_for_print, type_text};
 
 /// Renders a proto and its child functions, depth first, each after a
@@ -32,7 +32,10 @@ fn disasm(p: &Proto, b: &mut String) {
         }
         let arg = ins.arg();
         let _ = write!(b, "{i:04}  {pos:<5} {:<12} {arg}", op.name());
-        comment(p, op, arg, b);
+        if op.second() != super::Operand::None {
+            let _ = write!(b, " {}", ins.b());
+        }
+        comment(p, op, arg, ins.b(), b);
         b.push('\n');
     }
     for child in &p.protos {
@@ -42,14 +45,14 @@ fn disasm(p: &Proto, b: &mut String) {
 }
 
 /// The `    ; …` explanation after an operand, if the opcode has one.
-fn comment(p: &Proto, op: Op, arg: usize, b: &mut String) {
+fn comment(p: &Proto, op: Op, arg: usize, second: usize, b: &mut String) {
     let text = match op {
         Op::Const | Op::Test => format(&p.consts[arg]),
         Op::LoadGlobal | Op::StoreGlobal => match p.global_names.get(arg) {
             Some(n) => n.clone(),
             None => return,
         },
-        Op::Call | Op::TailCall => {
+        Op::Call | Op::TailCall | Op::CallSpread | Op::TailCallSpread => {
             let (np, nn) = decode_call(arg);
             format!("{np} positional, {nn} named")
         }
@@ -58,17 +61,24 @@ fn comment(p: &Proto, op: Op, arg: usize, b: &mut String) {
             None => return,
         },
         Op::CheckType => {
-            let (slot, ti) = (arg & 0xFFF, arg >> 12);
+            let (slot, ti) = decode_slot_type(arg);
             match (p.params.get(slot), p.types.get(ti)) {
                 (Some(prm), Some(t)) => format!("{}: {}", prm.name, type_text(t)),
                 _ => return,
             }
         }
-        Op::CheckReturn => match p.types.get(arg) {
+        Op::CheckReturn | Op::TailCheck => match p.types.get(arg) {
             Some(t) => format!("-> {}", type_text(t)),
             None => return,
         },
-        Op::Tag => format!("{arg} args"),
+        Op::Tag => match p.consts.get(second) {
+            Some(name) => format!("{}, {arg} args", format(name)),
+            None => return,
+        },
+        Op::Map => match p.consts.get(second) {
+            Some(keys) => format!("keys {}", format(keys)),
+            None => return,
+        },
         Op::Slice => {
             let mut parts = Vec::new();
             if arg & 1 != 0 {
@@ -87,7 +97,11 @@ fn comment(p: &Proto, op: Op, arg: usize, b: &mut String) {
             Some(a) => a.text.clone(),
             None => return,
         },
-        Op::Match | Op::MatchOrFail => match p.patterns.get(arg) {
+        Op::Match => match p.patterns.get(second) {
+            Some(pat) => format!("{pat}, else {arg}"),
+            None => return,
+        },
+        Op::MatchOrFail => match p.patterns.get(arg) {
             Some(pat) => pat.to_string(),
             None => return,
         },

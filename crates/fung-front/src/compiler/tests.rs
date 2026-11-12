@@ -75,14 +75,15 @@ fn zero() -> Pos {
     }
 }
 
-fn bare(core: Node) -> Resolved {
+fn bare(mut core: Node) -> Resolved {
+    core.number();
     Resolved {
         core,
         num_locals: 0,
         globals: vec![],
         imports: vec![],
         exports: vec![],
-        warnings: vec![],
+        sigs: Default::default(),
     }
 }
 
@@ -132,21 +133,30 @@ fn compile_call_and_prelude() {
 
 #[test]
 fn compile_if_with_jumps() {
-    // (if true (op bool false) false): a literal needs no CHECKBOOL.
+    // (if true (op bool false) false): a literal needs no CHECKBOOL, and
+    // a literal condition no test (VM31); the jump past the dead else
+    // goes to a RETURN, so it is that RETURN (VM28).
     assert_eq!(
         ops(&comp("true and false")),
-        "CONST(0) JUMPIFFALSE(4) CONST(1) JUMP(5) CONST(1) RETURN"
+        "CONST(0) RETURN CONST(0) RETURN"
     );
     // As a condition, `and` and `or` jump to the branch (VM10 d).
     assert_eq!(
         ops(&comp("a = true\nif a and a: 1 else: 2 ;;")),
         "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) JUMPIFFALSE(8) LOADGLOBAL(0) \
-         JUMPIFFALSE(8) CONST(1) JUMP(9) CONST(2) RETURN"
+         JUMPIFFALSE(8) CONST(1) RETURN CONST(2) RETURN"
     );
+    // `or`'s left side jumps to the branch when true (VM27).
     assert_eq!(
         ops(&comp("a = true\nif a or a: 1 else: 2 ;;")),
-        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) JUMPIFFALSE(5) JUMP(7) LOADGLOBAL(0) \
-         JUMPIFFALSE(9) CONST(1) JUMP(10) CONST(2) RETURN"
+        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) JUMPIFTRUE(6) LOADGLOBAL(0) \
+         JUMPIFFALSE(8) CONST(1) RETURN CONST(2) RETURN"
+    );
+    // `not` of a comparison is the comparison with the targets swapped.
+    assert_eq!(
+        ops(&comp("a = 1\nif not (a < 2): 1 else: 2 ;;")),
+        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(1) LT JUMPIFTRUE(8) CONST(0) \
+         RETURN CONST(1) RETURN"
     );
 }
 
@@ -215,31 +225,38 @@ fn compile_let_and_loads() {
     let p = comp("x = 1\ny = x\nif true: a = y; a ;;");
     assert_eq!(
         ops(&p),
-        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) STOREGLOBAL(1) CONST(1) JUMPIFFALSE(10) LOADGLOBAL(1) STORELOCAL(0) MOVELOCAL(0) JUMP(11) CONST(2) RETURN"
+        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) STOREGLOBAL(1) LOADGLOBAL(1) STORELOCAL(0) MOVELOCAL(0) RETURN CONST(1) RETURN"
     );
     assert_eq!(p.num_locals, 1);
     assert_eq!(p.global_names, ["x", "y"]);
-    // the nil const for the statement-valued program
-    assert_eq!(p.consts[2], Const::Nil);
+    // the nil const of the else branch that is never taken (VM31)
+    assert_eq!(p.consts[1], Const::Nil);
 }
 
 #[test]
 fn compile_block_ending_in_statement_yields_nil() {
     assert_eq!(
-        ops(&comp("x = 1")),
+        ops(&comp("_x = 1")),
         "CONST(0) STOREGLOBAL(0) CONST(1) RETURN"
     );
 }
 
 #[test]
 fn compile_literals_and_concat() {
+    // An interpolation of literals is one constant (VM31); `+` with a
+    // symbol is left to the VM's error.
     let p = comp(r#""a${1}b" + 'ok"#);
-    assert_eq!(
-        ops(&p),
-        "CONST(0) CONST(1) CONST(2) CONCAT(3) CONST(3) ADD RETURN"
+    assert_eq!(ops(&p), "CONST(0) CONST(1) ADD RETURN");
+    assert_eq!(p.consts[0], Const::Str("a1b".into()));
+    assert_eq!(p.consts[1], Const::Sym("ok".into()));
+    let p = comp(r#""x" + "y${-2}" + "\xff""#);
+    assert_eq!(ops(&p), "CONST(0) RETURN");
+    assert_eq!(p.consts[0], Const::Bytes(b"xy-2\xff".to_vec()));
+    let p = comp(
+        r#"a = 1.5
+"x${a}" + "y""#,
     );
-    assert_eq!(p.consts[0], Const::Str("a".into()));
-    assert_eq!(p.consts[3], Const::Sym("ok".into()));
+    assert!(ops(&p).contains("CONCAT(2) CONST(2) ADD"), "{}", ops(&p));
     let p = comp("nil\n1h");
     assert_eq!(ops(&p), "CONST(0) POP CONST(1) RETURN");
     assert_eq!(p.consts[1], Const::Dur(3_600_000_000_000));
@@ -292,17 +309,24 @@ fn compile_tail_calls() {
         got.contains("TAILCALL(2)") && !got.contains(" CALL("),
         "expected a tail call: {got}"
     );
-    // Not tail: operand of +; with a return type, a call to another fn.
-    for src in ["fn f(n) = 1 + f(n)", "fn f(n) -> int = g(n)\nfn g(n) = n"] {
-        let got = ops(&comp(src).protos[0]);
-        assert!(
-            !got.contains("TAILCALL"),
-            "{src:?} compiled a tail call: {got}"
-        );
-    }
-    // With a return type, a call to itself is still a tail call (03, T4).
+    // Not tail: operand of +.
+    let got = ops(&comp("fn f(n) = 1 + f(n)").protos[0]);
+    assert!(!got.contains("TAILCALL"), "compiled a tail call: {got}");
+    // With a return type, a call to another fn is a tail call that takes
+    // the check along (D44); a call to itself needs none (03).
+    let got = ops(&comp("fn f(n) -> int = g(n)\nfn g(n) = n").protos[0]);
+    assert!(got.ends_with("TAILCHECK(0) TAILCALL(1)"), "{got}");
     let got = ops(&comp("fn f(n) -> int = f(n)").protos[0]);
-    assert!(got.contains("TAILCALL"), "{got}");
+    assert!(
+        got.contains("TAILCALL") && !got.contains("TAILCHECK"),
+        "{got}"
+    );
+    // A spread call is a tail call too (D45).
+    let got = ops(&comp("fn f(xs) = print(...xs)").protos[0]);
+    assert!(got.ends_with("TAILCALLSPREAD(1)"), "{got}");
+    let got = ops(&comp("fn f(xs) = [print(0, ...xs)]").protos[0]);
+    assert!(got.contains(" CALLSPREAD("), "{got}");
+    assert!(!got.contains("TAILCALLSPREAD"), "{got}");
     // An argument is not in tail position, but the outer call is.
     let got = ops(&comp("fn f(n) = print(f(n))").protos[0]);
     assert!(
@@ -328,7 +352,8 @@ fn no_return_after_a_tail_call() {
         "fn f(n) -> int = n == 0 then 0 else f(n - 1)",
         "fn f(n):\n  if n > 0: return f(n - 1) ;;\n  if n < 0: f(0) else: print(0) ;;\n;;",
         "fn f(n) = match n:\n  0 => print(0)\n  _ => f(n - 1)\n;;",
-        "fn f(n) = n ?? print(0)",
+        // the RETURN after the TAILCALL is the left side's (VM26)
+        "fn f(n) = (n ?? 0) + 0",
         "fn f(n):\n  return n\n;;",
     ] {
         let p = comp(src);
@@ -351,7 +376,7 @@ fn no_return_after_a_tail_call() {
 #[test]
 fn a_guarded_name_arm_tests_only_its_guard() {
     let got = ops(&comp(
-        "fn f(m) = match m:\n  m when m > 1 => 1\n  _ when m < 0 => 2\n  _ => 3\n;;",
+        "fn f(m) = match m:\n  k when k > 1 => 1\n  _ when m < 0 => 2\n  _ => 3\n;;",
     )
     .protos[0]);
     assert!(!got.contains("MATCH"), "{got}");
@@ -374,7 +399,7 @@ fn compile_captures_self_and_named_args() {
         got.contains("LOADCAPTURED(0)") && got.contains("LOADSELF"),
         "loop = {got}"
     );
-    let p = comp("fn f(a, b = 2) = a\nf(1, b: 3)");
+    let p = comp("fn f(a, b = 2) = [a, b]\nf(1, b: 3)");
     // Stack at the call: f, 1, 'b, 3 — the name symbol is constant 1.
     let got = ops(&p);
     let want = format!("CONST(1) CONST(2) CALL({})", encode_call(1, 1));
@@ -389,7 +414,7 @@ fn too_many_arguments_or_parameters_is_a_compile_error() {
     assert_eq!(err.code, "E0230");
     assert_eq!(err.args, [Arg::Str("arguments".into()), Arg::Int(4095)]);
     assert_eq!((err.pos.line, err.pos.col), (1, 6));
-    let names: Vec<String> = (0..4096).map(|i| format!("p{i}")).collect();
+    let names: Vec<String> = (0..4096).map(|i| format!("_p{i}")).collect();
     let err = compile_err(&format!("fn f({}) = 1", names.join(", "))).unwrap_err();
     assert_eq!(err.code, "E0230");
     assert_eq!(err.args, [Arg::Str("parameters".into()), Arg::Int(4095)]);
@@ -399,7 +424,7 @@ fn too_many_arguments_or_parameters_is_a_compile_error() {
 
 #[test]
 fn check_type_carries_the_parameter_position() {
-    let p = comp("fn f(a,\n  b: int) = b");
+    let p = comp("fn f(_a,\n  b: int) = b");
     let f = &p.protos[0];
     let i = f
         .code
@@ -432,7 +457,8 @@ fn compile_collections_and_ops() {
         (
             "x = 1
 {a: x}",
-            "CONST(0) STOREGLOBAL(0) CONST(1) LOADGLOBAL(0) MAP(1) RETURN",
+            // the keys are the MAP's second operand (VM30)
+            "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) MAP(1) RETURN",
         ),
         (
             "x = 1
@@ -442,7 +468,8 @@ fn compile_collections_and_ops() {
         (
             "x = 1
 Ok([x])",
-            "CONST(0) STOREGLOBAL(0) CONST(1) LOADGLOBAL(0) LIST(1) TAG(1) RETURN",
+            // the name is the TAG's second operand (VM30)
+            "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) LIST(1) TAG(1) RETURN",
         ),
         ("0..=3", "CONST(0) RETURN"),
         (
@@ -467,7 +494,8 @@ Ok([x])",
         ),
         ("1 in [1]", "CONST(0) CONST(1) IN RETURN"),
         ("Ok(1)!", "CONST(0) UNWRAPABORT RETURN"),
-        ("nil ?? 1", "CONST(0) COALESCE(3) JUMP(4) CONST(1) RETURN"),
+        // the value goes past the right side, with no JUMP (VM26)
+        ("nil ?? 1", "CONST(0) COALESCE(3) CONST(1) RETURN"),
     ];
     for (src, want) in cases {
         assert_eq!(ops(&comp(src)), want, "{src:?}");
@@ -497,26 +525,31 @@ fn compile_match_and_destructuring() {
     // Shape: subject stored; each arm loads it, matches, jumps on failure.
     // A guarded name stores the subject and tests only the guard (VM17).
     // The last arm `_` always matches: no test, and no NOMATCH after it
-    // (VM10 c). No body calls a function, so none lets the subject go.
+    // (VM10 c). Each body lets go of the subject as it starts, and of
+    // `n`, read last by the guard; the last also of `n` the failed arm
+    // bound (VM19).
     for frag in [
-        "CONST(0) STORELOCAL(0) LOADLOCAL(0) MATCH(0) JUMPIFFALSE(7) CONST(1) JUMP(16)",
-        "LOADLOCAL(0) STORELOCAL(1) LOADLOCAL(1) CONST(2) GT JUMPIFFALSE(15)",
-        "JUMP(16) CONST(4) RETURN",
+        // MATCH goes to the next arm itself when it fails (VM29)
+        "CONST(0) STORELOCAL(0) LOADLOCAL(0) MATCH(7) CLEARLOCAL(0) CONST(1) RETURN",
+        "LOADLOCAL(0) STORELOCAL(1) LOADLOCAL(1) CONST(2) GT JUMPIFFALSE(17) CLEARLOCAL(0) \
+         CLEARLOCAL(1) CONST(3) RETURN",
+        "RETURN CLEARLOCAL(0) CLEARLOCAL(1) CONST(4) RETURN",
     ] {
         assert!(got.contains(frag), "missing {frag:?} in {got}");
     }
     assert!(!got.contains("NOMATCH"), "{got}");
-    assert_eq!(got.matches("JUMP(").count(), 2, "{got}");
+    // the jumps past the other arms went to the RETURN: they are it (VM28)
+    assert_eq!(got.matches("JUMP(").count(), 0, "{got}");
     assert_eq!(p.patterns.len(), 1);
     assert_eq!(p.patterns[0].to_string(), "0");
-    let p = comp("(a, b) = (1, 2)");
+    let p = comp("(_a, _b) = (1, 2)");
     assert_eq!(ops(&p), "CONST(0) MATCHORFAIL(0) CONST(1) RETURN");
     assert_eq!(p.patterns[0].to_string(), "(@0, @1)");
 }
 
 #[test]
 fn compile_rest_param() {
-    let p = comp("fn f(a, ...xs) = xs");
+    let p = comp("fn f(_a, ...xs) = xs");
     assert!(p.protos[0].params[1].rest, "Rest flag not copied");
 }
 
@@ -530,6 +563,7 @@ fn compile_with_imports(src: &str) -> String {
             key: "fs".into(),
             name: "fs".into(),
             exports: vec!["read".into()],
+            ..Default::default()
         },
     );
     let ropts = ROpts {
@@ -550,7 +584,7 @@ fn compile_import() {
         compile_with_imports("import fs (read)\nread"),
         "IMPORT(0) FIELD(1) STOREGLOBAL(0) LOADGLOBAL(0) RETURN"
     );
-    let got = compile_with_imports("import fs");
+    let got = compile_with_imports("import fs as _fs");
     assert!(
         got.ends_with("STOREGLOBAL(0) CONST(1) RETURN"),
         "import as last statement leaves nil: {got}"
@@ -630,10 +664,6 @@ fn compile_dbg_appends_text_and_place() {
         !ops(&compile_opts("d = dbg\nd(1)", false)).contains("CALL(3)"),
         "an aliased dbg is a plain call"
     );
-    assert!(
-        !ops(&compile_opts("dbg(1, text: \"t\")", false)).contains("CALL(3)"),
-        "named arguments disable the rewrite"
-    );
 }
 
 // ---- whole outputs (`fung dump bytecode -e`) ----
@@ -665,10 +695,10 @@ fn bytecode(src: &str) -> String {
 #[test]
 fn dump_outputs() {
     assert_eq!(
-        bytecode("x = 1 + 2 * 3"),
+        bytecode("_x = 1 + 2 * 3"),
         "== <main> ==\n\
-         0000  1:7   CONST        0    ; 7\n\
-         0001  1:1   STOREGLOBAL  0    ; x\n\
+         0000  1:8   CONST        0    ; 7\n\
+         0001  1:1   STOREGLOBAL  0    ; _x\n\
          0002  1:1   CONST        1    ; nil\n\
          0003  1:1   RETURN\n"
     );
@@ -712,7 +742,7 @@ fn locals_are_cleared_after_their_last_read() {
         ]
     );
     // Read in a branch: let go after the if; never read: kept; captured
-    // by a lambda: that is a read.
+    // by a lambda: that is a read, let go right after the CLOSURE (VM19).
     assert_eq!(
         ops("fn f(a, b, c):\n  _k = c\n  if b: print(a) ;;\n  g = () => b\n  print(1)\n  g\n;;"),
         [
@@ -726,8 +756,8 @@ fn locals_are_cleared_after_their_last_read() {
             "POP",
             "CLEARLOCAL 0",
             "CLOSURE 0",
-            "STORELOCAL 4",
             "CLEARLOCAL 1",
+            "STORELOCAL 4",
             "CONST 0",
             "CONST 1",
             "CALL 1",
@@ -801,17 +831,17 @@ fn the_last_read_of_a_local_moves_it() {
 #[test]
 fn dump_outputs_functions_and_operators() {
     let src = "fn outer(y):
-  fn loop(n) = n == 0 then y else loop(n - 1)
-  g = x => x + y
+  fn loop(k) = k == 0 then y else loop(k - 1)
+  _g = x => x + y
   for i in [1]: print(i) ;;
-  (a, [b, ...]) = (1, [2])
+  (_a, [_b, ...]) = (1, [2])
   return loop(2)
 ;;
 fn h(r) -> int = r? + 1
 assert h(Ok(1)) == 2
 assert true
 test \"t\": assert 1 < 2 ;;
-c = not (1 < 2) and -1 > 0 or false
+_c = not (1 < 2) and -1 > 0 or false
 n = 2
 print(\"x\" == \"x\", 2.0 / n, 7 // n, 7 % n, n ** 3, 1 != n, 1 <= n, 1 >= n); 1 + 2 * 3";
     assert_eq!(bytecode(src), include_str!("testdata/functions.txt"));
@@ -821,8 +851,8 @@ print(\"x\" == \"x\", 2.0 / n, 7 // n, 7 % n, n ** 3, 1 != n, 1 <= n, 1 >= n); 1
 fn dump_outputs_data_and_patterns() {
     let src = "fn f(a: int, b = 2) -> int = a + b
 xs = [1, 2]
-r = match xs:
-  [h, ...t] => h
+_r = match xs:
+  [h, ..._t] => h
   {k: v} | {j: v} => v
   Ok(1.5) => \"s${f(1, b: 2)}\"
   (x,) => x
@@ -867,7 +897,7 @@ fn deep_trees_do_not_overflow() {
     std::thread::Builder::new()
         .stack_size(512 << 20)
         .spawn(|| {
-            let src = format!("x = [1]{}", "[0]".repeat(9_000));
+            let src = format!("_x = [1]{}", "[0]".repeat(9_000));
             let p = comp(&src);
             assert_eq!(p.code.iter().filter(|i| i.op() == Op::Index).count(), 9_000);
             let src = format!("fn f(a) = {}a{}", "[".repeat(9_000), "]".repeat(9_000));
@@ -893,4 +923,77 @@ fn deep_trees_do_not_overflow() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// The code of function `name` in `src`: one `OP arg` per instruction.
+fn fn_ops(src: &str, name: &str) -> Vec<String> {
+    let b = bytecode(src);
+    let f = b
+        .split(&format!("== {name} ==\n"))
+        .nth(1)
+        .expect("the function's code")
+        .to_string();
+    f.lines()
+        .take_while(|l| !l.is_empty())
+        .map(|l| {
+            let w: Vec<&str> = l.split_whitespace().skip(2).take(2).collect();
+            w.iter()
+                .take_while(|x| **x != ";")
+                .copied()
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
+}
+
+/// A branch lets go, as it starts, of what only the other paths read,
+/// and a capture that is a slot's last read lets go right after the
+/// CLOSURE (VM19, D61). A branch that calls nothing and ends the frame
+/// lets go of nothing: the return does.
+#[test]
+fn branches_and_captures_let_go_where_they_start() {
+    // `tx` is slot 1, `rx` slot 2: each branch starts by letting go of
+    // what only the other reads.
+    let got = fn_ops(
+        "fn f(flag):\n  (tx, rx) = channel(1)\n  if flag:\n    send(tx, 1)\n  else:\n    \
+         for x in rx: x ;;\n  ;;\n;;",
+        "f",
+    );
+    assert_eq!(got[4..7], ["MOVELOCAL 0", "JUMPIFFALSE 11", "CLEARLOCAL 2"]);
+    assert_eq!(got[11], "CLEARLOCAL 1");
+    // The capture is the last read of `tx`.
+    let got = fn_ops(
+        "fn f(s):\n  (tx, rx) = channel(1)\n  [spawn(s, () => send(tx, 1)), recv(rx)]\n;;",
+        "f",
+    );
+    let at = got.iter().position(|o| o == "CLOSURE 0").unwrap();
+    assert_eq!(got[at + 1], "CLEARLOCAL 1");
+    // The arm's body lets go of the subject and of what its guard read.
+    let got = fn_ops(
+        "fn f(x, t):\n  y = match x:\n    n when ok(t) => g(n)\n    _ => 0\n  ;;\n  y\n;;\nfn ok(t) = t\nfn g(n) = n",
+        "f",
+    );
+    let at = got
+        .iter()
+        .position(|o| o.starts_with("JUMPIFFALSE"))
+        .unwrap();
+    assert_eq!(got[at + 1..at + 3], ["CLEARLOCAL 0", "CLEARLOCAL 1"]);
+    // Quiet: the base case returns at once.
+    let got = fn_ops("fn f(n, y) = n == 0 then y else f(n - 1, y)", "f");
+    assert!(!got.iter().any(|o| o.starts_with("CLEARLOCAL")), "{got:?}");
+}
+
+/// A call that passes every parameter by position starts past the
+/// prologue that fills defaults (VM21): `body` marks where it ends.
+#[test]
+fn body_starts_after_the_defaults_prologue() {
+    let p = comp("fn f(a, b = 1, c = 2) = a + b + c\nprint(f(1))");
+    let f = &p.protos[0];
+    assert_eq!(
+        ops(f),
+        "LOADLOCAL(1) JUMPIFSET(4) CONST(0) STORELOCAL(1) LOADLOCAL(2) JUMPIFSET(8) CONST(1) STORELOCAL(2) MOVELOCAL(0) MOVELOCAL(1) ADD MOVELOCAL(2) ADD RETURN"
+    );
+    assert_eq!(f.body, 8);
+    let g = &comp("fn g(a) = a\nprint(g(1))").protos[0];
+    assert_eq!(g.body, 0);
 }

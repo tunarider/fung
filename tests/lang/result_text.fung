@@ -1,11 +1,11 @@
 # A result is put into text on purpose with str (SP2); print shows it as
-# it is, and a result inside a list or map is shown with the list.
+# it is. Inside a list it is refused too (D46), so str again.
 r = Ok(1)
 print("r is ${str(r)}")
 # expect: r is Ok(1)
 print(r, Err("x"))
 # expect: Ok(1) Err("x")
-print("all: ${[Ok(1), Err(2)]}")
+print("all: ${str([Ok(1), Err(2)])}")
 # expect: all: [Ok(1), Err(2)]
 print(join(map([Ok(1), Err(2)], str), " "))
 # expect: Ok(1) Err(2)

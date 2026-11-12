@@ -79,6 +79,8 @@ fn filter_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
         }
         fn got(&mut self, r: Value) -> Result<bool, Stop> {
             if nat::want_bool(r)? {
+                // A long range or a channel is not bounded (D63).
+                nat::check_len(self.out.len() as u64 + 1)?;
                 self.out.push(self.x.take().expect("the element"));
             }
             Ok(false)
@@ -359,6 +361,8 @@ fn all_items(
     }
     impl<F: FnMut(&mut Task<'_>, Vec<Value>) -> Result<Flow, Stop>> Collect for Gather<F> {
         fn item(&mut self, x: Value) -> Result<bool, Stop> {
+            // A channel's elements are gathered into a list (D63).
+            nat::check_len(self.xs.len() as u64 + 1)?;
             self.xs.push(x);
             Ok(false)
         }
@@ -404,12 +408,23 @@ fn unique_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
         /// The kept elements, grown as the result (and read back for the
         /// comparisons: one copy of them, VA24).
         list: List,
+        /// The first element that is not nil: the type the others must
+        /// have (D40).
+        typed: Option<Value>,
     }
     impl Work for Unique {
         fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
             for x in self.xs.by_ref().take(STEP_ITEMS) {
+                // Elements of different types are `==`'s error even where
+                // their hashes keep them apart (D40): each is checked
+                // against the first that is not nil.
+                match &self.typed {
+                    Some(first) => crate::value::check_element(&x, first)?,
+                    None if !matches!(x, Value::Nil) => self.typed = Some(x.clone()),
+                    None => {}
+                }
                 let mut h = std::hash::DefaultHasher::new();
-                hash_value(&x, &mut h);
+                hash_value(&x, &mut h)?;
                 let h = std::hash::Hasher::finish(&h);
                 let mut at = self.first.get(&h).copied().unwrap_or(usize::MAX);
                 let mut seen = false;
@@ -444,6 +459,7 @@ fn unique_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
                 next: Vec::with_capacity(xs.len()),
                 list: List::new(Vec::new()),
                 xs: xs.into_iter(),
+                typed: None,
             },
         )
     })
@@ -537,17 +553,34 @@ fn all_fn(t: &mut Task<'_>, mut a: Args) -> Result<Flow, Stop> {
     quantify(t, &mut a, false)
 }
 
-/// `flatten(xs)` splices nested lists one level deep. It stays in Rust:
-/// a fung fold with `acc + x` would copy the accumulator per element.
+/// `flatten(xs)` splices the elements of `xs`, each a list or a range,
+/// one level deep; another element is E0506 (D77: a value among lists is
+/// a mistake `map` made, not something to pass through). The result keeps
+/// to the list limit (D63): a list's elements are measured before
+/// anything is built, a channel's as they come. It stays in Rust: a fung
+/// fold with `acc + x` would copy the accumulator per element.
 fn flatten_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "flatten")?;
     nat::limit_elements(&a[0])?;
+    if let Value::List(xs) = &a[0] {
+        let mut total: u64 = 0;
+        for x in xs.iter() {
+            total = total.saturating_add(spliced_len(x)?);
+        }
+        nat::check_len(total)?;
+    }
     struct Flatten(ListBuilder);
     impl Collect for Flatten {
         fn item(&mut self, x: Value) -> Result<bool, Stop> {
+            nat::check_len((self.0.len() as u64).saturating_add(spliced_len(&x)?))?;
             match &x {
                 Value::List(inner) => inner.iter().for_each(|v| self.0.push(v.clone())),
-                _ => self.0.push(x),
+                Value::Range(r) => {
+                    for i in 0..r.len() {
+                        self.0.push(Value::Int(r.start.wrapping_add(i as i64)));
+                    }
+                }
+                _ => unreachable!("spliced_len refused it"),
             }
             Ok(false)
         }
@@ -557,6 +590,26 @@ fn flatten_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
         }
     }
     drain_with(t, Cursor::new(&a[0]), Flatten(ListBuilder::default()))
+}
+
+/// How many elements `flatten` splices from `x`: a list's or a range's,
+/// else E0506 (D77).
+fn spliced_len(x: &Value) -> Result<u64, Stop> {
+    match x {
+        Value::List(l) => Ok(l.len() as u64),
+        Value::Range(r) => Ok(u64::try_from(r.len()).unwrap_or(u64::MAX)),
+        _ => Err(Stop::Error(Box::new(
+            fung_front::diag::error(
+                "E0506",
+                crate::vm::no_pos(),
+                vec![
+                    fung_front::diag::Arg::Str("flatten an element of type".into()),
+                    fung_front::diag::Arg::Str(crate::value::type_name(x)),
+                ],
+            )
+            .with_help("every element of `flatten`'s list is a list or a range; put a single value in a list: `[x]`"),
+        ))),
+    }
 }
 
 fn group_by_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
@@ -570,6 +623,8 @@ fn group_by_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
         x: Option<Value>,
         groups: Vec<(Rc<Text>, ListBuilder)>,
         at: HashMap<Rc<Text>, usize>,
+        /// The elements grouped so far.
+        count: u64,
     }
     impl PerItem for Group {
         fn args(&mut self, t: &mut Task<'_>, x: Value) -> usize {
@@ -581,6 +636,9 @@ fn group_by_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
             let Value::Str(key) = k else {
                 return Err(Stop::Error(Box::new(crate::value::index::not_a_key(&k))));
             };
+            // A channel's elements are not bounded (D63).
+            self.count += 1;
+            nat::check_len(self.count)?;
             let groups = &mut self.groups;
             let i = *self.at.entry(key.clone()).or_insert_with(|| {
                 groups.push((key, ListBuilder::default()));
@@ -739,9 +797,9 @@ fn reverse_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     })
 }
 
-/// `sum(xs)`: 0 when empty, else the elements joined by `+` from the
-/// first, so durations, strings and lists sum too. A lone element is
-/// checked as `+` would check it (VA18, D16): `sum([nil])` is not nil.
+/// `sum(xs)`: 0 when empty, else the elements added by `+` from the
+/// first. Only numbers and durations (D82): text is `join`ed and lists are
+/// `flatten`ed, and another element is E0506.
 fn sum_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "sum")?;
     if let Value::Range(r) = &a[0] {
@@ -749,44 +807,33 @@ fn sum_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     }
     struct Sum {
         acc: Option<Value>,
-        lone: bool,
     }
     impl Collect for Sum {
         fn item(&mut self, x: Value) -> Result<bool, Stop> {
+            if !matches!(x, Value::Int(_) | Value::Float(_) | Value::Dur(_)) {
+                return Err(Stop::Error(Box::new(
+                    fung_front::diag::error(
+                        "E0506",
+                        crate::vm::no_pos(),
+                        vec![
+                            fung_front::diag::Arg::Str("sum".into()),
+                            fung_front::diag::Arg::Str(crate::value::type_name(&x)),
+                        ],
+                    )
+                    .with_help("`sum` adds numbers and durations; join text with `join`, lists with `flatten`"),
+                )));
+            }
             self.acc = Some(match self.acc.take() {
                 None => x,
-                Some(acc) => {
-                    self.lone = false;
-                    crate::value::add(&acc, &x)?
-                }
+                Some(acc) => crate::value::add(&acc, &x)?,
             });
             Ok(false)
         }
         fn result(&mut self, _: &mut Task<'_>) -> Result<Flow, Stop> {
-            let Some(x) = self.acc.take() else {
-                return Ok(Flow::Done(Value::Int(0)));
-            };
-            if self.lone
-                && !matches!(
-                    x,
-                    Value::Int(_)
-                        | Value::Float(_)
-                        | Value::Str(_)
-                        | Value::List(_)
-                        | Value::Dur(_)
-                )
-            {
-                // the error `x + x` gives (no other value adds to itself)
-                crate::value::add(&x, &x)?;
-            }
-            Ok(Flow::Done(x))
+            Ok(Flow::Done(self.acc.take().unwrap_or(Value::Int(0))))
         }
     }
-    let p = Sum {
-        acc: None,
-        lone: true,
-    };
-    drain_with(t, Cursor::new(&a[0]), p)
+    drain_with(t, Cursor::new(&a[0]), Sum { acc: None })
 }
 
 /// A range's sum without walking it, the same as `+` folded from its
@@ -897,6 +944,12 @@ fn get_fn(_: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
 fn put_fn(_: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
     nat::need_map("put into", &a[0])?;
     let k = nat::need_key(&a[1])?.clone();
+    if let Value::Map(m) = &a[0]
+        && m.get(&*k).is_none()
+    {
+        // A map keeps to the list limit too (D63).
+        nat::check_len(m.len() as u64 + 1)?;
+    }
     let v = a.pop().expect("v");
     let mut m = take_map(&mut a, 0);
     // Copies the map first when it is shared (`make_mut`): the original
@@ -926,6 +979,8 @@ fn merge_fn(t: &mut Task<'_>, mut a: Args) -> Result<Flow, Stop> {
                     return Ok(Some(Value::Map(Rc::new(out))));
                 };
                 self.out.put(k.clone(), v.clone());
+                // A map keeps to the list limit too (D63).
+                nat::check_len(self.out.len() as u64)?;
                 self.at = i + 1;
             }
             Ok(None)

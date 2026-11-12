@@ -5,12 +5,12 @@ print(data.name, data.tags, data.n + 1, data.pi, data.ok, data.none)
 # expect: fung ["a", "b"] 4 3.5 true nil
 print(json.stringify(data))
 # expect: {"name":"fung","tags":["a","b"],"n":3,"pi":3.5,"ok":true,"none":null}
-print(json.stringify({a: [1, {b: 'sym}], t: (1, 2)}, indent: 2))
+print(json.stringify({a: [1, {b: "s"}], t: [1, 2]}, indent: 2))
 # expect: {
 # expect:   "a": [
 # expect:     1,
 # expect:     {
-# expect:       "b": "sym"
+# expect:       "b": "s"
 # expect:     }
 # expect:   ],
 # expect:   "t": [

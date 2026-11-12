@@ -3,8 +3,8 @@
 import fs
 fn kind(f: file) = type_of(f)
 print(fs.with_temp_dir(fn(d):
-  fs.with_open("${d}/x", f => kind(f), mode: 'write)
-;;))
+  fs.with_open("${d}/x", f => kind(f), mode: 'write)!
+;;)!)
 # expect: 'file
 fn count(...xs: list) -> int = len(xs)
 print(count(1, 2, 3))

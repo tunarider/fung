@@ -1,0 +1,5 @@
+# The list limit holds wherever a list is built (D63), before the work.
+print(len(flatten([0..3, [4]])))
+# expect: 4
+print(len(flatten([0..60000000, 0..60000000])))
+# expect-error: E0806

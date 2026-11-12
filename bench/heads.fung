@@ -14,4 +14,4 @@ supervise(fn(sc):
   each(0..2, _ => http.get("http://${addr}/", headers: full)!)
   each(0..2, _ => http.get("http://${addr}/many")!)
   cancel(s)
-;;, e => nil)
+;;, _e => nil)

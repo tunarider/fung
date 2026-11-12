@@ -111,14 +111,22 @@ print(remote("web-1", "df", "-h"))
 print(remote("web-1"))
 ```
 
-매개변수의 순서는 "필수 → 기본값 있는 것 → `...rest`"다. 인자 개수가 맞지 않거나 모르는 이름을 주면 런타임 에러다.
+매개변수의 순서는 "필수 → 기본값 있는 것 → `...rest`"다. 인자 개수가 맞지 않거나 모르는 이름을 주면 에러다. 부르는 함수가 최상위 `fn`이나 내장 함수처럼 정해져 있으면 실행하기 전에 잡는다(종료 코드 2).
 
-```fung run exit=1 error=E0406
+```fung run exit=2 error=E0406
 fn endpoint(host, port = 443) = "${host}:${port}"
 print(endpoint(prot: 80))
 ```
 
 위에서는 `port`를 `prot`로 잘못 썼다. 모르는 인자 이름이라는 E0406으로 멈춘다.
+
+거꾸로, 이미 리스트로 든 값을 위치 인자로 넘기려면 마지막 위치 인자 자리에 `...`를 붙여 **펼친다**.
+
+```fung run
+fn remote(host, ...cmd) = "ssh ${host} ${join(cmd, " ")}"
+parts = ["df", "-h"]
+print(remote("web-1", ...parts))
+```
 
 내장 함수도 똑같다. 예를 들어 `join(xs, sep = "")`는 `sep`에 기본값이 있어서 `join(["a", "b"])`로 부를 수 있다. 레퍼런스의 함수 항목에 이런 서명이 그대로 적혀 있다.
 
@@ -160,13 +168,16 @@ print(warn("disk 91%"))
 print(["timeout", "refused"] |> map(error))
 ```
 
-fung의 클로저 규칙은 하나다. **함수는 만들어질 때 보이는 변수의 값을 복사한다.** 나중에 그 이름에 다른 값을 대입해도, 함수가 가진 값은 그대로다.
+fung의 클로저 규칙은 하나다. **함수는 만들어질 때 보이는 변수의 값을 복사한다.** 나중에 그 이름에 다른 값을 대입해도(함수 본문 같은 블록 안에서는 같은 이름에 다시 대입할 수 있다), 함수가 가진 값은 그대로다.
 
 ```fung run
-suffix = ".log"
-is_target = name => ends_with(name, suffix)
-suffix = ".txt"
-print(is_target("app.log"), is_target("notes.txt"))
+fn targets(names):
+  suffix = ".log"
+  is_target = name => ends_with(name, suffix)
+  suffix = ".txt"
+  filter(names, is_target)
+;;
+print(targets(["app.log", "notes.txt"]))
 ```
 
 `is_target`이 만들어질 때 `suffix`는 `".log"`였으므로, 그 뒤에 `suffix`가 바뀌어도 `is_target`은 계속 `.log`를 찾는다. 값이 바뀌지 않는 언어라서 "그때의 값"과 "지금의 값"이 섞일 일이 없다.
@@ -176,20 +187,12 @@ print(is_target("app.log"), is_target("notes.txt"))
 위 규칙을 최상위 `fn`에 적용하면 결론이 하나 나온다. 최상위 `fn`은 프로그램 시작 **전에** 만들어지므로, 그때는 복사할 변수가 아직 없다. 그래서 최상위 `fn`이 볼 수 있는 파일의 이름은 다음뿐이다.
 
 - 다른 최상위 `fn`과 `import`한 모듈(10장)
-- 최상위에서 **한 번만** 대입한 이름, 곧 상수(3장). 상수는 바뀔 일이 없으니 부를 때 읽는다.
-
-두 번 이상 대입한 이름은 보이지 않는다. 그런 값은 인자로 넘긴다.
+- 최상위의 다른 이름, 곧 상수(3장). 최상위 이름은 한 번만 붙으니 바뀔 일이 없어 부를 때 읽는다.
 
 ```fung run
-log_dir = "/var/log/app"
 fn log_path(name) = "${log_dir}/${name}"
+log_dir = "/var/log/app"
 print(log_path("api.log"))
-```
-
-```fung run exit=2 error=E0204
-level = 1
-level = 2
-fn show() = level
 ```
 
 ## 파이프 {#pipe}
@@ -269,9 +272,9 @@ countdown(3)
 
 :::
 
-:::box mistake 최상위 함수에서 바뀌는 변수 읽기 (E0204)
+:::box mistake 최상위에서 이름 다시 쓰기 (E0238)
 
-최상위에서 두 번 이상 대입한 변수를 최상위 `fn`이 읽으면 E0204다. `help:` 줄이 이유를 알려 준다. 바뀌는 값은 인자로 넘기거나, 한 번만 대입하도록 고친다(예: `level = if … ;;`). 최상위 `fn`이 부를 때마다 파일의 "지금 값"을 찾는 언어에서는 함수의 결과가 호출 시점에 따라 달라지는데, fung은 그런 숨은 의존을 만들지 않는다.
+최상위에서 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙이거나 한 번에 계산한다(예: `level = if … ;;`). 최상위 `fn`이 부를 때 읽는 최상위 이름이 바뀔 수 있다면 함수의 결과가 호출 시점에 따라 달라지는데, 최상위 이름이 한 번만 붙으니 fung에는 그런 숨은 의존이 없다.
 
 :::
 
@@ -342,4 +345,4 @@ print(usages |> filter(over(95)))
 - `x |> f(a)`는 `f(x, a)`. 대상이 첫 인자라는 규칙 덕분에 파이프가 이어진다. `f(a, _)`는 부분 적용.
 - 목록 없는 반복은 재귀로 쓴다. 마지막 일이 자기 호출인 꼬리 재귀는 몇 번을 돌아도 스택을 쓰지 않는다. 언제 멈추는지부터 쓴다.
 
-레퍼런스: [함수](../reference/language/functions.html), [변수와 스코프](../reference/language/scope.html), [파이프](../reference/language/operators.html#pipe), [타입 표기](../reference/language/types.html)(인자와 반환값의 타입을 적어 검사하는 법), [E0204](../reference/errors.html#E0204), [E0227](../reference/errors.html#E0227). 클로저가 값을 복사하는 방법과 꼬리 호출이 프레임을 다시 쓰는 방법은 [함수와 클로저](../vm/09-closures.html)에서 다룬다.
+레퍼런스: [함수](../reference/language/functions.html), [변수와 스코프](../reference/language/scope.html), [파이프](../reference/language/operators.html#pipe), [타입 표기](../reference/language/types.html)(인자와 반환값의 타입을 적어 검사하는 법), [E0238](../reference/errors.html#E0238), [E0227](../reference/errors.html#E0227). 클로저가 값을 복사하는 방법과 꼬리 호출이 프레임을 다시 쓰는 방법은 [함수와 클로저](../vm/09-closures.html)에서 다룬다.

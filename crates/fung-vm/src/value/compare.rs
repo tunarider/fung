@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::rc::Rc;
 
@@ -8,23 +9,25 @@ use super::Value;
 use super::arith::compare_error;
 use super::format::{Items, is_collection};
 
-/// `==`: numbers compare by value across int/float (exactly), same types by
-/// value, reference types by identity, different types are never equal.
-/// Collections are walked pair by pair with an explicit stack (L9): the
-/// Rust stack does not grow with the values' depth. The walk stops at
-/// the first difference.
+/// `==` without its errors, for literal patterns (D40: a pattern tests
+/// the type, so a value of another type simply does not match): numbers
+/// compare by value across int/float (exactly), same types by value,
+/// handles by identity, different types are never equal. Collections are
+/// walked pair by pair with an explicit stack (L9): the Rust stack does
+/// not grow with the values' depth. The walk stops at the first
+/// difference.
 pub fn equal(a: &Value, b: &Value) -> bool {
-    // Without the symbol/string check the walk has no error to give.
     walk(a, b, false).unwrap_or(false)
 }
 
-/// The one walk behind `equal` and `eq`. With `strict`, a symbol meeting a
-/// string at a pair the walk compares is E0517 (VA8, VA22): the check and
-/// the comparison are one step, so they stop at the same pair.
+/// The one walk behind `equal` and `eq`. With `strict`, each pair the
+/// walk compares must be of one type (D40: numbers of either kind count
+/// as one, and `nil` meets anything), else E0517; two functions are
+/// E0501 (D62). The check and the comparison are one step, so they stop
+/// at the same pair (VA8, VA22).
 fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
-    let walks = (is_collection(a) && is_collection(b)) || (strict && sym_str_pair(a, b));
-    if !walks {
-        return Ok(equal_leaf(a, b));
+    if !(is_collection(a) && is_collection(b)) {
+        return leaf(a, b, strict);
     }
     let mut open: Vec<Pairs<'_>> = Vec::new();
     let mut next = Some((a, b));
@@ -32,20 +35,13 @@ fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
         if let Some((a, b)) = next.take()
             && !same_object(a, b)
         {
+            if strict {
+                check_types(a, b)?;
+            }
             match kids(a, b) {
                 Kids::Pairs(p) => open.push(p),
                 Kids::Mismatch => return Ok(false),
                 Kids::None => {
-                    if strict && sym_str_pair(a, b) {
-                        return Err(fung_front::diag::error(
-                            "E0517",
-                            super::arith::no_pos(),
-                            vec![
-                                fung_front::diag::Arg::Str(super::format(a)),
-                                fung_front::diag::Arg::Str(super::format(b)),
-                            ],
-                        ));
-                    }
                     if !equal_leaf(a, b) {
                         return Ok(false);
                     }
@@ -63,6 +59,62 @@ fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
                 open.pop();
             }
         }
+    }
+}
+
+/// `==` on two values that are not both collections.
+fn leaf(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
+    if strict {
+        check_types(a, b)?;
+    }
+    Ok(equal_leaf(a, b))
+}
+
+/// Whether `==` may compare `a` and `b` (D40, D62): values of one type
+/// (an int and a float are both numbers; tagged values are one type), or
+/// `nil` on either side, but never two functions.
+fn check_types(a: &Value, b: &Value) -> Result<(), Diag> {
+    if matches!(a, Value::Nil) || matches!(b, Value::Nil) {
+        return Ok(());
+    }
+    if is_fn(a) && is_fn(b) {
+        return Err(compare_error(a, b).with_help(
+            "functions have no equality; compare a name or a value that stands for each",
+        ));
+    }
+    if same_type(a, b) {
+        return Ok(());
+    }
+    let shown = |v: &Value| format!("{} ({})", crate::vm::shown_value(v), super::type_name(v));
+    let d = fung_front::diag::error(
+        "E0517",
+        super::arith::no_pos(),
+        vec![
+            fung_front::diag::Arg::Str(shown(a)),
+            fung_front::diag::Arg::Str(shown(b)),
+        ],
+    );
+    Err(if sym_str_pair(a, b) {
+        d.with_help("a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`")
+    } else {
+        d
+    })
+}
+
+fn is_fn(v: &Value) -> bool {
+    matches!(v, Value::Closure(_) | Value::Native(_))
+}
+
+/// Whether `a` and `b` are of one type as `==` sees it (D40): `type_of`
+/// gives them one name, numbers of either kind counting as one and
+/// tagged values too, whatever their names (`Ok(1) == Err(1)` is
+/// `false`, not an error: a tag's name is part of its value).
+fn same_type(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Int(_) | Value::Float(_), Value::Int(_) | Value::Float(_)) => true,
+        (Value::Tag(_), Value::Tag(_)) => true,
+        (Value::Closure(_) | Value::Native(_), Value::Closure(_) | Value::Native(_)) => true,
+        _ => std::mem::discriminant(a) == std::mem::discriminant(b),
     }
 }
 
@@ -171,10 +223,11 @@ fn kids<'a>(a: &'a Value, b: &'a Value) -> Kids<'a> {
     }
 }
 
-/// `==` and `!=` as programs see them (02): `equal`, except that a symbol
-/// meeting a string anywhere the comparison looks (inside lists, tuples,
-/// tags and maps too) is E0517: never equal, and almost always a value
-/// that came back from JSON or a file (L10). Patterns keep `equal`.
+/// `==` and `!=` as programs see them (02): `equal`, except that a pair
+/// of different types anywhere the comparison looks (inside lists,
+/// tuples, tags and maps too) is E0517 (D40: never equal, and almost
+/// always a value that came from outside as a string), and two functions
+/// are E0501 (D62). Patterns keep `equal`.
 pub fn eq(a: &Value, b: &Value) -> Result<bool, Diag> {
     walk(a, b, true)
 }
@@ -205,9 +258,15 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
     }
     // Each open pair: what is left of both, and their lengths.
     let mut open: Vec<(Items<'_>, Items<'_>, usize, usize)> = Vec::new();
+    // Collections already compared with themselves (VA36): such a pair is
+    // equal unless some item does not compare, and that stopped the walk
+    // the first time; a value shared many times is walked once.
+    let mut walked: HashSet<*const ()> = HashSet::new();
     let mut next = Some((a, b));
     loop {
-        if let Some((a, b)) = next.take() {
+        if let Some((a, b)) = next.take()
+            && self_pair(a, b).is_none_or(|p| walked.insert(p))
+        {
             match (a, b) {
                 (Value::Tuple(x), Value::Tuple(y)) => open.push((
                     Items::Slice(x.iter()),
@@ -240,6 +299,16 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
                 }
             }
         }
+    }
+}
+
+/// The collection `a` and `b` both are, when they are the same list or
+/// tuple.
+fn self_pair(a: &Value, b: &Value) -> Option<*const ()> {
+    match (a, b) {
+        (Value::List(x), Value::List(y)) if Rc::ptr_eq(x, y) => Some(Rc::as_ptr(x).cast()),
+        (Value::Tuple(x), Value::Tuple(y)) if Rc::ptr_eq(x, y) => Some(Rc::as_ptr(x).cast()),
+        _ => None,
     }
 }
 
@@ -300,8 +369,9 @@ fn cmp_int_float(i: i64, f: f64) -> Ordering {
 ///
 /// Walked with an explicit stack (L9). A map's entries are each hashed
 /// on a hasher of their own and summed; meanwhile the hasher the map
-/// belongs to waits in its frame.
-pub fn hash_value(v: &Value, h: &mut DefaultHasher) {
+/// belongs to waits in its frame. A function has no equality, so no hash
+/// either: E0501, as `==` gives (D62).
+pub fn hash_value(v: &Value, h: &mut DefaultHasher) -> Result<(), Diag> {
     if !is_collection(v) {
         return hash_leaf(v, h);
     }
@@ -342,12 +412,12 @@ pub fn hash_value(v: &Value, h: &mut DefaultHasher) {
                     outer: std::mem::take(&mut cur),
                     in_entry: false,
                 }),
-                v => hash_leaf(v, &mut cur),
+                v => hash_leaf(v, &mut cur)?,
             }
         }
         let Some(top) = open.last_mut() else {
             *h = cur;
-            return;
+            return Ok(());
         };
         match top {
             Open::Seq(items) => match items.next() {
@@ -385,7 +455,10 @@ pub fn hash_value(v: &Value, h: &mut DefaultHasher) {
 }
 
 /// `hash_value` of a value that holds no other.
-fn hash_leaf(v: &Value, h: &mut DefaultHasher) {
+fn hash_leaf(v: &Value, h: &mut DefaultHasher) -> Result<(), Diag> {
+    if is_fn(v) {
+        return check_types(v, v);
+    }
     match v {
         Value::Int(i) => (0u8, *i).hash(h),
         Value::Float(f) => {
@@ -403,8 +476,7 @@ fn hash_leaf(v: &Value, h: &mut DefaultHasher) {
         Value::Time(t) => (6u8, t.instant()).hash(h),
         // By the numbers it holds, as `==` compares (D19).
         Value::Range(r) => (10u8, r.ends()).hash(h),
-        Value::Closure(x) => (12u8, Rc::as_ptr(x) as usize).hash(h),
-        Value::Native(x) => (12u8, std::ptr::from_ref(*x) as usize).hash(h),
+        Value::Closure(_) | Value::Native(_) => unreachable!("a function has no hash"),
         Value::Module(x) => (12u8, Rc::as_ptr(x) as usize).hash(h),
         Value::Task(x) => (12u8, Rc::as_ptr(x) as usize).hash(h),
         Value::Scope(x) => (12u8, Rc::as_ptr(x) as usize).hash(h),
@@ -418,4 +490,11 @@ fn hash_leaf(v: &Value, h: &mut DefaultHasher) {
             unreachable!("collections are walked by `hash_value`")
         }
     }
+    Ok(())
+}
+
+/// Whether `in` may look for `x` among `c`'s elements, which are all of
+/// `c`'s type (`in` on a range: its ints, D40).
+pub(crate) fn check_element(x: &Value, of: &Value) -> Result<(), Diag> {
+    check_types(x, of)
 }

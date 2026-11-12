@@ -1,0 +1,6 @@
+# An alternative an earlier one takes every value of never matches (FE61).
+match 3:
+  1 | 1 => print("one")
+  _     => print("other")
+;;
+# expect-error: E0241

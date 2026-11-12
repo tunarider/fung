@@ -1,0 +1,3 @@
+# A lambda parameter nobody reads is an error (D38).
+print(map([1, 2], x => 0))
+# expect-error: E0239

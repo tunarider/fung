@@ -15,7 +15,7 @@ print(swap(b, x => x + deref(b)), b == b, b == atom(1), swap(b, x => x + len([b]
 # expect: 2 true false 3
 
 # A failing f leaves the value as it was.
-t = supervise(s => spawn(s, () => swap(b, x => x / 0)), _ => nil)
+t = supervise(s => spawn(s, () => swap(b, x => x / 0)), _ => nil)!
 print(await(t) |> is_err, deref(b))
 # expect: true 3
 

@@ -9,7 +9,7 @@
 //!
 //! What is covered, and how:
 //! - `check` on every `.fung` file of `tests/lang` (with `_lib`),
-//!   `examples` and `extras`, the warning fixtures in
+//!   `examples` and `extras`, the name-error fixtures in
 //!   `tests/data/check`, `-e` programs, and argument errors.
 //! - The manual: its checked examples (`manual/**/*.md`, which the
 //!   generator in `manual_build.rs` checks and runs) have a fixed
@@ -176,17 +176,17 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 329;
-const CHECK_WARNING_CASES: usize = 9;
+const CHECK_REPOSITORY_CASES: usize = 449;
+const CHECK_NAME_CASES: usize = 9;
 const CHECK_ARGUMENT_CASES: usize = 30;
 const HELP_CASES: usize = 11;
 const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 24;
-const TEST_REPOSITORY_CASES: usize = 330;
-const FMT_INPUTS: usize = 7746;
-const FMT_STDIN_CASES: usize = 1538;
+const TEST_REPOSITORY_CASES: usize = 450;
+const FMT_INPUTS: usize = 10341;
+const FMT_STDIN_CASES: usize = 1719;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 38;
 const REPL_CASES: usize = 35;
@@ -208,22 +208,22 @@ fn check_matches_the_expected_output_on_the_repository() {
 }
 
 #[test]
-fn check_matches_the_expected_output_on_warning_fixtures() {
+fn check_matches_the_expected_output_on_name_fixtures() {
     let files = corpus(&["crates/fung-cli/tests/data/check"]);
     let cases: Vec<_> = files.iter().map(|f| check(f)).collect();
-    assert_eq!(cases.len(), CHECK_WARNING_CASES, "{files:?}");
+    assert_eq!(cases.len(), CHECK_NAME_CASES, "{files:?}");
     verify_cases(
-        "check/warnings.txt",
-        "`fung check` on the warning fixtures",
+        "check/names.txt",
+        "`fung check` on the name-error fixtures (D38)",
         &cases,
         &subs(&[]),
     );
-    // The fixtures do warn: two silent runs would prove nothing.
+    // The fixtures do fail: two silent runs would prove nothing.
     let (_, err, _) = run(
         &fung_bin(),
         &os_args(&["check", "crates/fung-cli/tests/data/check/unused_vars.fung"]),
     );
-    assert!(String::from_utf8_lossy(&err).contains("warning[W0102]"));
+    assert!(String::from_utf8_lossy(&err).contains("error[E0239]"));
 }
 
 const CHECK_E: &[&str] = &[
@@ -801,7 +801,7 @@ fn test_counts_an_unreadable_file() {
     );
     assert_eq!(
         err,
-        format!("error: cannot read `{arg}`: permission denied\n")
+        format!("  error: cannot read `{arg}`: permission denied\n")
     );
     assert_eq!(status, "ExitStatus(unix_wait_status(512))");
     let _ = std::fs::remove_dir_all(&dir);
@@ -813,7 +813,7 @@ fn test_counts_an_unreadable_file() {
 #[test]
 fn test_without_tests_fails() {
     let dir = scratch("test-none");
-    std::fs::write(dir.join("plain.fung"), "x = 1\n").unwrap();
+    std::fs::write(dir.join("plain.fung"), "_x = 1\n").unwrap();
     let arg = dir.to_string_lossy().into_owned();
     let (out, err, status) = run(&fung_bin(), &os_args(&["test", &arg]));
     assert_eq!(
@@ -865,6 +865,60 @@ fn test_refuses_a_bad_scheduler_seed() {
             "{seed:?}"
         );
     }
+}
+
+/// The seed line follows only a failure in a file that spawned tasks:
+/// a failure without tasks does not depend on their order (TL12, D83).
+#[test]
+fn test_shows_the_seed_only_when_tasks_ran() {
+    let dir = scratch("test-seed");
+    std::fs::write(
+        dir.join("plain.fung"),
+        "test \"plain\":\n  assert 1 == 2\n;;\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("tasks.fung"),
+        "test \"tasks\":\n  r = scope(s => await(spawn(s, () => 1)))\n  assert r == Ok(Ok(2))\n;;\n",
+    )
+    .unwrap();
+    for (file, seed) in [("plain.fung", false), ("tasks.fung", true)] {
+        let arg = dir.join(file).to_string_lossy().into_owned();
+        let mut cmd = std::process::Command::new(fung_bin());
+        cmd.args(["test", &arg])
+            .env_remove("FUNG_SCHED_SEED")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        // `common::spawn` would set the seed: start it under its lock.
+        let child = {
+            let _held = common::starting();
+            cmd.spawn().unwrap()
+        };
+        let o = common::Reaped::new(child).output().unwrap();
+        let err = String::from_utf8_lossy(&o.stderr);
+        assert_eq!(o.status.code(), Some(1), "{file}: {err}");
+        assert_eq!(err.contains("scheduler seed"), seed, "{file}: {err}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A file that cannot load shows its errors indented under its `FAIL`
+/// line, as a failed test shows its own (TL12, D83).
+#[test]
+fn test_indents_load_errors() {
+    let dir = scratch("test-load-indent");
+    std::fs::write(dir.join("broken.fung"), "test \"t\":\n  print(nope)\n;;\n").unwrap();
+    let arg = dir.join("broken.fung").to_string_lossy().into_owned();
+    let (out, err, _) = run(&fung_bin(), &os_args(&["test", &arg]));
+    let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
+    assert_eq!(out, format!("FAIL {arg}: <load>\n0 passed, 1 failed\n"));
+    assert!(
+        err.starts_with("  error[E0204]: undefined name `nope`\n"),
+        "{err}"
+    );
+    assert!(err.lines().all(|l| l.starts_with("  ")), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// `fung test` with no path walks the working directory.
@@ -2147,12 +2201,12 @@ fn repl_globals_have_no_fixed_limit() {
 fn repl_recovers_after_a_deadlock() {
     let (out, err, code) = repl_session(
         "deadlock",
-        "a = atom(1)\n(_tx, c) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(c))\n  recv(c)\n;;)\nprint(\"after\")\nscope(s => await(spawn(s, () => 40 + 2)))\nswap(a, (n) => n + 1)\n",
+        "a = atom(1)\n(_tx, c) = channel()\nscope(fn(s):\n  _t = spawn(s, () => recv(c))\n  recv(c)\n;;)\nprint(\"after\")\nscope(s => await(spawn(s, () => 40 + 2)))\nswap(a, (n) => n + 1)\n",
     );
-    assert_eq!(out, "after\nnil\n42\n2\n");
+    assert_eq!(out, "after\nnil\nOk(Ok(42))\n2\n");
     assert_eq!(
         err,
-        "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n 1 other task is waiting:\n   recv at <repl>:2:26 (<lambda>, holds its own sending end)\n"
+        "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n 1 other task is waiting:\n   recv at <repl>:2:27 (<lambda>, holds its own sending end)\n"
     );
     assert_eq!(code, Some(1));
 }

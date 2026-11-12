@@ -1,0 +1,5 @@
+# `??` and `|>` do not mix without parentheses (D35): `x |> f ?? d` and
+# `a ?? b |> f` each have two natural readings, so the code says which.
+print(("x" |> env) ?? "d", "x" |> (env ?? print))
+print("x" |> env ?? "d")
+# expect-error: E0127

@@ -48,6 +48,9 @@ mod module_tests;
 #[cfg(test)]
 mod mutable_tests;
 mod offload;
+mod output;
+#[cfg(test)]
+mod output_tests;
 #[cfg(test)]
 mod park_tests;
 pub(crate) mod pieces;
@@ -92,7 +95,7 @@ pub use atom::Atom;
 #[cfg(test)]
 pub(crate) use atom::effect_names;
 #[cfg(test)]
-pub(crate) use atom::{EFFECTS, PURE, is_listed};
+pub(crate) use atom::{EFFECTS, PURE, has_no_effect, is_listed};
 pub(crate) use atom::{
     make as atom_make, read as atom_read, reset as atom_reset, run_swap as atom_swap,
 };
@@ -105,12 +108,17 @@ pub(crate) use cleanup::run_with;
 pub(crate) use closer::Closer;
 pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
-pub use link::RtProto;
+pub use link::{Code, RtProto};
 pub(crate) use link::{Prelude, link};
-pub(crate) use m4::{ResultKind, discarded, discarded_err, may_hold_err, not_result, result_kind};
+pub(crate) use m4::{
+    ResultKind, discarded, discarded_err, may_hold_err, not_result, not_text, result_kind,
+    shown_value,
+};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub(crate) use offload::{Kind, alone, offload_kind};
+pub use output::std_streams_apart;
+pub(crate) use output::{Std, write_std};
 pub(crate) use poller::Interest;
 pub(crate) use pool::{Pool, Ticket};
 pub use runtime::Runtime;
@@ -162,12 +170,42 @@ pub(crate) fn no_pos() -> Pos {
 }
 
 /// An error at `pos`, unless it already has a position.
+/// `v.clone()` with the scalars copied right here: the clone of a whole
+/// `Value` is a call the run loop made for every `CONST` and `LOADLOCAL`
+/// (VM35).
+#[inline(always)]
+fn copy_value(v: &Value) -> Value {
+    match v {
+        Value::Int(n) => Value::Int(*n),
+        Value::Float(f) => Value::Float(*f),
+        Value::Bool(b) => Value::Bool(*b),
+        Value::Nil => Value::Nil,
+        Value::Sym(s) => Value::Sym(*s),
+        Value::Dur(d) => Value::Dur(*d),
+        v => v.clone(),
+    }
+}
+
 fn at(d: Diag, pos: Pos) -> Stop {
     Stop::Error(Box::new(d.with_pos(pos)))
 }
 
 fn err(code: &str, pos: Pos, args: Vec<Arg>) -> Stop {
     Stop::Error(Box::new(error(code, pos, args)))
+}
+
+/// An operator's type error on a result value (`parse_int(s) + 1`) gets
+/// the help to unwrap it first, as interpolation's has (VA39). Cold.
+#[cold]
+fn unwrap_first(d: Diag, operands: &[&Value]) -> Diag {
+    let on_result = operands
+        .iter()
+        .any(|v| matches!(result_kind(v), ResultKind::Ok(_) | ResultKind::Err));
+    if on_result && d.help.is_none() && matches!(d.code.as_str(), "E0501" | "E0506") {
+        d.with_help("unwrap it with `!` or `?` first")
+    } else {
+        d
+    }
 }
 
 /// E0606 for an `Err` that a statement discarded, alone or in a list
@@ -233,7 +271,9 @@ pub(crate) struct Fiber {
     todo: Option<Todo>,
     /// Room for a call's named arguments while they are bound
     /// (`Task::bind_in_place`), kept from call to call (VM6).
-    named: Vec<(crate::value::Sym, Value)>,
+    /// with the slot each goes to, and which slots they fill (VM34).
+    named: Vec<(usize, Value)>,
+    filled: Vec<bool>,
 }
 
 impl Fiber {
@@ -263,6 +303,7 @@ impl Fiber {
             waiter: block::Waiter::new(shared.next_fiber(), shared.ready.clone()),
             todo: None,
             named: Vec::new(),
+            filled: Vec::new(),
         }
     }
 
@@ -514,8 +555,10 @@ impl<'rt> Task<'rt> {
         if self.fiber.cancel.is_cancelled() {
             return Err(self.unwound());
         }
-        let now = std::time::Instant::now();
-        if self.fiber.cancel.deadline_at().is_some_and(|at| now >= at)
+        // The clock only when there is a deadline (CC21).
+        if let Some(at) = self.fiber.cancel.deadline_at()
+            && let now = std::time::Instant::now()
+            && now >= at
             && self.fiber.cancel.expire_due(now)
         {
             return Err(self.unwound());
@@ -623,7 +666,7 @@ impl<'rt> Task<'rt> {
     pub(crate) fn user_pos(&self) -> Option<Pos> {
         self.fiber.frames.iter().rev().find_map(|f| {
             if f.proto().builtin {
-                f.tail_from.as_ref().and_then(|t| t.pos)
+                f.tail_from().and_then(|t| t.pos)
             } else {
                 f.current_pos()
             }
@@ -665,7 +708,7 @@ impl<'rt> Task<'rt> {
             if !f.proto().builtin {
                 path.push(self.site(f.proto(), f.current_pos(), f.tail_calls));
             }
-            if let Some(t) = &f.tail_from {
+            if let Some(t) = f.tail_from() {
                 path.push(self.site(&t.proto, t.pos, t.tail_calls));
             }
         }
@@ -737,7 +780,7 @@ impl<'rt> Task<'rt> {
         }
         let b = self.pop();
         let a = self.pop();
-        let r = f(&a, &b).map_err(|d| at(d, self.here(fi)))?;
+        let r = f(&a, &b).map_err(|d| at(unwrap_first(d, &[&a, &b]), self.here(fi)))?;
         self.push(r);
         Ok(())
     }
@@ -750,6 +793,97 @@ impl<'rt> Task<'rt> {
             [.., Some(Value::Int(x)), Some(Value::Int(y))] => Some((*x, *y)),
             _ => None,
         }
+    }
+
+    /// CONCAT of the `n` parts on top of the stack (interpolation): one
+    /// buffer of the parts' size, and text that is valid UTF-8 already is
+    /// not looked at again (VA32, VA38).
+    #[inline(never)]
+    fn concat(&mut self, fi: usize, n: usize) -> Result<(), Stop> {
+        let pos = self.here(fi);
+        let start = self.fiber.stack.len() - n;
+        let parts = &self.fiber.stack[start..];
+        let refuse = |part: &Value| match m4::not_text(part, "string interpolation") {
+            Some(d) => Err(Stop::Error(Box::new(d.with_pos(pos)))),
+            None => Ok(()),
+        };
+        let size = parts
+            .iter()
+            .map(|p| match p {
+                Some(Value::Str(s)) => s.len(),
+                _ => 8,
+            })
+            .sum();
+        let utf8 = parts.iter().all(|p| match p {
+            Some(Value::Str(s)) => s.is_utf8(),
+            _ => true,
+        });
+        let r = if utf8 {
+            let mut s = String::with_capacity(size);
+            let mut ascii = true;
+            for part in self
+                .fiber
+                .stack
+                .drain(start..)
+                .map(|p| p.expect("CONCAT of an unassigned slot"))
+            {
+                refuse(&part)?;
+                match &part {
+                    Value::Str(t) => {
+                        ascii &= t.is_ascii();
+                        s.push_str(t.as_str().expect("checked to be UTF-8"));
+                    }
+                    // An int's digits go into the buffer itself.
+                    Value::Int(n) => {
+                        use std::fmt::Write;
+                        let _ = write!(s, "{n}");
+                    }
+                    _ => {
+                        let t = value::format_text(&part).map_err(|d| at(d, pos))?;
+                        ascii &= t.is_ascii();
+                        s.push_str(&t);
+                    }
+                }
+            }
+            value::check_chars(s.as_bytes()).map_err(|d| at(d, pos))?;
+            Value::Str(Rc::new(value::Text::ascii(s, ascii)))
+        } else {
+            let mut s = Vec::with_capacity(size);
+            for part in self
+                .fiber
+                .stack
+                .drain(start..)
+                .map(|p| p.expect("CONCAT of an unassigned slot"))
+            {
+                refuse(&part)?;
+                value::write_for_print(&part, &mut s).map_err(|d| at(d, pos))?;
+            }
+            value::check_chars(&s).map_err(|d| at(d, pos))?;
+            Value::bytes(s)
+        };
+        self.push(r);
+        Ok(())
+    }
+
+    /// Whether the two operands on top of the stack are strings.
+    #[inline(always)]
+    fn top_texts(&self) -> bool {
+        matches!(
+            self.fiber.stack.as_slice(),
+            [.., Some(Value::Str(_)), Some(Value::Str(_))]
+        )
+    }
+
+    /// `+` on the two strings on top of the stack: the left one is taken
+    /// off the stack, so one held there alone grows in place (VA32).
+    #[inline(never)]
+    fn add_texts(&mut self, fi: usize) -> Result<(), Stop> {
+        let (Value::Str(y), Value::Str(x)) = (self.pop(), self.pop()) else {
+            unreachable!("top_texts")
+        };
+        let r = value::add_text(x, &y).map_err(|d| at(d, self.here(fi)))?;
+        self.push(r);
+        Ok(())
     }
 
     /// Replaces the two ints on top of the stack (`top_ints`) with `v`.
@@ -766,7 +900,7 @@ impl<'rt> Task<'rt> {
 
     fn unary(&mut self, f: fn(&Value) -> Result<Value, Diag>, fi: usize) -> Result<(), Stop> {
         let a = self.pop();
-        let r = f(&a).map_err(|d| at(d, self.here(fi)))?;
+        let r = f(&a).map_err(|d| at(unwrap_first(d, &[&a]), self.here(fi)))?;
         self.push(r);
         Ok(())
     }
@@ -781,7 +915,9 @@ impl<'rt> Task<'rt> {
         let a = self.pop();
         let c = match (&a, &b) {
             (Value::Int(x), Value::Int(y)) => x.cmp(y),
-            _ => value::compare(&a, &b).map_err(|d| at(d, self.here(fi)))?,
+            _ => {
+                value::compare(&a, &b).map_err(|d| at(unwrap_first(d, &[&a, &b]), self.here(fi)))?
+            }
         };
         self.push(Value::Bool(test(c)));
         Ok(())
@@ -795,13 +931,13 @@ impl<'rt> Task<'rt> {
             let fi = self.fiber.frames.len() - 1;
             let f = &mut self.fiber.frames[fi];
             let ip = f.ip;
-            let code = f.proto().code[ip];
+            let code = f.closure.code[ip];
             f.ip = ip + 1;
             let base = f.base();
             let (op, arg) = (code.op, code.arg as usize);
             match op {
                 Op::Const => {
-                    let v = self.fiber.frames[fi].proto().consts[arg].clone();
+                    let v = copy_value(&self.fiber.frames[fi].proto().consts[arg]);
                     self.push(v);
                 }
                 // A statement's value is discarded: an Err is E0606 (02).
@@ -813,7 +949,13 @@ impl<'rt> Task<'rt> {
                         return Err(stop);
                     }
                 }
-                Op::Add => self.binary(fi, i64::checked_add, value::add)?,
+                Op::Add => {
+                    if self.top_texts() {
+                        self.add_texts(fi)?;
+                        continue;
+                    }
+                    self.binary(fi, i64::checked_add, value::add)?
+                }
                 Op::Sub => self.binary(fi, i64::checked_sub, value::sub)?,
                 Op::Mul => self.binary(fi, i64::checked_mul, value::mul)?,
                 Op::Div => self.binary(fi, |_, _| None, value::div)?,
@@ -882,15 +1024,27 @@ impl<'rt> Task<'rt> {
                         return Err(err("E0505", self.here(fi), vec![Arg::Str(tn)]));
                     }
                 },
-                Op::Call | Op::TailCall => {
+                Op::JumpIfTrue => match self.pop() {
+                    Value::Bool(false) => {}
+                    Value::Bool(true) => self.fiber.frames[fi].ip = arg,
+                    v => {
+                        let tn = value::type_name(&v);
+                        return Err(err("E0505", self.here(fi), vec![Arg::Str(tn)]));
+                    }
+                },
+                Op::Call | Op::TailCall | Op::CallSpread | Op::TailCallSpread => {
                     self.tick_in(fi)?;
                     if self.fiber.turn_due {
                         // Back at this call after the others' turns.
                         self.fiber.frames[fi].ip = ip;
                         return Ok(Ran::Yielded(None));
                     }
-                    let tail = op == Op::TailCall;
-                    match self.call_op(arg, fi, tail)? {
+                    let tail = matches!(op, Op::TailCall | Op::TailCallSpread);
+                    let (mut npos, nnamed) = fung_front::bytecode::decode_call(arg);
+                    if matches!(op, Op::CallSpread | Op::TailCallSpread) {
+                        npos = self.spread_args(npos, nnamed, fi)?;
+                    }
+                    match self.call_op(npos, nnamed, fi, tail)? {
                         Entered::Frame => {}
                         // A native ran to completion.
                         Entered::Value(r) if tail => match self.ret_with(r)? {
@@ -940,6 +1094,7 @@ impl<'rt> Task<'rt> {
                         ));
                     }
                 }
+                Op::TailCheck => self.tail_check(fi, ip, arg),
                 Op::CheckReturn => {
                     let v = self.top();
                     let p = &self.fiber.frames[fi].proto();
@@ -956,7 +1111,7 @@ impl<'rt> Task<'rt> {
                 }
                 Op::LoadLocal => {
                     // Copies an empty slot too: JUMPIFSET reads it.
-                    let v = self.fiber.stack[base + arg].clone();
+                    let v = self.fiber.stack[base + arg].as_ref().map(copy_value);
                     self.fiber.stack.push(v);
                 }
                 Op::StoreLocal => {
@@ -982,32 +1137,12 @@ impl<'rt> Task<'rt> {
                     let old = self.fiber.frames[fi].globals().borrow_mut()[arg].replace(v);
                     drop(old);
                 }
-                Op::Concat => {
-                    let pos = self.here(fi);
-                    let start = self.fiber.stack.len() - arg;
-                    let mut s = Vec::new();
-                    for part in self.fiber.stack.drain(start..) {
-                        let part = part.expect("CONCAT of an unassigned slot");
-                        if let Some(tag) = m4::result_kind(&part).result_name() {
-                            let d = fung_front::diag::error(
-                                "E0519",
-                                pos,
-                                vec![
-                                    Arg::Str(tag.into()),
-                                    Arg::Str("string interpolation".into()),
-                                ],
-                            );
-                            return Err(Stop::Error(Box::new(d)));
-                        }
-                        value::write_for_print(&part, &mut s);
-                    }
-                    value::check_chars(&s).map_err(|d| at(d, pos))?;
-                    self.push(Value::bytes(s));
-                }
+                Op::Concat => self.concat(fi, arg)?,
+                // Goes on with what it bound, or to `arg` (VM29).
+                Op::Match => self.match_op(fi, ip, arg),
+                Op::Tag | Op::Map => self.make_tagged(fi, ip, op, arg),
                 Op::List
-                | Op::Map
                 | Op::Tuple
-                | Op::Tag
                 | Op::Range
                 | Op::Index
                 | Op::Slice
@@ -1016,7 +1151,6 @@ impl<'rt> Task<'rt> {
                 | Op::UnwrapAbort
                 | Op::UnwrapTest
                 | Op::Coalesce
-                | Op::Match
                 | Op::MatchOrFail
                 | Op::NoMatch => {
                     let pos = self.here(fi);
@@ -1048,6 +1182,24 @@ impl<'rt> Task<'rt> {
     fn make_closure(&self, fi: usize, child: usize) -> Result<Value, Stop> {
         let f = &self.fiber.frames[fi];
         let proto = f.proto().protos[child].clone();
+        // Nothing to copy: the closure made last in this module serves
+        // (VM20). Another module's globals make one of their own.
+        if proto.captures.is_empty() {
+            let made = &f.proto().made[child];
+            if let Some(c) = made.get()
+                && Rc::ptr_eq(&c.globals, f.globals())
+            {
+                return Ok(Value::Closure(c.clone()));
+            }
+            let c = Rc::new(Closure {
+                code: proto.code.clone(),
+                proto,
+                captured: Default::default(),
+                globals: f.globals().clone(),
+            });
+            let _ = made.set(c.clone());
+            return Ok(Value::Closure(c));
+        }
         let captured = proto
             .captures
             .iter()
@@ -1066,6 +1218,7 @@ impl<'rt> Task<'rt> {
             })
             .collect::<Result<_, Stop>>()?;
         Ok(Value::Closure(Rc::new(Closure {
+            code: proto.code.clone(),
             proto,
             captured,
             globals: f.globals().clone(),

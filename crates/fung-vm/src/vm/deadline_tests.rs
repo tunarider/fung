@@ -20,7 +20,7 @@ fn quick() -> impl FnOnce() {
 fn timeout_gives_the_value() {
     assert_eq!(
         run("print(timeout(() => 1 + 1, 1s))"),
-        ("2\n".into(), "".into(), 0)
+        ("Ok(2)\n".into(), "".into(), 0)
     );
 }
 
@@ -52,7 +52,7 @@ fn a_computation_is_cut_at_the_deadline() {
     let done = quick();
     assert_eq!(
         run(
-            "fn spin(n) = n == 0 then 0 else spin(n - 1)\nprint(timeout(() => spin(1000000000), 50ms))"
+            "fn spin(k) = k == 0 then 0 else spin(k - 1)\nprint(timeout(() => spin(1000000000), 50ms))"
         ),
         (
             "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n".into(),
@@ -95,14 +95,14 @@ fn nested_timeouts_answer_at_the_right_level() {
     assert_eq!(
         run("(_tx, never) = channel()\nprint(timeout(() => timeout(() => recv(never), 20ms), 1s))"),
         (
-            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
+            "Ok(Err({kind: 'timeout, message: \"timed out after 20ms\"}))\n".into(),
             "".into(),
             0
         )
     );
     assert_eq!(
         run(
-            "(_tx, never) = channel()\nprint(timeout(fn(): r = timeout(() => recv(never), 10s); print(\"not here\") ;;, 20ms))"
+            "(_tx, never) = channel()\nprint(timeout(fn(): _r = timeout(() => recv(never), 10s); print(\"not here\") ;;, 20ms))"
         ),
         (
             "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
@@ -148,7 +148,7 @@ fn an_outer_cancel_is_not_a_timeout() {
             "(_tx, never) = channel()\nr = scope(fn(s): t = spawn(s, () => timeout(() => recv(never), 10s)); cancel(t); await(t) ;;)\nprint(r)"
         ),
         (
-            "Err({kind: 'cancelled, message: \"cancelled\"})\n".into(),
+            "Ok(Err({kind: 'cancelled, message: \"cancelled\"}))\n".into(),
             "".into(),
             0
         )
@@ -165,12 +165,13 @@ fn timeout_checks_its_arguments() {
 
 #[test]
 fn the_timeout_parameters_are_gone() {
+    // prelude functions: caught when the file is compiled (D43)
     let (_, err, code) = run("(_tx, rx) = channel()\nrecv(rx, timeout: 1s)");
     assert!(err.contains("`timeout`"), "{err}");
-    assert_eq!(code, 1);
+    assert_eq!(code, 2);
     let (_, err, code) = run("await(scope(s => spawn(s, () => 1)), timeout: 1s)");
     assert!(err.contains("`timeout`"), "{err}");
-    assert_eq!(code, 1);
+    assert_eq!(code, 2);
 }
 
 // --- final review fixes ---

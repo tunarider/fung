@@ -99,7 +99,7 @@ print(hosts)</code></pre><pre class="out plain"><code>[&quot;WEB-1&quot;, &quot;
 [&quot;web-1&quot;, &quot;db-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]</code></pre></div>
 <p>마지막 줄처럼 원본 <code>hosts</code>는 그대로다.</p>
 <h3 id="limits">크기 제한</h3>
-<p>결과가 모든 원소를 담는 함수(<code>map</code>, <code>sort</code>, <code>reverse</code>, <code>unique</code> 등)는 원소 1억 개를 넘는 범위를 받으면 만들기 전에 E0806으로 거절한다. 메모리를 다 쓰고 죽는 대신 이유를 알려 주기 위해서다. 결과가 작을 수 있는 <code>filter</code>·<code>fold</code>와 일찍 멈추는 <code>find</code>·<code>any</code>·<code>take</code>는 큰 범위도 받는다(원소를 하나씩 만들어 보므로 시간은 든다). <code>len</code>은 원소를 만들지 않고 계산한다.</p>
+<p>리스트(와 맵)는 원소 1억 개까지다. 리스트를 만드는 모든 길이 이 한도를 지킨다: <code>+</code>, <code>flatten</code>, <code>put</code>·<code>merge</code>, 범위나 받는 끝을 받은 <code>map</code>·<code>filter</code>·<code>sort</code> 등, 펼치기(<code>...xs</code>). 넘으면 E0806이다. 결과가 모든 원소를 담는 함수(<code>map</code>, <code>sort</code>, <code>reverse</code>, <code>unique</code> 등)는 원소 1억 개를 넘는 범위를 받으면 만들기 전에 거절한다. 메모리를 다 쓰고 죽는 대신 이유를 알려 주기 위해서다. 다만 이것은 값 하나의 한도이고 <strong>전체 메모리 한도는 없다</strong>: 한도 안의 큰 값을 여럿 만들면 메모리가 그만큼 는다. 결과가 작을 수 있는 <code>filter</code>·<code>fold</code>와 일찍 멈추는 <code>find</code>·<code>any</code>·<code>take</code>는 큰 범위도 받는다(원소를 하나씩 만들어 보므로 시간은 든다). <code>len</code>은 원소를 만들지 않고 계산한다.</p>
 <h2 id="basics">세기와 고르기</h2>
 <section class="entry" id="fn-len">
 <h3>len</h3>
@@ -139,7 +139,7 @@ print(len(0..10), len(0..=10), len(5..5), len(0..1_000_000_000_000))</code></pre
 <div class="sig"><code>is_empty(x)</code></div>
 <h4>설명</h4>
 <p><code>len</code>이 받는 모든 값을 받는다. 범위는 길이를 세지 않고 원소가 하나라도 있는지만 본다. <code>[nil]</code>은 원소가 하나 있으므로 비어 있지 않다.</p>
-<p>조건 자리에는 <code>bool</code>만 오므로, 리스트가 비었는지 물을 때 <code>if xs:</code>라고 쓸 수 없다. <code>if is_empty(xs):</code> 또는 <code>if not is_empty(xs):</code>로 쓴다.</p>
+<p>조건 자리에는 <code>bool</code>만 오므로, 리스트가 비었는지 물을 때 <code>if xs:</code>라고 쓸 수 없다. <code>if is_empty(xs):</code> 또는 <code>if not is_empty(xs):</code>로 쓴다. <code>len(xs) == 0</code>과 같은 일을 함수로 두는 것은 <code>filter(groups, is_empty)</code>처럼 함수를 넘기는 자리 때문이다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>x</code>: <code>str</code>, <code>list</code>, <code>map</code>, <code>tuple</code>, <code>range</code>.</li>
@@ -188,7 +188,7 @@ print(first(mirrors) ?? &quot;https://default.example&quot;)</code></pre><pre cl
 <p>마지막 원소를, 비었으면 <code>nil</code>을 돌려준다.</p>
 <div class="sig"><code>last(xs)</code></div>
 <h4>설명</h4>
-<p><code>xs[-1]</code>과 같지만 빈 리스트에서 에러 대신 <code>nil</code>이다. 범위는 계산으로 마지막 수를 준다. 채널의 받는 끝이면 닫힐 때까지 모두 받고 마지막 값을 준다.</p>
+<p><code>xs[len(xs) - 1]</code>과 같지만 빈 리스트에서 에러 대신 <code>nil</code>이다. 범위는 계산으로 마지막 수를 준다. 채널의 받는 끝이면 닫힐 때까지 모두 받고 마지막 값을 준다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -280,6 +280,7 @@ print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&q
 <li>문자열: <code>x</code>가 부분 문자열인가. 빈 문자열은 언제나 들어 있다.</li>
 </ul>
 <p>심볼과 문자열을 견주면 E0517이다(<code>contains(['a], &quot;a&quot;)</code>). 외부에서 온 문자열은 <a href="convert.html#fn-sym"><code>sym</code></a>으로 바꿔서 찾는다.</p>
+<p>연산자 <code>in</code>이 있는데 함수를 따로 두는 것은 파이프(<code>xs |&gt; contains(x)</code>)와 함수를 넘기는 자리(<code>filter(xss, xs =&gt; contains(xs, x))</code>)에서 쓰려는 것이다. 조건에서는 <code>x in c</code>가 읽기 쉽다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>c</code>: 리스트, 범위, 맵, 문자열.</li>
@@ -314,8 +315,8 @@ dev refused</code></pre></div>
 <h4>설명</h4>
 <p><code>map([a, b, c], f)</code>는 <code>[f(a), f(b), f(c)]</code>다. 원소 수는 그대로이고 순서도 지킨다. 원본은 바뀌지 않는다. <code>for x in xs: 식 ;;</code>도 리스트를 만들지만, 이미 있는 함수를 넘기거나 파이프로 이을 때는 <code>map</code>이 짧다.</p>
 <p><code>f</code>는 인자 하나를 받는 함수다. 범위를 주면 리스트가 된다(<code>map(0..3, x =&gt; x)</code>는 <code>[0, 1, 2]</code>). 받는 끝을 주면 값이 올 때마다 <code>f</code>를 부르고 채널이 닫히면 끝난다.</p>
-<div class="box mistake"><b>map 안의 ? 는 컴파일 에러다 (E0226)</b>
-<p><code>map(xs, s =&gt; parse_int(s)?)</code>처럼 <code>map</code>에 바로 쓴 람다 안의 <code>?</code>는 컴파일 에러 E0226이다(<code>f:</code>로 이름 붙여 줘도, 병렬판 <code>conc.pmap</code>에서도 같다). <code>?</code>는 람다에서 돌아올 뿐이라, <code>Err</code>가 바깥 함수로 가지 않고 결과 리스트의 원소가 되어 버리기 때문이다. 실패할 수 있는 변환은 <a href="#fn-try_map"><code>try_map</code></a>을 쓴다. 처음 나온 <code>Err</code>에서 멈추고 그것을 돌려준다.</p>
+<div class="box mistake"><b>람다 안의 ? 는 컴파일 에러다 (E0237)</b>
+<p><code>map(xs, s =&gt; parse_int(s)?)</code>처럼 람다 안에 쓴 <code>?</code>는 컴파일 에러 E0237이다(람다는 일찍 돌아갈 수 없다). 허락했다면 <code>?</code>는 람다에서 돌아올 뿐이라, <code>Err</code>가 바깥 함수로 가지 않고 결과 리스트의 원소가 되어 버린다. 실패할 수 있는 변환은 <a href="#fn-try_map"><code>try_map</code></a>을 쓴다. 처음 나온 <code>Err</code>에서 멈추고 그것을 돌려준다.</p>
 </div>
 <h4>매개변수</h4>
 <ul>
@@ -326,7 +327,7 @@ dev refused</code></pre></div>
 <p>리스트.</p>
 <h4>에러</h4>
 <ul>
-<li><code>xs</code>가 문자열·맵·튜플 등이면 런타임 에러 E0506(<code>cannot map over str</code>).</li>
+<li><code>xs</code>가 문자열·맵·튜플 등이면 런타임 에러 E0506(<code>cannot iterate over str</code>).</li>
 <li><code>f</code>가 함수가 아니면 E0403, 인자 수가 맞지 않으면 E0407.</li>
 <li>결과가 1억 개를 넘으면 E0806.</li>
 </ul>
@@ -346,7 +347,7 @@ print(map(servers, s =&gt; &quot;${s.name}: ${s.cpu}%&quot;))</code></pre><pre c
 <div class="run"><pre><code>ports = {web: 80, db: 5432}
 print(pairs(ports) |&gt; map(((k, v)) =&gt; &quot;${k}=${v}&quot;))</code></pre><pre class="out plain"><code>[&quot;web=80&quot;, &quot;db=5432&quot;]</code></pre></div>
 <p><strong>문자열은 바로 받지 않는다</strong></p>
-<div class="run"><pre><code>print(map(&quot;abc&quot;, upper))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot map over str
+<div class="run"><pre><code>print(map(&quot;abc&quot;, upper))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot iterate over str
   --&gt; example.fung:1:10
   |
 1 | print(map(&quot;abc&quot;, upper))
@@ -395,7 +396,7 @@ Err({kind: 'parse, message: &quot;not an integer: \&quot;http\&quot;&quot;})</co
 <div class="run"><pre><code>rs = [Ok(1), Ok(2), Ok(3)]
 print(try_map(rs, r =&gt; r))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-map"><code>map</code></a>, <a href="../language/results.html">결과값과 에러</a>, <a href="../errors.html#E0226">E0226</a></p>
+<p><a href="#fn-map"><code>map</code></a>, <a href="../language/results.html">결과값과 에러</a>, <a href="../errors.html#E0237">E0237</a></p>
 </section>
 <section class="entry" id="fn-filter">
 <h3>filter</h3>
@@ -563,7 +564,7 @@ print(db == nil then &quot;not found&quot; else db.ip)</code></pre><pre class="o
 <p><code>f</code>가 <code>bool</code>이 아닌 값을 돌려주면 런타임 에러 E0505.</p>
 <h4>예제</h4>
 <p><strong>하나라도</strong></p>
-<div class="run"><pre><code>print(any([1, 2], x =&gt; x &gt; 1), any([], x =&gt; true))</code></pre><pre class="out plain"><code>true false</code></pre></div>
+<div class="run"><pre><code>print(any([1, 2], x =&gt; x &gt; 1), any([], _x =&gt; true))</code></pre><pre class="out plain"><code>true false</code></pre></div>
 <p><strong>처음 맞는 곳에서 멈춘다</strong></p>
 <div class="run"><pre><code>r = any([1, 2, 3, 4], fn(x):
   print(&quot;checking&quot;, x)
@@ -592,7 +593,7 @@ true</code></pre></div>
 <p><code>f</code>가 <code>bool</code>이 아닌 값을 돌려주면 런타임 에러 E0505.</p>
 <h4>예제</h4>
 <p><strong>모두</strong></p>
-<div class="run"><pre><code>print(all([2, 4], x =&gt; x % 2 == 0), all([2, 3], x =&gt; x % 2 == 0), all([], x =&gt; false))</code></pre><pre class="out plain"><code>true false true</code></pre></div>
+<div class="run"><pre><code>print(all([2, 4], x =&gt; x % 2 == 0), all([2, 3], x =&gt; x % 2 == 0), all([], _x =&gt; false))</code></pre><pre class="out plain"><code>true false true</code></pre></div>
 <p><strong>모든 검사가 통과했는가</strong></p>
 <div class="run"><pre><code>checks = [{name: &quot;disk&quot;, ok: true}, {name: &quot;dns&quot;, ok: false}]
 print(all(checks, c =&gt; c.ok) then &quot;healthy&quot; else &quot;unhealthy&quot;)
@@ -706,7 +707,7 @@ print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) =&gt; v))</code></pre><
 <p>처음 나온 순서를 지키며 중복을 뺀 새 리스트를 돌려준다.</p>
 <div class="sig"><code>unique(xs)</code></div>
 <h4>설명</h4>
-<p>같은지는 <code>==</code>로 본다. 그래서 <code>1</code>과 <code>1.0</code>은 같은 값이고(앞의 것이 남는다), 리스트나 맵도 내용이 같으면 중복이다. 대소문자는 구별한다(<code>&quot;a&quot;</code>와 <code>&quot;A&quot;</code>는 다르다). 정렬하지 않으므로 정렬된 결과가 필요하면 <code>unique</code> 뒤에 <code>sort</code>한다. 원소 수에 비례하는 시간이 든다.</p>
+<p>같은지는 <code>==</code>로 본다. 그래서 <code>1</code>과 <code>1.0</code>은 같은 값이고(앞의 것이 남는다), 리스트나 맵도 내용이 같으면 중복이다. <code>==</code>처럼 타입이 다른 원소는 견줄 수 없으므로, <code>nil</code>이 아닌 원소는 모두 <code>nil</code>이 아닌 첫 원소와 타입이 같아야 한다(숫자끼리는 같은 타입). 함수는 같음이 없어 넣을 수 없다. 대소문자는 구별한다(<code>&quot;a&quot;</code>와 <code>&quot;A&quot;</code>는 다르다). 정렬하지 않으므로 정렬된 결과가 필요하면 <code>unique</code> 뒤에 <code>sort</code>한다. 원소 수에 비례하는 시간이 든다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -714,7 +715,7 @@ print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) =&gt; v))</code></pre><
 <h4>돌려주는 값</h4>
 <p>리스트.</p>
 <h4>에러</h4>
-<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506.</p>
+<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506. 원소의 타입이 다르면 E0517, 함수가 있으면 E0501.</p>
 <h4>예제</h4>
 <p><strong>중복 빼기</strong></p>
 <div class="run"><pre><code>print(unique([1, 2, 1, 3, 2]), unique([1, 1.0]), unique([[1], [1], [2]]))</code></pre><pre class="out plain"><code>[1, 2, 3] [1] [[1], [2]]</code></pre></div>
@@ -726,10 +727,10 @@ print(unique(hits), unique(hits) |&gt; sort)</code></pre><pre class="out plain">
 </section>
 <section class="entry" id="fn-flatten">
 <h3>flatten</h3>
-<p>리스트의 리스트를 한 단계만 펼친다: <code>[[1, [2]], 3]</code> → <code>[1, [2], 3]</code>.</p>
+<p>리스트의 리스트를 한 단계만 펼친다: <code>[[1, [2]], [3]]</code> → <code>[1, [2], 3]</code>.</p>
 <div class="sig"><code>flatten(xs)</code></div>
 <h4>설명</h4>
-<p>원소가 리스트면 그 원소들을 꺼내 잇고, 리스트가 아닌 원소는 그대로 둔다. 한 단계만 펼치므로 더 깊은 리스트는 남는다. 각 원소가 여러 개를 만드는 변환은 <code>map</code> 뒤에 <code>flatten</code>을 붙인다.</p>
+<p>원소마다 그 원소들을 꺼내 잇는다. 원소는 리스트나 범위여야 하고, 다른 값이 섞이면 에러다: <code>map</code> 뒤의 <code>flatten</code>에서 "어떤 때는 리스트, 어떤 때는 값"인 실수를 말없이 넘기지 않기 위해서다. 값 하나는 <code>[x]</code>로 감싼다. 한 단계만 펼치므로 더 깊은 리스트는 남는다. 각 원소가 여러 개를 만드는 변환은 <code>map</code> 뒤에 <code>flatten</code>을 붙인다. 결과가 1억 원소를 넘으면 만들기 전에 E0806.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -737,10 +738,10 @@ print(unique(hits), unique(hits) |&gt; sort)</code></pre><pre class="out plain">
 <h4>돌려주는 값</h4>
 <p>리스트.</p>
 <h4>에러</h4>
-<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506.</p>
+<p><code>xs</code>가 받지 않는 타입이거나 리스트·범위가 아닌 원소가 있으면 런타임 에러 E0506(<code>cannot flatten an element of type int</code>). 결과가 1억 원소를 넘으면 E0806.</p>
 <h4>예제</h4>
 <p><strong>한 단계만</strong></p>
-<div class="run"><pre><code>print(flatten([[1, [2]], 3]), flatten([[], [1]]), flatten([[[1]]]))</code></pre><pre class="out plain"><code>[1, [2], 3] [1] [[1]]</code></pre></div>
+<div class="run"><pre><code>print(flatten([[1, [2]], [3]]), flatten([[], [1]]), flatten([[[1]]]), flatten([0..2, [5]]))</code></pre><pre class="out plain"><code>[1, [2], 3] [1] [[1]] [0, 1, 5]</code></pre></div>
 <p><strong>원소 하나가 여러 개가 될 때</strong></p>
 <div class="run"><pre><code>groups = {web: [&quot;web-1&quot;, &quot;web-2&quot;], db: [&quot;db-1&quot;]}
 print(values(groups) |&gt; flatten)
@@ -831,8 +832,8 @@ db-1   10.0.0.9</code></pre></div>
 <p>원소의 합을 돌려준다. 빈 리스트는 정수 0.</p>
 <div class="sig"><code>sum(xs)</code></div>
 <h4>설명</h4>
-<p>첫 원소에서 시작해 나머지를 <code>+</code>로 더한다. 그래서 수뿐 아니라 <code>+</code>로 더할 수 있는 값이면 다 된다: 기간(<code>dur</code>)의 합은 기간이고(<code>sum([1s, 500ms])</code>는 <code>1s500ms</code>), 문자열·리스트는 이어 붙인다. 정수와 실수를 섞으면 실수가 된다. 비었을 때는 원소의 타입을 알 수 없으므로 정수 <code>0</code>이다. 기간의 합이 빈 리스트일 수 있으면 <code>fold(xs, 0s, (a, d) =&gt; a + d)</code>로 <code>0s</code>에서 시작한다(아래 예제).</p>
-<p>원소가 하나뿐이어도 <code>+</code>로 더할 수 있는 값(수·문자열·리스트·기간)이어야 한다. 그래서 <code>sum([nil])</code>은 <code>nil</code>이 아니라 <code>nil + nil</code>과 같은 에러다. 범위는 원소를 하나씩 더하지 않고 계산하므로 <code>sum(0..2_000_000_000)</code>도 곧바로 답한다. 결과는 수의 리스트를 더한 것과 같아서, 더해 가는 중간에 정수 범위를 넘으면 리스트처럼 E0503이다.</p>
+<p>첫 원소에서 시작해 나머지를 <code>+</code>로 더한다. 원소는 수와 기간(<code>dur</code>)만 받는다: 기간의 합은 기간이다(<code>sum([1s, 500ms])</code>는 <code>1s500ms</code>). 문자열은 <code>join</code>, 리스트는 <code>flatten</code>으로 잇는다. 정수와 실수를 섞으면 실수가 된다. 비었을 때는 원소의 타입을 알 수 없으므로 정수 <code>0</code>이다. 기간의 합이 빈 리스트일 수 있으면 <code>fold(xs, 0s, (a, d) =&gt; a + d)</code>로 <code>0s</code>에서 시작한다.</p>
+<p>원소가 하나뿐이어도 수나 기간이어야 한다(<code>sum([nil])</code>은 에러). 범위는 원소를 하나씩 더하지 않고 계산하므로 <code>sum(0..2_000_000_000)</code>도 곧바로 답한다. 결과는 수의 리스트를 더한 것과 같아서, 더해 가는 중간에 정수 범위를 넘으면 리스트처럼 E0503이다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -840,7 +841,7 @@ db-1   10.0.0.9</code></pre></div>
 <h4>돌려주는 값</h4>
 <p>원소의 합, 비었으면 0.</p>
 <h4>에러</h4>
-<p>더할 수 없는 원소가 섞이면 런타임 에러 E0501(<code>cannot add int and str</code>). 합이 정수 범위를 넘으면 E0503. 리스트·범위·받는 끝이 아니면 E0506(<code>cannot sum int</code>).</p>
+<p>수·기간이 아닌 원소가 있으면 런타임 에러 E0506(<code>cannot sum str</code>), 수와 기간이 섞이면 E0501(<code>cannot add dur and int</code>). 합이 정수 범위를 넘으면 E0503. 리스트·범위·받는 끝이 아니면 E0506(<code>cannot sum int</code>).</p>
 <h4>예제</h4>
 <p><strong>합계</strong></p>
 <div class="run"><pre><code>print(sum([1, 2, 3]), sum([]), sum([1.5, 2]), sum(1..=100), sum([1s, 500ms]))</code></pre><pre class="out plain"><code>6 0 3.5 5050 1s500ms</code></pre></div>

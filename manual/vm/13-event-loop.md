@@ -127,7 +127,7 @@ server drained
 
 파일을 읽는 일은 이벤트 루프로 기다릴 수 없다. 일반 파일의 fd는 언제나 "준비됨"으로 보고되지만 실제 `read`는 디스크를 기다리며 막힌다. 이름 조회(`getaddrinfo`)는 막히는 함수만 있다. 이런 일은 다른 운영체제 스레드에서 해야 한다.
 
-FIFO(이름 있는 파이프)는 반대다. 쓰는 쪽이나 읽는 쪽을 끝없이 기다릴 수 있어서, 풀에서 하면 그 스레드가 멈춘 채 남는다. 기한이 지나도 운영체제 스레드는 멈출 수 없으니, 그런 읽기가 64개 쌓이면 풀이 가득 차 다른 파일 일이 줄에 선다. 그래서 FIFO는 소켓처럼 `O_NONBLOCK`으로 열고 실행 스레드에서 읽고 쓰며, 막히면 그 fd를 이벤트 루프에 등록하고 주차한다(`crates/fung-vm/src/native/pipe.rs`, 0.5.0 L11). 준비된 바이트만 가져오므로 취소된 읽기도 바이트를 잃지 않는다.
+FIFO(이름 있는 파이프)는 반대다. 쓰는 쪽이나 읽는 쪽을 끝없이 기다릴 수 있어서, 풀에서 하면 그 스레드가 멈춘 채 남는다. 기한이 지나도 운영체제 스레드는 멈출 수 없으니, 그런 읽기가 64개 쌓이면 풀이 가득 차 다른 파일 일이 줄에 선다. 그래서 FIFO는 소켓처럼 `O_NONBLOCK`으로 열고 실행 스레드에서 읽고 쓰며, 막히면 그 fd를 이벤트 루프에 등록하고 주차한다(`crates/fung-vm/src/native/pipe.rs`, 0.5.0 L11). 준비된 바이트만 가져오므로 취소된 읽기도 바이트를 잃지 않는다. 이벤트 루프는 한 fd·방향에 기다림 하나만 두므로(둘째 등록은 첫째를 덮어써 첫 태스크가 깨어나지 못한다), 한 FIFO 핸들을 여러 태스크가 읽거나 쓰면 연결처럼 읽는 쪽과 쓰는 쪽의 차례 줄에 선다. 먼저 기다린 태스크가 다음 줄을 받는다.
 
 운영체제의 차이가 둘 있다. 쓰는 쪽이 닫히면 Linux의 epoll은 `EPOLLHUP`을 알리지만, macOS는 kqueue도 `poll`도 아무것도 알리지 않는다(읽으면 0바이트, 곧 끝이다). 그래서 macOS에서는 FIFO를 기다릴 때 이벤트가 없어도 다시 본다. 또 0바이트 읽기는 "쓰는 쪽이 아직 안 옴"과 "떠남"이 같아서, 쓰는 쪽을 한 번 본 뒤에만(데이터나 EAGAIN이 온 뒤, Linux는 epoll이 깨운 뒤) 끝으로 본다.
 
@@ -210,6 +210,16 @@ scope(fn(s):
 - 어떤 태스크가 줄을 기다리고 줄 큐가 비었을 때만 읽는다. 그래서 프로그램이 달라고 하지 않은 입력은 그대로 남아, 셸에서 fung 다음에 오는 명령이 읽을 수 있다.
 - 읽은 줄을 큐에 넣고 기다리는 태스크를 깨운다. 바이트만 다루고, fung 문자열로 바꾸는 일은 실행 스레드에서 한다.
 
+## 표준 출력과 에러 {#stdout}
+
+쓰기도 막힌다. 표준 출력이 파이프이고 읽는 쪽이 읽지 않으면, 파이프 버퍼(64 KB 남짓)가 찬 뒤의 `write`는 읽을 때까지 돌아오지 않는다. 실행 스레드에서 쓰면 그동안 모든 태스크, 기한, 첫 신호의 정지 요청이 멈춘다. `http.serve`가 `print`로 남기는 기록을 느린 파이프로 보내면 서버 전체가 선다. fd 1·2에도 `O_NONBLOCK`을 켜지 않는다. 표준 입력과 같은 이유다(나눠 쓰는 셸과 파이프의 다른 쪽에도 걸린다). 대신 **쓰기 전용 스레드**가 있다(`crates/fung-vm/src/vm/output.rs`).
+
+- `print`·`eprint`·`dbg`는 줄을 큐에 넣고 곧바로 돌아온다. 쓰기 스레드가 큐에 쌓인 것을 한 번에 꺼내 차례대로 쓴다. 빠른 읽는 쪽에는 줄마다가 아니라 묶음마다 시스템 호출 하나다.
+- 큐에는 아직 쓰지 못한 바이트를 64 KB까지만 둔다. 넘으면 쓴 태스크가 주차하고, 쓰기 스레드가 자리를 만들면 깨운다. 파이프 버퍼처럼 역압은 그대로이지만, 바깥이 깨우는 주차라서 기한·취소·신호가 끊을 수 있다(이미 큐에 넣은 줄은 나중에 나간다).
+- 표준 출력과 에러가 같은 곳(터미널, `2>&1`)이면 **줄 하나**로 써서 두 스트림의 순서를 지킨다. 다른 곳이면 따로 쓴다. 읽지 않는 표준 출력이 표준 에러를 막지 않는다.
+- 실행이 끝날 때(`Task::run_root`의 끝)와 런타임을 놓을 때 큐를 다 쓸 때까지 기다린다. 그래서 명령이 그 뒤에 쓰는 것(에러 보고, REPL의 프롬프트)은 프로그램의 출력 뒤에 오고, 종료할 때 잃는 줄이 없다.
+- 쓰기가 실패하면(디스크가 가득 참) 그 스트림의 다음 쓰기나 실행의 끝이 E0801로 실패한다. 닫힌 파이프는 쓰기 스레드에서 SIGPIPE로 프로세스를 끝낸다(06의 규칙 그대로).
+
 ## 값은 실행 스레드에만 {#one-thread}
 
 지금까지 나온 스레드를 모아 보자.
@@ -221,6 +231,7 @@ scope(fn(s):
     <tr><td>실행 스레드</td><td>모든 태스크, 스케줄러, 이벤트 루프의 기다림</td><td><b>예, 이 스레드만</b></td></tr>
     <tr><td>신호 스레드</td><td>SIGINT·SIGTERM을 받아 사건을 게시한다(14장)</td><td>아니오</td></tr>
     <tr><td>표준 입력 스레드</td><td>바이트를 읽어 줄 큐에 넣는다(필요할 때만)</td><td>아니오</td></tr>
+    <tr><td>표준 출력 스레드(1~2개)</td><td>큐에 넣은 출력을 차례대로 쓴다(처음 쓸 때 생김)</td><td>아니오(바이트만)</td></tr>
     <tr><td>풀 스레드(0~64개)</td><td>파일, 이름 조회, 정규식 컴파일</td><td>아니오(평범한 데이터만)</td></tr>
   </tbody>
 </table>
@@ -256,11 +267,13 @@ scope(fn(s):
 - `crates/fung-vm/src/vm/poller.rs`: 이벤트 루프 `Poller`(`register`·`deregister`·`wait`·`exit_watch`), `Waker`, `Interest`, `ExitWatch`. 운영체제별 구현 `poller/kqueue.rs`, `poller/epoll.rs`.
 - `crates/fung-vm/src/vm/block.rs`: 소켓 기다림 `park_io`, `IoStep`, 닫을 때의 `drop_io_waits`.
 - `crates/fung-vm/src/vm/sched.rs`: 루프 보기 `poll_io`, 준비된 토큰으로 깨우기 `wake_ready`, `POLL_EVERY`, 자기 `sleep`.
-- `crates/fung-vm/src/native/net.rs`: 다시 해 보기 `Attempt`·`wait_io`·`run_io`, 연결의 차례 줄 `Turnstile`.
+- `crates/fung-vm/src/native/net.rs`: 다시 해 보기 `Attempt`·`wait_io`·`run_io`.
 - `crates/fung-vm/src/vm/pool.rs`: 스레드 풀 `Pool`, `POOL_MAX`, `POOL_IDLE`, 일의 표 `Ticket`.
 - `crates/fung-vm/src/vm/offload.rs`, `native/nat.rs`: `offload_kind`, `Kind::Wait`·`Kind::Abandon`, `nat::offload`·`nat::offload_abandoning`.
 - `crates/fung-vm/src/native/process.rs`: 외부 명령의 상자 `CommandWait`, `PUMP_BUDGET`.
 - `crates/fung-vm/src/vm/stdin.rs`: 표준 입력 읽기 스레드.
+- `crates/fung-vm/src/vm/output.rs`: 표준 출력·에러 쓰기 스레드 `Lane`, 태스크의 쓰기 `write_std`, `ROOM`.
+- `crates/fung-vm/src/native/turn.rs`: 연결과 FIFO 핸들의 차례 줄 `Turnstile`.
 - `crates/fung-vm/src/vm/runtime.rs`, `vm/world.rs`: `!Send`인 `Runtime`, 값을 품은 `World`, 스레드에 안전한 `Shared`.
 - `crates/fung-vm/src/rlimit.rs`: 열린 파일 한도.
 
@@ -289,7 +302,7 @@ print(timeout(() => map(hosts, check), 1200ms))
 - 이벤트 루프는 kqueue·epoll을 `libc`로 직접 감싼 준비 상태 기반, one-shot 등록이다. 주차마다 새 토큰을 붙여 재사용된 fd 번호의 알림을 걸러 낸다.
 - 소켓 연산은 한 번 해 보고, 막히면 fd를 등록하고 주차했다가, 깨어나면 처음부터 다시 한다. 진행 상태는 연결과 내장 함수가 쥔다.
 - 풀은 필요할 때 최대 64개, 10초 놀면 끝, 꽉 차면 FIFO다. 읽기만 하는 일은 취소 때 버리고, 무엇을 바꾸는 일은 끝까지 기다린다. 서로를 기다릴 수 있는 일은 풀에 넣지 않는다.
-- 외부 명령은 끝과 파이프 셋을 한 상자가 함께 등록한다. 표준 입력은 전용 스레드가 필요할 때만 읽는다.
+- 외부 명령은 끝과 파이프 셋을 한 상자가 함께 등록한다. 표준 입력은 전용 스레드가 필요할 때만 읽고, 표준 출력·에러는 전용 스레드가 큐에서 꺼내 쓴다.
 - fung 값은 실행 스레드에만 산다. `Runtime`은 `!Send`이고 다른 스레드는 값이 없는 `Shared`만 본다. 손으로 쓴 `unsafe impl Send`는 없다.
 
 레퍼런스: [fs](../reference/modules/fs.html), [외부 명령](../reference/prelude/process.html), [http](../reference/modules/http.html). 다음 장은 이렇게 기다리는 태스크를 **멈추게** 하는 법, 곧 취소·기한·정리를 본다.

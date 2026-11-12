@@ -6,37 +6,26 @@ use super::Node;
 use crate::source::Pos;
 
 /// One alternative of a type annotation (07) as the parser read it: a
-/// type name where it is written, with the alternatives of its element
-/// type, `list[str | int]` (FE34). After resolve, aliases are expanded
-/// and only the outer names are left, the ones the runtime checks.
+/// type name where it is written. After resolve, aliases are expanded and
+/// only the names the runtime checks are left.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypeTerm {
     pub name: String,
     pub pos: Pos,
-    pub elems: Vec<TypeTerm>,
 }
 
 impl TypeTerm {
-    /// A term without an element type.
     pub fn plain(name: &str, pos: Pos) -> TypeTerm {
         TypeTerm {
             name: name.to_string(),
             pos,
-            elems: Vec::new(),
         }
     }
 }
 
-/// `list[str|int]`, as dumps show a term.
 impl fmt::Display for TypeTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.name)?;
-        if !self.elems.is_empty() {
-            f.write_str("[")?;
-            write_union(f, &self.elems)?;
-            f.write_str("]")?;
-        }
-        Ok(())
+        f.write_str(&self.name)
     }
 }
 
@@ -143,11 +132,17 @@ impl fmt::Display for TypeAlias {
 pub struct FnInfo {
     /// Empty for lambdas and anonymous fns.
     pub name: String,
+    /// Where the name is written (the `fn` keyword when there is none),
+    /// for errors about the name.
+    pub name_pos: Pos,
     pub params: Vec<Param>,
     /// `None` means unchecked.
     pub ret: Option<Vec<TypeTerm>>,
-    /// The synthetic lambda of a `for`: `return` inside is E0213.
+    /// The synthetic lambda of a `for`: `return` and `?` inside are
+    /// E0237 (D42).
     pub for_body: bool,
+    /// Written as a lambda `=>`: `return` and `?` inside are E0237 (D42).
+    pub lambda: bool,
     pub num_locals: usize,
     pub captures: Vec<Capture>,
 }

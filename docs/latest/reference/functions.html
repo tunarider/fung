@@ -83,22 +83,26 @@
 <h2 id="reading">읽는 법</h2>
 <ul>
   <li><code>f(a, b = 1, ...rest)</code>: <code>b</code>는 기본값이 있고 <code>rest</code>는 남는 위치 인자를 리스트로 받는다. 내장 함수도 이름 붙인 인자를 받는다: <code>exec(cmd, cwd: "/tmp")</code>.</li>
-  <li>모든 함수는 "대상이 첫 번째 인자"라서 파이프로 이어진다: <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같다(<a href="language/operators.html#pipe">파이프</a>).</li>
-  <li>외부 요인으로 실패할 수 있는 함수는 <code>Ok(값)</code>/<code>Err({kind, message, …})</code>를 돌려준다. <code>kind</code>는 심볼이다: <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> <code>'parse</code> <code>'invalid</code> <code>'timeout</code> <code>'closed</code> <code>'cancelled</code> <code>'error</code> <code>'exit</code> <code>'network</code> <code>'empty</code> <code>'full</code>(<code>'empty</code>·<code>'full</code>은 <a href="prelude/concurrency.html#fn-recv_now"><code>recv_now</code></a>·<a href="prelude/concurrency.html#fn-send_now"><code>send_now</code></a>).</li>
+  <li>값을 다루는 함수는 그 값(컬렉션·문자열·맵)을 첫 번째 인자로 받아 파이프로 이어진다: <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같다(<a href="language/operators.html#pipe">파이프</a>). 어디에 쓰거나 보내는 함수는 받는 곳이 첫 인자다: <code>fs.write(path, text)</code>·<code>fs.append</code>·<code>fs.write_line(file, line)</code>·<code>send(tx, x)</code>·<code>spawn(s, f)</code>·<code>http.request(method, url, …)</code>. 이들은 <code>text |&gt; fs.write(p)</code>로 잇지 않고 <code>fs.write(p, text)</code>로 쓴다.</li>
+  <li>이름: 묻는 함수(술어)는 형용사·명사면 <code>is_</code>를 붙이고(<code>is_empty</code>, <code>is_ok</code>, <code>is_utf8</code>), 동사면 그대로 쓴다(<code>contains</code>, <code>starts_with</code>, <code>fs.exists</code>). 끝의 <code>_all</code>은 함수마다 뜻이 다르다: <code>env_all</code>은 전부, <code>regex.find_all</code>은 모든 매치, <code>fs.remove_all</code>은 디렉터리째(재귀).</li>
+  <li>외부 요인으로 실패할 수 있는 함수는 <code>Ok(값)</code>/<code>Err({kind, message, …})</code>를 돌려준다. <code>kind</code>는 심볼이다: <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> <code>'parse</code> <code>'invalid</code> <code>'timeout</code> <code>'closed</code> <code>'cancelled</code> <code>'error</code> <code>'exit</code> <code>'network</code> <code>'empty</code> <code>'full</code>(<code>'empty</code>·<code>'full</code>은 <a href="prelude/concurrency.html#fn-recv_now"><code>recv_now</code></a>·<a href="prelude/concurrency.html#fn-send_now"><code>send_now</code></a>). 뜻과 운영체제 에러의 표는 <a href="prelude/results.html#kinds">실패의 종류</a>에 있다.</li>
+  <li>실행 중에 실패할 수 있는 함수는 결과값을 돌려준다. 넘겨받은 함수 <code>f</code>의 값을 내주는 함수(<code>scope</code>·<code>supervise</code>·<code>await</code>·<code>timeout</code>·<code>fs.with_open</code>·<code>fs.with_temp_dir</code>)도 성공하면 <code>Ok(f의 값)</code>이다(<a href="language/results.html">결과값</a>).</li>
   <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러다: 매개변수 표에 적은 타입이 틀리면 E0403, 여러 타입을 받는 함수(<code>len</code>·<code>get</code>·<code>put</code> 등)가 받지 못하는 값이면 E0506.</li>
   <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Rust로 구현했다(<a href="../vm/internals.html#layers">네 층</a>).</li>
 </ul>
-<p>import 없이 쓴다. 같은 이름의 변수나 함수를 만들면 경고(W0103)가 난다.</p>
+<p>import 없이 쓴다. 같은 이름의 변수·매개변수·함수를 만들면 컴파일 에러(E0240)다.</p>
 <h2 id="list">목록</h2>
 <div class="filter">
 <label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>
 <input id="fn-search" type="search" placeholder="예: split, 정렬, Err" autocomplete="off">
-<p id="fn-count">143개 함수</p>
+<p id="fn-count">151개 함수</p>
 </div>
 <div class="fn-list">
 <section class="group"><h3><a href="../reference/prelude/io.html">출력과 입력</a></h3><ul>
 <li class="fn"><a href="../reference/prelude/io.html#fn-print"><code>print</code></a> 인자들을 공백 하나로 이어 한 줄로 표준 출력에 쓴다.</li>
 <li class="fn"><a href="../reference/prelude/io.html#fn-eprint"><code>eprint</code></a> print와 같은 모양으로 표준 에러에 쓴다.</li>
+<li class="fn"><a href="../reference/prelude/io.html#fn-write"><code>write</code></a> 문자열을 줄바꿈 없이 그대로 표준 출력에 쓴다.</li>
+<li class="fn"><a href="../reference/prelude/io.html#fn-ewrite"><code>ewrite</code></a> write와 같이 줄바꿈 없이 표준 에러에 쓴다.</li>
 <li class="fn"><a href="../reference/prelude/io.html#fn-read_line"><code>read_line</code></a> 한 줄을 읽어 Ok(줄)을, 더 읽을 것이 없으면 Ok(nil)을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/io.html#fn-read_lines"><code>read_lines</code></a> 남은 줄을 모두 읽어 Ok(리스트)로 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/io.html#fn-dbg"><code>dbg</code></a> [파일:줄] 식 = 값을 표준 에러에 찍고 x를 그대로 돌려준다.</li>
@@ -134,7 +138,7 @@
 <li class="fn"><a href="../reference/prelude/collections.html#fn-sort_by"><code>sort_by</code></a> f(x)를 키로 삼아 안정 정렬한 새 리스트를 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-reverse"><code>reverse</code></a> 순서를 거꾸로 뒤집은 새 리스트를 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-unique"><code>unique</code></a> 처음 나온 순서를 지키며 중복을 뺀 새 리스트를 돌려준다.</li>
-<li class="fn"><a href="../reference/prelude/collections.html#fn-flatten"><code>flatten</code></a> 리스트의 리스트를 한 단계만 펼친다: [[1, [2]], 3] → [1, [2], 3].</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-flatten"><code>flatten</code></a> 리스트의 리스트를 한 단계만 펼친다: [[1, [2]], [3]] → [1, [2], 3].</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-group_by"><code>group_by</code></a> f(x)를 키로 원소를 묶은 맵을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-zip"><code>zip</code></a> 두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-sum"><code>sum</code></a> 원소의 합을 돌려준다. 빈 리스트는 정수 0.</li>
@@ -156,10 +160,13 @@
 <li class="fn"><a href="../reference/prelude/strings.html#fn-lines"><code>lines</code></a> 글을 줄의 리스트로 나눈다.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-chars"><code>chars</code></a> 문자열을 글자 하나짜리 문자열의 리스트로 나눈다.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-trim"><code>trim</code></a> 양 끝의 공백을 지운다. cut을 주면 그 글자들을 지운다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-trim_left"><code>trim_left</code></a> 앞(왼쪽) 끝만 trim한다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-trim_right"><code>trim_right</code></a> 뒤(오른쪽) 끝만 trim한다.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-upper"><code>upper</code></a> 대문자로 바꾼 문자열을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-lower"><code>lower</code></a> 소문자로 바꾼 문자열을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-replace"><code>replace</code></a> s 안의 모든 old를 new로 바꾼 문자열을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-starts_with"><code>starts_with</code></a> s가 prefix로 시작하면 true.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-index_of"><code>index_of</code></a> s에서 sub가 처음 나오는 글자 위치. 없으면 nil.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-ends_with"><code>ends_with</code></a> s가 suffix로 끝나면 true.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-repeat"><code>repeat</code></a> s를 n번 이어 붙인 문자열을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/strings.html#fn-pad_left"><code>pad_left</code></a> 왼쪽을 pad로 채워 n글자로 만든다. 이미 n글자 이상이면 그대로.</li>
@@ -190,11 +197,11 @@
 <li class="fn"><a href="../reference/prelude/process.html#fn-env_all"><code>env_all</code></a> 모든 환경 변수를 {이름: 값} 맵으로 돌려준다.</li>
 </ul></section>
 <section class="group"><h3><a href="../reference/prelude/concurrency.html">동시성</a></h3><ul>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-scope"><code>scope</code></a> 태스크 범위를 열고 f(s)를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-scope"><code>scope</code></a> 태스크 범위를 열고 f(s)를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 Ok로 감싸 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-supervise"><code>supervise</code></a> scope와 같지만 태스크의 런타임 에러가 다른 태스크나 본문에 번지지 않고 on_fail(e)로 간다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-spawn"><code>spawn</code></a> 태스크 범위 s 안에서 f()를 새 태스크로 띄우고 태스크 핸들을 돌려준다.</li>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-await"><code>await</code></a> 태스크가 끝나기를 기다려 그 결과를 돌려준다.</li>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-timeout"><code>timeout</code></a> f()를 부르되, d가 지나면 f 안의 모든 것을 취소하고 Err({kind: 'timeout})을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-await"><code>await</code></a> 태스크가 끝나기를 기다려 그 결과를 돌려준다: Ok(함수의 값), 또는 런타임의 Err.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-timeout"><code>timeout</code></a> f()를 불러 Ok(f()의 값)을 돌려주되, d가 지나면 f 안의 모든 것을 취소하고 Err({kind: 'timeout})을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-cancel"><code>cancel</code></a> 태스크나 태스크 범위를 취소한다. 그 아래의 태스크에도 전파된다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-channel"><code>channel</code></a> 채널을 만들고 두 끝 (tx, rx), 곧 보내는 끝과 받는 끝을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-send"><code>send</code></a> 보내는 끝 tx로 값 x를 보낸다. Ok(nil), 닫혔으면 Err({kind: 'closed}).</li>
@@ -263,17 +270,20 @@
 <li class="fn"><a href="../reference/modules/regex.html#fn-regex-find_all"><code>regex.find_all</code></a> 겹치지 않는 모든 매치를 리스트로 돌려준다.</li>
 <li class="fn"><a href="../reference/modules/regex.html#fn-regex-replace"><code>regex.replace</code></a> 맞는 곳을 모두 바꾼 문자열을 돌려준다.</li>
 <li class="fn"><a href="../reference/modules/regex.html#fn-regex-split"><code>regex.split</code></a> 맞는 곳을 경계로 문자열을 나눈다.</li>
+<li class="fn"><a href="../reference/modules/regex.html#fn-regex-escape"><code>regex.escape</code></a> 문자열을 그 글자 그대로만 맞는 패턴으로 바꾼다.</li>
 </ul></section>
 <section class="group"><h3><a href="../reference/modules/http.html">http — HTTP</a></h3><ul>
 <li class="fn"><a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a> URL에 GET 요청을 보내고 응답을 돌려준다.</li>
 <li class="fn"><a href="../reference/modules/http.html#fn-http-post"><code>http.post</code></a> URL에 POST 요청으로 본문을 보내고 응답을 돌려준다.</li>
 <li class="fn"><a href="../reference/modules/http.html#fn-http-request"><code>http.request</code></a> 아무 메서드로나 요청을 보낸다.</li>
 <li class="fn"><a href="../reference/modules/http.html#fn-http-serve"><code>http.serve</code></a> 주소에서 HTTP 요청을 받아 handler로 답한다. 멈출 때까지 돌아오지 않는다.</li>
+<li class="fn"><a href="../reference/modules/http.html#fn-http-url_encode"><code>http.url_encode</code></a> 문자열을 URL의 쿼리 값이나 경로 한 조각으로 쓸 수 있게 바꾼다.</li>
+<li class="fn"><a href="../reference/modules/http.html#fn-http-url_decode"><code>http.url_decode</code></a> %XX로 쓴 글자를 원래 바이트로 되돌린다.</li>
 </ul></section>
 <section class="group"><h3><a href="../reference/modules/conc.html">conc — 동시성 도우미</a></h3><ul>
 <li class="fn"><a href="../reference/modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a> 리스트의 원소마다 f를 동시에 돌리고, 결과를 입력 순서대로 모은다.</li>
 <li class="fn"><a href="../reference/modules/conc.html#fn-conc-fan_in"><code>conc.fan_in</code></a> 여러 받는 끝(receiver)을 하나로 합친 받는 끝을 돌려준다.</li>
-<li class="fn"><a href="../reference/modules/conc.html#fn-conc-retry"><code>conc.retry</code></a> f()가 Err가 아닌 값을 돌려줄 때까지 몇 번 다시 부른다.</li>
+<li class="fn"><a href="../reference/modules/conc.html#fn-conc-retry"><code>conc.retry</code></a> f()가 Ok를 돌려줄 때까지 몇 번 다시 부른다.</li>
 </ul></section>
 </div>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../reference/language.html"><small>이전</small>문법</a><a class="next" href="../reference/language/lexical.html"><small>다음</small>어휘</a></nav>

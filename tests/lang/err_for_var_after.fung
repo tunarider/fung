@@ -1,7 +1,6 @@
-# A `for` variable is gone after the `for`, like a block's names: it is
-# not read as the prelude's `len` either (FE33).
-for len in [1, 2]:
-  print(len)
+# A `for` variable is gone after the `for`, like a block's names (FE33).
+for item in [1, 2]:
+  print(item)
 ;;
-print(len([1, 2]))
+print(item)
 # expect-error: E0206

@@ -1,0 +1,4 @@
+# Inside a tuple and a nested list (D54).
+fn f() = (1, [[Err("lost")]])
+f()
+# expect-error: E0606

@@ -1,0 +1,5 @@
+# A parameter cannot hide an imported name (D38).
+import "./_lib/greet" (greet)
+fn f(greet) = greet + 1
+print(f(1), greet("x"))
+# expect-error: E0240

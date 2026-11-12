@@ -6,7 +6,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::{Runtime, Stop, Task, at, discarded, err, internal};
-use crate::value::{Value, compare, eq, format, index, type_name};
+use crate::value::{Value, compare, eq, index, type_name};
 
 /// One registered test block: its name, the function to run and where
 /// the block stands.
@@ -85,10 +85,12 @@ impl Task<'_> {
                 if !compare_by(&a.op, &l, &r).map_err(|d| at(d, pos))? {
                     let mut d = error("E0807", pos, vec![Arg::Str(a.text.clone())]);
                     if !a.left.is_empty() {
-                        d.notes.push(format!("{} = {}", a.left, format(&l)));
+                        d.notes
+                            .push(format!("{} = {}", a.left, super::m4::shown_value(&l)));
                     }
                     if !a.right.is_empty() {
-                        d.notes.push(format!("{} = {}", a.right, format(&r)));
+                        d.notes
+                            .push(format!("{} = {}", a.right, super::m4::shown_value(&r)));
                     }
                     return Err(Stop::Error(Box::new(d)));
                 }

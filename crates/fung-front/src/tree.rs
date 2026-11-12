@@ -12,6 +12,25 @@ pub use fn_info::{Capture, CaptureKind, FnInfo, Import, Param, TypeAlias, TypeTe
 use crate::consts::{format_dur, format_float, quote_bytes, quote_str};
 use crate::source::Pos;
 
+/// The first character of a name desugar makes up (`$f0`, `$h1`): no
+/// source name has it, so it never meets one. The stages after desugar
+/// ask `is_hidden`, not the character (FE62).
+pub const HIDDEN: char = '$';
+
+/// Whether `name` is one desugar made up.
+pub fn is_hidden(name: &str) -> bool {
+    name.starts_with(HIDDEN)
+}
+
+/// The literal of a `(let …)` desugar makes whose pattern binds new names
+/// in the block (a `for` or parameter pattern), where an assignment would
+/// rebind: `(let fresh pat value)` (FE62).
+pub const FRESH: &str = "fresh";
+
+/// The operator desugar wraps a condition in: `(op bool e)` checks that
+/// `e` is a bool (FE62).
+pub const BOOL_CHECK: &str = "bool";
+
 /// Every node head the front end uses.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Head {
@@ -74,6 +93,9 @@ pub enum Head {
     Return,
     SelfFn,
     Slice,
+    /// `...xs` as a call's last positional argument (D45): its items are
+    /// the arguments.
+    Spread,
     String,
     Symbol,
     Tag,
@@ -144,6 +166,7 @@ impl Head {
             Head::Return => "return",
             Head::SelfFn => "self",
             Head::Slice => "slice",
+            Head::Spread => "spread",
             Head::String => "string",
             Head::Symbol => "symbol",
             Head::Tag => "tag",
@@ -204,6 +227,11 @@ pub struct Node {
     /// parser marks it so a pipe calls `x |> (f(1))` as a value instead
     /// of filling the call. The mark does not show in `fung dump`.
     pub paren: bool,
+    /// The node's number in its resolved tree (`number`), by which the
+    /// compiler's analyses record what they learn about it; 0 before
+    /// that, which no analysis records anything for. A copy keeps the
+    /// number of what it copies.
+    pub id: u32,
 }
 
 impl Node {
@@ -259,6 +287,19 @@ impl Node {
             off: 0,
             end: 0,
             paren: false,
+            id: 0,
+        }
+    }
+
+    /// Numbers every node of the tree from 1, parents before children
+    /// (resolve does, for the compiler). Iterative: trees can be deep.
+    pub fn number(&mut self) {
+        let mut next = 1u32;
+        let mut todo: Vec<&mut Node> = vec![self];
+        while let Some(n) = todo.pop() {
+            n.id = next;
+            next = next.checked_add(1).expect("fewer than 2^32 nodes");
+            todo.extend(n.kids.iter_mut().rev());
         }
     }
 
@@ -449,9 +490,11 @@ mod tests {
     fn info(name: &str, params: Vec<Param>) -> FnInfo {
         FnInfo {
             name: name.into(),
+            name_pos: p(),
             params,
             ret: None,
             for_body: false,
+            lambda: false,
             num_locals: 0,
             captures: vec![],
         }

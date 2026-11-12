@@ -31,7 +31,7 @@ import http
 import json
 import time
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["addr", "log"])!
 addr = get(opts.flags, "addr", "127.0.0.1:9095")
 log_file = get(opts.flags, "log", "alerts.jsonl")
 token = env("WEBHOOK_TOKEN") ?? fail("set WEBHOOK_TOKEN")
@@ -128,9 +128,9 @@ $ cat alerts.jsonl
 ```fung run
 import http
 
-r = http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())
+r = http.serve("127.0.0.1:0", _req => "hi", ready: _ => request_stop())
 print("serve returned", r)
-http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())!
+http.serve("127.0.0.1:0", _req => "hi", ready: _ => request_stop())!
 print("stopped cleanly")
 ```
 

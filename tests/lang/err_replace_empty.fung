@@ -1,0 +1,5 @@
+# An empty `old` is an argument error (D74), as split's empty separator.
+print(replace("abc", "b", "-"))
+# expect: a-c
+print(replace("abc", "", "-"))
+# expect-error: E0403

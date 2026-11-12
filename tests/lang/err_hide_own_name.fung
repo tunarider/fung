@@ -1,0 +1,7 @@
+# A local fn's parameter cannot hide the fn's own name (D38).
+fn outer():
+  fn go(go) = go + 1
+  go(1)
+;;
+print(outer())
+# expect-error: E0240

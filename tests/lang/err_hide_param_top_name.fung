@@ -1,0 +1,5 @@
+# A parameter cannot hide a top-level name (D38).
+fn f(limit) = limit + 1
+limit = 10
+print(f(limit))
+# expect-error: E0240

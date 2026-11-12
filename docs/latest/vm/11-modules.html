@@ -170,38 +170,37 @@ print(cyc_a.a())</code></pre><pre class="out err plain" data-code="2"><code>erro
 <h3 id="import-op">IMPORT 명령</h3>
 <p>표준 모듈로 바이트코드를 보자.</p>
 <div class="run"><pre><code>import fs
-import path (join)
+import path (base)
 
 fn double(x) = x * 2
 
-print(fs.exists(join(&quot;.&quot;, &quot;nothing-here&quot;)))
+print(fs.exists(base(&quot;/tmp/nothing-here&quot;)))
 print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
 == &lt;main&gt; ==
 0000  1:1   IMPORT       0    ; fs
 0001  1:1   STOREGLOBAL  0    ; fs
 0002  2:14  IMPORT       1    ; path
-0003  2:14  FIELD        2    ; join
-0004  2:14  STOREGLOBAL  1    ; join
+0003  2:14  FIELD        2    ; base
+0004  2:14  STOREGLOBAL  1    ; base
 0005  4:1   CLOSURE      0    ; double
 0006  4:1   STOREGLOBAL  2    ; double
 0007  6:1   CONST        3    ; &lt;fn print&gt;
 0008  6:7   LOADGLOBAL   0    ; fs
 0009  6:9   FIELD        4    ; exists
-0010  6:17  LOADGLOBAL   1    ; join
-0011  6:22  CONST        5    ; &quot;.&quot;
-0012  6:27  CONST        6    ; &quot;nothing-here&quot;
-0013  6:21  CALL         2    ; 2 positional, 0 named
-0014  6:16  CALL         1    ; 1 positional, 0 named
-0015  6:6   CALL         1    ; 1 positional, 0 named
-0016  6:1   POP
-0017  7:1   CONST        3    ; &lt;fn print&gt;
-0018  7:7   LOADGLOBAL   2    ; double
-0019  7:14  CONST        7    ; 21
-0020  7:13  CALL         1    ; 1 positional, 0 named
-0021  7:6   CALL         1    ; 1 positional, 0 named
-0022  7:1   POP
-0023  7:1   CONST        8    ; nil
-0024  1:1   RETURN
+0010  6:17  LOADGLOBAL   1    ; base
+0011  6:22  CONST        5    ; &quot;/tmp/nothing-here&quot;
+0012  6:21  CALL         1    ; 1 positional, 0 named
+0013  6:16  CALL         1    ; 1 positional, 0 named
+0014  6:6   CALL         1    ; 1 positional, 0 named
+0015  6:1   POP
+0016  7:1   CONST        3    ; &lt;fn print&gt;
+0017  7:7   LOADGLOBAL   2    ; double
+0018  7:14  CONST        6    ; 21
+0019  7:13  CALL         1    ; 1 positional, 0 named
+0020  7:6   CALL         1    ; 1 positional, 0 named
+0021  7:1   POP
+0022  7:1   CONST        7    ; nil
+0023  1:1   RETURN
 
 == double ==
 0000  4:16  MOVELOCAL    0
@@ -210,7 +209,7 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0003  4:14  RETURN</code></pre></div>
 <ul>
 <li><code>import fs</code>는 <code>IMPORT 0</code> 하나와 전역 저장이다. 상수 0번은 모듈의 열쇠(<code>fs</code>, 사용자 파일이면 절대 경로)다.</li>
-<li><code>import path (join)</code>은 "가져와서 <code>FIELD</code>로 꺼내 전역에 저장"일 뿐이다. 이름을 골라 가져오는 문법이 따로 있는 것이 아니다.</li>
+<li><code>import path (base)</code>는 "가져와서 <code>FIELD</code>로 꺼내 전역에 저장"일 뿐이다. 이름을 골라 가져오는 문법이 따로 있는 것이 아니다.</li>
 <li><code>fs.exists</code>는 맵의 <code>m.name</code>과 같은 <code>FIELD</code>다. 모듈이 값이기 때문이다. 그래서 모듈을 변수에 담거나 인자로 넘겨도 된다.</li>
 <li><code>import</code>는 끌어올린 <code>fn</code>보다도 앞에 온다(0000~0004번 뒤에 0005번 <code>CLOSURE</code>). 함수가 만들어질 때 모듈 이름이 이미 채워져 있다.</li>
 </ul>
@@ -254,7 +253,7 @@ print(1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0310]
 <ul>
 <li>원칙 5는 "언어 핵심은 최소한, 나머지는 fung으로 직접"이다(<code>background.md</code>). 런타임은 파일·프로세스·소켓·TLS·시간·정규식 같은 원시 기능만 주고, HTTP 프로토콜·<code>cli</code> 등은 fung 라이브러리로 쓴다(open-questions).</li>
 <li>공개 API의 이름·인자·기본값·에러 모양은 fung 쪽에서 정하고, Rust 쪽은 되도록 작은 원시 기능만 둔다. 그래서 공개 이름은 바꾸지 않고 다리 쪽을 고칠 수 있다(노트 M5).</li>
-<li>prelude에는 확실한 것만 둔다. 나중에 prelude에 더하는 것은 사용자 코드에 경고(W0103) 하나를 낼 뿐이지만, 빼는 것은 호환성을 깨기 때문이다(open-questions).</li>
+<li>prelude에는 확실한 것만 둔다. 더하는 것도 그 이름을 쓰던 사용자 코드를 E0240으로 깨고, 빼는 것은 부르던 코드를 깬다(open-questions).</li>
 <li>fung 소스는 <code>include_str!</code>로 실행 파일 안에 들어간다(<code>crates/fung-front/src/extras.rs</code>). 배포는 여전히 <code>fung</code> 파일 하나다. 내장 모듈은 <code>import</code>될 때 컴파일하고, prelude만 시작할 때 컴파일한다. 스크립트 시작 시간을 지키기 위해서다(부록 <a href="internals.html#modules">내부 구조</a>).</li>
 </ul>
 </div>
@@ -308,7 +307,7 @@ fn human(bytes):
 each([512, 1536, 5242880], b =&gt; print(units.human(b)))</code></pre><pre class="out plain"><code>512 B
 1.5 KiB
 5.0 MiB</code></pre></div>
-<p><code>units._scale(10, 0)</code>을 쓰면 실행 전에 E0304로 멈춘다(종료 코드 2). 이름 해석이 <code>units</code>의 공개 이름 목록을 들고 진입 파일을 보기 때문이다. <code>human</code>은 같은 모듈 안이라 <code>_scale</code>과 <code>_names</code>를 쓸 수 있다. <code>_names</code>는 한 번만 대입되므로 최상위 <code>fn</code>이 읽을 수 있다(9장). 크기는 정수로만 계산했다. 10을 곱해 소수 첫째 자리까지 들고 다니다가 마지막에 <code>//</code>와 <code>%</code>로 나눈다.</p>
+<p><code>units._scale(10, 0)</code>을 쓰면 실행 전에 E0304로 멈춘다(종료 코드 2). 이름 해석이 <code>units</code>의 공개 이름 목록을 들고 진입 파일을 보기 때문이다. <code>human</code>은 같은 모듈 안이라 <code>_scale</code>과 <code>_names</code>를 쓸 수 있다. <code>_names</code>는 최상위 이름이라 한 번만 묶이는 상수이므로 최상위 <code>fn</code>이 읽을 수 있다(9장). 크기는 정수로만 계산했다. 10을 곱해 소수 첫째 자리까지 들고 다니다가 마지막에 <code>//</code>와 <code>%</code>로 나눈다.</p>
 </details>
 </div>
 <h2 id="summary">정리</h2>

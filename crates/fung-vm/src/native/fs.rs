@@ -361,7 +361,11 @@ fn read_within(path: &std::ffi::OsStr) -> io::Result<Whole> {
         buf.reserve(64 * 1024);
         let room = buf.capacity() - buf.len();
         match (&mut f).take(room as u64).read_to_end(&mut buf) {
-            Ok(0) => return Ok(Whole::Read(buf)),
+            Ok(0) => {
+                // the text lives on: drop the spare room (LB41)
+                buf.shrink_to_fit();
+                return Ok(Whole::Read(buf));
+            }
             Ok(_) if !count.within(&buf) => return Ok(Whole::TooLong),
             Ok(_) => {}
             Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
@@ -407,7 +411,10 @@ fn read_fifo(t: &mut Task<'_>, p: Vec<u8>) -> Result<Flow, Stop> {
     park_io(
         t,
         move |_, _| match r.read_to_end() {
-            Step::Ready(bytes) => IoStep::Done(Ok(read_text(&p, bytes))),
+            Step::Ready(mut bytes) => {
+                bytes.shrink_to_fit(); // LB41
+                IoStep::Done(Ok(read_text(&p, bytes)))
+            }
             Step::Wait(fd, interest, at) => pipe::io_step(fd, interest, at),
             Step::Fail(e) => IoStep::Done(Ok(fs_err("read", &p, &e))),
         },
@@ -569,6 +576,22 @@ fn glob_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
                         ))],
                     ));
                 }
+                // `**` is no "any depth" here (D68).
+                Err(glob::Failure::DoubleStar) => {
+                    let stop = nat::fail(
+                        "E0515",
+                        vec![Arg::Str(format!(
+                            "`{}`: `**` is not a glob of any depth",
+                            show(&pattern)
+                        ))],
+                    );
+                    let Stop::Error(d) = stop else {
+                        unreachable!("nat::fail is an error")
+                    };
+                    return Err(Stop::Error(Box::new(d.with_help(
+                        "to look below every directory, use `fs.walk` and `filter`",
+                    ))));
+                }
             })
         },
     )
@@ -592,15 +615,16 @@ fn walk_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 }
 
 /// Every file below `root` (not the directories), depth first in byte
-/// order, as paths joined onto `root`. Links are not followed (a link is
-/// listed like a file), except a root the system resolves itself
-/// (`link/`). A directory that cannot be read ends the walk with its
-/// error and its path.
+/// order, as paths joined onto `root`. The root is a directory, as for
+/// `list` (D78): a link to one is followed, anything else is ENOTDIR.
+/// Links below it are not followed (a link is listed like a file). A
+/// directory that cannot be read ends the walk with its error and its
+/// path.
 fn walk(root: &[u8]) -> Result<Vec<Vec<u8>>, (Vec<u8>, io::Error)> {
     let mut files = Vec::new();
-    match std::fs::symlink_metadata(os_path(root)) {
+    match std::fs::metadata(os_path(root)) {
         Ok(m) if m.is_dir() => walk_dir(root, &mut files)?,
-        Ok(_) => files.push(root.to_vec()),
+        Ok(_) => return Err((root.to_vec(), errno(oserr::ENOTDIR))),
         Err(e) => return Err((root.to_vec(), e)),
     }
     Ok(files)
@@ -787,8 +811,9 @@ fn move_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 /// after the source's own error. A file is replaced only with
 /// `overwrite`; otherwise the move is the system's no-replace rename, so
 /// a file made between a check and the move is not lost either. The same
-/// file under another name (a case-only rename on a case-blind file
-/// system) is no replacement.
+/// file under a name that differs in case only (a case-only rename on a
+/// case-blind file system) is no replacement; under the same name or
+/// another link it is a target that exists (D78), as for `copy`.
 fn rename(from: &std::ffi::OsStr, to: &std::ffi::OsStr, overwrite: bool) -> io::Result<()> {
     if let Ok(target) = std::fs::symlink_metadata(to) {
         let source = std::fs::symlink_metadata(from)?;
@@ -796,8 +821,15 @@ fn rename(from: &std::ffi::OsStr, to: &std::ffi::OsStr, overwrite: bool) -> io::
         if target.is_dir() && (from == to || !same) {
             return Err(errno(EEXIST));
         }
-        if same {
+        if same && case_only(from.as_bytes(), to.as_bytes()) {
             return std::fs::rename(from, to);
+        }
+        if same && !overwrite {
+            return Err(errno(EEXIST));
+        }
+        if same {
+            // nothing to replace: the file is already there
+            return Ok(());
         }
     }
     let r = if overwrite {
@@ -809,6 +841,21 @@ fn rename(from: &std::ffi::OsStr, to: &std::ffi::OsStr, overwrite: bool) -> io::
         Err(e) if e.raw_os_error() == Some(libc::EXDEV) => move_across(from, to, overwrite),
         r => r,
     }
+}
+
+/// Whether `to` names `from` with its last part in another case only
+/// (`a.txt` and `A.txt` in one directory).
+fn case_only(from: &[u8], to: &[u8]) -> bool {
+    let split = |p: &[u8]| -> (Vec<u8>, Vec<u8>) {
+        let p = &p[..p.iter().rposition(|&b| b != b'/').map_or(0, |i| i + 1)];
+        match p.iter().rposition(|&b| b == b'/') {
+            Some(i) => (p[..i].to_vec(), p[i + 1..].to_vec()),
+            None => (Vec::new(), p.to_vec()),
+        }
+    };
+    let ((fd, fname), (td, tname)) = (split(from), split(to));
+    let lower = |b: &[u8]| show(b).to_lowercase();
+    fd == td && fname != tname && lower(&fname) == lower(&tname)
 }
 
 /// A move to another file system (EXDEV, LB8), where no rename reaches:
@@ -1160,6 +1207,17 @@ pub(crate) fn close_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 fn write_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let f = need_file("file", &a[0])?.clone();
     let line = nat::need_bytes("line", &a[1])?;
+    // One line (D79): a newline in it would write two.
+    if line.contains(&b'\n') {
+        return Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("line"),
+                nat::s("a str without a newline"),
+                Arg::Str(crate::value::format(&a[1])),
+            ],
+        ));
+    }
     let mut bytes = Vec::with_capacity(line.len() + 1);
     bytes.extend_from_slice(line);
     bytes.push(b'\n');
@@ -1177,22 +1235,35 @@ fn write_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     )
 }
 
-/// `fs.write_line` on a FIFO: the line is queued, then sent in the event
-/// loop (`pipe.rs`). A cancelled send leaves the rest queued, to go
-/// before the next line or at the close.
+/// `fs.write_line` on a FIFO: once the task holds the handle's write
+/// turn (CC14; the others wait in line), the line is queued, then sent in
+/// the event loop (`pipe.rs`). A cancelled send leaves the rest queued,
+/// to go before the next line or at the close.
 fn write_pipe_line(t: &mut Task<'_>, f: Arc<File>, line: &[u8]) -> Result<Flow, Stop> {
-    if let Err(e) = f.pipe_queue(line) {
-        return written_value(&f, Err(e)).map(Flow::Done);
-    }
+    let turn = file::PipeTurn::new(f.clone(), true);
+    let stopped = turn.clone();
+    let mut line = Some(line.to_vec());
     park_io(
         t,
-        move |_, _| match f.pipe_flush() {
-            Ok(Step::Ready(())) => IoStep::Done(written_value(&f, Ok(()))),
-            Ok(Step::Wait(fd, interest, at)) => pipe::io_step(fd, interest, at),
-            Ok(Step::Fail(e)) => IoStep::Done(written_value(&f, Err(Fault::Io(e)))),
-            Err(e) => IoStep::Done(written_value(&f, Err(e))),
+        move |_, me| {
+            if !turn.take(me) {
+                return IoStep::Park;
+            }
+            let step = match line.take().map_or(Ok(()), |l| f.pipe_queue(&l)) {
+                Err(e) => IoStep::Done(written_value(&f, Err(e))),
+                Ok(()) => match f.pipe_flush() {
+                    Ok(Step::Ready(())) => IoStep::Done(written_value(&f, Ok(()))),
+                    Ok(Step::Wait(fd, interest, at)) => pipe::io_step(fd, interest, at),
+                    Ok(Step::Fail(e)) => IoStep::Done(written_value(&f, Err(Fault::Io(e)))),
+                    Err(e) => IoStep::Done(written_value(&f, Err(e))),
+                },
+            };
+            if let IoStep::Done(_) = step {
+                turn.end();
+            }
+            step
         },
-        |_| {},
+        move |_| stopped.end(),
     )
 }
 

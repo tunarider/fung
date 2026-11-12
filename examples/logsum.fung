@@ -4,16 +4,16 @@
 import fs
 import "./loglines" (entries, by_level, top_messages)
 
-fn read_input(source) = source == "-" then read_lines()! else fs.read_lines(source)!
+fn read_input(file) = file == "-" then read_lines()! else fs.read_lines(file)!
 
-fn report(lines, top):
-  es = entries(lines)
-  print("lines:", len(lines), " parsed:", len(es))
+fn report(input, limit):
+  es = entries(input)
+  print("lines:", len(input), " parsed:", len(es))
   each(by_level(es), fn(pair):
     (level, count) = pair
     print(pad_right(level, 6), count)
   ;;)
-  errors = top_messages(es, "ERROR", top)
+  errors = top_messages(es, "ERROR", limit)
   if not is_empty(errors):
     print("top errors:")
     each(errors, fn(pair):

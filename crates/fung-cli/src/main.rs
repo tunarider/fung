@@ -70,8 +70,9 @@ fn main() {
     fung_vm::rlimit::raise_open_files();
     // A Rust panic inside fung code becomes an E0801 report (the VM's
     // panic fence); the default hook would print the panic message on
-    // top of that report.
-    std::panic::set_hook(Box::new(|_| {}));
+    // top of that report. The hook keeps the message and place for a
+    // panic outside the fence (TL14).
+    std::panic::set_hook(Box::new(remember_panic));
     let raw: Vec<Vec<u8>> = std::env::args_os()
         .skip(1)
         .map(OsString::into_vec)
@@ -87,13 +88,26 @@ fn main() {
 /// standard error and exit code 1, not a panic (which the empty hook
 /// above would make silent).
 fn start(sizes: &[usize], raw: Vec<Vec<u8>>) -> Out {
-    let started =
-        fung_vm::stack::spawn_sized(std::thread::Builder::new, sizes, raw, |raw| run(&raw));
+    start_with(sizes, raw, |raw| run(&raw))
+}
+
+/// `start` with the command `f`.
+fn start_with(sizes: &[usize], raw: Vec<Vec<u8>>, f: fn(Vec<Vec<u8>>) -> Out) -> Out {
+    let started = fung_vm::stack::spawn_sized(std::thread::Builder::new, sizes, raw, f);
     match started {
-        Ok(h) => h.join().unwrap_or_else(|_| Out {
-            stderr: b"error: internal error in the fung command\n".to_vec(),
-            code: diag::EXIT_RUNTIME,
-            ..Out::default()
+        Ok(h) => h.join().unwrap_or_else(|_| {
+            // the hook's record of the panic, if it ran (TL14)
+            let what = LAST_PANIC
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take()
+                .map(|w| format!(": {w}"))
+                .unwrap_or_default();
+            Out {
+                stderr: format!("error: internal error in the fung command{what}\n").into_bytes(),
+                code: diag::EXIT_RUNTIME,
+                ..Out::default()
+            }
         }),
         Err((e, _)) => Out {
             stderr: format!("error: cannot start the fung command thread: {e}\n").into_bytes(),
@@ -101,6 +115,27 @@ fn start(sizes: &[usize], raw: Vec<Vec<u8>>) -> Out {
             ..Out::default()
         },
     }
+}
+
+/// The message and place of the last panic, for the one line a panic
+/// outside the VM's fence is reported with (TL14).
+static LAST_PANIC: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// The panic hook: prints nothing, records the panic in `LAST_PANIC`.
+fn remember_panic(info: &std::panic::PanicHookInfo<'_>) {
+    let p = info.payload();
+    let msg = p
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| p.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "panic".to_string());
+    let text = match info.location() {
+        Some(l) => format!("{msg} at {}:{}:{}", l.file(), l.line(), l.column()),
+        None => msg,
+    };
+    *LAST_PANIC
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(text);
 }
 
 /// `raw` are the arguments as the OS gave them. They are decoded (one
@@ -570,6 +605,12 @@ mod tests {
                 String::from_utf8_lossy(&out.stderr)
             );
             assert!(out.stderr.starts_with(b"error: cannot write"));
+            // a file not written is not named as changed (TL11)
+            assert!(
+                out.stdout.is_empty(),
+                "{:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
         }
     }
 
@@ -647,6 +688,25 @@ mod tests {
         let out = start(&[REFUSED, REFUSED, 64 << 20], vec![b"version".to_vec()]);
         assert_eq!(out.code, EXIT_OK);
         assert!(out.stdout.starts_with(b"fung "));
+    }
+
+    /// TL14: a panic outside the VM's fence is one line with its message
+    /// and place.
+    #[test]
+    fn a_command_panic_keeps_its_message() {
+        let prev = std::panic::take_hook();
+        std::panic::set_hook(Box::new(remember_panic));
+        let out = start_with(&[64 << 20], Vec::new(), |_| -> Out { panic!("boom {}", 7) });
+        std::panic::set_hook(prev);
+        assert_eq!(out.code, diag::EXIT_RUNTIME);
+        let err = String::from_utf8(out.stderr).unwrap();
+        assert!(
+            err.starts_with("error: internal error in the fung command: boom 7 at ")
+                && err.contains("main.rs:")
+                && err.ends_with('\n')
+                && err.matches('\n').count() == 1,
+            "{err}"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! `fung check <file>` and `fung check -e CODE` (08): compile the whole
-//! import graph with the entry's tests, run nothing. Errors exit 2;
-//! warnings are printed and exit 0; a clean file prints nothing.
+//! import graph with the entry's tests, run nothing. Errors exit 2; a
+//! clean file prints nothing.
 //! Everything goes to standard error.
 
 use fung_front::diag::{self, EXIT_COMPILE, EXIT_OK};
@@ -49,7 +49,7 @@ pub fn run_check(args: &[String], raw: &[Vec<u8>]) -> Out {
 }
 
 /// Compiles `src` as the entry file `file` (bytes as given; positions
-/// use its decoded form) and reports errors or warnings.
+/// use its decoded form) and reports its errors.
 fn check(file: &[u8], src: &str) -> Out {
     let name = decode_lossy(file);
     let loader = Loader {
@@ -57,12 +57,12 @@ fn check(file: &[u8], src: &str) -> Out {
         ..Loader::default()
     };
     let (b, errs) = loader.compile(&name, src, Stage::All);
-    let (shown, code) = if errs.is_empty() {
-        (&b.warnings, EXIT_OK)
+    let code = if errs.is_empty() {
+        EXIT_OK
     } else {
-        (&errs, EXIT_COMPILE)
+        EXIT_COMPILE
     };
-    let text: String = shown.iter().map(|e| diag::format(e, &b.sources)).collect();
+    let text: String = errs.iter().map(|e| diag::format(e, &b.sources)).collect();
     Out {
         stderr: restore_name(&text, &name, file),
         code,
@@ -83,20 +83,13 @@ mod tests {
     }
 
     #[test]
-    fn warnings_exit_zero_and_errors_two() {
+    fn errors_exit_two_and_a_clean_file_zero() {
         let out = check_e("fn f():\n  x = 1\n  2\n;;");
-        assert_eq!(out.code, EXIT_OK);
+        assert_eq!(out.code, EXIT_COMPILE);
         assert!(out.stdout.is_empty());
         let err = String::from_utf8(out.stderr).unwrap();
         assert!(
-            err.starts_with("warning[W0102]: unused variable `x`\n  --> -e:2:3\n"),
-            "{err}"
-        );
-        let out = check_e("fn f():\n  x = 1\n  y\n;;");
-        assert_eq!(out.code, EXIT_COMPILE);
-        let err = String::from_utf8(out.stderr).unwrap();
-        assert!(
-            err.starts_with("error[E0204]") && !err.contains("W0102"),
+            err.starts_with("error[E0239]: unused variable `x`\n  --> -e:2:3\n"),
             "{err}"
         );
         let out = check_e("print(1)");

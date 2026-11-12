@@ -1,0 +1,6 @@
+# A `match` arm cannot bind the name of its subject again (D38).
+fn f(x) = match x:
+  x => x
+;;
+print(f(1))
+# expect-error: E0240

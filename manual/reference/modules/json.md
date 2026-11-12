@@ -18,8 +18,8 @@ JSON 텍스트는 그냥 문자열이다. 문자열인 채로는 `"port"` 값을
   <thead><tr><th>JSON</th><th>fung</th><th>비고</th></tr></thead>
   <tbody>
     <tr><td>객체 <code>{"a": 1}</code></td><td>맵 <code>{a: 1}</code></td><td>키 순서를 지킨다. 키는 문자열.</td></tr>
-    <tr><td>배열 <code>[1, 2]</code></td><td>리스트</td><td>쓸 때는 튜플도 배열이 된다.</td></tr>
-    <tr><td>문자열</td><td>문자열</td><td>쓸 때는 심볼도 문자열이 된다.</td></tr>
+    <tr><td>배열 <code>[1, 2]</code></td><td>리스트</td><td>튜플은 쓰지 않는다(리스트로 바꾼다).</td></tr>
+    <tr><td>문자열</td><td>문자열</td><td>심볼은 쓰지 않는다(<code>sym_name</code>으로 바꾼다).</td></tr>
     <tr><td>숫자 <code>42</code></td><td><code>int</code></td><td>소수점·지수가 없으면 정수(64비트).</td></tr>
     <tr><td>숫자 <code>2.5</code> <code>1e3</code></td><td><code>float</code></td><td>소수점이나 지수가 있으면 실수.</td></tr>
     <tr><td><code>true</code> <code>false</code></td><td><code>true</code> <code>false</code></td><td></td></tr>
@@ -118,14 +118,14 @@ fung 값을 JSON 텍스트로 쓴다.
 
 #### 설명
 
-`x`를 JSON 문자열로 바꾼다. 맵·리스트·문자열·정수·실수·`true`·`false`·`nil`은 [위의 표](#concepts)대로 그대로 가고, 튜플은 배열, 심볼은 이름 문자열(`'ok` → `"ok"`), 시각은 ISO 8601 문자열(`"2026-10-04T09:05:07Z"`)이 된다. 맵은 키 순서대로 쓴다. 실수는 늘 소수점을 붙인다(`1.0`). JSON에 대응하는 것이 없는 값(기간, 함수, 태그 `Ok(1)`, 범위 `0..3`, 채널, atom 등)은 런타임 에러 E0513이다. 기간은 `d / 1s`처럼 숫자로, 범위는 `map(r, x => x)`처럼 리스트로 바꿔서 넘긴다.
+`x`를 JSON 문자열로 바꾼다. 받는 것은 JSON에 있는 타입뿐이다: 맵·리스트·문자열·정수·실수·`true`·`false`·`nil`이 [위의 표](#concepts)대로 간다. 맵은 키 순서대로 쓴다. 실수는 늘 소수점을 붙인다(`1.0`). 그 밖의 값은 어디에 있든 런타임 에러 E0513이다. 무엇으로 바꿀지는 쓰는 쪽이 정한다: 심볼은 `sym_name(s)`로 문자열, 튜플은 리스트 `[a, b]`, 시각은 [`time.format(t)`](time.html#fn-time-format)로 문자열, 기간은 `d / 1s`처럼 숫자, 범위는 `map(r, x => x)`처럼 리스트로 바꿔서 넘긴다(태그 `Ok(1)`, 함수, 채널, atom도 E0513). 바꿔 주는 타입과 거절하는 타입의 선을 따로 외우지 않아도 되게 "JSON에 있는 타입만"이다.
 
-`indent`가 없으면(또는 `0`) 공백 없는 한 줄이다. 숫자를 주면 그 칸 수로 들여 쓴 여러 줄이 된다(사람이 읽을 파일에). 문자열은 꼭 필요한 것만 이스케이프한다: `"`, `\`, U+0020 미만의 제어 문자. 한글 같은 비ASCII 글자는 그대로 둔다.
+`indent`가 없으면 공백 없는 한 줄이다. 숫자를 주면 그 칸 수로 들여 쓴 여러 줄이 된다(사람이 읽을 파일에). 문자열은 꼭 필요한 것만 이스케이프한다: `"`, `\`, U+0020 미만의 제어 문자. 한글 같은 비ASCII 글자는 그대로 둔다.
 
 #### 매개변수
 
 - `x`: 바꿀 값.
-- `indent`: `nil`(한 줄) 또는 들여쓰기 칸 수(0 이상의 정수).
+- `indent`: `nil`(한 줄) 또는 들여쓰기 칸 수(1 이상의 정수).
 
 #### 돌려주는 값
 
@@ -133,8 +133,8 @@ JSON 문자열.
 
 #### 에러
 
-- 런타임 에러 E0513: JSON으로 바꿀 수 없는 값이 들어 있다(``cannot convert dur to JSON``).
-- 런타임 에러 E0403: `indent`가 음수다.
+- 런타임 에러 E0513: JSON으로 바꿀 수 없는 값이 들어 있다(``cannot convert dur to JSON``). 심볼·튜플·시각이면 바꾸는 법을 도움말로 보인다.
+- 런타임 에러 E0403: `indent`가 1보다 작다.
 - 런타임 에러 E0806: 결과가 1억 글자를 넘는다.
 
 #### 예제
@@ -149,13 +149,15 @@ print(json.stringify(report))
 print(json.stringify(report, indent: 2))
 ```
 
-**심볼, 튜플, 시각, 이스케이프**
+**심볼, 튜플, 시각은 바꿔서, 이스케이프**
 
 ```fung run
 import json
 import time
 
-print(json.stringify({status: 'ok, pair: (1, "a"), at: time.from_unix(0)}))
+status = 'ok
+(n, name) = (1, "a")
+print(json.stringify({status: sym_name(status), pair: [n, name], at: time.format(time.from_unix(0))}))
 print(json.stringify("탭\t따옴표\" 줄\n"))
 ```
 

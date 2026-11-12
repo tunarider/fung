@@ -3,7 +3,7 @@ t = time.parse("2026-10-04T09:05:07+09:00")!
 print(t, type_of(t))
 # expect: 2026-10-04T09:05:07+09:00 'time
 print(time.format(t, "YYYY/MM/DD HH:mm:ss"), time.format(time.utc(t), "HH:mm Z"))
-# expect: 2026/10/04 09:05:07 00:05 +00:00
+# expect: 2026/10/04 09:05:07 00:05 Z
 print(time.unix(t), time.parts(t).weekday, time.parts(t).month)
 # expect: 1791072307 'sun 10
 print(time.parse("2026/10/04", "YYYY/MM/DD") |> is_ok, time.parse("2026-13-04", "YYYY-MM-DD"))

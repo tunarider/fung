@@ -1,0 +1,3 @@
+# Nor a hash (D62): `unique` of functions is an error.
+print(unique([print, print]))
+# expect-error: E0501

@@ -95,7 +95,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 425;
+const RUN_CASE_COUNT: usize = 435;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -221,13 +221,16 @@ fn flatten_splices_one_level() {
         "flatten",
         vec![list(vec![
             list(vec![Value::Int(1)]),
-            Value::Int(2),
+            list(vec![Value::Int(2)]),
             list(vec![]),
             list(vec![list(vec![Value::Int(3)])]),
         ])],
     )
     .unwrap();
     assert_eq!(format(&f), "[1, 2, [3]]");
+    // D77: an element that is no list or range is an error.
+    let e = call("flatten", vec![list(vec![Value::Int(2)])]);
+    assert_eq!(code(&e), "E0506");
 }
 
 #[test]
@@ -355,17 +358,15 @@ fn sym_requires_a_name() {
 
 #[test]
 fn print_joins_args_with_spaces() {
+    // A step native (it may wait for the output thread): called through
+    // the run loop, which gathers the rest parameter itself.
     let (r, out) = call_out(
         "print",
-        vec![list(vec![
-            Value::Int(1),
-            Value::Float(2.0),
-            Value::Bool(true),
-        ])],
+        vec![Value::Int(1), Value::Float(2.0), Value::Bool(true)],
     );
     assert!(matches!(r, Ok(Value::Nil)));
     assert_eq!(out, "1 2.0 true\n");
-    let (_, out) = call_out("print", vec![list(vec![])]);
+    let (_, out) = call_out("print", vec![]);
     assert_eq!(out, "\n");
 }
 
@@ -448,8 +449,6 @@ fn string_size_limits() {
     // here, from 20,000 occurrences of a 10,000-character replacement.
     let (a, b) = (st(&"a".repeat(20_000)), st(&"b".repeat(10_000)));
     assert_eq!(code(&call("replace", vec![a, st("a"), b])), "E0806");
-    let a = st(&"a".repeat(60_000_000));
-    assert_eq!(code(&call("replace", vec![a, st(""), st("x")])), "E0806");
     // 120 million bytes, but 60 million characters.
     let (a, b) = (st(&"a".repeat(30_000)), st(&"é".repeat(2_000)));
     let v = call("replace", vec![a, st("a"), b]).unwrap();
@@ -467,7 +466,7 @@ fn collection_functions() {
             "[2, 4] [3, 4]\n",
         ),
         (
-            "print(fold([1, 2, 3], 0, (acc, x) => acc + x), fold([], 1, (a, x) => a))",
+            "print(fold([1, 2, 3], 0, (acc, x) => acc + x), fold([], 1, (a, _x) => a))",
             "6 1\n",
         ),
         ("print(each([1, 2], x => print(x)))", "1\n2\nnil\n"),
@@ -476,7 +475,7 @@ fn collection_functions() {
             "[1, 2, 3] [\"a\", \"b\"] [\"a\", \"bb\"]\n",
         ),
         (
-            "print(find([1, 2, 3], x => x > 1), find([], x => true), any([1, 2], x => x > 1), all([], x => false), all([1], x => x > 1))",
+            "print(find([1, 2, 3], x => x > 1), find([], _x => true), any([1, 2], x => x > 1), all([], _x => false), all([1], x => x > 1))",
             "2 nil true true false\n",
         ),
         (
@@ -499,7 +498,7 @@ fn collection_functions() {
             "print(chars(\"참치\"), map(0..2, x => x * x))",
             "[\"참\", \"치\"] [0, 1]\n",
         ),
-        ("print(flatten([[1], [2, [3]], 4]))", "[1, 2, [3], 4]\n"),
+        ("print(flatten([[1], [2, [3]], [4]]))", "[1, 2, [3], 4]\n"),
     ];
     for (src, want) in cases {
         let o = exec(src, Opts::default());
@@ -507,9 +506,9 @@ fn collection_functions() {
     }
     let errs: &[(&str, &str)] = &[
         ("filter(1, x => x)", "E0506"),
-        ("filter([1], x => 1)", "E0505"),
+        ("filter([1], _x => 1)", "E0505"),
         ("sort([1, \"a\"])", "E0501"),
-        ("fold(\"ab\", 0, (a, x) => a)", "E0506"),
+        ("fold(\"ab\", 0, (a, _x) => a)", "E0506"),
         ("group_by([1], x => x)", "E0514"),
         ("put(1, \"a\", 2)", "E0506"),
         ("get([1], 0)", "E0506"),
@@ -550,7 +549,7 @@ fn collection_functions_with_the_fung_prelude() {
             "true true true false\n",
         ),
         (
-            "print(unique([1, 1.0, 2, 1]), flatten([[1], [2, [3]], 4]))",
+            "print(unique([1, 1.0, 2, 1]), flatten([[1], [2, [3]], [4]]))",
             "[1, 2] [1, 2, [3], 4]\n",
         ),
         (
@@ -575,7 +574,7 @@ fn collection_functions_with_the_fung_prelude() {
         ("get([10, 20], 20)", "E0506"),
         ("min([nil, 1])", "E0501"),
         ("max([nil, 1])", "E0501"),
-        ("sum([1, \"a\"])", "E0501"),
+        ("sum([1, \"a\"])", "E0506"),
     ];
     for (src, want) in errs {
         assert_eq!(exec(src, Opts::default()).code, *want, "{src}");
@@ -645,8 +644,8 @@ fn prelude_in_fung_checks_like_a_native() {
             "[(0, \"a\"), (1, \"b\")] [(1, 5)] [(0, 10), (1, 11)]\n",
         ),
         (
-            "print(sum([1s, 2s]), sum([]), sum([\"a\", \"b\"]), sum(1..=4), sum([[1], [2]]))",
-            "3s 0 ab 10 [1, 2]\n",
+            "print(sum([1s, 2s]), sum([]), sum([1, 2.5]), sum(1..=4))",
+            "3s 0 3.5 10\n",
         ),
         (
             "print(max([1]), min([\"a\"]), max([[1]]), min([2s]), pad_left(\"ab\", 4), pad_right(\"ab\", 4, \"xy\"))",
@@ -678,7 +677,7 @@ fn prelude_in_fung_checks_like_a_native() {
         ("min([{}])", "E0501", "map"),
         ("max([true])", "E0501", "bool"),
         ("max([[nil]])", "E0501", "nil"),
-        ("sum([nil])", "E0501", "nil"),
+        ("sum([nil])", "E0506", "nil"),
         // Each E0506 reads as a sentence (SP24).
         ("zip(1, [1])", "E0506", "cannot zip the elements of int"),
         ("zip([1], 1)", "E0506", "cannot zip the elements of int"),
@@ -721,8 +720,9 @@ fn exit_takes_a_code_from_0_to_255() {
     }
 }
 
-/// A write error on stdout or stderr is E0801 at the call, with the
-/// writer's message (the native returns the writer's error).
+/// A write error on stdout or stderr is E0801 with the writer's message.
+/// The output thread meets it after the call queued the line (CC15), so
+/// a program's last write fails the run at its end, with no place.
 #[test]
 fn write_errors_are_internal_errors_at_the_call() {
     struct Broken;
@@ -734,7 +734,7 @@ fn write_errors_are_internal_errors_at_the_call() {
             Ok(())
         }
     }
-    for (src, col) in [("print(1)", 6), ("eprint(1)", 7), ("dbg(1)", 4)] {
+    for src in ["print(1)", "eprint(1)", "dbg(1)"] {
         let o = testutil::on_big_stack(move || {
             use fung_front::loader::{Loader, Stage};
             let (b, errs) = Loader::default().compile("-e", src, Stage::All);
@@ -748,7 +748,7 @@ fn write_errors_are_internal_errors_at_the_call() {
             rt.boot(Vec::new()).expect("boot");
             rt.load(b.proto.as_ref().expect("an entry"), &b.modules);
             match rt.run() {
-                Err(Stop::Error(d)) => (d.code.clone(), d.pos.col, diag::headline(&d)),
+                Err(Stop::Error(d)) => (d.code.clone(), diag::headline(&d)),
                 r => panic!("{r:?}"),
             }
         });
@@ -756,7 +756,6 @@ fn write_errors_are_internal_errors_at_the_call() {
             o,
             (
                 "E0801".to_string(),
-                col,
                 "error[E0801]: internal error: broken pipe".to_string()
             ),
             "{src}"
@@ -770,7 +769,7 @@ fn write_errors_are_internal_errors_at_the_call() {
 #[test]
 fn ranges_are_walked_in_place() {
     let (out, _, _) = run(
-        "print(fold(0..3000000, 0, (a, x) => a + 1), find(0..1000000000000, x => x > 5), any(0..1000000000000, x => x == 7))",
+        "print(fold(0..3000000, 0, (a, _x) => a + 1), find(0..1000000000000, x => x > 5), any(0..1000000000000, x => x == 7))",
     );
     assert_eq!(out, "3000000 6 true\n");
     let (_, err, code) = run("print(map(0..4611686018427387904, x => x))");
@@ -791,11 +790,11 @@ pub(super) fn huge_range_cases() -> Vec<(String, u32)> {
         ("join(R, \"\")", 11),
         ("join(R, 1)", 11),
         ("flatten(R)", 14),
-        ("find(R, x => true)", 11),
+        ("find(R, _x => true)", 11),
         ("find(R, 1)", 11),
-        ("any(R, x => true)", 10),
-        ("all(R, x => false)", 10),
-        ("group_by(R, x => 1)", 15),
+        ("any(R, _x => true)", 10),
+        ("all(R, _x => false)", 10),
+        ("group_by(R, _x => 1)", 15),
         ("map(R, 1)", 10),
         ("map(R, x => x)", 10),
         ("filter(R, 1)", 13),
@@ -829,11 +828,11 @@ fn huge_ranges_hit_the_limits_after_argument_checks() {
         ("join(R, \"\")", CHARS),
         ("join(R, 1)", ARG),
         ("flatten(R)", ELEMENTS),
-        ("find(R, x => true)", "0"),
+        ("find(R, _x => true)", "0"),
         ("find(R, 1)", ARG),
-        ("any(R, x => true)", "true"),
-        ("all(R, x => false)", "false"),
-        ("group_by(R, x => 1)", ELEMENTS),
+        ("any(R, _x => true)", "true"),
+        ("all(R, _x => false)", "false"),
+        ("group_by(R, _x => 1)", ELEMENTS),
         ("map(R, 1)", ARG),
         ("map(R, x => x)", ELEMENTS),
         ("filter(R, 1)", ARG),
@@ -852,7 +851,7 @@ fn huge_ranges_hit_the_limits_after_argument_checks() {
         assert!(got.starts_with(w), "{src}: {got}");
     }
     // Walking a range in place starts walking.
-    let (_, err, _) = run("print(fold(0..100000000000000000, 0, (a, x) => x / 0))");
+    let (_, err, _) = run("print(fold(0..100000000000000000, 0, (_a, x) => x / 0))");
     assert!(err.starts_with("error[E0502]"), "{err}");
 }
 
@@ -903,7 +902,7 @@ fn each_failure_leaves_rest() {
     let (out, err, _) = run(
         "(c_tx, c) = channel(3)\nsend(c_tx, 1)\nsend(c_tx, 2)\nsend(c_tx, 3)\nclose(c_tx)\n\
          supervise(fn(s):\n  t = spawn(s, fn(): each(c, x => x == 2 then fail(\"x\") else nil) ;;)\n  \
-         print(type_of(await(t)), recv(c))\n;;, e => nil)",
+         print(type_of(await(t)), recv(c))\n;;, _e => nil)",
     );
     assert_eq!(out, "'Err Ok(3)\n", "{err}");
 }
@@ -931,7 +930,7 @@ fn a_cancelled_walk_takes_no_more_values() {
 #[test]
 fn resend_into_iterated_channel() {
     let (out, err, _) = run(
-        "fn step(tx, x):\n  print(x)\n  x < 3 then send(tx, x + 1) else close(tx)\n;;\n\
+        "fn step(out, x):\n  print(x)\n  x < 3 then send(out, x + 1) else close(out)\n;;\n\
          (tx, c) = channel(1)\nsend(tx, 1)\neach(c, x => step(tx, x))\nprint(\"end\")",
     );
     assert_eq!(out, "1\n2\n3\nend\n", "{err}");
@@ -1022,9 +1021,9 @@ fn sort_finds_runs_and_stays_stable() {
              a and (r[i][0] < r[i + 1][0] or (r[i][0] == r[i + 1][0] and r[i][1] < r[i + 1][1])))\n\
            good and len(r) == n and sum(map(r, p => p[1])) == sum(0..n)\n\
          ;;\n\
-         shapes = [(i, n) => i, (i, n) => n - i, (i, n) => i % 3, (i, n) => (i * 7919) % (n + 1),\n\
-                   (i, n) => i % 17, (i, n) => (i / 5) % 2, (i, n) => 0, (i, n) => (i < n / 2) then i else n - i,\n\
-                   (i, n) => (i / 40) % 2 == 0 then i else -i, (i, n) => (i / 3) * ((i / 3) % 2 == 0 then 1 else -1)]\n\
+         shapes = [(i, _n) => i, (i, n) => n - i, (i, _n) => i % 3, (i, n) => (i * 7919) % (n + 1),\n\
+                   (i, _n) => i % 17, (i, _n) => (i / 5) % 2, (_i, _n) => 0, (i, n) => (i < n / 2) then i else n - i,\n\
+                   (i, _n) => (i / 40) % 2 == 0 then i else -i, (i, _n) => (i / 3) * ((i / 3) % 2 == 0 then 1 else -1)]\n\
          sizes = [2, 3, 31, 32, 33, 63, 64, 65, 100, 1000, 2500]\n\
          print(all(sizes, n => all(shapes, f => ok(n, f))))\n\
          print(sort([3, 2, 2, 1]), sort([1, 2, 2, 3]), sort_by([[3, 'a], [2, 'b], [2, 'c], [1, 'd]], p => p[0]))");

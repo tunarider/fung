@@ -1,0 +1,9 @@
+# A lambda `=>` cannot return from anywhere (D42): an early return needs
+# an anonymous `fn(x): … ;;`.
+fn g(xs) = find(xs, fn(x):
+  if x > 1: return true ;;
+  false
+;;)
+print(g([1, 2]))
+fn h(xs) = find(xs, x => x > 1 then return true else false)
+# expect-error: E0237

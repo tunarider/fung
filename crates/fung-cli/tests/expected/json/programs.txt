@@ -1,43 +1,45 @@
 # `json` programs (crates/fung-cli/tests/json_expected.rs), each run with `fung -e`.
 # Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test json_expected
-==== "import json\nimport time\nprint(json.stringify({b: 1, a: [t… (124 bytes, 51a682a25e16646f)
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (158 bytes, 008e45a67f42a0ee)
 -- stdout
+| {"b":1,"a":[true,null,"x<y>&z",2.0],"t":[1,2],"s":"ok","e":[],"m":{}}
 -- stderr
-| error[E0101]: unexpected character "'"
-|   --> -e:3:77
-|   |
-| 3 | print(json.stringify({b: 1, a: [true, nil, "x<y>&z", 2.0], t: (1, 2), s: 'ok', e: [], m: {}}))
-|   |                                                                             ^
-|   |
-|  help: strings use double quotes: `"text"`; a symbol is `'name`, with no closing quote
--- exit: 2
-==== "import json\nimport time\nprint(json.stringify(\"\\u{2028}<… (140 bytes, 0ec3d9277416a620)
+-- exit: 0
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (165 bytes, d789a2a005d50633)
 -- stdout (escaped)
 | " <>&\x7f\\u0001\\b\\f\\n\\r\\t\\"\\\\� é\\u001f😀"
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.stringify([1e21, 1e20,… (167 bytes, a80d6b184a54a963)
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (192 bytes, e0d9560692cf025a)
 -- stdout
 | [1e21,100000000000000000000.0,1e-7,0.0001,0.1,-0.0,1.0,123456789.0,1.5e300,-2.5e-300,9223372036854775807,-9223372036854775808]
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.stringify({\"A\": 1, \"a\": 2, \"a b\": 3, \"é\": 4, \"\\\"\": 5}))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (132 bytes, f8772a3cbf140c19)
 -- stdout
 | {"A":1,"a":2,"a b":3,"é":4,"\"":5}
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.stringify(time.utc(tim… (124 bytes, 986522eb7af940a9)
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (149 bytes, 574dbb9f1fb2fd0a)
 -- stdout
-| "2026-10-04T00:05:07Z" ["1970-01-01T00:00:00Z"]
 -- stderr
--- exit: 0
-==== "import json\nimport time\nprint(json.stringify({a: [1, {b: 'sym}], t: (1, 2), e: [], m: {}}, indent: 2))"
+| error[E0513]: cannot convert time to JSON
+|   --> -e:4:21
+|   |
+| 4 | print(json.stringify(time.utc(time.from_unix(1791072307))), json.stringify([time.from_unix(0)]))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:4       <entry>
+|  help: write the time as text: `time.format(t)`
+-- exit: 1
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (132 bytes, 69637f4ca75c18af)
 -- stdout
 | {
 |   "a": [
 |     1,
 |     {
-|       "b": "sym"
+|       "b": "s"
 |     }
 |   ],
 |   "t": [
@@ -49,7 +51,7 @@
 | }
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.stringify([[], {}, [[]… (172 bytes, d62102a6846afff5)
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (197 bytes, 1daefb7cb1c739fc)
 -- stdout
 | [
 |  [],
@@ -57,298 +59,333 @@
 |  [
 |   []
 |  ]
-| ] {} [1,2] 1
+| ] {} [
+|  1,
+|  2
+| ] 1
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.stringify(\"x\", nil), json.stringify(\"x\", indent: nil))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify({t: (1, 2)}))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert tuple to JSON
+|   --> -e:4:21
+|   |
+| 4 | print(json.stringify({t: (1, 2)}))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:4       <entry>
+|  help: write a list: `[a, b]`
+-- exit: 1
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(['ok]))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert sym to JSON
+|   --> -e:4:21
+|   |
+| 4 | print(json.stringify(['ok]))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:4       <entry>
+|  help: write the symbol's name: `sym_name(s)`
+-- exit: 1
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify([1], indent: 0))"
+-- stdout
+-- stderr
+| error[E0403]: argument `indent` must be a positive int or nil, got 0
+|   --> -e:4:21
+|   |
+| 4 | print(json.stringify([1], indent: 0))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:4       <entry>
+-- exit: 1
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (122 bytes, 0093c3790a9b900b)
 -- stdout
 | "x" "x"
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.stringify([], indent: … (130 bytes, bf4f9197bd145638)
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (155 bytes, 8ee148521732b78b)
 -- stdout
 | [] 1
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.stringify([1], indent: 4611686018427387904))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify([1], indent: 4611686018427387904))"
 -- stdout
 -- stderr
 | error[E0806]: too many characters (limit 100000000)
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify([1], indent: 4611686018427387904))
+| 4 | print(json.stringify([1], indent: 4611686018427387904))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify([1], indent: 1000000000000000000))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify([1], indent: 1000000000000000000))"
 -- stdout
 -- stderr
 | error[E0806]: too many characters (limit 100000000)
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify([1], indent: 1000000000000000000))
+| 4 | print(json.stringify([1], indent: 1000000000000000000))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify({d: 5s}))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify({d: 5s}))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert dur to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify({d: 5s}))
+| 4 | print(json.stringify({d: 5s}))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify([1, 2s]))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify([1, 2s]))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert dur to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify([1, 2s]))
+| 4 | print(json.stringify([1, 2s]))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify({a: 1..2}))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify({a: 1..2}))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert range to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify({a: 1..2}))
+| 4 | print(json.stringify({a: 1..2}))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(Ok(1)))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(Ok(1)))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert Ok to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(Ok(1)))
+| 4 | print(json.stringify(Ok(1)))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(print))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(print))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert fn to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(print))
+| 4 | print(json.stringify(print))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify((x) => x))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify((x) => x))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert fn to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify((x) => x))
+| 4 | print(json.stringify((x) => x))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\n(_tx, rx) = channel(); print(json.stringify(rx))"
+==== "import json\nimport time\n_imports = [json, time]\n(_tx, rx) = channel(); print(json.stringify(rx))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert receiver to JSON
-|   --> -e:3:44
+|   --> -e:4:44
 |   |
-| 3 | (_tx, rx) = channel(); print(json.stringify(rx))
+| 4 | (_tx, rx) = channel(); print(json.stringify(rx))
 |   |                                            ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(scope(s => spawn(s, () => 1))))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(scope(s => spawn(s, () => 1))!))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert task to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(scope(s => spawn(s, () => 1))))
+| 4 | print(json.stringify(scope(s => spawn(s, () => 1))!))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(json))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(json))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert module to JSON
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(json))
+| 4 | print(json.stringify(json))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(1, indent: -1))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(1, indent: -1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `indent` must be a non-negative int, got -1
-|   --> -e:3:21
+| error[E0403]: argument `indent` must be a positive int or nil, got -1
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(1, indent: -1))
+| 4 | print(json.stringify(1, indent: -1))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(1, indent: 1.0))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(1, indent: 1.0))"
 -- stdout
 -- stderr
 | error[E0403]: argument `indent` must be int | nil, got float
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(1, indent: 1.0))
+| 4 | print(json.stringify(1, indent: 1.0))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(1, indent: \"2\"))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(1, indent: \"2\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `indent` must be int | nil, got str
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(1, indent: "2"))
+| 4 | print(json.stringify(1, indent: "2"))
 |   |                     ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(1, 2, 3))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(1, 2, 3))"
 -- stdout
 -- stderr
 | error[E0402]: stringify takes 2 argument(s), got 3
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify(1, 2, 3))
+| 4 | print(json.stringify(1, 2, 3))
 |   |                     ^
 |   |
-|  call path (innermost first):
-|    -e:3       <entry>
--- exit: 1
-==== "import json\nimport time\nprint(json.stringify())"
+-- exit: 2
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify())"
 -- stdout
 -- stderr
 | error[E0407]: missing argument `x`
-|   --> -e:3:21
+|   --> -e:4:21
 |   |
-| 3 | print(json.stringify())
+| 4 | print(json.stringify())
 |   |                     ^
 |   |
-|  call path (innermost first):
-|    -e:3       <entry>
--- exit: 1
-==== "import json\nimport time\nprint(json.parse(1))"
+-- exit: 2
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.parse(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:3:17
+|   --> -e:4:17
 |   |
-| 3 | print(json.parse(1))
+| 4 | print(json.parse(1))
 |   |                 ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.parse(nil))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.parse(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got nil
-|   --> -e:3:17
+|   --> -e:4:17
 |   |
-| 3 | print(json.parse(nil))
+| 4 | print(json.parse(nil))
 |   |                 ^
 |   |
 |  call path (innermost first):
-|    -e:3       <entry>
+|    -e:4       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.parse())"
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.parse())"
 -- stdout
 -- stderr
 | error[E0407]: missing argument `s`
-|   --> -e:3:17
+|   --> -e:4:17
 |   |
-| 3 | print(json.parse())
+| 4 | print(json.parse())
 |   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:3       <entry>
--- exit: 1
-==== "import json\nimport time\nprint(json.parse(s: \"[1]\"), json.stringify(x: [1], indent: 1))"
+-- exit: 2
+==== "import json\nimport time\n_imports = [json, time]\nprint(json.parse(s: \"[1]\"), json.stringify(x: [1], indent: 1))"
 -- stdout
 | Ok([1]) [
 |  1
 | ]
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nimport fs\nfs.with_open(\"Cargo.toml\", (f) => print(json.stringify(f)))"
+==== "import json\nimport time\nimport fs\n_imports = [json, time… (125 bytes, 36e16ef64332704a)
 -- stdout
 -- stderr
 | error[E0513]: cannot convert file to JSON
-|   --> -e:4:55
+|   --> -e:5:55
 |   |
-| 4 | fs.with_open("Cargo.toml", (f) => print(json.stringify(f)))
+| 5 | fs.with_open("Cargo.toml", (f) => print(json.stringify(f)))
 |   |                                                       ^
 |   |
 |  call path (innermost first):
-|    -e:4       <lambda>
-|    -e:4       <entry>
+|    -e:5       <lambda>
+|    -e:5       <entry>
 -- exit: 1
-==== "import json\nimport time\ns = `{\"z\":1,\"y\":{\"b\":2,\"a\… (269 bytes, d2c3f1e21bc07d15)
+==== "import json\nimport time\n_imports = [json, time]\ns = `{\"… (294 bytes, 6cbfa0dc24c9d1fc)
 -- stdout
 | {z: 1, y: {b: 2, a: 3}, x: [{k: "v"}], f: 1.0, i: 0, n: nil, t: true, u: "é\n"} {"z":1,"y":{"b":2,"a":3},"x":[{"k":"v"}],"f":1.0,"i":0,"n":null,"t":true,"u":"é\n"} true
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nn = 10000\nr = json.parse(fold(0.… (159 bytes, c83c5564d1986143)
+==== "import json\nimport time\n_imports = [json, time]\nn = 1000… (184 bytes, 44f7b1b8be88e16a)
 -- stdout
 | 'Ok
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nn = 10001\nprint(json.parse(fold(… (143 bytes, 98f1bb57ec5b755e)
+==== "import json\nimport time\n_imports = [json, time]\nn = 1000… (168 bytes, b97f93f428e7e54b)
 -- stdout
 | Err({kind: 'parse, line: 1, col: 10001, message: "invalid JSON at line 1, column 10001: nesting too deep (limit 10000)"})
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.parse(fold(0..200000, \"\", (acc, _) => acc + \"{\\\"a\\\":\")))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (128 bytes, 63539366bd44d723)
 -- stdout
 | Err({kind: 'parse, line: 1, col: 50001, message: "invalid JSON at line 1, column 50001: nesting too deep (limit 10000)"})
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nprint(json.parse(fold(0..20000, \"\", (acc, _) => acc + \" [\\n\")))"
+==== "import json\nimport time\n_imports = [json, time]\nprint(js… (121 bytes, ab1f4a7a72d89f94)
 -- stdout
 | Err({kind: 'parse, line: 10001, col: 2, message: "invalid JSON at line 10001, column 2: nesting too deep (limit 10000)"})
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nv = fold(0..100000, [], (acc, i) … (158 bytes, 1a1c47c07618afc6)
+==== "import json\nimport time\n_imports = [json, time]\nv = fold… (183 bytes, 18f28e5466557eb5)
 -- stdout
 | 400002 ["{", "\"", "k", "\"", ":", "[", "{", "\"", "k", "\"", ":", "["]
 -- stderr
 -- exit: 0
-==== "import json\nimport time\nv = fold(0..5, [], (acc, _) => [acc, 1])\nprint(json.stringify(v, indent: 1))"
+==== "import json\nimport time\n_imports = [json, time]\nv = fold… (130 bytes, 1425ec01f1d34d3e)
 -- stdout
 | [
 |  [

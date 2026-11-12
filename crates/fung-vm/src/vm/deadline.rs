@@ -55,7 +55,7 @@ impl Deadline {
 }
 
 /// `timeout(f, d)`: runs `f()` under a node with a deadline `d` from now
-/// and gives its value, or `Err({kind: 'timeout, message})` once the deadline
+/// and gives `Ok` of its value (D65), or `Err({kind: 'timeout, message})` once the deadline
 /// unwound it. `d` is never negative (`nat::need_dur`, SP15). A zero `d`
 /// has passed already: `f` unwinds at its first call (as Trio's `move_on_after(0)`). The run loop calls `f`
 /// (`cont.rs`).
@@ -103,7 +103,9 @@ impl Timeout {
                     &format!("timed out after {d}"),
                 )))
             }
-            r => r.map(Next::Done),
+            // `timeout` can give a runtime Err, so its value is a result
+            // (D65): `f`'s own Err is `Ok(Err(e))`.
+            r => r.map(|v| Next::Done(crate::native::nat::ok(v))),
         }
     }
 }

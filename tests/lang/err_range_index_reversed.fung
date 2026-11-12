@@ -1,9 +1,0 @@
-# A range value as an index is a slice of the same ends (D7), with the
-# slice's own rule: a start after the end, counted from the end, is
-# E0516 like `xs[-1..1]`.
-xs = [1, 2, 3]
-r = -1..1
-print(xs[(0..2)])
-print(xs[r])
-# expect: [1, 2]
-# expect-error: E0516

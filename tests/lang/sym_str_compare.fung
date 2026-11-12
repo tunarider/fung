@@ -1,9 +1,9 @@
-# == between other types is false; symbols and strings are the exception
-# (02): there it is an error. Patterns are not comparisons.
-print(1 == "1", nil == 0, [1] == (1,), 'a == 'a, "a" == "a", 1 == 1.0)
-# expect: false false false true true true
-print('a in ['a, 'b], "x" in ["x"], 2 in [1, "2"])
-# expect: true true false
+# == between values of different types is an error (D40, see
+# err_eq_types*), except numbers and nil. Patterns are not comparisons.
+print(nil == 0, 'a == 'a, "a" == "a", 1 == 1.0)
+# expect: false true true true
+print('a in ['a, 'b], "x" in ["x"], 2 in [1, 2])
+# expect: true true true
 kind = "not_found"
 r = match kind:
   'not_found  => "symbol"

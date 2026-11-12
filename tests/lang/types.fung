@@ -1,4 +1,4 @@
-fn f(n: int, s: str = "x") -> str = s
+fn f(_n: int, s: str = "x") -> str = s
 fn g(n: num) = n
 fn h(v: str | nil) = v
 fn k(v: any) = v

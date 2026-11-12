@@ -110,14 +110,19 @@
 ==== tests/lang/cli_parse.fung
 -- stdout
 | {flags: {trash: "dir"}, rest: ["a", "b"]}
-| {flags: {n: "3"}, rest: ["--not-a-flag", "-"]}
+| {flags: {n: "3"}, rest: ["--not-a-flag", "-v", "-"]}
 | {flags: {v: true}, rest: []} {flags: {a: true, b: "1"}, rest: []} {flags: {}, rest: []}
+| {flags: {n: "-5", m: "--x"}, rest: ["-"]}
 | {flags: {dry_run: true}, rest: ["x"]}
 | {flags: {dry_run: true}, rest: ["x"]}
 | {flags: {dry_run: false}, rest: ["x"]}
 | Err({kind: 'invalid, message: "the switch `--dry-run` takes true or false, got `no`"})
 | Err({kind: 'invalid, message: "the flag `--x` is given twice"})
 | Err({kind: 'invalid, message: "the flag `--a_b` is given twice"})
+| Err({kind: 'invalid, message: "unknown flag `--dry-rnu`"})
+| Err({kind: 'invalid, message: "unknown flag `---x`"}) Err({kind: 'invalid, message: "unknown flag `--a b`"}) Err({kind: 'invalid, message: "unknown flag `--n`"})
+| Err({kind: 'invalid, message: "the flag `-v` is not supported: flags start with `--` (put `--` before an argument that starts with `-`)"})
+| Err({kind: 'invalid, message: "the flag `--env` needs a value"}) Err({kind: 'invalid, message: "the flag `--env` needs a value"})
 -- stderr
 -- exit: 0
 ==== tests/lang/closures.fung
@@ -126,7 +131,6 @@
 | 6 11
 | 6
 | 5050
-| 1
 -- stderr
 -- exit: 0
 ==== tests/lang/collections.fung
@@ -138,7 +142,7 @@
 | 1
 | 2
 | [3, 2, 1] [2, 1, 0] [] [] ["b", "a"] [1, 2] []
-| 0 2.5 ab [1, 2] 3s 5050 -3
+| 0 2.5 3.5 3s 5050 -3
 | nil 1.0 2.0 3 6 nil a
 -- stderr
 -- exit: 0
@@ -238,17 +242,20 @@
 | computed
 -- stderr
 -- exit: 0
-==== tests/lang/element_types.fung
--- stdout
-| 2 3
--- stderr
--- exit: 0
 ==== tests/lang/eq_sym_str_pairs.fung
 -- stdout
 | false
 | false
 | false
 | false
+-- stderr
+-- exit: 0
+==== tests/lang/eq_types.fung
+-- stdout
+| true false true false true
+| false true false true
+| false false
+| one text one one other
 -- stderr
 -- exit: 0
 ==== tests/lang/err_alias_cycle.fung
@@ -285,11 +292,22 @@
 -- stdout
 -- stderr
 | error[E0216]: alternatives of a pattern must bind the same names
-|   --> tests/lang/err_alt_names.fung:1:18
+|   --> tests/lang/err_alt_names.fung:1:19
 |   |
-| 1 | match 1: Ok(x) | Err(y) => print(1) ;;
-|   |                  ^
+| 1 | match 1: Ok(_x) | Err(_y) => print(1) ;;
+|   |                   ^
 |   |
+-- exit: 2
+==== tests/lang/err_alt_never_matches.fung
+-- stdout
+-- stderr
+| error[E0241]: this alternative never matches: it repeats an alternative before it
+|   --> tests/lang/err_alt_never_matches.fung:3:7
+|   |
+| 3 |   1 | 1 => print("one")
+|   |       ^
+|   |
+|  help: remove it
 -- exit: 2
 ==== tests/lang/err_arg_twice.fung
 -- stdout
@@ -300,9 +318,7 @@
 | 2 | f(1, a: 2)
 |   |  ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_arg_twice.fung:2 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_arg_type.fung
 -- stdout
 -- stderr
@@ -352,6 +368,30 @@
 |   | ^
 |   |
 -- exit: 2
+==== tests/lang/err_assign_top_fn_in_fn.fung
+-- stdout
+-- stderr
+| error[E0240]: `count` hides a top-level function
+|   --> tests/lang/err_assign_top_fn_in_fn.fung:4:3
+|   |
+| 4 |   count = 0
+|   |   ^^^^^
+|   |
+|   note: `count` is a top-level function defined on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_assign_top_name_in_fn.fung
+-- stdout
+-- stderr
+| error[E0205]: cannot reassign `limit` here: it was defined outside this block
+|   --> tests/lang/err_assign_top_name_in_fn.fung:5:3
+|   |
+| 5 |   limit = 5
+|   |   ^^^^^
+|   |
+|   note: `limit` is a top-level name bound on line 3
+|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+-- exit: 2
 ==== tests/lang/err_atom_effect.fung
 -- stdout
 -- stderr
@@ -369,10 +409,10 @@
 -- stdout
 -- stderr
 | error[E0708]: an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket
-|   --> tests/lang/err_atom_holds.fung:3:5
+|   --> tests/lang/err_atom_holds.fung:3:10
 |   |
-| 3 | atom(rx)
-|   |     ^
+| 3 | _a = atom(rx)
+|   |          ^
 |   |
 |  call path (innermost first):
 |    tests/lang/err_atom_holds.fung:3 <entry>
@@ -381,10 +421,10 @@
 -- stdout
 -- stderr
 | error[E0707]: `swap` has an effect, which a swap's function must not have
-|   --> tests/lang/err_atom_reentry.fung:2:18
+|   --> tests/lang/err_atom_reentry.fung:2:19
 |   |
-| 2 | swap(a, x => swap(a, y => y))
-|   |                  ^
+| 2 | swap(a, _x => swap(a, y => y))
+|   |                   ^
 |   |
 |  call path (innermost first):
 |    tests/lang/err_atom_reentry.fung:2 <lambda>
@@ -427,27 +467,50 @@
 |  call path (innermost first):
 |    tests/lang/err_bang_value.fung:1 <entry>
 -- exit: 1
+==== tests/lang/err_bare_err_pattern.fung
+-- stdout
+-- stderr
+| error[E0236]: `Err` takes exactly one value, found 0
+|   --> tests/lang/err_bare_err_pattern.fung:4:3
+|   |
+| 4 |   Err => "err"
+|   |   ^
+|   |
+|  help: give it its value, `Ok(x)`; to test for a result, use `is_ok(r)`/`is_err(r)` or the pattern `Ok(_)`
+-- exit: 2
+==== tests/lang/err_bare_ok.fung
+-- stdout
+-- stderr
+| error[E0236]: `Ok` takes exactly one value, found 0
+|   --> tests/lang/err_bare_ok.fung:4:5
+|   |
+| 4 | x = Ok
+|   |     ^
+|   |
+|  help: give it its value, `Ok(x)`; to test for a result, use `is_ok(r)`/`is_err(r)` or the pattern `Ok(_)`
+-- exit: 2
 ==== tests/lang/err_block_assign_const.fung
 -- stdout
 -- stderr
 | error[E0205]: cannot reassign `c` here: it was defined outside this block
-|   --> tests/lang/err_block_assign_const.fung:6:5
+|   --> tests/lang/err_block_assign_const.fung:5:5
 |   |
-| 6 |     c = 2
+| 5 |     c = 2
 |   |     ^
 |   |
+|   note: `c` is a top-level name bound on line 2
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== tests/lang/err_block_leak.fung
 -- stdout
 -- stderr
-| error[E0206]: `y` is not visible here: it was defined inside a block
+| error[E0206]: `_y` is not visible here: it was defined inside a block
 |   --> tests/lang/err_block_leak.fung:2:7
 |   |
-| 2 | print(y)
-|   |       ^
+| 2 | print(_y)
+|   |       ^^
 |   |
-|  help: assign the block's value instead: `y = if … ;;`
+|  help: assign the block's value instead: `_y = if … ;;`
 -- exit: 2
 ==== tests/lang/err_bool.fung
 -- stdout
@@ -460,6 +523,49 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_bool.fung:1 <entry>
+-- exit: 1
+==== tests/lang/err_call_count_static.fung
+-- stdout
+-- stderr
+| error[E0402]: len takes 1 argument(s), got 2
+|   --> tests/lang/err_call_count_static.fung:3:10
+|   |
+| 3 | print(len([1], [2]))
+|   |          ^
+|   |
+-- exit: 2
+==== tests/lang/err_call_missing_static.fung
+-- stdout
+-- stderr
+| error[E0407]: missing argument `b`
+|   --> tests/lang/err_call_missing_static.fung:5:10
+|   |
+| 5 | print(add(1))
+|   |          ^
+|   |
+-- exit: 2
+==== tests/lang/err_call_name_static.fung
+-- stdout
+-- stderr
+| error[E0406]: join has no argument named `sep`
+|   --> tests/lang/err_call_name_static.fung:4:16
+|   |
+| 4 | print(path.join("a", "b", sep: "/"))
+|   |                ^
+|   |
+-- exit: 2
+==== tests/lang/err_cancel_closed_scope.fung
+-- stdout
+-- stderr
+| error[E0706]: `cancel` on a closed scope
+|   --> tests/lang/err_cancel_closed_scope.fung:2:7
+|   |
+| 2 | cancel(s2)
+|   |       ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_cancel_closed_scope.fung:2 <entry>
+|  help: use a scope's handle only inside the function `scope` or `supervise` runs
 -- exit: 1
 ==== tests/lang/err_chain.fung
 -- stdout
@@ -510,16 +616,51 @@
 |  call path (innermost first):
 |    tests/lang/err_cli_empty_flag.fung:4 <entry>
 -- exit: 1
+==== tests/lang/err_cli_option_name.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `bools` must be a list of option names (letters, digits, `_` and `-`, from a letter or `_`), got "a b"
+|   --> tests/lang/err_cli_option_name.fung:5:16
+|   |
+| 5 | print(cli.parse([], bools: ["a b"]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_cli_option_name.fung:5 <entry>
+-- exit: 1
+==== tests/lang/err_cli_option_twice.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `values` must be a list of names not in `bools`, got "dry_run"
+|   --> tests/lang/err_cli_option_twice.fung:3:16
+|   |
+| 3 | print(cli.parse([], bools: ["dry-run"], values: ["dry_run"]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_cli_option_twice.fung:3 <entry>
+-- exit: 1
 ==== tests/lang/err_closed_name_in_lambda.fung
 -- stdout
 -- stderr
-| error[E0206]: `lines` is not visible here: it was defined inside a block
+| error[E0206]: `_found` is not visible here: it was defined inside a block
 |   --> tests/lang/err_closed_name_in_lambda.fung:6:11
 |   |
-| 6 | g = () => lines
-|   |           ^^^^^
+| 6 | g = () => _found
+|   |           ^^^^^^
 |   |
-|  help: assign the block's value instead: `lines = if … ;;`
+|  help: assign the block's value instead: `_found = if … ;;`
+-- exit: 2
+==== tests/lang/err_coalesce_pipe.fung
+-- stdout
+-- stderr
+| error[E0127]: `??` and `|>` cannot be mixed without parentheses
+|   --> tests/lang/err_coalesce_pipe.fung:5:19
+|   |
+| 5 | print(Err("none") ?? "{}" |> json.parse)
+|   |                   ^^
+|   |
+|  help: say which one goes first: `(a ?? b) |> f` or `a ?? (b |> f)`
 -- exit: 2
 ==== tests/lang/err_cond_not_bool.fung
 -- stdout
@@ -595,6 +736,48 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_discard_branch.fung:3 <entry>
+|  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+-- exit: 1
+==== tests/lang/err_discard_deep_map.fung
+-- stdout
+-- stderr
+| error[E0606]: discarded Err: "lost"
+|   --> tests/lang/err_discard_deep_map.fung:3:1
+|   |
+| 3 | f()
+|   | ^ this value is discarded
+|   |
+|   note: key "a" of the discarded map, then element 2 (of 2)
+|  call path (innermost first):
+|    tests/lang/err_discard_deep_map.fung:3 <entry>
+|  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+-- exit: 1
+==== tests/lang/err_discard_deep_ok.fung
+-- stdout
+-- stderr
+| error[E0606]: discarded Err: "lost"
+|   --> tests/lang/err_discard_deep_ok.fung:3:1
+|   |
+| 3 | f()
+|   | ^ this value is discarded
+|   |
+|   note: the value of the discarded `Ok(…)`
+|  call path (innermost first):
+|    tests/lang/err_discard_deep_ok.fung:3 <entry>
+|  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+-- exit: 1
+==== tests/lang/err_discard_deep_tuple.fung
+-- stdout
+-- stderr
+| error[E0606]: discarded Err: "lost"
+|   --> tests/lang/err_discard_deep_tuple.fung:3:1
+|   |
+| 3 | f()
+|   | ^ this value is discarded
+|   |
+|   note: item 2 of the discarded tuple (of 2), then element 1 (of 1), then element 1 (of 1)
+|  call path (innermost first):
+|    tests/lang/err_discard_deep_tuple.fung:3 <entry>
 |  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 -- exit: 1
 ==== tests/lang/err_discard_each.fung
@@ -735,15 +918,28 @@
 |  call path (innermost first):
 |    tests/lang/err_div_zero.fung:3 <entry>
 -- exit: 1
+==== tests/lang/err_drop_count_first.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -1
+|   --> tests/lang/err_drop_count_first.fung:3:5
+|   |
+| 3 | drop(rx, -1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_drop_count_first.fung:3 <entry>
+-- exit: 1
 ==== tests/lang/err_dup_fn.fung
 -- stdout
 -- stderr
 | error[E0210]: function `f` is defined twice
-|   --> tests/lang/err_dup_fn.fung:2:1
+|   --> tests/lang/err_dup_fn.fung:2:4
 |   |
 | 2 | fn f() = 2
-|   | ^
+|   |    ^
 |   |
+|   note: `f` is first defined on line 1
 -- exit: 2
 ==== tests/lang/err_dup_key.fung
 -- stdout
@@ -754,6 +950,7 @@
 | 1 | x = {a: 1, a: 2}
 |   |            ^
 |   |
+|   note: the key `a` is first written at 1:6
 -- exit: 2
 ==== tests/lang/err_dup_pattern_name.fung
 -- stdout
@@ -797,7 +994,7 @@
 |   --> tests/lang/err_duration_fraction_part.fung:2:7
 |   |
 | 2 | print(1.5h30m)
-|   |       ^
+|   |       ^^^^^^^
 |   |
 |  help: only the last part of a duration has a fraction: write `1h30.5m`, not `1.5h30m`
 -- exit: 2
@@ -808,7 +1005,7 @@
 |   --> tests/lang/err_duration_leading_zero.fung:2:7
 |   |
 | 2 | print(1h05m)
-|   |       ^
+|   |       ^^^^^
 |   |
 |  help: a duration part does not start with 0: drop the zeros
 -- exit: 2
@@ -819,7 +1016,7 @@
 |   --> tests/lang/err_duration_rounds_to_zero.fung:2:7
 |   |
 | 2 | print(0.0000004ms)
-|   |       ^
+|   |       ^^^^^^^^^^^
 |   |
 |  help: a duration is counted in whole nanoseconds; this part rounds to 0
 -- exit: 2
@@ -933,31 +1130,58 @@
 |   |
 |  help: use the value, or write `_ = …` to discard it on purpose
 -- exit: 2
+==== tests/lang/err_element_type.fung
+-- stdout
+-- stderr
+| error[E0130]: a type annotation has no element type
+|   --> tests/lang/err_element_type.fung:4:13
+|   |
+| 4 | fn f(x: list[int]) = x
+|   |             ^
+|   |
+|  help: write `list` or `map` alone: the elements are not checked, so they are not written
+-- exit: 2
 ==== tests/lang/err_element_type_on_scalar.fung
 -- stdout
 -- stderr
-| error[E0232]: `int` takes no element type
-|   --> tests/lang/err_element_type_on_scalar.fung:2:9
+| error[E0130]: a type annotation has no element type
+|   --> tests/lang/err_element_type_on_scalar.fung:2:12
 |   |
 | 2 | fn f(x: int[str]) = x
-|   |         ^^^
+|   |            ^
 |   |
-|  help: only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone
+|  help: write `list` or `map` alone: the elements are not checked, so they are not written
 -- exit: 2
-==== tests/lang/err_element_type_unknown.fung
+==== tests/lang/err_env_name.fung
 -- stdout
 -- stderr
-| error[E0212]: unknown type `lsit`
-|   --> tests/lang/err_element_type_unknown.fung:3:14
+| error[E0403]: argument `name` must be a variable name (not empty, no `=` or NUL), got "A=B"
+|   --> tests/lang/err_env_name.fung:3:10
 |   |
-| 3 | fn f(x: list[lsit]) = x
-|   |              ^^^^
+| 3 | print(env("A=B"))
+|   |          ^
 |   |
--- exit: 2
+|  call path (innermost first):
+|    tests/lang/err_env_name.fung:3 <entry>
+-- exit: 1
+==== tests/lang/err_eq_fn.fung
+-- stdout
+| 2
+-- stderr
+| error[E0501]: cannot compare fn and fn
+|   --> tests/lang/err_eq_fn.fung:5:9
+|   |
+| 5 | print(f == f)
+|   |         ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_eq_fn.fung:5 <entry>
+|  help: functions have no equality; compare a name or a value that stands for each
+-- exit: 1
 ==== tests/lang/err_eq_sym_str_compared.fung
 -- stdout
 -- stderr
-| error[E0517]: cannot compare a symbol with a string: 'a and "a"
+| error[E0517]: cannot compare values of different types: 'a (sym) and "a" (str)
 |   --> tests/lang/err_eq_sym_str_compared.fung:2:15
 |   |
 | 2 | print([1, 'a] == [1, "a"])
@@ -965,7 +1189,48 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_eq_sym_str_compared.fung:2 <entry>
-|  help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`
+|  help: a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`
+-- exit: 1
+==== tests/lang/err_eq_types.fung
+-- stdout
+| true
+-- stderr
+| error[E0517]: cannot compare values of different types: "8080" (str) and 8080 (int)
+|   --> tests/lang/err_eq_types.fung:5:14
+|   |
+| 5 | print("8080" == 8080)
+|   |              ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_eq_types.fung:5 <entry>
+|  help: they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`
+-- exit: 1
+==== tests/lang/err_eq_types_nested.fung
+-- stdout
+-- stderr
+| error[E0517]: cannot compare values of different types: "a" (str) and 2 (int)
+|   --> tests/lang/err_eq_types_nested.fung:2:16
+|   |
+| 2 | print([1, "a"] == [1, 2])
+|   |                ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_eq_types_nested.fung:2 <entry>
+|  help: they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`
+-- exit: 1
+==== tests/lang/err_eq_types_tag.fung
+-- stdout
+| false false true
+-- stderr
+| error[E0517]: cannot compare values of different types: Ok(1) (Ok) and 1 (int)
+|   --> tests/lang/err_eq_types_tag.fung:5:13
+|   |
+| 5 | print(Ok(1) == 1)
+|   |             ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_eq_types_tag.fung:5 <entry>
+|  help: they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`
 -- exit: 1
 ==== tests/lang/err_escape.fung
 -- stdout
@@ -1035,6 +1300,19 @@
 |  call path (innermost first):
 |    tests/lang/err_fail.fung:3 <entry>
 -- exit: 1
+==== tests/lang/err_field_of_list.fung
+-- stdout
+-- stderr
+| error[E0509]: cannot index list with str
+|   --> tests/lang/err_field_of_list.fung:3:9
+|   |
+| 3 | print(xs.len)
+|   |         ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_field_of_list.fung:3 <entry>
+|  help: a list has no fields; to call `len` on it, write `len(…)`
+-- exit: 1
 ==== tests/lang/err_file_wrong_mode.fung
 -- stdout
 -- stderr
@@ -1048,14 +1326,28 @@
 |    tests/lang/err_file_wrong_mode.fung:5 <entry>
 |  help: open it with the mode the code needs: `fs.open(p, 'read)` to read, `'write` or `'append` to write
 -- exit: 1
+==== tests/lang/err_flatten_scalar.fung
+-- stdout
+| [0, 1, 5]
+-- stderr
+| error[E0506]: cannot flatten an element of type int
+|   --> tests/lang/err_flatten_scalar.fung:4:14
+|   |
+| 4 | print(flatten([1, [2]]))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_flatten_scalar.fung:4 <entry>
+|  help: every element of `flatten`'s list is a list or a range; put a single value in a list: `[x]`
+-- exit: 1
 ==== tests/lang/err_float_underflow.fung
 -- stdout
 -- stderr
-| error[E0102]: malformed number "1e-400"
+| error[E0135]: number "1e-400" is out of range
 |   --> tests/lang/err_float_underflow.fung:2:7
 |   |
 | 2 | print(1e-400)
-|   |       ^
+|   |       ^^^^^^
 |   |
 |  help: the number is too small for a float; write `0.0` for zero
 -- exit: 2
@@ -1065,7 +1357,7 @@
 | error[E0224]: a block used as a value is empty, so the value is nil
 |   --> tests/lang/err_fn_empty_body.fung:3:1
 |   |
-| 3 | fn f((a, b)): ;;
+| 3 | fn f((_a, _b)): ;;
 |   | ^
 |   |
 |  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
@@ -1083,13 +1375,13 @@
 ==== tests/lang/err_for_var_after.fung
 -- stdout
 -- stderr
-| error[E0206]: `len` is not visible here: it was defined inside a block
-|   --> tests/lang/err_for_var_after.fung:6:7
+| error[E0206]: `item` is not visible here: it was defined inside a block
+|   --> tests/lang/err_for_var_after.fung:5:7
 |   |
-| 6 | print(len([1, 2]))
-|   |       ^^^
+| 5 | print(item)
+|   |       ^^^^
 |   |
-|  help: `len` is bound in a `for` body, only there; use the for's value instead: `xs = for … ;;`
+|  help: `item` is bound in a `for` body, only there; use the for's value instead: `xs = for … ;;`
 -- exit: 2
 ==== tests/lang/err_glob_pattern.fung
 -- stdout
@@ -1126,6 +1418,7 @@
 | 3 |   x = 2
 |   |   ^
 |   |
+|   note: `x` is a top-level name bound on line 1
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== tests/lang/err_group_key.fung
@@ -1141,6 +1434,223 @@
 |    tests/lang/err_group_key.fung:1 <entry>
 |  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
+==== tests/lang/err_habit_and.fung
+-- stdout
+-- stderr
+| error[E0101]: unexpected character "&"
+|   --> tests/lang/err_habit_and.fung:2:12
+|   |
+| 2 | print(true && false)
+|   |            ^^
+|   |
+|  help: fung writes `and`
+-- exit: 2
+==== tests/lang/err_habit_compare.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `:` after the if condition, found `=`
+|   --> tests/lang/err_habit_compare.fung:3:6
+|   |
+| 3 | if x = 1:
+|   |      ^
+|   |
+|  help: to compare, write `==`; `=` binds a name, and only as a statement
+-- exit: 2
+==== tests/lang/err_habit_elif.fung
+-- stdout
+-- stderr
+| error[E0134]: `elif` is not a keyword in fung
+|   --> tests/lang/err_habit_elif.fung:6:1
+|   |
+| 6 | elif x == 2:
+|   | ^^^^
+|   |
+|  help: fung writes `else if`
+-- exit: 2
+==== tests/lang/err_habit_reserved.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected reserved word `match`
+|   --> tests/lang/err_habit_reserved.fung:2:1
+|   |
+| 2 | match = 1
+|   | ^^^^^
+|   |
+|  help: `match` is a reserved word, so it cannot be a name; pick another one
+-- exit: 2
+==== tests/lang/err_hex_upper.fung
+-- stdout
+-- stderr
+| error[E0102]: malformed number "0xFF"
+|   --> tests/lang/err_hex_upper.fung:3:7
+|   |
+| 3 | print(0xFF)
+|   |       ^^^^
+|   |
+|  help: write the hexadecimal digits in lowercase: `0xff`
+-- exit: 2
+==== tests/lang/err_hide_arm_name.fung
+-- stdout
+-- stderr
+| error[E0240]: `x` hides a variable of an outer block
+|   --> tests/lang/err_hide_arm_name.fung:3:3
+|   |
+| 3 |   x => x
+|   |   ^
+|   |
+|   note: `x` is bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_assign_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `len` hides a prelude function
+|   --> tests/lang/err_hide_assign_prelude.fung:3:3
+|   |
+| 3 |   len = 3
+|   |   ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_for_pattern.fung
+-- stdout
+-- stderr
+| error[E0240]: `a` hides a variable of an outer block
+|   --> tests/lang/err_hide_for_pattern.fung:3:8
+|   |
+| 3 |   for (a, b) in [(1, 2)]: a + b ;;
+|   |        ^
+|   |
+|   note: `a` is bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_for_var.fung
+-- stdout
+-- stderr
+| error[E0240]: `x` hides a top-level name
+|   --> tests/lang/err_hide_for_var.fung:3:11
+|   |
+| 3 | print(for x in [1, 2]: x ;;, x)
+|   |           ^
+|   |
+|   note: `x` is a top-level name bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_import_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `split` hides a prelude function
+|   --> tests/lang/err_hide_import_prelude.fung:2:15
+|   |
+| 2 | import regex (split)
+|   |               ^^^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_lambda_param.fung
+-- stdout
+-- stderr
+| error[E0240]: `x` hides a variable of an outer block
+|   --> tests/lang/err_hide_lambda_param.fung:4:7
+|   |
+| 4 |   g = x => x + 1
+|   |       ^
+|   |
+|   note: `x` is bound on line 3
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_local_fn.fung
+-- stdout
+-- stderr
+| error[E0240]: `c` hides a top-level name
+|   --> tests/lang/err_hide_local_fn.fung:4:6
+|   |
+| 4 |   fn c() = 5
+|   |      ^
+|   |
+|   note: `c` is a top-level name bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_own_name.fung
+-- stdout
+-- stderr
+| error[E0240]: `go` hides the name of the function it is in
+|   --> tests/lang/err_hide_own_name.fung:3:9
+|   |
+| 3 |   fn go(go) = go + 1
+|   |         ^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_param_import.fung
+-- stdout
+-- stderr
+| error[E0240]: `greet` hides an imported name
+|   --> tests/lang/err_hide_param_import.fung:3:6
+|   |
+| 3 | fn f(greet) = greet + 1
+|   |      ^^^^^
+|   |
+|   note: `greet` is imported on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_param_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `len` hides a prelude function
+|   --> tests/lang/err_hide_param_prelude.fung:2:6
+|   |
+| 2 | fn f(len) = len + 1
+|   |      ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_param_top_fn.fung
+-- stdout
+-- stderr
+| error[E0240]: `g` hides a top-level function
+|   --> tests/lang/err_hide_param_top_fn.fung:3:6
+|   |
+| 3 | fn f(g) = g + 1
+|   |      ^
+|   |
+|   note: `g` is a top-level function defined on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_param_top_name.fung
+-- stdout
+-- stderr
+| error[E0240]: `limit` hides a top-level name
+|   --> tests/lang/err_hide_param_top_name.fung:2:6
+|   |
+| 2 | fn f(limit) = limit + 1
+|   |      ^^^^^
+|   |
+|   note: `limit` is a top-level name bound on line 3
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_top_assign_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `max` hides a prelude function
+|   --> tests/lang/err_hide_top_assign_prelude.fung:2:1
+|   |
+| 2 | max = 3
+|   | ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== tests/lang/err_hide_top_fn_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `len` hides a prelude function
+|   --> tests/lang/err_hide_top_fn_prelude.fung:2:4
+|   |
+| 2 | fn len(x) = 99
+|   |    ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
 ==== tests/lang/err_hole.fung
 -- stdout
 -- stderr
@@ -1170,6 +1680,17 @@
 | 1 | fn f(): import fs ;;
 |   |         ^
 |   |
+-- exit: 2
+==== tests/lang/err_import_late.fung
+-- stdout
+-- stderr
+| error[E0313]: `import` after another statement
+|   --> tests/lang/err_import_late.fung:3:1
+|   |
+| 3 | import json
+|   | ^^^^^^
+|   |
+|  help: put every import at the top of the file, before the other statements
 -- exit: 2
 ==== tests/lang/err_import_missing.fung
 -- stdout
@@ -1226,6 +1747,58 @@
 |  call path (innermost first):
 |    tests/lang/err_in.fung:1 <entry>
 -- exit: 1
+==== tests/lang/err_in_range_types.fung
+-- stdout
+| false
+-- stderr
+| error[E0517]: cannot compare values of different types: "a" (str) and 0 (int)
+|   --> tests/lang/err_in_range_types.fung:4:11
+|   |
+| 4 | print("a" in 0..3)
+|   |           ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_in_range_types.fung:4 <entry>
+|  help: they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`
+-- exit: 1
+==== tests/lang/err_in_types.fung
+-- stdout
+-- stderr
+| error[E0517]: cannot compare values of different types: 1 (int) and "a" (str)
+|   --> tests/lang/err_in_types.fung:2:11
+|   |
+| 2 | print("a" in [1])
+|   |           ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_in_types.fung:2 <entry>
+|  help: they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`
+-- exit: 1
+==== tests/lang/err_index_negative.fung
+-- stdout
+| 30 30
+-- stderr
+| error[E0507]: index -1 is out of range (length 3)
+|   --> tests/lang/err_index_negative.fung:6:9
+|   |
+| 6 | print(xs[-1])
+|   |         ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_index_negative.fung:6 <entry>
+-- exit: 1
+==== tests/lang/err_index_of_empty.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `sub` must be a non-empty str, got ""
+|   --> tests/lang/err_index_of_empty.fung:2:15
+|   |
+| 2 | print(index_of("abc", ""))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_index_of_empty.fung:2 <entry>
+-- exit: 1
 ==== tests/lang/err_index_range.fung
 -- stdout
 -- stderr
@@ -1241,7 +1814,7 @@
 ==== tests/lang/err_index_tuple.fung
 -- stdout
 -- stderr
-| error[E0509]: cannot index a value of type tuple
+| error[E0509]: cannot index tuple with int
 |   --> tests/lang/err_index_tuple.fung:1:13
 |   |
 | 1 | print((1, 2)[0])
@@ -1250,6 +1823,17 @@
 |  call path (innermost first):
 |    tests/lang/err_index_tuple.fung:1 <entry>
 -- exit: 1
+==== tests/lang/err_int_out_of_range.fung
+-- stdout
+-- stderr
+| error[E0135]: number "99999999999999999999" is out of range
+|   --> tests/lang/err_int_out_of_range.fung:2:7
+|   |
+| 2 | print(99999999999999999999)
+|   |       ^^^^^^^^^^^^^^^^^^^^
+|   |
+|  help: an int holds -9223372036854775808 to 9223372036854775807
+-- exit: 2
 ==== tests/lang/err_interp.fung
 -- stdout
 -- stderr
@@ -1260,10 +1844,52 @@
 |   |             ^
 |   |
 -- exit: 2
+==== tests/lang/err_interp_deep.fung
+-- stdout
+| [1, [2]]
+-- stderr
+| error[E0519]: an `Ok` value in string interpolation: it is not put into text silently
+|   --> tests/lang/err_interp_deep.fung:4:7
+|   |
+| 4 | print("${[1, [Ok(2)]]}")
+|   |       ^
+|   |
+|   note: it is inside the value put into text
+|  call path (innermost first):
+|    tests/lang/err_interp_deep.fung:4 <entry>
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
+-- exit: 1
+==== tests/lang/err_interp_fn.fung
+-- stdout
+| <fn print>
+-- stderr
+| error[E0519]: a function in string interpolation: it is not put into text silently
+|   --> tests/lang/err_interp_fn.fung:4:7
+|   |
+| 4 | print("f=${print}")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_interp_fn.fung:4 <entry>
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
+-- exit: 1
+==== tests/lang/err_interp_nil.fung
+-- stdout
+-- stderr
+| error[E0519]: `nil` in string interpolation: it is not put into text silently
+|   --> tests/lang/err_interp_nil.fung:3:7
+|   |
+| 3 | print("p=${nil}")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_interp_nil.fung:3 <entry>
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
+-- exit: 1
 ==== tests/lang/err_interp_result.fung
 -- stdout
 -- stderr
-| error[E0519]: an `Ok` value in string interpolation: a result is not put into text silently
+| error[E0519]: an `Ok` value in string interpolation: it is not put into text silently
 |   --> tests/lang/err_interp_result.fung:4:7
 |   |
 | 4 | print("http://${r}/")
@@ -1271,12 +1897,39 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_interp_result.fung:4 <entry>
-|  help: unwrap it with `!` or `?` first; if the result itself is meant, write `str(x)`
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
+-- exit: 1
+==== tests/lang/err_join_deep.fung
+-- stdout
+-- stderr
+| error[E0519]: `nil` in `join`: it is not put into text silently
+|   --> tests/lang/err_join_deep.fung:2:11
+|   |
+| 2 | print(join([[1, nil]], ","))
+|   |           ^
+|   |
+|   note: it is inside the value put into text
+|  call path (innermost first):
+|    tests/lang/err_join_deep.fung:2 <entry>
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
+-- exit: 1
+==== tests/lang/err_join_nil.fung
+-- stdout
+-- stderr
+| error[E0519]: `nil` in `join`: it is not put into text silently
+|   --> tests/lang/err_join_nil.fung:2:11
+|   |
+| 2 | print(join([nil, "a"], ","))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_join_nil.fung:2 <entry>
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
 -- exit: 1
 ==== tests/lang/err_join_result.fung
 -- stdout
 -- stderr
-| error[E0519]: an `Err` value in `join`: a result is not put into text silently
+| error[E0519]: an `Err` value in `join`: it is not put into text silently
 |   --> tests/lang/err_join_result.fung:3:11
 |   |
 | 3 | print(join(["a", Err("b")], ","))
@@ -1284,7 +1937,7 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_join_result.fung:3 <entry>
-|  help: unwrap it with `!` or `?` first; if the result itself is meant, write `str(x)`
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
 -- exit: 1
 ==== tests/lang/err_json_stringify.fung
 -- stdout
@@ -1297,6 +1950,44 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_json_stringify.fung:2 <entry>
+-- exit: 1
+==== tests/lang/err_json_stringify_indent.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `indent` must be a positive int or nil, got 0
+|   --> tests/lang/err_json_stringify_indent.fung:3:21
+|   |
+| 3 | print(json.stringify([1], 0))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_json_stringify_indent.fung:3 <entry>
+-- exit: 1
+==== tests/lang/err_json_stringify_sym.fung
+-- stdout
+-- stderr
+| error[E0513]: cannot convert sym to JSON
+|   --> tests/lang/err_json_stringify_sym.fung:3:21
+|   |
+| 3 | print(json.stringify(['a]))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_json_stringify_sym.fung:3 <entry>
+|  help: write the symbol's name: `sym_name(s)`
+-- exit: 1
+==== tests/lang/err_json_stringify_tuple.fung
+-- stdout
+-- stderr
+| error[E0513]: cannot convert tuple to JSON
+|   --> tests/lang/err_json_stringify_tuple.fung:3:21
+|   |
+| 3 | print(json.stringify({k: (2,)}))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_json_stringify_tuple.fung:3 <entry>
+|  help: write a list: `[a, b]`
 -- exit: 1
 ==== tests/lang/err_key.fung
 -- stdout
@@ -1311,6 +2002,52 @@
 |    tests/lang/err_key.fung:1 <entry>
 |  help: use get(m, key, default) for a default
 -- exit: 1
+==== tests/lang/err_lambda_operand.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected lambda
+|   --> tests/lang/err_lambda_operand.fung:4:9
+|   |
+| 4 | g = 1 + x => x * 2
+|   |         ^
+|   |
+|  help: put the lambda in parentheses: `(x => …)`
+-- exit: 2
+==== tests/lang/err_lambda_question.fung
+-- stdout
+-- stderr
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_lambda_question.fung:3:40
+|   |
+| 3 | fn f(xs) = filter(xs, x => parse_int(x)? > 1)
+|   |                                        ^
+|   |
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+-- exit: 2
+==== tests/lang/err_lambda_return.fung
+-- stdout
+-- stderr
+| error[E0237]: `return` inside a lambda `=>`
+|   --> tests/lang/err_lambda_return.fung:8:37
+|   |
+| 8 | fn h(xs) = find(xs, x => x > 1 then return true else false)
+|   |                                     ^^^^^^
+|   |
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+-- exit: 2
+==== tests/lang/err_list_limit_flatten.fung
+-- stdout
+| 4
+-- stderr
+| error[E0806]: too many elements (limit 100000000)
+|   --> tests/lang/err_list_limit_flatten.fung:4:18
+|   |
+| 4 | print(len(flatten([0..60000000, 0..60000000])))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_list_limit_flatten.fung:4 <entry>
+-- exit: 1
 ==== tests/lang/err_local_fn_later.fung
 -- stdout
 -- stderr
@@ -1321,6 +2058,17 @@
 |   |            ^
 |   |
 |  help: local functions can only call themselves; move both functions to the top level
+-- exit: 2
+==== tests/lang/err_local_fn_twice.fung
+-- stdout
+-- stderr
+| error[E0210]: function `a` is defined twice
+|   --> tests/lang/err_local_fn_twice.fung:4:6
+|   |
+| 4 |   fn a() = 2
+|   |      ^
+|   |
+|   note: `a` is first defined on line 3
 -- exit: 2
 ==== tests/lang/err_local_never_read.fung
 -- stdout
@@ -1340,13 +2088,13 @@
 ==== tests/lang/err_map_named_f_question.fung
 -- stdout
 -- stderr
-| error[E0226]: `?` inside a lambda given to map
-|   --> tests/lang/err_map_named_f_question.fung:3:44
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_map_named_f_question.fung:2:44
 |   |
-| 3 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
+| 2 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
 |   |                                            ^
 |   |
-|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== tests/lang/err_map_pattern_dup_key.fung
 -- stdout
@@ -1357,17 +2105,18 @@
 | 3 |   {a: x, a: 2} => print(x)
 |   |          ^
 |   |
+|   note: the key `a` is first written at 3:4
 -- exit: 2
 ==== tests/lang/err_map_question.fung
 -- stdout
 -- stderr
-| error[E0226]: `?` inside a lambda given to map
-|   --> tests/lang/err_map_question.fung:2:45
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_map_question.fung:3:45
 |   |
-| 2 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
+| 3 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
 |   |                                             ^
 |   |
-|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== tests/lang/err_match_after_all.fung
 -- stdout
@@ -1376,7 +2125,7 @@
 |   --> tests/lang/err_match_after_all.fung:3:3
 |   |
 | 3 |   _ => 1
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
 -- exit: 2
@@ -1387,9 +2136,16 @@
 |   --> tests/lang/err_match_alt_all.fung:3:3
 |   |
 | 3 |   n | n => print(n)
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
+| error[E0241]: this alternative never matches: an alternative before it matches everything
+|   --> tests/lang/err_match_alt_all.fung:3:7
+|   |
+| 3 |   n | n => print(n)
+|   |       ^
+|   |
+|  help: remove it
 -- exit: 2
 ==== tests/lang/err_match_alt_any.fung
 -- stdout
@@ -1398,9 +2154,20 @@
 |   --> tests/lang/err_match_alt_any.fung:4:3
 |   |
 | 4 |   1 | _ => "any"
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
+-- exit: 2
+==== tests/lang/err_match_dup_literal.fung
+-- stdout
+-- stderr
+| error[E0235]: this arm never runs: the arm on line 3 matches the same literal first
+|   --> tests/lang/err_match_dup_literal.fung:4:3
+|   |
+| 4 |   1 => "b"
+|   |   ^
+|   |
+|  help: remove one of the two arms, or join their bodies in one
 -- exit: 2
 ==== tests/lang/err_match_lambda_stmt.fung
 -- stdout
@@ -1409,7 +2176,7 @@
 |   --> tests/lang/err_match_lambda_stmt.fung:8:3
 |   |
 | 8 |   y => y + 1
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
 -- exit: 2
@@ -1417,25 +2184,31 @@
 -- stdout
 -- stderr
 | error[E0235]: this arm matches everything, so the arms after it never run
-|   --> tests/lang/err_match_name_compare.fung:5:3
+|   --> tests/lang/err_match_name_compare.fung:6:3
 |   |
-| 5 |   limit => "at limit"
-|   |   ^^^^^ matches everything
+| 6 |   limit => "at limit"
+|   |   ^^^^^
 |   |
 |  help: a name in a pattern binds a new name, so `limit` here is not the variable; compare with a guard: `v when v == limit =>`
+| error[E0240]: `limit` hides a top-level name
+|   --> tests/lang/err_match_name_compare.fung:6:3
+|   |
+| 6 |   limit => "at limit"
+|   |   ^^^^^
+|   |
+|   note: `limit` is a top-level name bound on line 4
+|  help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
 ==== tests/lang/err_missing_arg.fung
 -- stdout
 -- stderr
-| error[E0407]: missing argument `b`
+| error[E0407]: missing argument `_b`
 |   --> tests/lang/err_missing_arg.fung:2:2
 |   |
 | 2 | f(1)
 |   |  ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_missing_arg.fung:2 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_missing_comma.fung
 -- stdout
 -- stderr
@@ -1443,7 +2216,7 @@
 |   --> tests/lang/err_missing_comma.fung:4:1
 |   |
 | 4 | print(ports)
-|   | ^
+|   | ^^^^^
 |   |
 |   note: the `[` opened at 3:9
 -- exit: 2
@@ -1456,7 +2229,22 @@
 | 3 | 
 |   | ^
 |   |
+|   note: the `if` opened at 1:1
 -- exit: 2
+==== tests/lang/err_mixed_inexact.fung
+-- stdout
+| 9007199254740992.0 9007199254740992.0
+-- stderr
+| error[E0523]: the int 9007199254740993 has no exact float value
+|   --> tests/lang/err_mixed_inexact.fung:5:24
+|   |
+| 5 | print(9007199254740993 + 0.0)
+|   |                        ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_mixed_inexact.fung:5 <entry>
+|  help: a float holds every int up to 2^53 exactly; to round on purpose, write `float(n)`
+-- exit: 1
 ==== tests/lang/err_native_import.fung
 -- stdout
 -- stderr
@@ -1510,7 +2298,7 @@
 |   --> tests/lang/err_number.fung:1:7
 |   |
 | 1 | print(30abc)
-|   |       ^
+|   |       ^^^^^
 |   |
 -- exit: 2
 ==== tests/lang/err_number_leading_zero.fung
@@ -1520,7 +2308,7 @@
 |   --> tests/lang/err_number_leading_zero.fung:3:8
 |   |
 | 3 | perm = 0755
-|   |        ^
+|   |        ^^^^
 |   |
 |  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
 -- exit: 2
@@ -1531,7 +2319,7 @@
 |   --> tests/lang/err_number_trailing_dot.fung:3:5
 |   |
 | 3 | x = 1.
-|   |     ^
+|   |     ^^
 |   |
 -- exit: 2
 ==== tests/lang/err_number_upper_exp.fung
@@ -1541,7 +2329,7 @@
 |   --> tests/lang/err_number_upper_exp.fung:2:7
 |   |
 | 2 | print(1E5)
-|   |       ^
+|   |       ^^^
 |   |
 |  help: write the exponent with a lowercase `e`: `1e5`
 -- exit: 2
@@ -1552,9 +2340,9 @@
 |   --> tests/lang/err_number_upper_prefix.fung:2:7
 |   |
 | 2 | print(0XFF)
-|   |       ^
+|   |       ^^^^
 |   |
-|  help: write the base prefix in lowercase: `0xFF`
+|  help: write the base prefix in lowercase: `0xff`
 -- exit: 2
 ==== tests/lang/err_ok_two_values.fung
 -- stdout
@@ -1634,6 +2422,19 @@
 |  call path (innermost first):
 |    tests/lang/err_overflow.fung:1 <entry>
 -- exit: 1
+==== tests/lang/err_pad_huge.fung
+-- stdout
+| abx xaba
+-- stderr
+| error[E0806]: too many characters (limit 100000000)
+|   --> tests/lang/err_pad_huge.fung:2:9
+|   |
+| 2 | pad_left("x", 9223372036854775807)
+|   |         ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_pad_huge.fung:2 <entry>
+-- exit: 1
 ==== tests/lang/err_param_bare_tag.fung
 -- stdout
 -- stderr
@@ -1643,6 +2444,17 @@
 | 2 | fn f(Red) = 1
 |   |      ^
 |   |
+-- exit: 2
+==== tests/lang/err_pipe_coalesce.fung
+-- stdout
+-- stderr
+| error[E0127]: `??` and `|>` cannot be mixed without parentheses
+|   --> tests/lang/err_pipe_coalesce.fung:4:18
+|   |
+| 4 | print("x" |> env ?? "d")
+|   |                  ^^
+|   |
+|  help: say which one goes first: `(x |> f) ?? d` or `x |> (f ?? d)`
 -- exit: 2
 ==== tests/lang/err_pipe_hole.fung
 -- stdout
@@ -1667,18 +2479,29 @@
 |  call path (innermost first):
 |    tests/lang/err_pipe_paren_call.fung:4 <entry>
 -- exit: 1
+==== tests/lang/err_pipe_postfix.fung
+-- stdout
+-- stderr
+| error[E0229]: `!` on the right of `|>` applies to the call, not to the pipe
+|   --> tests/lang/err_pipe_postfix.fung:3:40
+|   |
+| 3 | nums = ["1", "2"] |> try_map(parse_int)!
+|   |                                        ^
+|   |
+|  help: put the pipe in parentheses: `(xs |> try_map(f))?`
+-- exit: 2
 ==== tests/lang/err_pipe_quoted_symbol.fung
 -- stdout
 | Red(1)
 -- stderr
 | error[E0401]: cannot call a value of type sym
-|   --> tests/lang/err_pipe_quoted_symbol.fung:5:9
+|   --> tests/lang/err_pipe_quoted_symbol.fung:4:9
 |   |
-| 5 | print(1 |> 'Red)
+| 4 | print(1 |> 'red)
 |   |         ^
 |   |
 |  call path (innermost first):
-|    tests/lang/err_pipe_quoted_symbol.fung:5 <entry>
+|    tests/lang/err_pipe_quoted_symbol.fung:4 <entry>
 -- exit: 1
 ==== tests/lang/err_pipe_tag_hole.fung
 -- stdout
@@ -1700,6 +2523,7 @@
 | 3 | conc.pmap([1, 2, 3], x => 6 / (x - 2))
 |   |                             ^
 |   |
+|   note: the task was spawned at tests/lang/err_pmap_failed.fung:3
 |   note: scope opened at tests/lang/err_pmap_failed.fung:3
 |  call path (innermost first):
 |    tests/lang/err_pmap_failed.fung:3 <lambda>
@@ -1707,13 +2531,13 @@
 ==== tests/lang/err_pmap_question.fung
 -- stdout
 -- stderr
-| error[E0226]: `?` inside a lambda given to conc.pmap
-|   --> tests/lang/err_pmap_question.fung:5:47
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_pmap_question.fung:4:47
 |   |
-| 5 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
+| 4 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
 |   |                                               ^
 |   |
-|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== tests/lang/err_positional_after_named.fung
 -- stdout
@@ -1726,16 +2550,52 @@
 |   |
 |  help: put the positional arguments first: `f(1, b: 2)`
 -- exit: 2
+==== tests/lang/err_pow_negative.fung
+-- stdout
+| 0.5 0.5 8
+-- stderr
+| error[E0524]: `2 ** -1`: an int to a negative int power is not an int
+|   --> tests/lang/err_pow_negative.fung:5:9
+|   |
+| 5 | print(2 ** -1)
+|   |         ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_pow_negative.fung:5 <entry>
+|  help: write the exponent as a float: `2 ** -1.0`
+-- exit: 1
+==== tests/lang/err_pure_call_member.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `path.join(…)` is computed and discarded
+|   --> tests/lang/err_pure_call_member.fung:3:1
+|   |
+| 3 | path.join("a", "b")
+|   | ^^^^^^^^^
+|   |
+|  help: `path.join` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== tests/lang/err_pure_call_stmt.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `put(…)` is computed and discarded
+|   --> tests/lang/err_pure_call_stmt.fung:4:1
+|   |
+| 4 | put(m, "b", 2)
+|   | ^^^
+|   |
+|  help: `put` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== tests/lang/err_question_in_for.fung
 -- stdout
 -- stderr
-| error[E0220]: `?` inside a for body
-|   --> tests/lang/err_question_in_for.fung:1:26
+| error[E0237]: `?` inside a `for` body
+|   --> tests/lang/err_question_in_for.fung:2:26
 |   |
-| 1 | fn f(xs) = for x in xs: x? ;;
+| 2 | fn f(xs) = for x in xs: x? ;;
 |   |                          ^
 |   |
-|  help: `for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== tests/lang/err_question_nil.fung
 -- stdout
@@ -1772,18 +2632,18 @@
 |   |
 |  help: `..` does not chain: put the inner range in parentheses if you mean it
 -- exit: 2
-==== tests/lang/err_range_index_reversed.fung
+==== tests/lang/err_range_index_negative.fung
 -- stdout
 | [1, 2]
 -- stderr
-| error[E0516]: slice start -1 is after its end 1 (length 3)
-|   --> tests/lang/err_range_index_reversed.fung:7:9
+| error[E0507]: slice start -1 is out of range (length 3)
+|   --> tests/lang/err_range_index_negative.fung:7:9
 |   |
 | 7 | print(xs[r])
 |   |         ^
 |   |
 |  call path (innermost first):
-|    tests/lang/err_range_index_reversed.fung:7 <entry>
+|    tests/lang/err_range_index_negative.fung:7 <entry>
 -- exit: 1
 ==== tests/lang/err_range_reversed.fung
 -- stdout
@@ -1818,6 +2678,7 @@
 | 2 | if true: total = total + 1 ;;
 |   |          ^^^^^
 |   |
+|   note: `total` is a top-level name bound on line 1
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== tests/lang/err_regex.fung
@@ -1845,6 +2706,19 @@
 |    tests/lang/err_regex_replace_group.fung:4 <entry>
 |  help: name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`
 -- exit: 1
+==== tests/lang/err_replace_empty.fung
+-- stdout
+| a-c
+-- stderr
+| error[E0403]: argument `old` must be a non-empty str, got ""
+|   --> tests/lang/err_replace_empty.fung:4:14
+|   |
+| 4 | print(replace("abc", "", "-"))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_replace_empty.fung:4 <entry>
+-- exit: 1
 ==== tests/lang/err_rest_type.fung
 -- stdout
 -- stderr
@@ -1854,7 +2728,7 @@
 | 2 | fn f(...xs: int) = xs
 |   |         ^^
 |   |
-|  help: annotate it `list` (or not at all); `list[int]` names the elements without checking them
+|  help: annotate it `list`, or not at all
 -- exit: 2
 ==== tests/lang/err_result_arity_pattern.fung
 -- stdout
@@ -1878,19 +2752,55 @@
 |   |
 |  help: put several values in a tuple: `Ok((a, b))` or `Err((a, b))`
 -- exit: 2
+==== tests/lang/err_result_operand.fung
+-- stdout
+-- stderr
+| error[E0501]: cannot add Ok and int
+|   --> tests/lang/err_result_operand.fung:2:23
+|   |
+| 2 | print(parse_int("12") + 1)
+|   |                       ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_result_operand.fung:2 <entry>
+|  help: unwrap it with `!` or `?` first
+-- exit: 1
 ==== tests/lang/err_result_type_symbol.fung
 -- stdout
 -- stderr
 | error[E0404]: return value must be Ok | Err, got sym
 |   --> tests/lang/err_result_type_symbol.fung:3:23
 |   |
-| 3 | fn load() -> Ok | Err = Ok
+| 3 | fn load() -> Ok | Err = sym("Ok")
 |   |                       ^
 |   |
 |  call path (innermost first):
 |    tests/lang/err_result_type_symbol.fung:3 load
 |    tests/lang/err_result_type_symbol.fung:4 <entry>
 -- exit: 1
+==== tests/lang/err_retry_not_result.fung
+-- stdout
+-- stderr
+| error[E0605]: `conc.retry` on a value of type int, which is not a result (Ok(x) or Err(e))
+|   --> tests/lang/err_retry_not_result.fung:4:17
+|   |
+| 4 | print(conc.retry(() => 5))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_retry_not_result.fung:4 <entry>
+-- exit: 1
+==== tests/lang/err_return_dead.fung
+-- stdout
+-- stderr
+| error[E0131]: this statement comes after `return`, so it never runs
+|   --> tests/lang/err_return_dead.fung:4:3
+|   |
+| 4 |   print("dead")
+|   |   ^ never runs
+|   |
+|  help: remove it, or move the `return` after it
+-- exit: 2
 ==== tests/lang/err_return_in_default.fung
 -- stdout
 -- stderr
@@ -1905,13 +2815,24 @@
 ==== tests/lang/err_return_in_for.fung
 -- stdout
 -- stderr
-| error[E0213]: return inside a for body
-|   --> tests/lang/err_return_in_for.fung:1:15
+| error[E0237]: `return` inside a `for` body
+|   --> tests/lang/err_return_in_for.fung:1:25
 |   |
-| 1 | for x in [1]: return x ;;
-|   |               ^
+| 1 | fn f(xs) = for x in xs: return x ;;
+|   |                         ^^^^^^
 |   |
-|  help: `for` builds a list; use `find`, `all`/`any`, or `fold` instead
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+-- exit: 2
+==== tests/lang/err_return_operand.fung
+-- stdout
+-- stderr
+| error[E0132]: `return` used as a value
+|   --> tests/lang/err_return_operand.fung:5:11
+|   |
+| 5 |   x = 1 + return a
+|   |           ^^^^^^
+|   |
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
 -- exit: 2
 ==== tests/lang/err_return_type.fung
 -- stdout
@@ -1935,6 +2856,7 @@
 | 1 | scope(s => spawn(s, () => fail("x")))
 |   |                               ^
 |   |
+|   note: the task was spawned at tests/lang/err_scope_failed.fung:1
 |   note: scope opened at tests/lang/err_scope_failed.fung:1
 |  call path (innermost first):
 |    tests/lang/err_scope_failed.fung:1 <lambda>
@@ -1943,12 +2865,23 @@
 -- stdout
 -- stderr
 | error[E0308]: cannot shadow module `fs`
-|   --> tests/lang/err_shadow_module.fung:2:1
+|   --> tests/lang/err_shadow_module.fung:3:1
 |   |
-| 2 | fs = 1
+| 3 | fs = 1
 |   | ^^
 |   |
 |  help: import it under another name: `import fs as m`
+-- exit: 2
+==== tests/lang/err_slice_coalesce_end.fung
+-- stdout
+-- stderr
+| error[E0125]: `??` binds looser than `..`, so it cannot be an end of a slice
+|   --> tests/lang/err_slice_coalesce_end.fung:6:12
+|   |
+| 6 | print(xs[a ?? 0..3])
+|   |            ^
+|   |
+|  help: put the end in parentheses: `xs[(a or b)..]`
 -- exit: 2
 ==== tests/lang/err_slice_loose_end.fung
 -- stdout
@@ -1961,6 +2894,19 @@
 |   |
 |  help: put the end in parentheses: `xs[(a or b)..]`
 -- exit: 2
+==== tests/lang/err_slice_negative_end.fung
+-- stdout
+| 1024 K
+-- stderr
+| error[E0507]: slice end -1 is out of range (length 5)
+|   --> tests/lang/err_slice_negative_end.fung:6:8
+|   |
+| 6 | print(s[..-1])
+|   |        ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_slice_negative_end.fung:6 <entry>
+-- exit: 1
 ==== tests/lang/err_slice_nil_end.fung
 -- stdout
 | [2, 3]
@@ -1974,6 +2920,17 @@
 |  call path (innermost first):
 |    tests/lang/err_slice_nil_end.fung:5 <entry>
 -- exit: 1
+==== tests/lang/err_slice_pipe_end.fung
+-- stdout
+-- stderr
+| error[E0125]: `|>` binds looser than `..`, so it cannot be an end of a slice
+|   --> tests/lang/err_slice_pipe_end.fung:5:12
+|   |
+| 5 | print(xs[4 |> half..])
+|   |            ^
+|   |
+|  help: put the end in parentheses: `xs[(a or b)..]`
+-- exit: 2
 ==== tests/lang/err_slice_range_chain.fung
 -- stdout
 -- stderr
@@ -2000,7 +2957,7 @@
 ==== tests/lang/err_spawn_closed_scope.fung
 -- stdout
 -- stderr
-| error[E0706]: spawn into a closed scope
+| error[E0706]: `spawn` on a closed scope
 |   --> tests/lang/err_spawn_closed_scope.fung:2:6
 |   |
 | 2 | spawn(s2, () => 1)
@@ -2008,6 +2965,7 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_spawn_closed_scope.fung:2 <entry>
+|  help: use a scope's handle only inside the function `scope` or `supervise` runs
 -- exit: 1
 ==== tests/lang/err_spawn_without_scope.fung
 -- stdout
@@ -2018,8 +2976,41 @@
 | 1 | spawn(() => 1)
 |   |      ^
 |   |
+-- exit: 2
+==== tests/lang/err_spread_list.fung
+-- stdout
+-- stderr
+| error[E0133]: a spread `...` cannot stand in a list literal
+|   --> tests/lang/err_spread_list.fung:4:11
+|   |
+| 4 | print([1, ...xs])
+|   |           ^
+|   |
+|  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
+-- exit: 2
+==== tests/lang/err_spread_not_last.fung
+-- stdout
+-- stderr
+| error[E0133]: a spread `...` cannot stand before another positional argument
+|   --> tests/lang/err_spread_not_last.fung:3:19
+|   |
+| 3 | print(add(...[1], 2))
+|   |                   ^
+|   |
+|  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
+-- exit: 2
+==== tests/lang/err_spread_value.fung
+-- stdout
+| 3
+-- stderr
+| error[E0506]: cannot spread str
+|   --> tests/lang/err_spread_value.fung:5:10
+|   |
+| 5 | print(add(..."ab"))
+|   |          ^
+|   |
 |  call path (innermost first):
-|    tests/lang/err_spawn_without_scope.fung:1 <entry>
+|    tests/lang/err_spread_value.fung:5 <entry>
 -- exit: 1
 ==== tests/lang/err_stack_overflow.fung
 -- stdout
@@ -2067,6 +3058,57 @@
 |   |       ^
 |   |
 -- exit: 2
+==== tests/lang/err_string_dollar_name.fung
+-- stdout
+-- stderr
+| error[E0129]: `$x` in a string is not interpolation
+|   --> tests/lang/err_string_dollar_name.fung:5:8
+|   |
+| 5 | print("$x")
+|   |        ^^
+|   |
+|  help: write `${x}` for the value, or `\$x` for the text
+-- exit: 2
+==== tests/lang/err_string_index_negative.fung
+-- stdout
+| 치
+-- stderr
+| error[E0507]: index -1 is out of range (length 2)
+|   --> tests/lang/err_string_index_negative.fung:5:8
+|   |
+| 5 | print(s[-1])
+|   |        ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_string_index_negative.fung:5 <entry>
+-- exit: 1
+==== tests/lang/err_sum_list.fung
+-- stdout
+-- stderr
+| error[E0506]: cannot sum list
+|   --> tests/lang/err_sum_list.fung:2:10
+|   |
+| 2 | print(sum([[1], [2]]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_sum_list.fung:2 <entry>
+|  help: `sum` adds numbers and durations; join text with `join`, lists with `flatten`
+-- exit: 1
+==== tests/lang/err_sum_str.fung
+-- stdout
+| 3.5 3s 0
+-- stderr
+| error[E0506]: cannot sum str
+|   --> tests/lang/err_sum_str.fung:4:10
+|   |
+| 4 | print(sum(["a", "b"]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_sum_str.fung:4 <entry>
+|  help: `sum` adds numbers and durations; join text with `join`, lists with `flatten`
+-- exit: 1
 ==== tests/lang/err_sym_name.fung
 -- stdout
 -- stderr
@@ -2082,20 +3124,20 @@
 ==== tests/lang/err_sym_str_eq.fung
 -- stdout
 -- stderr
-| error[E0517]: cannot compare a symbol with a string: "not_found" and 'not_found
-|   --> tests/lang/err_sym_str_eq.fung:4:17
+| error[E0517]: cannot compare values of different types: "not_found" (str) and 'not_found (sym)
+|   --> tests/lang/err_sym_str_eq.fung:5:17
 |   |
-| 4 | print(back.kind == 'not_found)
+| 5 | print(back.kind == 'not_found)
 |   |                 ^
 |   |
 |  call path (innermost first):
-|    tests/lang/err_sym_str_eq.fung:4 <entry>
-|  help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`
+|    tests/lang/err_sym_str_eq.fung:5 <entry>
+|  help: a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`
 -- exit: 1
 ==== tests/lang/err_sym_str_nested.fung
 -- stdout
 -- stderr
-| error[E0517]: cannot compare a symbol with a string: "a" and 'a
+| error[E0517]: cannot compare values of different types: "a" (str) and 'a (sym)
 |   --> tests/lang/err_sym_str_nested.fung:2:10
 |   |
 | 2 | print('a in ["a", "b"])
@@ -2103,8 +3145,19 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_sym_str_nested.fung:2 <entry>
-|  help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`
+|  help: a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`
 -- exit: 1
+==== tests/lang/err_symbol_upper.fung
+-- stdout
+-- stderr
+| error[E0128]: a symbol is not written with an uppercase letter: `'Red`
+|   --> tests/lang/err_symbol_upper.fung:3:5
+|   |
+| 3 | x = 'Red
+|   |     ^^^^
+|   |
+|  help: an uppercase symbol is written as the tag, without the quote: `Red`
+-- exit: 2
 ==== tests/lang/err_tag_assign.fung
 -- stdout
 -- stderr
@@ -2163,6 +3216,34 @@
 |    tests/lang/err_tail_library.fung:8 main
 |    tests/lang/err_tail_library.fung:12 <entry>
 -- exit: 1
+==== tests/lang/err_tail_return_inherited.fung
+-- stdout
+| 0
+-- stderr
+| error[E0404]: return value must be int, got str
+|   --> tests/lang/err_tail_return_inherited.fung:4:19
+|   |
+| 4 | fn sign(n) -> int = label(n)
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_tail_return_inherited.fung:3 label (1 tail call elided)
+|    tests/lang/err_tail_return_inherited.fung:7 <entry>
+-- exit: 1
+==== tests/lang/err_tail_return_native.fung
+-- stdout
+| 3
+-- stderr
+| error[E0404]: return value must be int, got list
+|   --> tests/lang/err_tail_return_native.fung:6:23
+|   |
+| 6 | fn doubled(xs) -> int = map(xs, x => x * 2)
+|   |                       ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_tail_return_native.fung:6 doubled
+|    tests/lang/err_tail_return_native.fung:7 <entry>
+-- exit: 1
 ==== tests/lang/err_tail_return_type.fung
 -- stdout
 -- stderr
@@ -2196,7 +3277,7 @@
 | error[E0607]: task's Err was never awaited: "late"
 |   --> tests/lang/err_task_err_escaped.fung:3:21
 |   |
-| 3 | t = scope(s => spawn(s, fn(): Err("late") ;;))
+| 3 | t = scope(s => spawn(s, fn(): Err("late") ;;))!
 |   |                     ^ this task's result is discarded
 |   |
 |   note: scope opened at tests/lang/err_task_err_escaped.fung:3
@@ -2213,6 +3294,7 @@
 | 3 |   spawn(s, () => fail("x"))
 |   |                      ^
 |   |
+|   note: the task was spawned at tests/lang/err_task_failed.fung:3
 |   note: scope opened at tests/lang/err_task_failed.fung:2
 |  call path (innermost first):
 |    tests/lang/err_task_failed.fung:3 <lambda>
@@ -2263,6 +3345,19 @@
 |   |   ^
 |   |
 -- exit: 2
+==== tests/lang/err_text_not_utf8.fung
+-- stdout
+-- stderr
+| error[E0518]: a string in JSON is not valid UTF-8: "caf\xe9"
+|   --> tests/lang/err_text_not_utf8.fung:4:21
+|   |
+| 4 | print(json.stringify({name: "caf\xe9"}))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_text_not_utf8.fung:4 <entry>
+|  help: a string can hold any bytes, but this needs text; check where the bytes came from, or test them with `is_utf8(s)`
+-- exit: 1
 ==== tests/lang/err_too_many_args.fung
 -- stdout
 -- stderr
@@ -2272,19 +3367,6 @@
 | 2 | f(1, 2)
 |   |  ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_too_many_args.fung:2 <entry>
--- exit: 1
-==== tests/lang/err_top_assigned_twice.fung
--- stdout
--- stderr
-| error[E0204]: undefined name `level`
-|   --> tests/lang/err_top_assigned_twice.fung:4:13
-|   |
-| 4 | fn show() = level
-|   |             ^^^^^ not found in this scope
-|   |
-|  help: `level` is a file-level variable (assigned on line 2) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument
 -- exit: 2
 ==== tests/lang/err_top_before_init.fung
 -- stdout
@@ -2309,7 +3391,19 @@
 | 2 | f = () => late
 |   |           ^^^^ not found in this scope
 |   |
-|  help: `late` is a file-level variable (assigned on line 4) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument
+|  help: `late` is a file-level variable (assigned on line 4) that this function cannot see: a lambda or a function made in a block copies only the variables that exist when it is made; assign `late` first, or pass it as an argument
+-- exit: 2
+==== tests/lang/err_top_reassign.fung
+-- stdout
+-- stderr
+| error[E0238]: cannot bind `n` again: a top-level name is bound once
+|   --> tests/lang/err_top_reassign.fung:6:1
+|   |
+| 6 | n = n + 1
+|   | ^
+|   |
+|   note: `n` is first bound on line 4
+|  help: give the new value a name of its own, or compute it in one expression (`x = if … ;;`, `fold`)
 -- exit: 2
 ==== tests/lang/err_top_return.fung
 -- stdout
@@ -2322,13 +3416,38 @@
 |   |
 |  help: use `exit()` to stop a script early
 -- exit: 2
+==== tests/lang/err_trim_empty.fung
+-- stdout
+| a
+-- stderr
+| error[E0403]: argument `cut` must be a non-empty str, got ""
+|   --> tests/lang/err_trim_empty.fung:4:11
+|   |
+| 4 | print(trim("xax", ""))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_trim_empty.fung:4 <entry>
+-- exit: 1
+==== tests/lang/err_trim_left_empty.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `cut` must be a non-empty str, got ""
+|   --> tests/lang/err_trim_left_empty.fung:2:17
+|   |
+| 2 | print(trim_right("xax", ""))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_trim_left_empty.fung:2 <entry>
+-- exit: 1
 ==== tests/lang/err_try_map_nil.fung
 -- stdout
 -- stderr
 | error[E0604]: `try_map` on nil
 |   --> tests/lang/err_try_map_nil.fung:3:14
 |   |
-| 3 | print(try_map(["a"], x => find([1], y => y > 3)))
+| 3 | print(try_map(["a"], _x => find([1], y => y > 3)))
 |   |              ^
 |   |
 |  call path (innermost first):
@@ -2371,6 +3490,18 @@
 |    tests/lang/err_types_enum.fung:2 hex
 |    tests/lang/err_types_enum.fung:3 <entry>
 -- exit: 1
+==== tests/lang/err_unclosed_block.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> tests/lang/err_unclosed_block.fung:8:1
+|   |
+| 8 | 
+|   | ^
+|   |
+|   note: the `if` opened at 3:3
+|   note: line 6 is not indented under the `if`: was the block meant to close before it?
+-- exit: 2
 ==== tests/lang/err_undefined.fung
 -- stdout
 -- stderr
@@ -2404,6 +3535,33 @@
 |  call path (innermost first):
 |    tests/lang/err_unhandled.fung:3 <entry>
 -- exit: 1
+==== tests/lang/err_unique_fn.fung
+-- stdout
+-- stderr
+| error[E0501]: cannot compare fn and fn
+|   --> tests/lang/err_unique_fn.fung:2:13
+|   |
+| 2 | print(unique([print, print]))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_unique_fn.fung:2 <entry>
+|  help: functions have no equality; compare a name or a value that stands for each
+-- exit: 1
+==== tests/lang/err_unique_types.fung
+-- stdout
+| [1, nil]
+-- stderr
+| error[E0517]: cannot compare values of different types: "1" (str) and 1 (int)
+|   --> tests/lang/err_unique_types.fung:4:13
+|   |
+| 4 | print(unique([1, "1"]))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_unique_types.fung:4 <entry>
+|  help: they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`
+-- exit: 1
 ==== tests/lang/err_unknown_named.fung
 -- stdout
 -- stderr
@@ -2413,9 +3571,7 @@
 | 2 | f(b: 1)
 |   |  ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_unknown_named.fung:2 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_unknown_type.fung
 -- stdout
 -- stderr
@@ -2425,6 +3581,105 @@
 | 1 | fn f(a: integer) = a
 |   |         ^^^^^^^
 |   |
+-- exit: 2
+==== tests/lang/err_unused_arm_name.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `n`
+|   --> tests/lang/err_unused_arm_name.fung:3:6
+|   |
+| 3 |   Ok(n)   => 0
+|   |      ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_destructured.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `b`
+|   --> tests/lang/err_unused_destructured.fung:3:7
+|   |
+| 3 |   (a, b) = (1, 2)
+|   |       ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_for_var.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `x`
+|   --> tests/lang/err_unused_for_var.fung:2:11
+|   |
+| 2 | print(for x in [1, 2]: 0 ;;)
+|   |           ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_import.fung
+-- stdout
+-- stderr
+| error[E0239]: unused import `fs`
+|   --> tests/lang/err_unused_import.fung:2:8
+|   |
+| 2 | import fs
+|   |        ^^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_lambda_param.fung
+-- stdout
+-- stderr
+| error[E0239]: unused parameter `x`
+|   --> tests/lang/err_unused_lambda_param.fung:2:19
+|   |
+| 2 | print(map([1, 2], x => 0))
+|   |                   ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_local.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `unused`
+|   --> tests/lang/err_unused_local.fung:3:3
+|   |
+| 3 |   unused = 1
+|   |   ^^^^^^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_param.fung
+-- stdout
+-- stderr
+| error[E0239]: unused parameter `x`
+|   --> tests/lang/err_unused_param.fung:2:6
+|   |
+| 2 | fn f(x) = 1
+|   |      ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_top_level.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `total`
+|   --> tests/lang/err_unused_top_level.fung:2:1
+|   |
+| 2 | total = 3
+|   | ^^^^^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== tests/lang/err_unused_written_only.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `x`
+|   --> tests/lang/err_unused_written_only.fung:3:3
+|   |
+| 3 |   x = 1
+|   |   ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
 -- exit: 2
 ==== tests/lang/err_use_before_assign.fung
 -- stdout
@@ -2472,14 +3727,40 @@
 ==== tests/lang/err_value_ends_in_fn.fung
 -- stdout
 -- stderr
-| error[E0224]: a block used as a value ends with the definition of `g`, so the value is nil
+| error[E0224]: a block used as a value ends with the definition of `_g`, so the value is nil
 |   --> tests/lang/err_value_ends_in_fn.fung:3:3
 |   |
-| 3 |   fn g() = 1
+| 3 |   fn _g() = 1
 |   |   ^^
 |   |
 |  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 -- exit: 2
+==== tests/lang/err_write_line_newline.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `line` must be a str without a newline, got "a\nb"
+|   --> tests/lang/err_write_line_newline.fung:4:79
+|   |
+| 4 | fs.with_temp_dir(d => fs.with_open(path.join(d, "out.txt"), f => fs.write_line(f, "a\nb"), mode: 'write)!!)!
+|   |                                                                               ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_write_line_newline.fung:4 <lambda>
+|    tests/lang/err_write_line_newline.fung:4 <lambda>
+|    tests/lang/err_write_line_newline.fung:4 <entry>
+-- exit: 1
+==== tests/lang/err_write_str.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> tests/lang/err_write_str.fung:2:6
+|   |
+| 2 | write(1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_write_str.fung:2 <entry>
+-- exit: 1
 ==== tests/lang/exit_from_task.fung
 -- stdout
 | bye
@@ -2520,12 +3801,18 @@
 | after
 -- stderr
 -- exit: 0
+==== tests/lang/http_url_encode.fung
+-- stdout
+| a%20b%26c%3Dd%2F%C3%A9%2B~ Ok("a b&c=d/é+~") Ok("x+y+")
+| Err({kind: 'invalid, message: "invalid escape `%zz`"}) Err({kind: 'invalid, message: "invalid escape `%`"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:1/q?c=%zz`: invalid URL: invalid escape `%zz`"})
+-- stderr
+-- exit: 0
 ==== tests/lang/ident_unicode.fung
 -- stdout
 | 3
 | 'Été 'sym
-| 5
-| 6 true
+| 2 true
 | true true
 -- stderr
 -- exit: 0
@@ -2546,6 +3833,17 @@
 | hi, b 2
 -- stderr
 -- exit: 0
+==== tests/lang/import_names_only.fung
+-- stdout
+| 42
+-- stderr
+-- exit: 0
+==== tests/lang/index_of.fung
+-- stdout
+| 3 김밥 0 nil
+| 2 nil 1
+-- stderr
+-- exit: 0
 ==== tests/lang/json.fung
 -- stdout
 | fung ["a", "b"] 4 3.5 true nil
@@ -2554,7 +3852,7 @@
 |   "a": [
 |     1,
 |     {
-|       "b": "sym"
+|       "b": "s"
 |     }
 |   ],
 |   "t": [
@@ -2564,6 +3862,26 @@
 | }
 | parse error at 1 2
 | Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: number out of range"})
+-- stderr
+-- exit: 0
+==== tests/lang/json_stringify_types.fung
+-- stdout
+| {"kind":"a","pair":[1,"b"],"n":null,"f":1.5,"ok":true}
+| [
+|  1
+| ]
+-- stderr
+-- exit: 0
+==== tests/lang/jump_shapes.fung
+-- stdout
+| got 1 none got 0
+| 2 9 9 3
+| 5 2
+| ["out", "in", "in", "out"] ["no", "no", "mid", "no"]
+| true false true false
+| 2
+| 1 2 3
+| zero pos! neg!
 -- stderr
 -- exit: 0
 ==== tests/lang/keyword_names.fung
@@ -2629,6 +3947,13 @@
 | done
 | other
 | done
+| []
+| [false, [1]]
+| [2]
+| [5, []] [Ok(nil), [1]]
+| [true, []] [true, [1]]
+| [] [1]
+| [1] []
 -- stderr
 -- exit: 0
 ==== tests/lang/map_pattern_string_keys.fung
@@ -2639,7 +3964,7 @@
 -- exit: 0
 ==== tests/lang/map_shorthand.fung
 -- stdout
-| {name: "fung", port: 8080, debug: false}
+| {name: "fung", number: 8080, debug: false}
 | fung 8080
 | 'parse 3
 -- stderr
@@ -2711,6 +4036,20 @@
 | 6 [1, 2]
 -- stderr
 -- exit: 0
+==== tests/lang/pass_through_ok.fung
+-- stdout
+| Ok(Ok(5))
+| 5
+| Ok(1)
+| Ok(5)
+| Ok(Err("mine"))
+| Err({kind: 'timeout, message: "timed out after 10ms"})
+| Ok(Ok(Ok("hi")))
+| true
+| Ok(5)
+| [10, 20]
+-- stderr
+-- exit: 0
 ==== tests/lang/path_rules.fung
 -- stdout
 | true .hidden .gz a.tar .b
@@ -2724,11 +4063,21 @@
 | 1000 [0, 919, 838]
 | 300000 2 4
 | 50001 150000 20000
-| a 20000 40001
+| a 20000 40000
 | 2000000 true
 | 588889
 | true true
 | 'Err 'Ok
+-- stderr
+-- exit: 0
+==== tests/lang/pipe_order.fung
+-- stdout
+| a
+| mk
+| 3
+| a
+| mk1
+| 1
 -- stderr
 -- exit: 0
 ==== tests/lang/pipe_parens.fung
@@ -2755,6 +4104,14 @@
 -- stdout
 | hi
 |  true nil
+-- stderr
+-- exit: 0
+==== tests/lang/pure_call_stmt_ok.fung
+-- stdout
+| 1
+| 2
+| 3
+| done
 -- stderr
 -- exit: 0
 ==== tests/lang/ranges.fung
@@ -2784,6 +4141,13 @@
 | ["1", "22"]
 | 04/10/2026 ["a", "b", "c"]
 | port 8081
+-- stderr
+-- exit: 0
+==== tests/lang/regex_escape.fung
+-- stdout
+| a\.b\*\(c\) 가\[나\] true
+| true false
+| x(?-u:\xff)y true false
 -- stderr
 -- exit: 0
 ==== tests/lang/regex_replace_groups.fung
@@ -2837,10 +4201,20 @@
 | nil
 -- stderr
 -- exit: 0
+==== tests/lang/rules_w4a.fung
+-- stdout
+| d nil
+| Ok({})
+| [1, 2, 3] [3, 4]
+| 2
+| 2 0
+| 2
+-- stderr
+-- exit: 0
 ==== tests/lang/scopes.fung
 -- stdout
-| 2
-| [2, Err('e)]
+| Ok(2)
+| [Ok(2), Ok(Err('e))]
 | Ok('done)
 | <scope> 'scope true
 -- stderr
@@ -2854,6 +4228,13 @@
 ==== tests/lang/slices_inclusive.fung
 -- stdout
 | [2, 3] [1, 2, 3] 1 2
+-- stderr
+-- exit: 0
+==== tests/lang/spread_args.fung
+-- stdout
+| info a 1
+| 3 30 6 6
+| 111 9
 -- stderr
 -- exit: 0
 ==== tests/lang/stdin.fung
@@ -2895,20 +4276,20 @@
 ==== tests/lang/supervise.fung
 -- stdout
 | handled: b
-| [1, 3, true]
+| Ok([1, 3, true])
 -- stderr
 -- exit: 0
 ==== tests/lang/supervise_lost_err_now.fung
 -- stdout
 | dropping 'task
 | on_fail said E0607
-| done
+| Ok("done")
 -- stderr
 -- exit: 0
 ==== tests/lang/sym_str_compare.fung
 -- stdout
-| false false false true true true
-| true true false
+| false true true true
+| true true true
 | string
 | true
 -- stderr
@@ -2938,16 +4319,23 @@
 | Pair(0, 1) Pair(0, 2)
 -- stderr
 -- exit: 0
+==== tests/lang/tail_return_type.fung
+-- stdout
+| 0
+| 1000000
+| 3
+-- stderr
+-- exit: 0
 ==== tests/lang/task_err.fung
 -- stdout
-| Err("no")
+| Ok(Err("no"))
 | E0607 task's Err was never awaited: "lost"
 | done
 -- stderr
 -- exit: 0
 ==== tests/lang/tasks.fung
 -- stdout
-| [2, 4, 6] Err('e) true
+| [2, 4, 6] Ok(Err('e)) true
 -- stderr
 -- exit: 0
 ==== tests/lang/tco.fung
@@ -2971,7 +4359,7 @@
 ==== tests/lang/time_module.fung
 -- stdout
 | 2026-10-04T09:05:07+09:00 'time
-| 2026/10/04 09:05:07 00:05 +00:00
+| 2026/10/04 09:05:07 00:05 Z
 | 1791072307 'sun 10
 | true Err({kind: 'parse, message: "cannot parse `2026-13-04` as a time: month out of range"})
 | true true
@@ -3007,9 +4395,15 @@
 |  call path (innermost first):
 |    tests/lang/time_values.fung:8 <entry>
 -- exit: 1
+==== tests/lang/timeout_after_release.fung
+-- stdout
+| Err({kind: 'timeout, message: "timed out after 20ms"})
+| Err({kind: 'timeout, message: "timed out after 20ms"})
+-- stderr
+-- exit: 0
 ==== tests/lang/timeouts.fung
 -- stdout
-| 2
+| Ok(2)
 | Err({kind: 'timeout, message: "timed out after 20ms"})
 | Err({kind: 'timeout, message: "timed out after 0s"})
 | Err({kind: 'timeout, message: "timed out after 50ms"})
@@ -3020,6 +4414,12 @@
 | true false a [true, false]
 | 2
 | true false
+-- stderr
+-- exit: 0
+==== tests/lang/trim_sides.fung
+-- stdout
+| a b  | |  a b axx xxa
+| | | 나다가 가나다
 -- stderr
 -- exit: 0
 ==== tests/lang/try_map.fung
@@ -3065,9 +4465,11 @@
 | 1
 -- stderr
 -- exit: 0
-==== tests/lang/unused_var_silent_in_run.fung
+==== tests/lang/unused_exempt.fung
 -- stdout
-| 2
+| 1 2 1 hi, x
+| [0, 0]
+| [0]
 -- stderr
 -- exit: 0
 ==== tests/lang/value_statement_blocks.fung
@@ -3097,6 +4499,13 @@
 | released outer
 -- stderr
 -- exit: 3
+==== tests/lang/write.fung
+-- stdout
+| ab
+| c
+| d
+-- stderr
+-- exit: 0
 ==== bench/chan.fung
 -- stdout
 | 4999950000
@@ -3199,14 +4608,14 @@
 |    -e:2       <entry>
 |  help: make the recursion a tail call or use `fold`
 -- exit: 1
-==== -e "print(fold(0..3, 0, (a, x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))"
+==== -e "print(fold(0..3, 0, (a, _x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))"
 -- stdout
 -- stderr
 | error[E0502]: division by zero
-|   --> -e:1:65
+|   --> -e:1:66
 |   |
-| 1 | print(fold(0..3, 0, (a, x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))
-|   |                                                                 ^
+| 1 | print(fold(0..3, 0, (a, _x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))
+|   |                                                                  ^
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
@@ -3394,7 +4803,7 @@
 -- exit: 2
 ==== -e "import conc\nsupervise(s => print(await(spawn(s, () => 1 + 1)), await(spawn(s, () => 1 / 0)), conc.pmap([1, 2, 3], x => x * x, limit: 2)), _ => nil)"
 -- stdout
-| 2 Err({kind: 'error, code: "E0502", message: "division by zero", at: "-e:2"}) [1, 4, 9]
+| Ok(2) Err({kind: 'error, code: "E0502", message: "division by zero", at: "-e:2"}) [1, 4, 9]
 -- stderr
 -- exit: 0
 ==== -e "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(() => await(u), 1ms))\n  cancel(u)\n;;)"
@@ -3449,7 +4858,7 @@
 | bye
 -- stderr
 -- exit: 3
-==== -e "scope(fn(s):\n  t = spawn(s, () => each(1..=3, x => sleep(10s)))\n  spawn(s, fn(): sleep(10ms); cancel(t) ;;)\n  print(await(t))\n;;)"
+==== -e "scope(fn(s):\n  t = spawn(s, () => each(1..=3, _x => sleep(10s)))\n  spawn(s, fn(): sleep(10ms); cancel(t) ;;)\n  print(await(t))\n;;)"
 -- stdout
 | Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
@@ -3469,16 +4878,16 @@
 -- exit: 1
 ==== -e "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms), conc.pmap([1, 2, 3], x => x * x, limit: 2), scope(s => conc.fan_in(s, []) |> map(x => x)))"
 -- stdout
-| Err(1) [1, 4, 9] []
+| Err(1) [1, 4, 9] Ok([])
 -- stderr
 -- exit: 0
 ==== -e "import conc\n(a_tx, a) = channel(2)\n(b_tx, b) = channel(2)\neach([1, 2], x => send(a_tx, x))\nclose(a_tx)\nsend(b_tx, 3)\nclose(b_tx)\nprint(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))\nprint(conc.retry(() => Err(\"never\"), times: 2))"
 -- stdout
-| [1, 2, 3] [1, 4, 9] []
+| Ok([1, 2, 3]) [1, 4, 9] []
 | Err("never")
 -- stderr
 -- exit: 0
-==== -e "print(scope(fn(s):\n  ts = for i in 0..200: spawn(s, () => i) ;;\n  fold(ts, 0, (a, t) => a + await(t))\n;;))"
+==== -e "print(scope(fn(s):\n  ts = for i in 0..200: spawn(s, () => i) ;;\n  fold(ts, 0, (a, t) => a + await(t)!)\n;;)!)"
 -- stdout
 | 19900
 -- stderr
@@ -3498,14 +4907,14 @@
 | once
 -- stderr
 -- exit: 2
-==== -e "print(scope(fn(s):\n  ts = for _ in 0..2: spawn(s, () => read_line()) ;;\n  sort(for t in ts: await(t)! ;;)\n;;))"
+==== -e "print(scope(fn(s):\n  ts = for _ in 0..2: spawn(s, () => read_line()) ;;\n  sort(for t in ts: await(t)!! ;;)\n;;)!)"
 -- stdout
 | ["one", "two"]
 -- stderr
 -- exit: 0
 ==== -e "print(scope(s => await(spawn(s, () => sh(\"echo hi; sleep 0.05; echo there\")))))"
 -- stdout
-| Ok({out: "hi\nthere\n", err: "", code: 0, signal: nil})
+| Ok(Ok(Ok({out: "hi\nthere\n", err: "", code: 0, signal: nil})))
 -- stderr
 -- exit: 0
 ==== tests/lang/args.fung a b

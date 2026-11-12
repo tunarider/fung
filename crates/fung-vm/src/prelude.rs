@@ -47,8 +47,10 @@ fn build() -> Vec<(&'static str, &'static Native)> {
         };
         p.push((n.name, *n));
     };
-    add(def("print", print_fn, vec![rest("args")]));
-    add(def("eprint", io::eprint_fn, vec![rest("args")]));
+    add(def_step("print", print_fn, vec![rest("args")]));
+    add(def_step("eprint", io::eprint_fn, vec![rest("args")]));
+    add(def_step("write", io::write_fn, vec![param("s")]));
+    add(def_step("ewrite", io::ewrite_fn, vec![param("s")]));
     add(def("fail", fail_fn, vec![rest("args")]));
     add(def("len", len_fn, vec![param("x")]));
     add(def_step("map", map_fn, vec![param("xs"), param("f")]));
@@ -92,17 +94,17 @@ fn fail_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
         "fail".to_string()
     } else {
         // A message: bytes outside UTF-8 show as U+FFFD.
-        fung_front::text::lossy(&nat::join_for_print(items.iter())).into_owned()
+        fung_front::text::lossy(&nat::join_for_print(items.iter())?).into_owned()
     };
     Err(fail("E0803", vec![Arg::Str(msg)]))
 }
 
-/// `print(...)` joins its arguments with spaces and writes one line (06).
-fn print_fn(t: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
-    let mut line = nat::join_for_print(rest_items(&a[0]).iter());
+/// `print(...)` joins its arguments with spaces and writes one line (06),
+/// through the output thread (`vm/output.rs`).
+fn print_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    let mut line = nat::join_for_print(rest_items(&a[0]).iter())?;
     line.push(b'\n');
-    t.stdout().write_all(&line).map_err(nat::write_err)?;
-    Ok(Value::Nil)
+    crate::vm::write_std(t, crate::vm::Std::Out, line, Value::Nil)
 }
 
 /// `len(x)` counts runes or elements (02).
@@ -118,7 +120,7 @@ fn type_of_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
 /// `map(xs, f)` applies `f` to every element of a list or range and
 /// collects the results (06). `for` lowers to this (03).
 fn map_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
-    nat::check_items(&a[0], "map over")?;
+    nat::check_items(&a[0], "iterate over")?;
     nat::need_fn("f", &a[1])?;
     nat::limit_elements(&a[0])?;
     struct Map(ListBuilder);
@@ -128,6 +130,8 @@ fn map_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
             1
         }
         fn got(&mut self, r: Value) -> Result<bool, Stop> {
+            // A channel's elements are not bounded (D63).
+            nat::check_len(self.0.len() as u64 + 1)?;
             self.0.push(r);
             Ok(false)
         }
@@ -145,7 +149,7 @@ fn map_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 /// first `Err` it returns, after which no element is visited. A result of
 /// another kind is E0605, as for `!` and `?`.
 fn try_map_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
-    nat::check_items(&a[0], "map over")?;
+    nat::check_items(&a[0], "iterate over")?;
     nat::need_fn("f", &a[1])?;
     nat::limit_elements(&a[0])?;
     struct TryMap {
@@ -161,6 +165,7 @@ fn try_map_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
             // The same judgement as `?` (02, SP12, SP13).
             match crate::vm::result_kind(&r) {
                 ResultKind::Ok(payload) => {
+                    nat::check_len(self.out.len() as u64 + 1)?;
                     self.out.push(payload);
                     Ok(false)
                 }

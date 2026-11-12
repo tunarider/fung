@@ -55,12 +55,14 @@ fn note_pattern(seen: &mut HashSet<String>, pat: &Node) -> PResult<()> {
     Ok(())
 }
 
-fn fn_info(name: String) -> FnInfo {
+fn fn_info(name: String, name_pos: Pos) -> FnInfo {
     FnInfo {
         name,
+        name_pos,
         params: Vec::new(),
         ret: None,
         for_body: false,
+        lambda: false,
         num_locals: 0,
         captures: Vec::new(),
     }
@@ -70,9 +72,34 @@ impl<'a> Parser<'a> {
     /// Parses `fn NAME(params) [-> type] (= expr | block)` after `fn` (and
     /// the name, for a statement) has been consumed. Anonymous functions
     /// (name "") only have the block form (01).
-    pub(super) fn fn_def(&mut self, fn_tok: &'a Token, name: String) -> PResult<Node> {
+    pub(super) fn fn_def(
+        &mut self,
+        fn_tok: &'a Token,
+        name: String,
+        name_pos: Pos,
+    ) -> PResult<Node> {
+        // a `fn` statement is a block like `if`'s, nested or not (FE60);
+        // an anonymous `fn` is an expression, counted there already
+        if name.is_empty() {
+            return self.fn_def_inner(fn_tok, name, name_pos);
+        }
+        if self.depth >= MAX_DEPTH {
+            let pos = self.peek().pos;
+            return Err(err(
+                "E0115",
+                pos,
+                vec![crate::diag::Arg::Int(MAX_DEPTH as i64)],
+            ));
+        }
+        self.depth += 1;
+        let r = self.fn_def_inner(fn_tok, name, name_pos);
+        self.depth -= 1;
+        r
+    }
+
+    fn fn_def_inner(&mut self, fn_tok: &'a Token, name: String, name_pos: Pos) -> PResult<Node> {
         let named = !name.is_empty();
-        let mut info = fn_info(name);
+        let mut info = fn_info(name, name_pos);
         self.expect_desc(Kind::LParen, "`(` after fn")?;
         let mut kids = self.params(&mut info)?;
         if self.at(Kind::Arrow) {
@@ -83,12 +110,14 @@ impl<'a> Parser<'a> {
         let body = if self.at(Kind::Assign) && named {
             let eq = self.next();
             self.skip_newlines_after_operator();
+            // the body is the function's end: it may be a `return` (D50)
+            self.return_ok = true;
             let e = self.expr(0)?;
             Node::new(Head::Block, eq.pos, vec![e])
         } else if self.at(Kind::Colon) {
             self.next();
             let body = self.body(fn_tok.pos)?;
-            self.expect_desc(Kind::DoubleSemi, "`;;` to close the function")?;
+            self.close("function", fn_tok)?;
             body
         } else if self.at(Kind::Assign) {
             let pos = self.peek().pos;
@@ -182,6 +211,8 @@ impl<'a> Parser<'a> {
                     return Err(e);
                 }
                 self.next();
+                // a `return` here is read so resolve names the rule (E0211)
+                self.return_ok = true;
                 defaults.push(self.expr(0)?);
                 prm.has_default = true;
                 saw_default = true;
@@ -201,10 +232,8 @@ impl<'a> Parser<'a> {
         Ok(defaults)
     }
 
-    /// Parses `term { | term }` where term = NAME [ "[" type "]" ] | TAG.
-    /// A term keeps its element type as a tree of the names the lexer
-    /// read, `list[str | int]`: resolve checks the names inside and keeps
-    /// the outer type, the one the runtime checks (07, FE17, FE34).
+    /// Parses `term { | term }` where term = NAME | TAG (07). A type has
+    /// no element type: it would not be checked (D52, E0130).
     pub(super) fn type_spec(&mut self) -> PResult<Vec<TypeTerm>> {
         let mut alts = Vec::new();
         loop {
@@ -218,7 +247,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// One term of a type with its element type, if any.
+    /// One term of a type.
     fn type_term(&mut self) -> PResult<TypeTerm> {
         let t = self.peek();
         // `nil` and `fn` are keywords but also type names (07).
@@ -226,29 +255,11 @@ impl<'a> Parser<'a> {
             return Err(err("E0110", t.pos, vec![s(describe(t))]));
         }
         self.next();
-        let mut term = TypeTerm::plain(&t.text, t.pos);
-        if self.at(Kind::LBracket) {
-            self.next();
-            self.depth += 1;
-            if self.depth > MAX_DEPTH {
-                let pos = self.peek().pos;
-                return Err(err(
-                    "E0115",
-                    pos,
-                    vec![crate::diag::Arg::Int(MAX_DEPTH as i64)],
-                ));
-            }
-            loop {
-                term.elems.push(self.type_term()?);
-                if !self.at(Kind::Bar) {
-                    break;
-                }
-                self.next();
-            }
-            self.depth -= 1;
-            self.expect_desc(Kind::RBracket, "`]`")?;
+        if self.toks[self.i].kind == Kind::LBracket {
+            let pos = self.toks[self.i].pos;
+            return Err(err("E0130", pos, Vec::new()));
         }
-        Ok(term)
+        Ok(TypeTerm::plain(&t.text, t.pos))
     }
 
     /// Whether a parameter starts like a pattern rather than a name: a tuple,
@@ -281,7 +292,8 @@ impl<'a> Parser<'a> {
     /// expression read as far as possible (01).
     pub(super) fn lambda(&mut self) -> PResult<Node> {
         let start = self.peek();
-        let mut info = fn_info(String::new());
+        let mut info = fn_info(String::new(), start.pos);
+        info.lambda = true;
         if start.kind == Kind::Name {
             self.next();
             if start.text == "_" {
@@ -300,6 +312,8 @@ impl<'a> Parser<'a> {
         }
         let arrow = self.next(); // =>
         self.skip_newlines_after_operator();
+        // a `return` here is read so resolve names the rule (E0237, D42)
+        self.return_ok = true;
         let body = self.expr(0)?;
         Ok(Node::with_lit(
             Head::Fn,

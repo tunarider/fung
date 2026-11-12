@@ -31,7 +31,7 @@ import fs
 print(fs.read("missing.txt"))
 ```
 
-`Err`는 성공한 값이 아니므로 그대로 쓸 수 없다. `parse_int("x").message`라고 쓰면 맵이 아니라 `Err` 태그에서 키를 찾으므로 런타임 에러 E0509(`cannot index a value of type Err`)가 난다. 안의 값을 꺼내려면 아래의 방법 중 하나를 쓴다.
+`Err`는 성공한 값이 아니므로 그대로 쓸 수 없다. `parse_int("x").message`라고 쓰면 맵이 아니라 `Err` 태그에서 키를 찾으므로 런타임 에러 E0509(`cannot index Err with str`)가 난다. 안의 값을 꺼내려면 아래의 방법 중 하나를 쓴다.
 
 ## match로 꺼내기 {#match}
 
@@ -92,7 +92,7 @@ print(n)
 ```fung run exit=1 error=E0603
 port = parse_int("8080")!
 print("port:", port)
-retries = parse_int("three")!
+_retries = parse_int("three")!
 print("never printed")
 ```
 
@@ -110,12 +110,15 @@ print(retries, port)
 
 ## 버리면 안 된다 {#discard}
 
-결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 첫 줄은 `parse_int`의 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 `Err`면 fung은 거기서 멈춘다(E0606).
+결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 `check_port("abc")` 줄은 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 `Err`면 fung은 거기서 멈춘다(E0606).
 
 ```fung run exit=1 error=E0606
-parse_int("abc")
+fn check_port(s) = parse_int(s)
+check_port("abc")
 print("여기까지 오지 않는다")
 ```
+
+`parse_int("abc")`를 그대로 문장으로 썼다면 실행하기 전에 컴파일 에러(E0234)다. `parse_int`처럼 값을 계산해 돌려줄 뿐인 내장 함수는 결과를 버리면 아무 일도 하지 않은 셈이기 때문이다.
 
 실패를 조용히 무시하는 버그를 막으려는 규칙이다. 쉘 스크립트에서 `set -e`를 켜지 않아 실패한 명령 뒤로 스크립트가 계속 달려가는 사고를 생각하면 된다. fung에서는 늘 켜져 있는 셈이다. 파일 쓰기처럼 성공하면 쓸 값이 없는 함수(`Ok(nil)`을 돌려준다)도 마찬가지다. `fs.write(p, text)`만 쓰면 쓰기가 실패했을 때 E0606으로 멈춘다.
 
@@ -137,7 +140,7 @@ parse_all(["1", "x"])
 print("not reached")
 ```
 
-리스트 안의 리스트·튜플·맵까지 훑지는 않는다. `for`·`map`이 만드는 리스트는 한 겹이라 그것으로 충분하다.
+리스트 안의 리스트, 튜플, 맵, `Ok(…)` 안까지 어느 깊이든 훑는다. 버려지는 값 어디에든 `Err`가 있으면 멈춘다.
 
 ## 내 함수에서 실패 돌려주기 {#own}
 
@@ -243,7 +246,7 @@ print(parse_all(["port=8080", "broken", "debug=true"]))
 :::
 
 :::box mistake map의 람다 안에서 ?
-`xs |> map(x => parse_int(x)?)`는 컴파일 에러 E0226이다. `?`는 람다에서 돌아갈 뿐 바깥 함수에서 돌아가지 않으므로, 실패가 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 `try_map`을 쓴다. 모두 성공하면 `Ok(리스트)`, 아니면 처음 `Err`다.
+`xs |> map(x => parse_int(x)?)`는 컴파일 에러 E0237이다. 람다는 일찍 돌아갈 수 없다: 람다의 `?`가 돌려준 실패는 바깥 함수로 가지 않고 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 `try_map`을 쓴다. 모두 성공하면 `Ok(리스트)`, 아니면 처음 `Err`다.
 
 ```fung run
 print(try_map(["1", "2", "3"], parse_int))
@@ -316,8 +319,8 @@ print(int_or(cfg, "timeout", 10), int_or(cfg, "retries", 3), int_or(cfg, "delay"
 :::solution
 
 ```fung run
-lines = ["10", "x", "25", "", "7"]
-(total, bad) = fold(lines, (0, 0), ((t, b), s) => match parse_int(s):
+texts = ["10", "x", "25", "", "7"]
+(total, bad) = fold(texts, (0, 0), ((t, b), s) => match parse_int(s):
   Ok(n)  => (t + n, b)
   Err(_) => (t, b + 1)
 ;;)
@@ -337,4 +340,4 @@ print(total, bad)
 - 리스트를 바꾸다 처음 실패에서 멈추려면 `try_map`.
 - 버그는 결과값이 아니라 런타임 에러다. `fail(메시지)`로 직접 낼 수 있다.
 
-정확한 규칙은 레퍼런스의 [결과값과 에러](../reference/language/results.html), 함수는 [결과값](../reference/prelude/results.html)과 [`try_map`](../reference/prelude/collections.html#fn-try_map), [`fail`](../reference/prelude/program.html#fn-fail)에 있다. 에러 번호는 [E0603](../reference/errors.html#E0603), [E0606](../reference/errors.html#E0606), [E0214](../reference/errors.html#E0214), [E0226](../reference/errors.html#E0226)을 보라.
+정확한 규칙은 레퍼런스의 [결과값과 에러](../reference/language/results.html), 함수는 [결과값](../reference/prelude/results.html)과 [`try_map`](../reference/prelude/collections.html#fn-try_map), [`fail`](../reference/prelude/program.html#fn-fail)에 있다. 에러 번호는 [E0603](../reference/errors.html#E0603), [E0606](../reference/errors.html#E0606), [E0214](../reference/errors.html#E0214), [E0237](../reference/errors.html#E0237)을 보라.

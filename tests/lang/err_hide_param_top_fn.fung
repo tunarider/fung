@@ -1,0 +1,5 @@
+# A parameter cannot hide a top-level fn (D38).
+fn g() = 1
+fn f(g) = g + 1
+print(f(g()))
+# expect-error: E0240

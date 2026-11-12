@@ -27,7 +27,7 @@ server = scope(fn(s):
   print(deref(hits))
   cancel(server)
   server
-;;)
+;;)!
 # expect: 200 application/json true
 # expect: 200 POST hello 1 text/plain; charset=utf-8
 # expect: 404 no such page
@@ -37,8 +37,8 @@ print(await(server))
 
 # A clean stop (here a stop request as soon as it listens) is Ok(nil),
 # so `!` on serve stops only on a failure to listen.
-print(http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop()))
+print(http.serve("127.0.0.1:0", _req => "hi", ready: _ => request_stop()))
 # expect: Ok(nil)
-http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())!
+http.serve("127.0.0.1:0", _req => "hi", ready: _ => request_stop())!
 print("after")
 # expect: after

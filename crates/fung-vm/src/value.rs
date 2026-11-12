@@ -29,11 +29,14 @@ use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHa
 
 pub use args::Args;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
-pub(crate) use arith::{check_chars, check_returned, floor_div_i64, rem_i64};
+pub(crate) use arith::{add_text, check_chars, check_returned, floor_div_i64, rem_i64};
+pub(crate) use compare::check_element;
 pub use compare::{compare, eq, equal, hash_value};
 #[cfg(test)]
 pub use format::format_for_print;
-pub use format::{format, type_name, write_for_print};
+pub use format::{
+    MAX_TEXT_BYTES, format, format_start, format_text, format_within, type_name, write_for_print,
+};
 pub use items::Items;
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
@@ -57,7 +60,8 @@ pub(crate) enum Probe {
     /// An item holds a mutable value (concurrency v2: what an atom may
     /// not hold, 05/스펙 7.2).
     Mutable,
-    /// An item is an `Err` (a discarded list, 02 버려지는 Err).
+    /// An item is, or holds at any depth in its lists, maps, tuples and
+    /// tags, an `Err` (a discarded value, 02 버려지는 Err, D54).
     Err,
 }
 
@@ -70,7 +74,7 @@ impl Probed for Value {
     fn has(&self, p: Probe) -> bool {
         match p {
             Probe::Mutable => self.holds_mutable(),
-            Probe::Err => matches!(self, Value::Tag(t) if t.name == Sym::ERR),
+            Probe::Err => self.holds_err(),
         }
     }
 }
@@ -117,6 +121,11 @@ pub enum Value {
     Time(Rc<Time>),
 }
 
+/// How many containers, and how deep, `holds_deep` looks at by recursion
+/// before it takes its stack and set (VA31).
+const SMALL_WALK: u32 = 64;
+const SMALL_DEPTH: u32 = 16;
+
 impl Value {
     /// The channel behind either end (the test probes); `None` for
     /// anything else.
@@ -140,24 +149,69 @@ impl Value {
     /// reached through a shared `Rc` is walked once (`[x, x]` nested
     /// forty deep costs its 41 nodes, not its 2^40 paths).
     pub(crate) fn holds_mutable(&self) -> bool {
-        if !self.is_container() {
-            return self.is_mutable();
+        self.holds_deep(Probe::Mutable)
+    }
+
+    /// Whether this value is, or holds in its lists, maps, tuples and
+    /// tags at any depth, an `Err` (D54: what a discarded place must not
+    /// drop), as `holds_mutable` looks (memos, a shared part once).
+    pub(crate) fn holds_err(&self) -> bool {
+        self.holds_deep(Probe::Err)
+    }
+
+    /// Whether `v` itself answers `p`.
+    fn hit(&self, p: Probe) -> bool {
+        match p {
+            Probe::Mutable => self.is_mutable(),
+            Probe::Err => matches!(self, Value::Tag(t) if t.name == Sym::ERR),
+        }
+    }
+
+    /// Whether `p` looks inside `v`: a closure's copied values hold what
+    /// it may change, not data it gives back.
+    fn opens(&self, p: Probe) -> bool {
+        match p {
+            Probe::Mutable => self.is_container(),
+            Probe::Err => {
+                matches!(
+                    self,
+                    Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_)
+                )
+            }
+        }
+    }
+
+    /// `holds_mutable` and `holds_err`: the value or a part of it answers `p`.
+    fn holds_deep(&self, p: Probe) -> bool {
+        if self.hit(p) {
+            return true;
+        }
+        if !self.opens(p) {
+            return false;
+        }
+        // A small value (a record, a pair) is answered without the stack
+        // and the set below: their allocations were most of the cost of a
+        // swap or a discarded value (VA31).
+        let mut budget = SMALL_WALK;
+        if let Some(held) = self.holds_small(p, &mut budget, 0) {
+            return held;
         }
         let mut stack: Vec<&Value> = vec![self];
         let mut seen: std::collections::HashSet<*const ()> = std::collections::HashSet::new();
         while let Some(v) = stack.pop() {
+            if v.hit(p) {
+                return true;
+            }
+            if !v.opens(p) {
+                continue;
+            }
             let (ptr, shared): (*const (), bool) = match v {
                 Value::List(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
                 Value::Map(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
                 Value::Tuple(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
                 Value::Tag(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
                 Value::Closure(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
-                other => {
-                    if other.is_mutable() {
-                        return true;
-                    }
-                    continue;
-                }
+                _ => continue,
             };
             if shared && !seen.insert(ptr) {
                 continue;
@@ -165,12 +219,12 @@ impl Value {
             match v {
                 Value::List(l) => match l.flat() {
                     Some(items) => stack.extend(items),
-                    None if l.holds_mutable() => return true,
+                    None if l.holds(p) => return true,
                     None => {}
                 },
                 Value::Map(m) => match m.flat() {
                     Some(entries) => stack.extend(entries.iter().map(|(_, x)| x)),
-                    None if m.holds_mutable() => return true,
+                    None if m.holds(p) => return true,
                     None => {}
                 },
                 Value::Tuple(t) => stack.extend(t.iter()),
@@ -180,6 +234,49 @@ impl Value {
             }
         }
         false
+    }
+
+    /// `holds_deep` on a value of at most `SMALL_WALK` containers and
+    /// `SMALL_DEPTH` levels, by recursion with no allocation; `None` when
+    /// the value is bigger than that (the caller walks it with its stack
+    /// and its set of shared parts). `self` answers no `hit` and opens.
+    /// A shared part may be looked at twice here; the budget bounds it.
+    fn holds_small(&self, p: Probe, budget: &mut u32, depth: u32) -> Option<bool> {
+        let mut look = |x: &Value| -> Option<bool> {
+            if x.hit(p) {
+                return Some(true);
+            }
+            if !x.opens(p) {
+                return Some(false);
+            }
+            if *budget == 0 || depth == SMALL_DEPTH {
+                return None;
+            }
+            *budget -= 1;
+            x.holds_small(p, budget, depth + 1)
+        };
+        let mut any = |it: &mut dyn Iterator<Item = &Value>| -> Option<bool> {
+            for x in it {
+                if look(x)? {
+                    return Some(true);
+                }
+            }
+            Some(false)
+        };
+        match self {
+            Value::List(l) => match l.flat() {
+                Some(items) => any(&mut items.iter()),
+                None => Some(l.holds(p)),
+            },
+            Value::Map(m) => match m.flat() {
+                Some(entries) => any(&mut entries.iter().map(|(_, x)| x)),
+                None => Some(m.holds(p)),
+            },
+            Value::Tuple(t) => any(&mut t.iter()),
+            Value::Tag(t) => any(&mut t.args.iter()),
+            Value::Closure(c) => any(&mut c.captured.iter()),
+            _ => Some(false),
+        }
     }
 
     /// The containers `holds_mutable` looks inside.
@@ -245,8 +342,16 @@ impl Value {
 /// was made (03, model C) and the globals of the module it was made in (04).
 pub struct Closure {
     pub proto: Rc<RtProto>,
+    /// `proto.code`, one step nearer the run loop (VM35).
+    pub code: Rc<[crate::vm::Code]>,
     pub captured: Items,
     /// The module's globals; `None` is a slot not assigned yet.
+    ///
+    /// A top-level `fn` is a closure in this table that holds the table
+    /// again: an `Rc` cycle that is never freed (VM36). With one runtime per
+    /// process it goes away with the process; an embedding or a language server that
+    /// makes runtimes again and again would leak each module's globals
+    /// (open-questions, 알려진 한계).
     pub globals: Globals,
 }
 

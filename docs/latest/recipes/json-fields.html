@@ -100,7 +100,7 @@ fn dig(v, path) = match path:
   [k, ...rest] =&gt; type_of(v) == 'map then dig(get(v, k), rest) else nil
 ;;
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: [&quot;state&quot;])!
 text = match first(opts.rest):
   nil =&gt; join(read_lines()!, &quot;\n&quot;)
   url =&gt; fetch(url)!
@@ -140,7 +140,7 @@ search   stopped     0/0   core</code></pre></div>
 svc = json.parse(`{&quot;name&quot;: &quot;api&quot;, &quot;state&quot;: &quot;running&quot;}`)!
 print(svc.state == &quot;running&quot;, sym(svc.state) == 'running)
 print(svc.state == 'running)</code></pre><pre class="out err plain" data-code="1"><code>true true
-error[E0517]: cannot compare a symbol with a string: &quot;running&quot; and 'running
+error[E0517]: cannot compare values of different types: &quot;running&quot; (str) and 'running (sym)
   --&gt; example.fung:5:17
   |
 5 | print(svc.state == 'running)
@@ -148,7 +148,7 @@ error[E0517]: cannot compare a symbol with a string: &quot;running&quot; and 'ru
   |
  call path (innermost first):
    example.fung:5 &lt;entry&gt;
- help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
+ help: a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
 </div>
 <h2 id="vary">응용</h2>
 <ul>

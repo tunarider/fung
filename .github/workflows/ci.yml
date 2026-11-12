@@ -5,9 +5,11 @@
 #   in debug and release (they include `fung fmt --check` over the repository's
 #   .fung files and install.sh against a fake release).
 #   Every cargo build uses --locked: Cargo.lock is what deny and audit
-#   checked.
+#   checked. Third-party actions are pinned by commit (the comment names
+#   the tag it was); audit.yml runs deny and audit once a week as well.
 #   A second test run builds with FUNG_BUILD_VERSION set and checks that
-#   `fung version` reports it.
+#   `fung version` reports it. Linux runs on x86_64 and arm64 (the arm64
+#   release binary is built on the same runner image).
 # - musl: the static Linux release build, its archive check, and the
 #   Rust golden suite (tests/lang) run against that static binary.
 name: ci
@@ -25,13 +27,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
     runs-on: ${{ matrix.os }}
     env:
       CARGO_DENY_VERSION: 0.20.2
       CARGO_AUDIT_VERSION: 0.22.2
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: toolchain
         run: rustup show active-toolchain
       # Crate allowlist (deny.toml). One OS is enough: the lock file and
@@ -39,7 +41,7 @@ jobs:
       - name: cache cargo-deny and cargo-audit
         if: matrix.os == 'ubuntu-latest'
         id: audit-tools
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cargo-audit-tools
           key: audit-tools-deny-${{ env.CARGO_DENY_VERSION }}-audit-${{ env.CARGO_AUDIT_VERSION }}-${{ runner.os }}
@@ -84,7 +86,7 @@ jobs:
   musl:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: toolchain
         run: rustup show active-toolchain && rustup target add x86_64-unknown-linux-musl
       - name: musl-tools

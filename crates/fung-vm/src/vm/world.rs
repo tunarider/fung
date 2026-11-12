@@ -38,7 +38,10 @@ use super::{Globals, Prelude, RtProto, TestCase};
 /// The shared part of the runtime. Reachable only through the
 /// runtime's `RefCell`, that is, only by the run thread.
 pub(crate) struct World {
-    stdout: Box<dyn Write + Send>,
+    /// Standard output and error, written by a thread of their own
+    /// (`output.rs`, CC15).
+    pub(super) output: super::output::Output,
+    stdout: super::output::Queued,
     /// Shared with `Failures`, which reports on it when a handle drops.
     stderr: Stream,
     /// Read by a thread of its own (`stdin.rs`).
@@ -115,6 +118,9 @@ pub(crate) struct World {
     pub(super) abandon: bool,
     /// The last run's tasks were dropped that way.
     pub(super) abandoned: bool,
+    /// A task was spawned (`spawn`): the order of the tasks mattered, so
+    /// `fung test` shows the seed of a failure (TL12).
+    pub(super) spawned: bool,
     /// The ready queue held a task twice when the last turn began (tests:
     /// a task gets one turn a round, L14).
     #[cfg(test)]
@@ -170,14 +176,15 @@ impl World {
     }
 
     pub(super) fn new(
-        stdout: Box<dyn Write + Send>,
-        stderr: Box<dyn Write + Send>,
+        output: super::output::Output,
         stdin: Box<dyn BufRead + Send>,
         sources: SourceMap,
     ) -> World {
+        use super::output::Std;
         World {
-            stdout,
-            stderr: Stream::new(stderr),
+            stdout: output.queued(Std::Out),
+            stderr: Stream::new(Box::new(output.queued(Std::Err))),
+            output,
             stdin: Stdin::new(stdin),
             sources,
             embedded: None,
@@ -203,6 +210,7 @@ impl World {
             interrupted: false,
             abandon: false,
             abandoned: false,
+            spawned: false,
             interrupted_round: 0,
             round: 0,
             shuffle: None,
@@ -290,7 +298,7 @@ impl World {
     }
 
     pub(super) fn stdout(&mut self) -> &mut dyn Write {
-        &mut *self.stdout
+        &mut self.stdout
     }
 
     pub(super) fn stderr(&mut self) -> &mut dyn Write {
@@ -316,8 +324,8 @@ impl World {
 }
 
 /// A stream shared by the world and `Failures` (standard error). Each
-/// write locks it for that write only; it is only written on the run
-/// thread, so the lock is never contended.
+/// write locks it for that write only, and only queues (`output.rs`), so
+/// the lock is held briefly; the closer's thread reports on it too.
 #[derive(Clone)]
 pub(crate) struct Stream(Arc<Mutex<Box<dyn Write + Send>>>);
 

@@ -3,25 +3,25 @@
 ==== TZ="America/New_York" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
 | 2026 26 03 Mar 08 Sun 01 59 59 000 -05:00 -0500 2026-03-08T01:59:59-05:00 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T01:59:59-05:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T01:59:59-05:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
 | 2026 26 03 Mar 08 Sun 03 00 00 000 -04:00 -0400 2026-03-08T03:00:00-04:00 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T03:00:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T03:00:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
 | 2026 26 03 Mar 08 Sun 03 30 00 000 -04:00 -0400 2026-03-08T03:30:00-04:00 {year: 2026, month: 3, day: 8, hour: 3, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T03:30:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T03:30:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
 | 2026 26 11 Nov 01 Sun 01 59 59 000 -04:00 -0400 2026-11-01T01:59:59-04:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T01:59:59-04:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T01:59:59-04:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
 | 2026 26 11 Nov 01 Sun 01 00 00 000 -05:00 -0500 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 01 30 00 000 -05:00 -0500 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 1874 74 12 Dec 07 Mon 13 43 58 000 -04:56:02 -045602 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 13, minute: 43, second: 58, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1899 99 12 Dec 31 Sun 19 00 00 000 -05:00 -0500 1899-12-31T19:00:00-05:00 {year: 1899, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'sun} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1899-12-31T19:00:00-05:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1899-12-31T19:00:00-05:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1969 69 12 Dec 31 Wed 19 00 00 000 -05:00 -0500 1969-12-31T19:00:00-05:00 {year: 1969, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'wed} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1969-12-31T19:00:00-05:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1969-12-31T19:00:00-05:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
 | 2026 26 10 Oct 03 Sat 20 05 07 000 -04:00 -0400 2026-10-03T20:05:07-04:00 {year: 2026, month: 10, day: 3, hour: 20, minute: 5, second: 7, weekday: 'sat} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-03T20:05:07-04:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-03T20:05:07-04:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 -- exit: 0
 ==== TZ="America/New_York" "for n in [-62135596800, -62135596801, -62167219200 - 1, -10… (248 bytes, c1c0201a951a68aa)
@@ -75,11 +75,11 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ="America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ="America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00-05:00 1772953140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -05:00 2026-03-08T06:59:00Z
-| 2026-03-08 02:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
-| 2026-03-08 02:30 2026-03-08T03:30:00-04:00 1772955000 {year: 2026, month: 3, day: 8, hour: 3, minute: 30, second: 0, weekday: 'sun} 03:30 -04:00 2026-03-08T07:30:00Z
+| 2026-03-08 02:00 cannot parse `2026-03-08 02:00` as a time: no such local time: the clocks skip it (daylight saving)
+| 2026-03-08 02:30 cannot parse `2026-03-08 02:30` as a time: no such local time: the clocks skip it (daylight saving)
 | 2026-03-08 03:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
 | 2026-11-01 00:59 2026-11-01T00:59:00-04:00 1793509140 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 -04:00 2026-11-01T04:59:00Z
 | 2026-11-01 01:00 2026-11-01T01:00:00-04:00 1793509200 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 -04:00 2026-11-01T05:00:00Z
@@ -88,22 +88,28 @@
 | 2026-11-01 02:30 2026-11-01T02:30:00-05:00 1793518200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 -05:00 2026-11-01T07:30:00Z
 -- stderr
 -- exit: 0
-==== TZ="America/New_York" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ="America/New_York" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00-04:00 1774763940 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -04:00 2026-03-29T05:59:00Z
+| 2026-03-29 02:00 2026-03-29T02:00:00-04:00 1774764000 {year: 2026, month: 3, day: 29, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 -04:00 2026-03-29T06:00:00Z
+| 2026-03-29 02:30 2026-03-29T02:30:00-04:00 1774765800 {year: 2026, month: 3, day: 29, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 -04:00 2026-03-29T06:30:00Z
+| 2026-03-29 03:00 2026-03-29T03:00:00-04:00 1774767600 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-29T07:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00-04:00 1792907940 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -04:00 2026-10-25T05:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00-04:00 1792908000 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 -04:00 2026-10-25T06:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00-04:00 1792909800 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 -04:00 2026-10-25T06:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00-04:00 1792911600 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-10-25T07:00:00Z
+| 2026-03-28T20:59:59-04:00 {year: 2026, month: 3, day: 28, hour: 20, minute: 59, second: 59, weekday: 'sat} 20:59 -04:00
+| 2026-03-28T21:00:00-04:00 {year: 2026, month: 3, day: 28, hour: 21, minute: 0, second: 0, weekday: 'sat} 21:00 -04:00
+| 2026-10-24T20:59:59-04:00 {year: 2026, month: 10, day: 24, hour: 20, minute: 59, second: 59, weekday: 'sat} 20:59 -04:00
+| 2026-10-24T21:00:00-04:00 {year: 2026, month: 10, day: 24, hour: 21, minute: 0, second: 0, weekday: 'sat} 21:00 -04:00
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+-- exit: 0
 ==== TZ="America/New_York" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00-04:00 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T13:00:00-04:00 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-06-30T23:00:00-04:00 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T08:00:00-04:00 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T08:00:00-04:00 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T03:30:00-04:00 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-04:00 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-05:00 1793514600
@@ -169,7 +175,7 @@
 ==== TZ="America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-03 20:05 -04:00
+| Z Z 2026-10-03 20:05 -04:00
 -- stderr
 -- exit: 0
 ==== TZ="America/New_York" "print(time.format(1))"
@@ -332,25 +338,25 @@
 ==== TZ=":America/New_York" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
 | 2026 26 03 Mar 08 Sun 01 59 59 000 -05:00 -0500 2026-03-08T01:59:59-05:00 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T01:59:59-05:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T01:59:59-05:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
 | 2026 26 03 Mar 08 Sun 03 00 00 000 -04:00 -0400 2026-03-08T03:00:00-04:00 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T03:00:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T03:00:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
 | 2026 26 03 Mar 08 Sun 03 30 00 000 -04:00 -0400 2026-03-08T03:30:00-04:00 {year: 2026, month: 3, day: 8, hour: 3, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T03:30:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T03:30:00-04:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
 | 2026 26 11 Nov 01 Sun 01 59 59 000 -04:00 -0400 2026-11-01T01:59:59-04:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T01:59:59-04:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T01:59:59-04:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
 | 2026 26 11 Nov 01 Sun 01 00 00 000 -05:00 -0500 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 01 30 00 000 -05:00 -0500 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 1874 74 12 Dec 07 Mon 13 43 58 000 -04:56:02 -045602 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 13, minute: 43, second: 58, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1899 99 12 Dec 31 Sun 19 00 00 000 -05:00 -0500 1899-12-31T19:00:00-05:00 {year: 1899, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'sun} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1899-12-31T19:00:00-05:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1899-12-31T19:00:00-05:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1969 69 12 Dec 31 Wed 19 00 00 000 -05:00 -0500 1969-12-31T19:00:00-05:00 {year: 1969, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'wed} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1969-12-31T19:00:00-05:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1969-12-31T19:00:00-05:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
 | 2026 26 10 Oct 03 Sat 20 05 07 000 -04:00 -0400 2026-10-03T20:05:07-04:00 {year: 2026, month: 10, day: 3, hour: 20, minute: 5, second: 7, weekday: 'sat} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-03T20:05:07-04:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-03T20:05:07-04:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 -- exit: 0
 ==== TZ=":America/New_York" "for n in [-62135596800, -62135596801, -62167219200 - 1, -10… (248 bytes, c1c0201a951a68aa)
@@ -404,11 +410,11 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ=":America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ=":America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00-05:00 1772953140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -05:00 2026-03-08T06:59:00Z
-| 2026-03-08 02:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
-| 2026-03-08 02:30 2026-03-08T03:30:00-04:00 1772955000 {year: 2026, month: 3, day: 8, hour: 3, minute: 30, second: 0, weekday: 'sun} 03:30 -04:00 2026-03-08T07:30:00Z
+| 2026-03-08 02:00 cannot parse `2026-03-08 02:00` as a time: no such local time: the clocks skip it (daylight saving)
+| 2026-03-08 02:30 cannot parse `2026-03-08 02:30` as a time: no such local time: the clocks skip it (daylight saving)
 | 2026-03-08 03:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
 | 2026-11-01 00:59 2026-11-01T00:59:00-04:00 1793509140 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 -04:00 2026-11-01T04:59:00Z
 | 2026-11-01 01:00 2026-11-01T01:00:00-04:00 1793509200 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 -04:00 2026-11-01T05:00:00Z
@@ -417,22 +423,28 @@
 | 2026-11-01 02:30 2026-11-01T02:30:00-05:00 1793518200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 -05:00 2026-11-01T07:30:00Z
 -- stderr
 -- exit: 0
-==== TZ=":America/New_York" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ=":America/New_York" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00-04:00 1774763940 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -04:00 2026-03-29T05:59:00Z
+| 2026-03-29 02:00 2026-03-29T02:00:00-04:00 1774764000 {year: 2026, month: 3, day: 29, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 -04:00 2026-03-29T06:00:00Z
+| 2026-03-29 02:30 2026-03-29T02:30:00-04:00 1774765800 {year: 2026, month: 3, day: 29, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 -04:00 2026-03-29T06:30:00Z
+| 2026-03-29 03:00 2026-03-29T03:00:00-04:00 1774767600 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-29T07:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00-04:00 1792907940 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -04:00 2026-10-25T05:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00-04:00 1792908000 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 -04:00 2026-10-25T06:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00-04:00 1792909800 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 -04:00 2026-10-25T06:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00-04:00 1792911600 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-10-25T07:00:00Z
+| 2026-03-28T20:59:59-04:00 {year: 2026, month: 3, day: 28, hour: 20, minute: 59, second: 59, weekday: 'sat} 20:59 -04:00
+| 2026-03-28T21:00:00-04:00 {year: 2026, month: 3, day: 28, hour: 21, minute: 0, second: 0, weekday: 'sat} 21:00 -04:00
+| 2026-10-24T20:59:59-04:00 {year: 2026, month: 10, day: 24, hour: 20, minute: 59, second: 59, weekday: 'sat} 20:59 -04:00
+| 2026-10-24T21:00:00-04:00 {year: 2026, month: 10, day: 24, hour: 21, minute: 0, second: 0, weekday: 'sat} 21:00 -04:00
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+-- exit: 0
 ==== TZ=":America/New_York" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00-04:00 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T13:00:00-04:00 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-06-30T23:00:00-04:00 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T08:00:00-04:00 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T08:00:00-04:00 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T03:30:00-04:00 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-04:00 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-05:00 1793514600
@@ -498,7 +510,7 @@
 ==== TZ=":America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-03 20:05 -04:00
+| Z Z 2026-10-03 20:05 -04:00
 -- stderr
 -- exit: 0
 ==== TZ=":America/New_York" "print(time.format(1))"
@@ -661,25 +673,25 @@
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
 | 2026 26 03 Mar 08 Sun 07 59 59 000 +01:00 +0100 2026-03-08T07:59:59+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T07:59:59+01:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T07:59:59+01:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
 | 2026 26 03 Mar 08 Sun 08 00 00 000 +01:00 +0100 2026-03-08T08:00:00+01:00 {year: 2026, month: 3, day: 8, hour: 8, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T08:00:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T08:00:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
 | 2026 26 03 Mar 08 Sun 08 30 00 000 +01:00 +0100 2026-03-08T08:30:00+01:00 {year: 2026, month: 3, day: 8, hour: 8, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T08:30:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T08:30:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
 | 2026 26 11 Nov 01 Sun 06 59 59 000 +01:00 +0100 2026-11-01T06:59:59+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T06:59:59+01:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T06:59:59+01:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
 | 2026 26 11 Nov 01 Sun 07 00 00 000 +01:00 +0100 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 7, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 07 30 00 000 +01:00 +0100 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 7, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 1874 74 12 Dec 07 Mon 19 33 28 000 +00:53:28 +005328 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 19, minute: 33, second: 28, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1900 00 01 Jan 01 Mon 01 00 00 000 +01:00 +0100 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1970 70 01 Jan 01 Thu 01 00 00 000 +01:00 +0100 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'thu} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
 | 2026 26 10 Oct 04 Sun 02 05 07 000 +02:00 +0200 2026-10-04T02:05:07+02:00 {year: 2026, month: 10, day: 4, hour: 2, minute: 5, second: 7, weekday: 'sun} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T02:05:07+02:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T02:05:07+02:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 -- exit: 0
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for n in [-62135596800, -62135596801, -62167219200 - 1, -10… (248 bytes, c1c0201a951a68aa)
@@ -733,7 +745,7 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00+01:00 1772931540 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +01:00 2026-03-08T00:59:00Z
 | 2026-03-08 02:00 2026-03-08T02:00:00+01:00 1772931600 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +01:00 2026-03-08T01:00:00Z
@@ -746,22 +758,28 @@
 | 2026-11-01 02:30 2026-11-01T02:30:00+01:00 1793496600 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +01:00 2026-11-01T01:30:00Z
 -- stderr
 -- exit: 0
-==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00+01:00 1774745940 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +01:00 2026-03-29T00:59:00Z
+| 2026-03-29 02:00 cannot parse `2026-03-29 02:00` as a time: no such local time: the clocks skip it (daylight saving)
+| 2026-03-29 02:30 cannot parse `2026-03-29 02:30` as a time: no such local time: the clocks skip it (daylight saving)
+| 2026-03-29 03:00 2026-03-29T03:00:00+02:00 1774746000 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +02:00 2026-03-29T01:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00+02:00 1792886340 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +02:00 2026-10-24T23:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00+02:00 1792886400 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +02:00 2026-10-25T00:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00+02:00 1792888200 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +02:00 2026-10-25T00:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00+01:00 1792893600 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +01:00 2026-10-25T02:00:00Z
+| 2026-03-29T01:59:59+01:00 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 59, weekday: 'sun} 01:59 +01:00
+| 2026-03-29T03:00:00+02:00 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +02:00
+| 2026-10-25T02:59:59+02:00 {year: 2026, month: 10, day: 25, hour: 2, minute: 59, second: 59, weekday: 'sun} 02:59 +02:00
+| 2026-10-25T02:00:00+01:00 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +01:00
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+-- exit: 0
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T18:00:00+02:00 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T19:00:00+02:00 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T05:00:00+02:00 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T14:00:00+02:00 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T14:00:00+02:00 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T08:30:00+01:00 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T06:30:00+01:00 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T07:30:00+01:00 1793514600
@@ -827,7 +845,7 @@
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-04 02:05 +02:00
+| Z Z 2026-10-04 02:05 +02:00
 -- stderr
 -- exit: 0
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.format(1))"
@@ -990,25 +1008,25 @@
 ==== TZ="Europe/Berlin" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
 | 2026 26 03 Mar 08 Sun 07 59 59 000 +01:00 +0100 2026-03-08T07:59:59+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T07:59:59+01:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T07:59:59+01:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
 | 2026 26 03 Mar 08 Sun 08 00 00 000 +01:00 +0100 2026-03-08T08:00:00+01:00 {year: 2026, month: 3, day: 8, hour: 8, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T08:00:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T08:00:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
 | 2026 26 03 Mar 08 Sun 08 30 00 000 +01:00 +0100 2026-03-08T08:30:00+01:00 {year: 2026, month: 3, day: 8, hour: 8, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T08:30:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T08:30:00+01:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
 | 2026 26 11 Nov 01 Sun 06 59 59 000 +01:00 +0100 2026-11-01T06:59:59+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T06:59:59+01:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T06:59:59+01:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
 | 2026 26 11 Nov 01 Sun 07 00 00 000 +01:00 +0100 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 7, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 07 30 00 000 +01:00 +0100 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 7, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 1874 74 12 Dec 07 Mon 19 33 28 000 +00:53:28 +005328 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 19, minute: 33, second: 28, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1900 00 01 Jan 01 Mon 01 00 00 000 +01:00 +0100 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1970 70 01 Jan 01 Thu 01 00 00 000 +01:00 +0100 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'thu} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
 | 2026 26 10 Oct 04 Sun 02 05 07 000 +02:00 +0200 2026-10-04T02:05:07+02:00 {year: 2026, month: 10, day: 4, hour: 2, minute: 5, second: 7, weekday: 'sun} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T02:05:07+02:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T02:05:07+02:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 -- exit: 0
 ==== TZ="Europe/Berlin" "for n in [-62135596800, -62135596801, -62167219200 - 1, -10… (248 bytes, c1c0201a951a68aa)
@@ -1062,7 +1080,7 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ="Europe/Berlin" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ="Europe/Berlin" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00+01:00 1772931540 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +01:00 2026-03-08T00:59:00Z
 | 2026-03-08 02:00 2026-03-08T02:00:00+01:00 1772931600 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +01:00 2026-03-08T01:00:00Z
@@ -1075,22 +1093,28 @@
 | 2026-11-01 02:30 2026-11-01T02:30:00+01:00 1793496600 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +01:00 2026-11-01T01:30:00Z
 -- stderr
 -- exit: 0
-==== TZ="Europe/Berlin" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ="Europe/Berlin" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00+01:00 1774745940 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +01:00 2026-03-29T00:59:00Z
+| 2026-03-29 02:00 cannot parse `2026-03-29 02:00` as a time: no such local time: the clocks skip it (daylight saving)
+| 2026-03-29 02:30 cannot parse `2026-03-29 02:30` as a time: no such local time: the clocks skip it (daylight saving)
+| 2026-03-29 03:00 2026-03-29T03:00:00+02:00 1774746000 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +02:00 2026-03-29T01:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00+02:00 1792886340 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +02:00 2026-10-24T23:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00+02:00 1792886400 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +02:00 2026-10-25T00:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00+02:00 1792888200 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +02:00 2026-10-25T00:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00+01:00 1792893600 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +01:00 2026-10-25T02:00:00Z
+| 2026-03-29T01:59:59+01:00 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 59, weekday: 'sun} 01:59 +01:00
+| 2026-03-29T03:00:00+02:00 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +02:00
+| 2026-10-25T02:59:59+02:00 {year: 2026, month: 10, day: 25, hour: 2, minute: 59, second: 59, weekday: 'sun} 02:59 +02:00
+| 2026-10-25T02:00:00+01:00 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +01:00
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+-- exit: 0
 ==== TZ="Europe/Berlin" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T18:00:00+02:00 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T19:00:00+02:00 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T05:00:00+02:00 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T14:00:00+02:00 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T14:00:00+02:00 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T08:30:00+01:00 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T06:30:00+01:00 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T07:30:00+01:00 1793514600
@@ -1156,7 +1180,7 @@
 ==== TZ="Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-04 02:05 +02:00
+| Z Z 2026-10-04 02:05 +02:00
 -- stderr
 -- exit: 0
 ==== TZ="Europe/Berlin" "print(time.format(1))"
@@ -1319,25 +1343,25 @@
 ==== TZ="Asia/Seoul" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
 | 2026 26 03 Mar 08 Sun 15 59 59 000 +09:00 +0900 2026-03-08T15:59:59+09:00 {year: 2026, month: 3, day: 8, hour: 15, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T15:59:59+09:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T15:59:59+09:00 {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
 | 2026 26 03 Mar 08 Sun 16 00 00 000 +09:00 +0900 2026-03-08T16:00:00+09:00 {year: 2026, month: 3, day: 8, hour: 16, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T16:00:00+09:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T16:00:00+09:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
 | 2026 26 03 Mar 08 Sun 16 30 00 000 +09:00 +0900 2026-03-08T16:30:00+09:00 {year: 2026, month: 3, day: 8, hour: 16, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T16:30:00+09:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T16:30:00+09:00 {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
 | 2026 26 11 Nov 01 Sun 14 59 59 000 +09:00 +0900 2026-11-01T14:59:59+09:00 {year: 2026, month: 11, day: 1, hour: 14, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T14:59:59+09:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T14:59:59+09:00 {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
 | 2026 26 11 Nov 01 Sun 15 00 00 000 +09:00 +0900 2026-11-01T15:00:00+09:00 {year: 2026, month: 11, day: 1, hour: 15, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T15:00:00+09:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T15:00:00+09:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 15 30 00 000 +09:00 +0900 2026-11-01T15:30:00+09:00 {year: 2026, month: 11, day: 1, hour: 15, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T15:30:00+09:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T15:30:00+09:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 1874 74 12 Dec 08 Tue 03 07 52 000 +08:27:52 +082752 1874-12-08T03:07:52+08:27:52 {year: 1874, month: 12, day: 8, hour: 3, minute: 7, second: 52, weekday: 'tue} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-08T03:07:52+08:27:52 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-08T03:07:52+08:27:52 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1900 00 01 Jan 01 Mon 08 27 52 000 +08:27:52 +082752 1900-01-01T08:27:52+08:27:52 {year: 1900, month: 1, day: 1, hour: 8, minute: 27, second: 52, weekday: 'mon} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T08:27:52+08:27:52 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T08:27:52+08:27:52 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1970 70 01 Jan 01 Thu 09 00 00 000 +09:00 +0900 1970-01-01T09:00:00+09:00 {year: 1970, month: 1, day: 1, hour: 9, minute: 0, second: 0, weekday: 'thu} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T09:00:00+09:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T09:00:00+09:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
 | 2026 26 10 Oct 04 Sun 09 05 07 000 +09:00 +0900 2026-10-04T09:05:07+09:00 {year: 2026, month: 10, day: 4, hour: 9, minute: 5, second: 7, weekday: 'sun} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T09:05:07+09:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T09:05:07+09:00 {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 -- exit: 0
 ==== TZ="Asia/Seoul" "for n in [-62135596800, -62135596801, -62167219200 - 1, -10… (248 bytes, c1c0201a951a68aa)
@@ -1391,7 +1415,7 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ="Asia/Seoul" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ="Asia/Seoul" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00+09:00 1772902740 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +09:00 2026-03-07T16:59:00Z
 | 2026-03-08 02:00 2026-03-08T02:00:00+09:00 1772902800 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +09:00 2026-03-07T17:00:00Z
@@ -1404,22 +1428,28 @@
 | 2026-11-01 02:30 2026-11-01T02:30:00+09:00 1793467800 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +09:00 2026-10-31T17:30:00Z
 -- stderr
 -- exit: 0
-==== TZ="Asia/Seoul" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ="Asia/Seoul" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00+09:00 1774717140 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +09:00 2026-03-28T16:59:00Z
+| 2026-03-29 02:00 2026-03-29T02:00:00+09:00 1774717200 {year: 2026, month: 3, day: 29, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +09:00 2026-03-28T17:00:00Z
+| 2026-03-29 02:30 2026-03-29T02:30:00+09:00 1774719000 {year: 2026, month: 3, day: 29, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +09:00 2026-03-28T17:30:00Z
+| 2026-03-29 03:00 2026-03-29T03:00:00+09:00 1774720800 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +09:00 2026-03-28T18:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00+09:00 1792861140 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +09:00 2026-10-24T16:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00+09:00 1792861200 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +09:00 2026-10-24T17:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00+09:00 1792863000 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +09:00 2026-10-24T17:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00+09:00 1792864800 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +09:00 2026-10-24T18:00:00Z
+| 2026-03-29T09:59:59+09:00 {year: 2026, month: 3, day: 29, hour: 9, minute: 59, second: 59, weekday: 'sun} 09:59 +09:00
+| 2026-03-29T10:00:00+09:00 {year: 2026, month: 3, day: 29, hour: 10, minute: 0, second: 0, weekday: 'sun} 10:00 +09:00
+| 2026-10-25T09:59:59+09:00 {year: 2026, month: 10, day: 25, hour: 9, minute: 59, second: 59, weekday: 'sun} 09:59 +09:00
+| 2026-10-25T10:00:00+09:00 {year: 2026, month: 10, day: 25, hour: 10, minute: 0, second: 0, weekday: 'sun} 10:00 +09:00
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+-- exit: 0
 ==== TZ="Asia/Seoul" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-02T01:00:00+09:00 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-02T02:00:00+09:00 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00+09:00 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T21:00:00+09:00 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T21:00:00+09:00 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T16:30:00+09:00 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T14:30:00+09:00 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T15:30:00+09:00 1793514600
@@ -1485,7 +1515,7 @@
 ==== TZ="Asia/Seoul" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-04 09:05 +09:00
+| Z Z 2026-10-04 09:05 +09:00
 -- stderr
 -- exit: 0
 ==== TZ="Asia/Seoul" "print(time.format(1))"
@@ -1647,26 +1677,26 @@
 -- exit: 0
 ==== TZ="UTC" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 -- exit: 0
 ==== TZ="UTC" "for n in [-62135596800, -62135596801, -62167219200 - 1, -10… (248 bytes, c1c0201a951a68aa)
@@ -1720,35 +1750,41 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ="UTC" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ="UTC" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
-| 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +00:00 2026-03-08T01:59:00Z
-| 2026-03-08 02:00 2026-03-08T02:00:00Z 1772935200 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +00:00 2026-03-08T02:00:00Z
-| 2026-03-08 02:30 2026-03-08T02:30:00Z 1772937000 {year: 2026, month: 3, day: 8, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +00:00 2026-03-08T02:30:00Z
-| 2026-03-08 03:00 2026-03-08T03:00:00Z 1772938800 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +00:00 2026-03-08T03:00:00Z
-| 2026-11-01 00:59 2026-11-01T00:59:00Z 1793494740 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 +00:00 2026-11-01T00:59:00Z
-| 2026-11-01 01:00 2026-11-01T01:00:00Z 1793494800 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 +00:00 2026-11-01T01:00:00Z
-| 2026-11-01 01:30 2026-11-01T01:30:00Z 1793496600 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 +00:00 2026-11-01T01:30:00Z
-| 2026-11-01 02:00 2026-11-01T02:00:00Z 1793498400 {year: 2026, month: 11, day: 1, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +00:00 2026-11-01T02:00:00Z
-| 2026-11-01 02:30 2026-11-01T02:30:00Z 1793500200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +00:00 2026-11-01T02:30:00Z
+| 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-08T01:59:00Z
+| 2026-03-08 02:00 2026-03-08T02:00:00Z 1772935200 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-03-08T02:00:00Z
+| 2026-03-08 02:30 2026-03-08T02:30:00Z 1772937000 {year: 2026, month: 3, day: 8, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-03-08T02:30:00Z
+| 2026-03-08 03:00 2026-03-08T03:00:00Z 1772938800 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-03-08T03:00:00Z
+| 2026-11-01 00:59 2026-11-01T00:59:00Z 1793494740 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 Z 2026-11-01T00:59:00Z
+| 2026-11-01 01:00 2026-11-01T01:00:00Z 1793494800 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z 2026-11-01T01:00:00Z
+| 2026-11-01 01:30 2026-11-01T01:30:00Z 1793496600 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 Z 2026-11-01T01:30:00Z
+| 2026-11-01 02:00 2026-11-01T02:00:00Z 1793498400 {year: 2026, month: 11, day: 1, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-11-01T02:00:00Z
+| 2026-11-01 02:30 2026-11-01T02:30:00Z 1793500200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-11-01T02:30:00Z
 -- stderr
 -- exit: 0
-==== TZ="UTC" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ="UTC" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00Z 1774749540 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-29T01:59:00Z
+| 2026-03-29 02:00 2026-03-29T02:00:00Z 1774749600 {year: 2026, month: 3, day: 29, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-03-29T02:00:00Z
+| 2026-03-29 02:30 2026-03-29T02:30:00Z 1774751400 {year: 2026, month: 3, day: 29, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-03-29T02:30:00Z
+| 2026-03-29 03:00 2026-03-29T03:00:00Z 1774753200 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-03-29T03:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00Z 1792893540 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-10-25T01:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00Z 1792893600 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-10-25T02:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00Z 1792895400 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-10-25T02:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00Z 1792897200 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-10-25T03:00:00Z
+| 2026-03-29T00:59:59Z {year: 2026, month: 3, day: 29, hour: 0, minute: 59, second: 59, weekday: 'sun} 00:59 Z
+| 2026-03-29T01:00:00Z {year: 2026, month: 3, day: 29, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z
+| 2026-10-25T00:59:59Z {year: 2026, month: 10, day: 25, hour: 0, minute: 59, second: 59, weekday: 'sun} 00:59 Z
+| 2026-10-25T01:00:00Z {year: 2026, month: 10, day: 25, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+-- exit: 0
 ==== TZ="UTC" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T16:00:00Z 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T17:00:00Z 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T03:00:00Z 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00Z 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00Z 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T07:30:00Z 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T05:30:00Z 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T06:30:00Z 1793514600
@@ -1814,7 +1850,7 @@
 ==== TZ="UTC" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-04 00:05 +00:00
+| Z Z 2026-10-04 00:05 Z
 -- stderr
 -- exit: 0
 ==== TZ="UTC" "print(time.format(1))"
@@ -1976,26 +2012,26 @@
 -- exit: 0
 ==== TZ="" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 -- exit: 0
 ==== TZ="" "for n in [-62135596800, -62135596801, -62167219200 - 1, -10… (248 bytes, c1c0201a951a68aa)
@@ -2049,35 +2085,41 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ="" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ="" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
-| 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +00:00 2026-03-08T01:59:00Z
-| 2026-03-08 02:00 2026-03-08T02:00:00Z 1772935200 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +00:00 2026-03-08T02:00:00Z
-| 2026-03-08 02:30 2026-03-08T02:30:00Z 1772937000 {year: 2026, month: 3, day: 8, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +00:00 2026-03-08T02:30:00Z
-| 2026-03-08 03:00 2026-03-08T03:00:00Z 1772938800 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +00:00 2026-03-08T03:00:00Z
-| 2026-11-01 00:59 2026-11-01T00:59:00Z 1793494740 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 +00:00 2026-11-01T00:59:00Z
-| 2026-11-01 01:00 2026-11-01T01:00:00Z 1793494800 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 +00:00 2026-11-01T01:00:00Z
-| 2026-11-01 01:30 2026-11-01T01:30:00Z 1793496600 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 +00:00 2026-11-01T01:30:00Z
-| 2026-11-01 02:00 2026-11-01T02:00:00Z 1793498400 {year: 2026, month: 11, day: 1, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +00:00 2026-11-01T02:00:00Z
-| 2026-11-01 02:30 2026-11-01T02:30:00Z 1793500200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +00:00 2026-11-01T02:30:00Z
+| 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-08T01:59:00Z
+| 2026-03-08 02:00 2026-03-08T02:00:00Z 1772935200 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-03-08T02:00:00Z
+| 2026-03-08 02:30 2026-03-08T02:30:00Z 1772937000 {year: 2026, month: 3, day: 8, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-03-08T02:30:00Z
+| 2026-03-08 03:00 2026-03-08T03:00:00Z 1772938800 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-03-08T03:00:00Z
+| 2026-11-01 00:59 2026-11-01T00:59:00Z 1793494740 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 Z 2026-11-01T00:59:00Z
+| 2026-11-01 01:00 2026-11-01T01:00:00Z 1793494800 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z 2026-11-01T01:00:00Z
+| 2026-11-01 01:30 2026-11-01T01:30:00Z 1793496600 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 Z 2026-11-01T01:30:00Z
+| 2026-11-01 02:00 2026-11-01T02:00:00Z 1793498400 {year: 2026, month: 11, day: 1, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-11-01T02:00:00Z
+| 2026-11-01 02:30 2026-11-01T02:30:00Z 1793500200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-11-01T02:30:00Z
 -- stderr
 -- exit: 0
-==== TZ="" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ="" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00Z 1774749540 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-29T01:59:00Z
+| 2026-03-29 02:00 2026-03-29T02:00:00Z 1774749600 {year: 2026, month: 3, day: 29, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-03-29T02:00:00Z
+| 2026-03-29 02:30 2026-03-29T02:30:00Z 1774751400 {year: 2026, month: 3, day: 29, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-03-29T02:30:00Z
+| 2026-03-29 03:00 2026-03-29T03:00:00Z 1774753200 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-03-29T03:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00Z 1792893540 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-10-25T01:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00Z 1792893600 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-10-25T02:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00Z 1792895400 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-10-25T02:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00Z 1792897200 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-10-25T03:00:00Z
+| 2026-03-29T00:59:59Z {year: 2026, month: 3, day: 29, hour: 0, minute: 59, second: 59, weekday: 'sun} 00:59 Z
+| 2026-03-29T01:00:00Z {year: 2026, month: 3, day: 29, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z
+| 2026-10-25T00:59:59Z {year: 2026, month: 10, day: 25, hour: 0, minute: 59, second: 59, weekday: 'sun} 00:59 Z
+| 2026-10-25T01:00:00Z {year: 2026, month: 10, day: 25, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+-- exit: 0
 ==== TZ="" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T16:00:00Z 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T17:00:00Z 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T03:00:00Z 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00Z 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00Z 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T07:30:00Z 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T05:30:00Z 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T06:30:00Z 1793514600
@@ -2143,7 +2185,7 @@
 ==== TZ="" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-04 00:05 +00:00
+| Z Z 2026-10-04 00:05 Z
 -- stderr
 -- exit: 0
 ==== TZ="" "print(time.format(1))"
@@ -2305,26 +2347,26 @@
 -- exit: 0
 ==== TZ="No/Such_Zone" "fn show(t) = print(time.format(t, \"YYYY YY MM MMM DD ddd H… (326 bytes, e7153fb477416ae9)
 -- stdout
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 06 59 59 000 +00:00 +0000 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 00 00 000 +00:00 +0000 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 03 Mar 08 Sun 07 30 00 000 +00:00 +0000 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 05 59 59 000 +00:00 +0000 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
-| 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
-| 2026 26 10 Oct 04 Sun 00 05 07 000 +00:00 +0000 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 06 59 59 000 Z Z 2026-03-08T06:59:59Z {year: 2026, month: 3, day: 8, hour: 6, minute: 59, second: 59, weekday: 'sun} 1772953199
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 00 00 000 Z Z 2026-03-08T07:00:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 0, second: 0, weekday: 'sun} 1772953200
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 03 Mar 08 Sun 07 30 00 000 Z Z 2026-03-08T07:30:00Z {year: 2026, month: 3, day: 8, hour: 7, minute: 30, second: 0, weekday: 'sun} 1772955000
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 05 59 59 000 Z Z 2026-11-01T05:59:59Z {year: 2026, month: 11, day: 1, hour: 5, minute: 59, second: 59, weekday: 'sun} 1793512799
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 00 00 000 Z Z 2026-11-01T06:00:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 2026 26 11 Nov 01 Sun 06 30 00 000 Z Z 2026-11-01T06:30:00Z {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 Z Z 1874-12-07T18:40:00Z {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 Z Z 1900-01-01T00:00:00Z {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 1970 70 01 Jan 01 Thu 00 00 00 000 Z Z 1970-01-01T00:00:00Z {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
+| 2026 26 10 Oct 04 Sun 00 05 07 000 Z Z 2026-10-04T00:05:07Z {year: 2026, month: 10, day: 4, hour: 0, minute: 5, second: 7, weekday: 'sun} 1791072307
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
 -- exit: 0
@@ -2382,36 +2424,43 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== TZ="No/Such_Zone" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
+==== TZ="No/Such_Zone" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
-| 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +00:00 2026-03-08T01:59:00Z
-| 2026-03-08 02:00 2026-03-08T02:00:00Z 1772935200 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +00:00 2026-03-08T02:00:00Z
-| 2026-03-08 02:30 2026-03-08T02:30:00Z 1772937000 {year: 2026, month: 3, day: 8, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +00:00 2026-03-08T02:30:00Z
-| 2026-03-08 03:00 2026-03-08T03:00:00Z 1772938800 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 +00:00 2026-03-08T03:00:00Z
-| 2026-11-01 00:59 2026-11-01T00:59:00Z 1793494740 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 +00:00 2026-11-01T00:59:00Z
-| 2026-11-01 01:00 2026-11-01T01:00:00Z 1793494800 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 +00:00 2026-11-01T01:00:00Z
-| 2026-11-01 01:30 2026-11-01T01:30:00Z 1793496600 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 +00:00 2026-11-01T01:30:00Z
-| 2026-11-01 02:00 2026-11-01T02:00:00Z 1793498400 {year: 2026, month: 11, day: 1, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 +00:00 2026-11-01T02:00:00Z
-| 2026-11-01 02:30 2026-11-01T02:30:00Z 1793500200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 +00:00 2026-11-01T02:30:00Z
+| 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-08T01:59:00Z
+| 2026-03-08 02:00 2026-03-08T02:00:00Z 1772935200 {year: 2026, month: 3, day: 8, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-03-08T02:00:00Z
+| 2026-03-08 02:30 2026-03-08T02:30:00Z 1772937000 {year: 2026, month: 3, day: 8, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-03-08T02:30:00Z
+| 2026-03-08 03:00 2026-03-08T03:00:00Z 1772938800 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-03-08T03:00:00Z
+| 2026-11-01 00:59 2026-11-01T00:59:00Z 1793494740 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 Z 2026-11-01T00:59:00Z
+| 2026-11-01 01:00 2026-11-01T01:00:00Z 1793494800 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z 2026-11-01T01:00:00Z
+| 2026-11-01 01:30 2026-11-01T01:30:00Z 1793496600 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 Z 2026-11-01T01:30:00Z
+| 2026-11-01 02:00 2026-11-01T02:00:00Z 1793498400 {year: 2026, month: 11, day: 1, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-11-01T02:00:00Z
+| 2026-11-01 02:30 2026-11-01T02:30:00Z 1793500200 {year: 2026, month: 11, day: 1, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-11-01T02:30:00Z
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
 -- exit: 0
-==== TZ="No/Such_Zone" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (483 bytes, 13bb1a76eb7a73c3)
+==== TZ="No/Such_Zone" "for s in [\"2026-03-29 01:59\", \"2026-03-29 02:00\", \"202… (542 bytes, f3cca4ec30cc0c0f)
 -- stdout
+| 2026-03-29 01:59 2026-03-29T01:59:00Z 1774749540 {year: 2026, month: 3, day: 29, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-29T01:59:00Z
+| 2026-03-29 02:00 2026-03-29T02:00:00Z 1774749600 {year: 2026, month: 3, day: 29, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-03-29T02:00:00Z
+| 2026-03-29 02:30 2026-03-29T02:30:00Z 1774751400 {year: 2026, month: 3, day: 29, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-03-29T02:30:00Z
+| 2026-03-29 03:00 2026-03-29T03:00:00Z 1774753200 {year: 2026, month: 3, day: 29, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-03-29T03:00:00Z
+| 2026-10-25 01:59 2026-10-25T01:59:00Z 1792893540 {year: 2026, month: 10, day: 25, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-10-25T01:59:00Z
+| 2026-10-25 02:00 2026-10-25T02:00:00Z 1792893600 {year: 2026, month: 10, day: 25, hour: 2, minute: 0, second: 0, weekday: 'sun} 02:00 Z 2026-10-25T02:00:00Z
+| 2026-10-25 02:30 2026-10-25T02:30:00Z 1792895400 {year: 2026, month: 10, day: 25, hour: 2, minute: 30, second: 0, weekday: 'sun} 02:30 Z 2026-10-25T02:30:00Z
+| 2026-10-25 03:00 2026-10-25T03:00:00Z 1792897200 {year: 2026, month: 10, day: 25, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 Z 2026-10-25T03:00:00Z
+| 2026-03-29T00:59:59Z {year: 2026, month: 3, day: 29, hour: 0, minute: 59, second: 59, weekday: 'sun} 00:59 Z
+| 2026-03-29T01:00:00Z {year: 2026, month: 3, day: 29, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z
+| 2026-10-25T00:59:59Z {year: 2026, month: 10, day: 25, hour: 0, minute: 59, second: 59, weekday: 'sun} 00:59 Z
+| 2026-10-25T01:00:00Z {year: 2026, month: 10, day: 25, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 Z
 -- stderr
-| error[E0112]: expected `;;` to close the for, found end of file
-|   --> -e:8:3
-|   |
-| 8 | ;;
-|   |   ^
-|   |
--- exit: 2
+| warning: TZ `No/Such_Zone` names no time zone; times are in UTC
+-- exit: 0
 ==== TZ="No/Such_Zone" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
 | 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T16:00:00Z 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T17:00:00Z 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T03:00:00Z 1782874800
-| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00Z 1782907200
+| 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z Z {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00Z 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T07:30:00Z 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T05:30:00Z 1793511000
 | 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T06:30:00Z 1793514600
@@ -2480,7 +2529,7 @@
 ==== TZ="No/Such_Zone" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
 | literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
-| +00:00 +0000 2026-10-04 00:05 +00:00
+| Z Z 2026-10-04 00:05 Z
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
 -- exit: 0

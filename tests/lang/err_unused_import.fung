@@ -1,0 +1,4 @@
+# An import nobody reads is an error (D38).
+import fs
+print(1)
+# expect-error: E0239

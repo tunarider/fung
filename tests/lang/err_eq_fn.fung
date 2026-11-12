@@ -1,0 +1,6 @@
+# Functions have no equality (D62): == on them is an error.
+f = x => x + 1
+print(f(1))
+# expect: 2
+print(f == f)
+# expect-error: E0501

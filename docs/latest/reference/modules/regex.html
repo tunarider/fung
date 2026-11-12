@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>regex — 정규식 · fung 매뉴얼</title>
-<meta name="description" content="fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기, 나누기(is_match, find, find_all, replace, split).">
+<meta name="description" content="fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기, 나누기(is_match, find, find_all, replace, split, escape).">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -150,8 +150,8 @@ true
 <p><strong>로그 줄 고르기</strong></p>
 <div class="run"><pre><code>import regex
 
-lines = [&quot;INFO ok&quot;, &quot;ERROR disk full&quot;, &quot;error: retry&quot;, &quot;WARN slow&quot;]
-print(lines |&gt; filter(l =&gt; regex.is_match(l, `(?i)^error`)))</code></pre><pre class="out plain"><code>[&quot;ERROR disk full&quot;, &quot;error: retry&quot;]</code></pre></div>
+entries = [&quot;INFO ok&quot;, &quot;ERROR disk full&quot;, &quot;error: retry&quot;, &quot;WARN slow&quot;]
+print(entries |&gt; filter(l =&gt; regex.is_match(l, `(?i)^error`)))</code></pre><pre class="out plain"><code>[&quot;ERROR disk full&quot;, &quot;error: retry&quot;]</code></pre></div>
 <p><strong>전체 모양 검사</strong></p>
 <div class="run"><pre><code>import regex
 
@@ -241,8 +241,8 @@ print(ms |&gt; map(m =&gt; int(m.text)) |&gt; sum)</code></pre><pre class="out p
 <div class="run"><pre><code>import regex
 
 line = &quot;user=kim role=admin  region=eu&quot;
-pairs = regex.find_all(line, `(?P&lt;k&gt;\w+)=(?P&lt;v&gt;\S+)`)
-print(pairs |&gt; fold({}, (acc, m) =&gt; put(acc, m.named.k, m.named.v)))</code></pre><pre class="out plain"><code>{user: &quot;kim&quot;, role: &quot;admin&quot;, region: &quot;eu&quot;}</code></pre></div>
+found = regex.find_all(line, `(?P&lt;k&gt;\w+)=(?P&lt;v&gt;\S+)`)
+print(found |&gt; fold({}, (acc, m) =&gt; put(acc, m.named.k, m.named.v)))</code></pre><pre class="out plain"><code>{user: &quot;kim&quot;, role: &quot;admin&quot;, region: &quot;eu&quot;}</code></pre></div>
 <p><strong>로그 줄 나누기</strong></p>
 <div class="run"><pre><code>import regex
 
@@ -343,6 +343,31 @@ print(regex.split(&quot;abc&quot;, &quot;&quot;))</code></pre><pre class="out pl
 <p>빈 조각이 필요 없으면 <code>filter(x =&gt; x != &quot;&quot;)</code>로 걸러 낸다.</p>
 <h4>같이 보기</h4>
 <p><a href="../prelude/strings.html#fn-split"><code>split</code></a>, <a href="../prelude/strings.html#fn-lines"><code>lines</code></a>, <a href="../../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></p>
+</section>
+<section class="entry" id="fn-regex-escape">
+<h3>regex.escape</h3>
+<p>문자열을 그 글자 그대로만 맞는 패턴으로 바꾼다.</p>
+<div class="sig"><code>regex.escape(s)</code></div>
+<h4>설명</h4>
+<p>사용자 입력이나 파일에서 읽은 글을 패턴 안에 넣으면 <code>.</code>·<code>*</code>·<code>(</code> 같은 글자가 패턴의 기호로 읽힌다. <code>regex.escape</code>는 그런 글자 앞에 <code>\</code>를 붙여 <code>s</code> 자체만 맞는 패턴을 만든다. UTF-8이 아닌 바이트는 그 바이트만 맞도록 <code>(?-u:\xff)</code>로 쓴다. 결과를 다른 패턴 조각과 이어 붙여 쓴다(<code>&quot;^&quot; + regex.escape(prefix)</code>).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>패턴 문자열.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>바깥 글을 패턴에 넣기</strong></p>
+<div class="run"><pre><code>import regex
+
+host = &quot;api.example.com&quot;
+print(regex.escape(host))
+print(regex.is_match(&quot;api.example.com:443&quot;, &quot;^&quot; + regex.escape(host) + &quot;:&quot;), regex.is_match(&quot;apixexample.com:443&quot;, &quot;^&quot; + regex.escape(host) + &quot;:&quot;))</code></pre><pre class="out plain"><code>api\.example\.com
+true false</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-regex-is_match"><code>regex.is_match</code></a>, <a href="../prelude/strings.html#fn-index_of"><code>index_of</code></a></p>
 </section>
 <p>배우는 순서로는 <a href="../../learn/06-strings.html">6장 문자열 다루기</a>를 본다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/modules/time.html"><small>이전</small>time — 시각</a><a class="next" href="../../reference/modules/http.html"><small>다음</small>http — HTTP</a></nav>

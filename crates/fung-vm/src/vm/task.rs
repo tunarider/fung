@@ -19,7 +19,6 @@
 //! since a scope does not return until its children have ended.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::{self, Rc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
@@ -62,7 +61,7 @@ pub(crate) struct CancelNode {
 #[derive(Default)]
 struct NodeInner {
     /// The live children by address.
-    children: HashMap<usize, Arc<CancelNode>>,
+    children: super::sched::IdMap<usize, Arc<CancelNode>>,
     /// The tasks blocked under this node, woken when it is cancelled.
     watchers: WaitList,
 }
@@ -362,13 +361,14 @@ pub(crate) fn err_kind(kind: &str, message: &str) -> Value {
     nat::tag("Err", vec![Value::Map(Rc::new(m.finish()))])
 }
 
-/// What a task's run becomes as its result: the value, or
+/// What a task's run becomes as its result (`await`): `Ok` of the value
+/// (D65: a function that can fail at run time returns a result), or
 /// `Err({kind: 'cancelled, …})` for a cancelled task (E0701), one woken by the
 /// deadlock report (E0702) or one that called `exit`, or
 /// `Err(failure_value(d))` for a failure. `world` names the failure's file.
 pub(super) fn outcome(r: &Result<Value, Stop>, world: Option<&World>) -> Value {
     match r {
-        Ok(v) => v.clone(),
+        Ok(v) => nat::ok(v.clone()),
         Err(Stop::Exit(_)) => err_kind("cancelled", "cancelled"),
         Err(Stop::Error(d)) if is_cancel(d) => err_kind("cancelled", "cancelled"),
         Err(Stop::Error(d)) => nat::tag("Err", vec![failure_value(d, world)]),
@@ -406,7 +406,7 @@ impl<'rt> Task<'rt> {
     /// the scope's node, and the scope waits for it.
     pub(crate) fn spawn_in(&mut self, s: &Rc<ScopeState>, f: Value) -> Result<Value, Stop> {
         if !s.is_open() {
-            return Err(nat::fail("E0706", Vec::new()));
+            return Err(nat::fail("E0706", vec![nat::s("spawn")]));
         }
         // Every task has a scope (05 "태스크 범위 안에서만", CC8).
         let node = s.node.child();
@@ -431,6 +431,7 @@ impl<'rt> Task<'rt> {
         });
         fiber.todo = Some(super::Todo::Start(f, 0));
         self.world.new_fibers.push(fiber);
+        self.world.spawned = true;
         Ok(Value::Task(handle))
     }
 

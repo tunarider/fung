@@ -440,7 +440,7 @@ fn list_walk_glob() {
     assert_eq!(
         show(call("list", vec![p(&a), no.clone()])),
         format!(
-            "Err({{kind: 'io, message: \"cannot list `{}`: not a directory\"}})",
+            "Err({{kind: 'not_found, message: \"cannot list `{}`: not a directory\"}})",
             a.display()
         )
     );
@@ -451,14 +451,18 @@ fn list_walk_glob() {
             none.display()
         )
     );
+    // A walk starts at a directory (D78).
     assert_eq!(
         show(call("walk", vec![p(&a)])),
-        format!(r#"Ok(["{}"])"#, a.display())
+        format!(
+            "Err({{kind: 'not_found, message: \"cannot walk `{}`: not a directory\"}})",
+            a.display()
+        )
     );
     assert_eq!(show(call("glob", vec![p(&none)])), "Ok([])");
     // A bad pattern is a code error (LB9), wherever it is wrong.
     for bad in [
-        "x/[", "x/*/[", "x/*[", "x/[/*", "x/a[/*", "x/none/[", "x/\\",
+        "x/[", "x/*/[", "x/*[", "x/[/*", "x/a[/*", "x/none/[", "x/\\", "**/*.txt", "x/**",
     ] {
         assert_eq!(show(call("glob", vec![s(bad)])), "E0515", "{bad}");
     }
@@ -536,9 +540,14 @@ fn listings_keep_gos_order() {
         show(call("walk", vec![p(&t.join("sub"))])),
         quoted(&["sub/.g", "sub/A/c.md", "sub/b.md", "sub/deep/f"], true)
     );
+    // The root is followed when it is a link to a directory, as `list`
+    // follows it (D78).
     assert_eq!(
         show(call("walk", vec![p(&t.join("ln_dir"))])),
-        quoted(&["ln_dir"], true)
+        quoted(
+            &["ln_dir/.g", "ln_dir/A/c.md", "ln_dir/b.md", "ln_dir/deep/f"],
+            true
+        )
     );
     assert_eq!(
         show(call("walk", vec![s(&format!("{tt}/ln_dir/"))])),
@@ -643,7 +652,7 @@ fn failures_give_exact_messages() {
             "mkdir",
             vec![s(&at("a.txt/b"))],
             err(
-                "io",
+                "not_found",
                 format!(
                     "cannot create directory `{}`: not a directory",
                     at("a.txt/b")
@@ -662,7 +671,7 @@ fn failures_give_exact_messages() {
             "remove",
             vec![s(&at("a.txt/x"))],
             err(
-                "io",
+                "not_found",
                 format!("cannot remove `{}`: not a directory", at("a.txt/x")),
             ),
         ),
@@ -672,7 +681,7 @@ fn failures_give_exact_messages() {
             "remove_all",
             vec![s(&at("."))],
             err(
-                "io",
+                "invalid",
                 format!("cannot remove `{}`: invalid argument", at(".")),
             ),
         ),
@@ -732,12 +741,40 @@ fn failures_give_exact_messages() {
                 ),
             ),
         ),
+        // The target exists also when it is the source itself (D78); with
+        // overwrite there is nothing to replace.
+        (
+            "move",
+            vec![s(&at("a.txt")), s(&at("a.txt"))],
+            err(
+                "exists",
+                format!(
+                    "cannot move `{}` to `{}`: file exists",
+                    at("a.txt"),
+                    at("a.txt")
+                ),
+            ),
+        ),
+        (
+            "move",
+            vec![s(&at("a.txt")), s(&at("a.txt")), Value::Bool(true)],
+            "Ok(nil)".into(),
+        ),
+        // A walk starts at a directory, as a listing (D78).
+        (
+            "walk",
+            vec![s(&at("a.txt"))],
+            err(
+                "not_found",
+                format!("cannot walk `{}`: not a directory", at("a.txt")),
+            ),
+        ),
         // Asked to replace, a directory still cannot replace a file.
         (
             "move",
             vec![s(&at("sub")), s(&at("a.txt")), Value::Bool(true)],
             err(
-                "io",
+                "not_found",
                 format!("cannot move `{}`: not a directory", at("sub")),
             ),
         ),
@@ -773,21 +810,21 @@ fn failures_give_exact_messages() {
             "stat",
             vec![s(&at("a.txt/x"))],
             err(
-                "io",
+                "not_found",
                 format!("cannot stat `{}`: not a directory", at("a.txt/x")),
             ),
         ),
         (
             "read",
             vec![s("a\0b")],
-            err("io", "cannot read `a\\u{0}b`: invalid argument".into()),
+            err("invalid", "cannot read `a\\u{0}b`: invalid argument".into()),
         ),
         ("exists", vec![s("")], "Ok(false)".into()),
         (
             "exists",
             vec![s("a\0b")],
             err(
-                "io",
+                "invalid",
                 "cannot check whether `a\\u{0}b` exists: invalid argument".into(),
             ),
         ),
@@ -890,10 +927,10 @@ fn perm_sets_the_permission_bits() {
 print(fs.write_line(h, "w"), close(h))
 h2 = fs.open("${d}/b", 'append, perm: 0o640)!
 print(close(h2), fs.write("${d}/c", "c", perm: 0o600), fs.append("${d}/c", "d", perm: 0o604))
-print(fs.with_open("${d}/e", h => fs.write_line(h, "e"), 'write, perm: 0o600))"#,
+print(fs.with_open("${d}/e", eh => fs.write_line(eh, "e"), 'write, perm: 0o600))"#,
     );
     assert_eq!(
-        o.out, "Ok(nil) Ok(nil)\nOk(nil) Ok(nil) Ok(nil)\nOk(nil)\n",
+        o.out, "Ok(nil) Ok(nil)\nOk(nil) Ok(nil) Ok(nil)\nOk(Ok(nil))\n",
         "{}",
         o.err
     );
@@ -1052,7 +1089,12 @@ fn kinds_follow_the_error_classes() {
     assert_eq!(k(oserr::ENOTEMPTY), "exists");
     assert_eq!(k(oserr::EACCES), "permission");
     assert_eq!(k(oserr::EPERM), "permission");
-    assert_eq!(k(oserr::ENOTDIR), "io");
+    assert_eq!(k(oserr::ENOTDIR), "not_found");
+    assert_eq!(k(oserr::EINVAL), "invalid");
+    assert_eq!(
+        oserr::kind(&Error::new(std::io::ErrorKind::InvalidInput, "nul")),
+        "invalid"
+    );
     assert_eq!(k(21), "io");
     assert_eq!(oserr::kind(&Error::other("x")), "io");
 }
@@ -1075,29 +1117,27 @@ fn every_errno_reads_as_one_line() {
 /// Runs `body` after `import fs` with `d` bound to the scratch directory.
 fn run_in(d: &Scratch, body: &str) -> testutil::Outcome {
     exec(
-        &format!("import fs\nd = \"{}\"\n{body}", d.text()),
+        &testutil::imports_first(&format!(
+            "import fs\nd = \"{}\"\n_keep = [fs, d]\n{body}",
+            d.text()
+        )),
         Opts::default(),
     )
 }
 
-/// CC10: a read error on a handle is an `Err`, not the end of the file:
-/// a directory opened for reading cannot be read.
+/// A directory is no file to read: the open fails (D78), not the first
+/// read (CC10 made that read an `Err` rather than the end of the file).
 #[test]
-fn a_handle_read_error_is_an_err() {
+fn a_directory_does_not_open() {
     let d = Scratch::new("read-error");
-    let o = run_in(
-        &d,
-        r#"h = fs.open(d)!
-print(read_line(h))
-print(read_lines(h))"#,
-    );
+    let o = run_in(&d, r#"print(fs.open(d), fs.open(d, 'append))"#);
     let want = format!(
-        "Err({{kind: 'io, message: \"cannot read `{0}`: is a directory\"}})\n",
+        "Err({{kind: 'io, message: \"cannot open `{0}`: is a directory\"}}) Err({{kind: 'io, message: \"cannot open `{0}`: is a directory\"}})\n",
         d.text()
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        (want.repeat(2).as_str(), "", 0)
+        (want.as_str(), "", 0)
     );
 }
 
@@ -1118,7 +1158,7 @@ print(close(r), read_line(r), read_lines(r))
 a = fs.open("${d}/h.txt", 'append)!
 print(fs.write_line(a, "three"), close(a), fs.read("${d}/h.txt"))
 print(type_of(a), a == a, a == r, a != h)
-print(fs.with_open("${d}/h.txt", read_lines), fs.with_open("${d}/none", f => 1) |> is_err)"#,
+print(fs.with_open("${d}/h.txt", read_lines)!, fs.with_open("${d}/none", _f => 1) |> is_err)"#,
     );
     let h = d.at("h.txt");
     let h = h.display();
@@ -1230,7 +1270,7 @@ print(close(h))"#,
 fn run_probed_in(d: &Scratch, body: &str) -> testutil::Outcome {
     exec(
         &format!(
-            "import fs\nd = \"{}\"\nfn _lines(h, acc) = match read_line(h)!:\n  nil => acc\n  l => _lines(h, acc + [l])\n;;\nfn lines_of(h) = _lines(h, [])\n{body}",
+            "import fs\nd = \"{}\"\nfn _lines(fh, acc) = match read_line(fh)!:\n  nil => acc\n  l => _lines(fh, acc + [l])\n;;\nfn lines_of(fh) = _lines(fh, [])\n{body}",
             d.text()
         ),
         Opts {
@@ -1286,7 +1326,7 @@ fn lines_across_the_buffer_edge_read_whole() {
     std::fs::write(d.at("in.txt"), &text).unwrap();
     let o = run_probed_in(
         &d,
-        r#"xs = fs.with_open("${d}/in.txt", lines_of)
+        r#"xs = fs.with_open("${d}/in.txt", lines_of)!
 print(len(xs), xs == lines(fs.read("${d}/in.txt")!))
 w = fs.open("${d}/out.txt", 'write)!
 each(xs, x => fs.write_line(w, x)!)
@@ -1314,11 +1354,11 @@ fn dropped_handles_free_their_descriptors() {
     let o = run_in(
         &d,
         r#"p = "${d}/a.txt"
-fn keep(p, n) = map(0..n, _ => fs.open(p)) |> filter(is_err) |> take(1)
+fn keep(path, n) = map(0..n, _ => fs.open(path)) |> filter(is_err) |> take(1)
 print(keep(p, 5000))
 each(0..5000, _ => fs.open(p)!)
 each(0..5000, _ => fs.open("${d}/w.txt", 'write)!)
-print(fs.open(p) |> is_ok, fs.with_open(p, read_lines))"#,
+print(fs.open(p) |> is_ok, fs.with_open(p, read_lines)!)"#,
     );
     assert_eq!(
         o.out,
@@ -1378,7 +1418,7 @@ fn an_open_waits_for_pending_closes_before_running_out() {
         &d,
         r#"p = "${d}/a.txt"
 each(0..500, _ => fs.open(p)!)
-print(fs.with_open(p, read_lines))"#,
+print(fs.with_open(p, read_lines)!)"#,
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok([\"hi\"])\n", ""));
 }
@@ -1411,7 +1451,7 @@ fn file_io_runs_without_the_run_token() {
         .expect("blocked file input held the run thread");
     assert_eq!(
         (out.as_str(), err.as_str()),
-        ("Ok(nil) Ok([\"l0\", \"l1\", \"l2\"])\n", "")
+        ("Ok(Ok(nil)) Ok(Ok(Ok([\"l0\", \"l1\", \"l2\"])))\n", "")
     );
 }
 
@@ -1441,7 +1481,7 @@ fn bounded(src: String) -> (String, String, std::time::Duration) {
     std::thread::spawn(move || {
         let start = std::time::Instant::now();
         let o = exec(
-            &src,
+            &testutil::imports_first(&src),
             Opts {
                 extra: testutil::jobs::job_natives,
                 ..Opts::default()
@@ -1478,7 +1518,7 @@ fn a_deadline_ends_a_read_of_a_fifo() {
 fn a_cancel_ends_a_read_of_a_fifo() {
     let (_d, f) = fifo("cancel-read");
     let (out, err, took) = bounded(format!(
-        "{}import fs\nprint(scope(fn(s):\n  spawn(s, () => fs.read(\"{}\"))\n  until(() => waiting_io() == 1)\n  cancel(s)\n;;))",
+        "{}import fs\nprint(scope(fn(s):\n  spawn(s, () => fs.read(\"{}\"))\n  wait_for(() => waiting_io() == 1)\n  cancel(s)\n;;))",
         testutil::UNTIL,
         f.display()
     ));
@@ -1544,6 +1584,82 @@ fn a_fifo_read_keeps_its_deadline_and_its_bytes() {
     assert!(took < std::time::Duration::from_secs(5), "{took:?}");
 }
 
+/// CC14: three tasks read lines from one FIFO handle. The event loop
+/// keeps one wait per descriptor and interest, so the first reader waits
+/// on the descriptor and the other two in line for its read turn: each
+/// gets the next line in the order they began to wait (before, the
+/// second wait replaced the first: E0801 in a debug build, lines out of
+/// order on macOS). The writer sends the three lines at once after the
+/// program's mark, when all three wait.
+#[test]
+fn readers_of_one_fifo_handle_take_turns() {
+    let (d, f) = fifo("readers-in-turn");
+    let mark = d.at("mark");
+    let (fw, mw) = (f.clone(), mark.clone());
+    let writer = std::thread::spawn(move || {
+        use std::io::Write;
+        let mut w = std::fs::OpenOptions::new().write(true).open(&fw).unwrap();
+        while !mw.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        w.write_all(b"one\ntwo\nthree\n").unwrap();
+    });
+    let (out, err, took) = bounded(format!(
+        "{}import fs\nh = fs.open(\"{}\")!\nr = scope(fn(s):\n  a = spawn(s, () => read_line(h))\n  wait_for(() => waiting_io() == 1)\n  b = spawn(s, () => read_line(h))\n  wait_for(() => in_line(h) == 1)\n  c = spawn(s, () => read_line(h))\n  wait_for(() => in_line(h) == 2)\n  fs.write(\"{}\", \"\")!\n  [await(a), await(b), await(c)]\n;;)\nprint(r, in_line(h), waiting_io())",
+        testutil::UNTIL,
+        f.display(),
+        mark.display()
+    ));
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        (
+            "Ok([Ok(Ok(\"one\")), Ok(Ok(\"two\")), Ok(Ok(\"three\"))]) 0 0\n",
+            ""
+        )
+    );
+    writer.join().unwrap();
+    assert!(took < std::time::Duration::from_secs(10), "{took:?}");
+}
+
+/// CC14: three tasks write long lines to one FIFO handle whose reader
+/// has not begun to read: the first waits for room on the descriptor,
+/// the other two in line for the write turn. Once the reader reads, the
+/// lines come whole and in the order the writers began.
+#[test]
+fn writers_of_one_fifo_handle_take_turns() {
+    let (d, f) = fifo("writers-in-turn");
+    let mark = d.at("mark");
+    let (fr, mr) = (f.clone(), mark.clone());
+    let reader = std::thread::spawn(move || {
+        use std::io::Read;
+        let mut r = std::fs::OpenOptions::new().read(true).open(&fr).unwrap();
+        while !mr.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        let mut all = Vec::new();
+        r.read_to_end(&mut all).unwrap();
+        all
+    });
+    let (out, err, took) = bounded(format!(
+        "{}import fs\nh = fs.open(\"{}\", 'append)!\nline = repeat(\"x\", 100000)\nr = scope(fn(s):\n  a = spawn(s, () => fs.write_line(h, \"a\" + line))\n  wait_for(() => waiting_io() == 1)\n  b = spawn(s, () => fs.write_line(h, \"b\" + line))\n  wait_for(() => in_line(h) == 1)\n  c = spawn(s, () => fs.write_line(h, \"c\" + line))\n  wait_for(() => in_line(h) == 2)\n  fs.write(\"{}\", \"\")!\n  [await(a), await(b), await(c)]\n;;)\nprint(r, close(h))",
+        testutil::UNTIL,
+        f.display(),
+        mark.display()
+    ));
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        ("Ok([Ok(Ok(nil)), Ok(Ok(nil)), Ok(Ok(nil))]) Ok(nil)\n", "")
+    );
+    let all = reader.join().unwrap();
+    let lines: Vec<(u8, usize)> = all
+        .split(|&b| b == b'\n')
+        .filter(|l| !l.is_empty())
+        .map(|l| (l[0], l.len()))
+        .collect();
+    assert_eq!(lines, [(b'a', 100_001), (b'b', 100_001), (b'c', 100_001)]);
+    assert!(took < std::time::Duration::from_secs(10), "{took:?}");
+}
+
 /// Reads of a FIFO given up on hold no pool thread: after 70 of them
 /// (more than the pool's 64 threads) a plain file is written and read at
 /// once.
@@ -1555,7 +1671,10 @@ fn abandoned_fifo_reads_leave_the_pool_free() {
         f.display(),
         d.at("plain.txt").display()
     ));
-    assert_eq!((out.as_str(), err.as_str()), ("Ok(nil) Ok(\"ok\")\n", ""));
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        ("Ok(Ok(nil)) Ok(Ok(\"ok\"))\n", "")
+    );
     assert!(took < std::time::Duration::from_secs(5), "{took:?}");
 }
 
@@ -1635,17 +1754,17 @@ print(fs.open("${d}/locked"), fs.open("${d}/locked", 'write), fs.open("${d}/lock
 print(fs.open("${d}/wonly"), fs.open("${d}/wonly", 'write), fs.open("${d}/wonly", 'append) |> is_ok)
 print(fs.open("${d}/ro/x", 'write), fs.open(d, 'write), fs.open(d, 'append), fs.open("${d}/a.txt/x"))
 print(fs.open("a\u{0}b"), fs.open("a\u{0}b", 'write), fs.open(""), fs.open("", 'append))
-print(fs.with_open(d, read_lines), fs.with_open("${d}/bad.txt", read_lines), fs.with_open("${d}/a.txt", h => [read_line(h), read_line(h)]))
-print(fs.with_open("${d}/sub/deep/f", read_lines, mode: 'read), fs.with_open("${d}/w.txt", h => fs.write_line(h, "w"), mode: 'write), fs.read("${d}/w.txt"))
-print(fs.with_open("${d}/none", h => 1), fs.read_lines("${d}/w.txt"), fs.read_lines("${d}/none"))
+print(fs.with_open(d, read_lines), fs.with_open("${d}/bad.txt", read_lines), fs.with_open("${d}/a.txt", fh => [read_line(fh), read_line(fh)]))
+print(fs.with_open("${d}/sub/deep/f", read_lines, mode: 'read), fs.with_open("${d}/w.txt", fh => fs.write_line(fh, "w"), mode: 'write), fs.read("${d}/w.txt"))
+print(fs.with_open("${d}/none", _fh => 1), fs.read_lines("${d}/w.txt"), fs.read_lines("${d}/none"))
 print(fs.write("${d}/crlf.txt", "a\r\nb\r\n\r\n\nc\r"), fs.with_open("${d}/crlf.txt", read_lines), fs.read_lines("${d}/crlf.txt"))
 fn lost(p) = fs.write_line(fs.open(p, 'write)!, "lost")
 print(lost("${d}/lost.txt"))
-k = fs.with_open("${d}/a.txt", h => h)
+k = fs.with_open("${d}/a.txt", fh => fh)!
 print(k, read_line(k), close(k), fs.write_line(k, ""))"#,
     r#"p = "${d}/big.txt"
 w = fs.open(p, 'write)!
-fn size(p) = len(fs.read(p)!)
+fn size(path) = len(fs.read(path)!)
 print(fs.write_line(w, repeat("a", 4094)), size(p))
 print(fs.write_line(w, "b"), size(p))
 print(fs.write_line(w, repeat("c", 5000)), size(p))
@@ -1694,7 +1813,6 @@ print(fs.glob("${t}/[a-z]*"))
 print(fs.glob("${t}/[^a-z]*"))
 print(fs.glob("${t}/[!a]*"))
 print(fs.glob("${t}/s*/*/*"))
-print(fs.glob("${t}/**"))
 print(fs.glob("${t}/?.md"), fs.glob("${t}/?.txt"), fs.glob("${t}/??.txt"))
 print(fs.glob("${t}//*.md"))
 print(fs.glob("${t}/s*/"))
@@ -1856,9 +1974,9 @@ fn dropped_handle_keeps_what_was_written() {
     let o = run_in(
         &d,
         r#"fn w(p):
-  h = fs.open(p, 'write)!
-  fs.write_line(h, "one")!
-  fs.write_line(h, "two")!
+  wh = fs.open(p, 'write)!
+  fs.write_line(wh, "one")!
+  fs.write_line(wh, "two")!
   nil
 ;;
 w("${d}/x.txt")
@@ -1922,7 +2040,7 @@ fn temp_dir_error_names_the_base() {
 fn with_open_closes_after_a_runtime_error() {
     let d = Scratch::new("with-open-error");
     let src = format!(
-        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_open(\"{}/f.txt\", fn(h): send(out_tx, h); 1 / 0 ;;, mode: 'write)), e => nil)\nprint(is_err(fs.write_line(recv(out)!, \"x\")))",
+        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_open(\"{}/f.txt\", fn(h): send(out_tx, h); 1 / 0 ;;, mode: 'write)), _e => nil)\nprint(is_err(fs.write_line(recv(out)!, \"x\")))",
         d.text()
     );
     let o = exec(&src, Opts::default());
@@ -1932,7 +2050,7 @@ fn with_open_closes_after_a_runtime_error() {
 #[test]
 fn with_temp_dir_removes_after_a_runtime_error() {
     let o = exec(
-        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); 1 / 0 ;;)), e => nil)\nprint(fs.exists(recv(out)!)!)",
+        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); 1 / 0 ;;)), _e => nil)\nprint(fs.exists(recv(out)!)!)",
         Opts::default(),
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("false\n", ""));
@@ -1951,7 +2069,7 @@ fn with_temp_dir_removes_after_a_cancel() {
 #[test]
 fn with_temp_dir_reports_a_failed_removal() {
     let o = exec(
-        "import fs\n(out_tx, out) = channel(1)\nr = supervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); fs.mkdir(\"${d}/x\")!; fs.write(\"${d}/x/f\", \"1\")!; sh(\"chmod 555 ${d}/x\"); 1 ;;)), e => print(\"failed\"))\nd = recv(out)!\nsh(\"chmod 755 ${d}/x\")\nfs.remove_all(d)",
+        "import fs\n(out_tx, out) = channel(1)\n_r = supervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); fs.mkdir(\"${d}/x\")!; fs.write(\"${d}/x/f\", \"1\")!; sh(\"chmod 555 ${d}/x\"); 1 ;;)), _e => print(\"failed\"))\nd = recv(out)!\nsh(\"chmod 755 ${d}/x\")\nfs.remove_all(d)",
         Opts::default(),
     );
     assert_eq!(o.out, "failed\n", "{}", o.err);
@@ -1966,7 +2084,7 @@ fn with_open_tolerates_a_handle_f_closed() {
         d.text()
     );
     let o = exec(&src, Opts::default());
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(nil)\n", ""));
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(Ok(nil))\n", ""));
 }
 
 /// Each fs native hands its system calls off in one job (R1a); a
@@ -2017,7 +2135,7 @@ fn exists_and_stat_of_a_task_alone_are_not_handed_off() {
 fn both() = [fs.exists("${d}/a.txt")!, fs.stat("${d}/a.txt")!.size, fs.exists("${d}/none")!, fs.stat("${d}/none")]
 fn one() = fs.exists("${d}/a.txt")!
 print(count(both))
-print(timeout(() => count(both), 10s))
+print(timeout(() => count(both), 10s)!)
 (tx, rx) = channel()
 print(scope(fn(s):
   spawn(s, () => recv(rx))
@@ -2027,14 +2145,14 @@ print(scope(fn(s):
   _ = send(tx, 1)
   woken = count(one)
   [spawned[1], on_channel[1], woken[1]]
-;;))
+;;)!)
 print(scope(fn(s):
   t = spawn(s, () => sleep(10s))
   sleep(1ms)
   r = count(both)
   cancel(t)
   r[1]
-;;))"#
+;;)!)"#
     );
     let o = run_probed_in(&d, &body);
     let none = format!(
@@ -2300,4 +2418,18 @@ print(read_line(h) |> is_err)"#,
             ""
         )
     );
+}
+
+/// LB41: a small file's text does not keep the read buffer's spare room
+/// (thousands of `fs.read` results would each hold 64 KB).
+#[test]
+fn read_keeps_no_spare_room() {
+    let s = Scratch::new("read-room");
+    let p = s.at("small.txt");
+    std::fs::write(&p, "hello world\n").unwrap();
+    let Ok(super::Whole::Read(buf)) = super::read_within(p.as_os_str()) else {
+        panic!("read failed");
+    };
+    assert_eq!(buf, b"hello world\n");
+    assert!(buf.capacity() < 64, "capacity {}", buf.capacity());
 }

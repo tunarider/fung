@@ -1,10 +1,10 @@
 //! Pattern bindings: destructuring assignments and match arms.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::scope::{Binding, Made};
 use super::{Resolver, lit_str, name_error, ref_node, rune_len};
-use crate::diag::{Diag, error};
+use crate::diag::{Arg, Diag, error};
 use crate::source::Pos;
 use crate::tree::{Head, Lit, Node};
 
@@ -13,8 +13,8 @@ use crate::tree::{Head, Lit, Node};
 pub(super) enum Mode {
     /// Like assignment (`bind_new`).
     Assign,
-    /// Always a new name in the current block: pattern names shadow outer
-    /// ones (04).
+    /// Always a new name in the current block (a `match` arm, a `for`
+    /// or parameter pattern); hiding an outer name is E0240 (D38).
     Fresh,
 }
 
@@ -34,15 +34,15 @@ impl Resolver<'_> {
     /// Always binds a new name in the current block (or reuses the block's
     /// own non-constant binding of that name).
     fn bind_fresh(&mut self, name: &str, pos: Pos) -> Option<Binding> {
-        if !self.check_shadow(name, pos) {
-            return None;
-        }
         if let Some(b) = self.cur_block().names.get(name)
             && !b.constant
+            && !b.module
         {
             return Some(*b);
         }
-        self.warn_shadow(name, pos);
+        if !self.binds_fresh(name, pos, false, false) {
+            return None;
+        }
         Some(self.bind_here(name, pos))
     }
 
@@ -51,7 +51,10 @@ impl Resolver<'_> {
     /// first alternative binds and the others reuse its slots. A name bound
     /// twice in one pattern is E0221 (03).
     pub(super) fn bind_pattern(&mut self, n: &Node, mode: Mode) -> Node {
-        self.bind_pat(n, mode, &mut HashSet::new())
+        let outer = std::mem::take(&mut self.pattern_bound);
+        let out = self.bind_pat(n, mode, &mut HashSet::new());
+        self.pattern_bound = outer;
+        out
     }
 
     fn bind_pat(&mut self, n: &Node, mode: Mode, seen: &mut HashSet<String>) -> Node {
@@ -65,16 +68,22 @@ impl Resolver<'_> {
                     self.errs.push(name_error("E0221", n.pos, name));
                     return n.clone();
                 }
+                // A later alternative binds the name an earlier one did:
+                // the same binding, not a second one (D53 at the top level).
+                let again = self.pattern_bound.contains(name);
                 let b = match mode {
-                    Mode::Assign => self.bind_new(name, n.pos),
+                    Mode::Assign if again => self.cur_block().names.get(name).copied(),
+                    Mode::Assign => self.bind_new(name, n.pos, true),
                     Mode::Fresh => self.bind_fresh(name, n.pos),
                 };
+                self.pattern_bound.insert(name.to_string());
                 match b {
                     Some(b) => Node::new(n.head, n.pos, vec![ref_node(n.pos, b)]),
                     None => n.clone(),
                 }
             }
             Head::Palt => {
+                self.dead_alternatives(n);
                 let first = pattern_names(&n.kids[0]);
                 if let Some(alt) = n.kids[1..].iter().find(|a| pattern_names(a) != first) {
                     self.errs.push(error("E0216", alt.pos, vec![]));
@@ -84,7 +93,7 @@ impl Resolver<'_> {
                         for name in pattern_names(alt) {
                             if seen.insert(name.clone()) {
                                 match mode {
-                                    Mode::Assign => self.bind_new(&name, alt.pos),
+                                    Mode::Assign => self.bind_new(&name, alt.pos, true),
                                     Mode::Fresh => self.bind_fresh(&name, alt.pos),
                                 };
                             }
@@ -129,6 +138,7 @@ impl Resolver<'_> {
             self.errs
                 .push(self.unreachable_after(&arms[i].kids[0], prev));
         }
+        self.repeated_literals(arms);
         for arm in arms {
             let body = &arm.kids[2];
             self.push_block(body, false);
@@ -156,7 +166,8 @@ impl Resolver<'_> {
     /// most likely meant to compare with it.
     fn unreachable_after(&self, pat: &Node, prev: Option<&Node>) -> Diag {
         let name = lit_str(pat);
-        let e = error("E0235", pat.pos, vec![]).span(rune_len(name).max(1));
+        let what = "matches everything, so the arms after it never run";
+        let e = error("E0235", pat.pos, vec![Arg::Str(what.into())]).span(rune_len(name).max(1));
         if prev.is_some_and(|p| pat.pos.line > p.pos.line && pat.pos.col > p.pos.col) {
             return e.with_help(
                 "a line of the form `pattern =>` starts a new arm; a lambda as the value of the arm above goes in parentheses: `(y => y + 1)`",
@@ -174,6 +185,63 @@ impl Resolver<'_> {
             "a name in a pattern binds a new name, so `{name}` here is not the variable; compare with a guard: `v when v == {name} =>`"
         ))
     }
+}
+
+impl Resolver<'_> {
+    /// E0241 at an alternative an earlier one of the same `|` takes every
+    /// value of: one after an alternative that matches everything, or the
+    /// same alternative written again (FE61).
+    fn dead_alternatives(&mut self, alt: &Node) {
+        for (i, a) in alt.kids.iter().enumerate().skip(1) {
+            let earlier = &alt.kids[..i];
+            let what = if earlier.iter().any(matches_all) {
+                "an alternative before it matches everything"
+            } else if earlier.iter().any(|e| e.to_string() == a.to_string()) {
+                "it repeats an alternative before it"
+            } else {
+                continue;
+            };
+            self.errs
+                .push(error("E0241", a.pos, vec![Arg::Str(what.into())]));
+            return;
+        }
+    }
+
+    /// E0235 at an arm whose pattern is a literal an earlier arm without a
+    /// guard already matches (alone or as an alternative): it never runs
+    /// (D51). Literals are the same as written: `1` and `1.0` are not.
+    fn repeated_literals(&mut self, arms: &[Node]) {
+        let mut seen: HashMap<String, u32> = HashMap::new();
+        for arm in arms {
+            let pat = &arm.kids[0];
+            if is_literal(pat)
+                && let Some(line) = seen.get(&pat.to_string())
+            {
+                let what =
+                    format!("never runs: the arm on line {line} matches the same literal first");
+                self.errs.push(
+                    error("E0235", pat.pos, vec![Arg::Str(what)])
+                        .with_help("remove one of the two arms, or join their bodies in one"),
+                );
+            }
+            if arm.kids[1].head != Head::Nil {
+                continue;
+            }
+            let alts = match pat.head {
+                Head::Palt => &pat.kids[..],
+                _ => std::slice::from_ref(pat),
+            };
+            for a in alts.iter().filter(|a| is_literal(a)) {
+                seen.entry(a.to_string()).or_insert(a.pos.line);
+            }
+        }
+    }
+}
+
+/// A literal pattern: a number, string, duration, `true`/`false`, `nil`,
+/// or a symbol (a bare tag).
+fn is_literal(p: &Node) -> bool {
+    matches!(p.head, Head::Plit | Head::Pnil | Head::Psym)
 }
 
 /// A pattern that every value matches: `_`, a bare name, or alternatives

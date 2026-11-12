@@ -12,7 +12,7 @@ use crate::desugar::desugar;
 use crate::diag::{Arg, Diag, error};
 use crate::lexer::lex;
 use crate::parser::parse;
-use crate::resolve::{self, ModuleInfo};
+use crate::resolve::{self, ModuleInfo, Sig};
 use crate::source::{FileId, Pos, SourceMap, decode_source};
 use crate::tree::{Head, Import, Lit, Node};
 
@@ -34,6 +34,8 @@ pub struct Loaded {
     pub name: String,
     /// `None` for a native (`_native.*`) module.
     pub proto: Option<Proto>,
+    /// The parameters of its exported functions (D43).
+    pub sigs: BTreeMap<String, Sig>,
 }
 
 /// Whatever stages ran. Fields past the requested stage, or past the
@@ -48,11 +50,8 @@ pub struct Build {
     /// The imported modules in dependency order (a module comes after
     /// what it imports).
     pub modules: Vec<Loaded>,
-    /// W01xx warnings of every module that resolved, in dependency order
-    /// (a module's come after those of what it imports), without the
-    /// embedded stdlib's: users cannot act on them. Only `check` and
-    /// `test` show them (08).
-    pub warnings: Vec<Diag>,
+    /// The parameters of the entry's exported functions (D43).
+    pub sigs: BTreeMap<String, Sig>,
 }
 
 /// Compiles an entry file and everything it imports.
@@ -70,6 +69,9 @@ pub struct Loader {
     pub tests: bool,
     /// The entry is an embedded extras file: it may import `_native.*`.
     pub internal: bool,
+    /// The entry is compiled as an imported file is (a prelude file: its
+    /// public names are the prelude's, its interface, D38).
+    pub library: bool,
     /// Names added to the prelude (VM tests use it for natives that exist only in tests).
     pub extra_prelude: Vec<String>,
     /// REPL (08): the globals earlier inputs defined, for the entry file
@@ -105,6 +107,7 @@ impl Default for Loader {
             },
             tests: false,
             internal: false,
+            library: false,
             extra_prelude: Vec::new(),
             globals: Vec::new(),
             redefine: false,
@@ -128,7 +131,6 @@ struct State<'a> {
     sources: SourceMap,
     prelude: Vec<String>,
     prelude_set: BTreeSet<String>,
-    warnings: Vec<Diag>,
 }
 
 type Errs = Vec<Diag>;
@@ -184,14 +186,13 @@ impl Loader {
             sources: prior,
             prelude_set: prelude.iter().cloned().collect(),
             prelude,
-            warnings: Vec::new(),
         };
         st.loading.insert(key.clone());
         let id = st.sources.add(file, src);
-        let (mut b, errs) = st.compile_file(&key, file, id, src, false, self.internal, up_to);
+        let (mut b, errs) =
+            st.compile_file(&key, file, id, src, self.library, self.internal, up_to);
         b.sources = st.sources;
         b.modules = st.modules;
-        b.warnings = st.warnings;
         (b, errs)
     }
 }
@@ -250,6 +251,7 @@ impl State<'_> {
         let mut ropts = resolve::Options {
             imports,
             library,
+            spec: Some(self.l.builtins()),
             ..resolve::Options::default()
         };
         if key == self.entry_key {
@@ -261,9 +263,7 @@ impl State<'_> {
             Ok(r) => r,
             Err(errs) => return (b, errs),
         };
-        if !is_stdlib {
-            self.warnings.append(&mut res.warnings);
-        }
+        b.sigs = std::mem::take(&mut res.sigs);
         if up_to == Stage::Core {
             b.core = Some(res.core);
             return (b, Vec::new());
@@ -324,18 +324,28 @@ impl State<'_> {
             let Some(names) = self.l.builtins().modules.get(spec) else {
                 return Err(e("E0301", vec![s(spec)]));
             };
+            let sigs: BTreeMap<String, Sig> = names
+                .iter()
+                .filter_map(|n| {
+                    let list = self.l.builtins().module_signature(spec, n)?;
+                    let pure = self.l.builtins().module_pure(spec, n);
+                    Some((n.clone(), Sig::parse_marked(list, pure)))
+                })
+                .collect();
             if !self.done.contains_key(spec) {
                 self.done.insert(spec.to_string(), self.modules.len());
                 self.modules.push(Loaded {
                     key: spec.to_string(),
                     name: public.to_string(),
                     proto: None,
+                    sigs: sigs.clone(),
                 });
             }
             return Ok(ModuleInfo {
                 key: spec.to_string(),
                 name: public.to_string(),
                 exports: names.clone(),
+                sigs,
             });
         }
         // prelude.fung is bootstrapped into the prelude table, not a module.
@@ -374,7 +384,7 @@ impl State<'_> {
         if key == self.entry_key && from_key != key {
             return Err(vec![error("E0307", pos, vec![])]);
         }
-        if !crate::lexer::is_name(&name) && im.alias.is_empty() {
+        if !crate::lexer::is_name(&name) && im.alias.is_empty() && im.names.is_none() {
             return Err(vec![error("E0305", pos, vec![Arg::Str(name)])]);
         }
         let read = self.l.read_file;
@@ -397,7 +407,8 @@ impl State<'_> {
         read: &mut dyn FnMut() -> std::io::Result<String>,
     ) -> Result<ModuleInfo, Errs> {
         if let Some(&i) = self.done.get(key) {
-            let exports = self.modules[i]
+            let m = &self.modules[i];
+            let exports = m
                 .proto
                 .as_ref()
                 .map(|p| p.exports.clone())
@@ -406,6 +417,7 @@ impl State<'_> {
                 key: key.to_string(),
                 name: name.to_string(),
                 exports,
+                sigs: m.sigs.clone(),
             });
         }
         if self.loading.contains(key) {
@@ -437,11 +449,13 @@ impl State<'_> {
             key: key.to_string(),
             name: name.to_string(),
             proto: Some(proto),
+            sigs: b.sigs.clone(),
         });
         Ok(ModuleInfo {
             key: key.to_string(),
             name: name.to_string(),
             exports,
+            sigs: b.sigs,
         })
     }
 }
@@ -683,7 +697,7 @@ mod tests {
         let entry = dir.0.join("main.fung").to_string_lossy().into_owned();
         let mut src = String::from("import \"./lib\"\nimport \"./lib2\"\n");
         if folds_case {
-            src.push_str("import \"./Lib\" as l3\n");
+            src.push_str("import \"./Lib\" as _l3\n");
         }
         src.push_str("print(lib.n, lib2.n)\n");
         let (b, errs) = Loader::default().compile(&entry, &src, Stage::All);
@@ -842,7 +856,7 @@ mod tests {
             ("/p/a.fung", "x = 1"),
             (
                 "/p/b.fung",
-                "import \"./a\" (x)\nimport \"./a\" as am\ny = 1",
+                "import \"./a\" (x)\nimport \"./a\" as am\ny = x + am.x",
             ),
             ("/p/main.fung", main),
         ]);
@@ -1003,9 +1017,9 @@ mod tests {
 
     #[test]
     fn loader_collects_tests() {
-        let main = "import \"./lib\"\nfn g():\n  y = 1\n  2\n;;\ntest \"t\": assert lib.f() == 1 ;;\nprint(g())";
+        let main = "import \"./lib\"\nfn g():\n  _y = 1\n  2\n;;\ntest \"t\": assert lib.f() == 1 ;;\nprint(g())";
         set_files(&[
-            ("/p/lib.fung", "import \"./util\"\nfn f() = 1"),
+            ("/p/lib.fung", "import \"./util\"\nfn f() = util.x"),
             ("/p/util.fung", "x = 1"),
             ("/p/main.fung", main),
         ]);
@@ -1026,7 +1040,7 @@ mod tests {
         set_files(&[
             (
                 "/p/lib.fung",
-                "import \"./util\"\nfn f() = 1\ntest \"lib\": assert f() == 1 ;;",
+                "import \"./util\"\nfn f() = util.x\ntest \"lib\": assert f() == 1 ;;",
             ),
             ("/p/util.fung", "x = 1"),
             ("/p/main.fung", main),
@@ -1097,6 +1111,7 @@ mod tests {
     fn prelude_fung_exports_match_the_spec() {
         let loader = Loader {
             internal: true,
+            library: true,
             ..Loader::default()
         };
         let mut exports = Vec::new();
@@ -1114,7 +1129,7 @@ mod tests {
     /// exactly the names the spec lists for it.
     #[test]
     fn conc_module_exports_match_the_list() {
-        let (b, errs) = Loader::default().compile("-e", "import conc", Stage::All);
+        let (b, errs) = Loader::default().compile("-e", "import conc\nprint(conc)", Stage::All);
         assert!(errs.is_empty(), "{errs:?}");
         let conc = b.modules.iter().find(|m| m.key == "conc").expect("conc");
         let mut exports = conc.proto.as_ref().unwrap().exports.clone();
@@ -1127,7 +1142,11 @@ mod tests {
     #[test]
     fn every_embedded_module_compiles() {
         for name in ["fs", "path", "cli", "time", "json", "regex", "http", "conc"] {
-            let (_, errs) = Loader::default().compile("-e", &format!("import {name}"), Stage::All);
+            let (_, errs) = Loader::default().compile(
+                "-e",
+                &format!("import {name}\nprint({name})"),
+                Stage::All,
+            );
             assert!(errs.is_empty(), "{name}: {errs:?}");
         }
     }
@@ -1148,29 +1167,16 @@ mod tests {
     }
 
     #[test]
-    fn warnings_come_from_every_user_module_in_dependency_order() {
-        // each module's warnings once it resolves,
-        // so an import's come before its importer's; the embedded stdlib's
-        // are hidden (users cannot act on them).
-        let main = "import \"./lib\"\nimport fs\nfn f():\n  unused = 1\n  lib.v\n;;";
+    fn an_imported_files_unused_names_are_errors_too() {
+        // D38: the same rules for every file, the embedded stdlib's too;
+        // an imported file's public names are its interface.
+        let main = "import \"./lib\"\nprint(lib.v)";
         set_files(&[("/p/lib.fung", "fn g():\n  dead = 1\n  2\n;;\nv = 1")]);
         let (b, errs) = mem_loader().compile("/p/main.fung", main, Stage::All);
-        assert!(errs.is_empty(), "{errs:?}");
-        let got: Vec<String> = b
-            .warnings
+        let got: Vec<String> = errs
             .iter()
-            .map(|w| format!("{} {}:{}", w.code, b.sources.name(w.pos.file), w.pos.line))
+            .map(|e| format!("{} {}:{}", e.code, b.sources.name(e.pos.file), e.pos.line))
             .collect();
-        assert_eq!(
-            got,
-            [
-                "W0102 /p/lib.fung:2",
-                "W0101 /p/main.fung:2",
-                "W0102 /p/main.fung:4"
-            ]
-        );
-        let (b, errs) = mem_loader().compile("-e", "fn f():\n  x = 1\n  y\n;;", Stage::All);
-        assert_eq!(codes(&errs), ["E0204"]);
-        assert!(b.warnings.is_empty(), "a file with errors has no warnings");
+        assert_eq!(got, ["E0239 /p/lib.fung:2"]);
     }
 }

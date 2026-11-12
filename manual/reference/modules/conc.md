@@ -29,7 +29,7 @@ fung의 태스크는 실행 스레드 하나 위에서 번갈아 돈다. 그래�
 - `f`가 **런타임 에러**를 내면(버그, `!`가 `Err`를 만남, `fail`) 그 태스크 범위의 다른 태스크를 취소하고 `pmap` 전체가 그 에러로 실패한다.
 - `f`가 **`Err` 값을 돌려주면** 그것은 그냥 결과 하나다. 다른 원소는 계속되고, 결과 리스트에 `Err`가 그대로 들어간다.
 
-그래서 "한 서버가 실패해도 나머지는 받고 싶다"면 `f` 안에서 `!` 대신 결과값을 그대로 돌려준다. `map`처럼, `f`로 바로 쓴 람다 안의 `?`는 컴파일 에러 [E0226](../errors.html#E0226)이다(`Err`가 말없이 결과의 원소가 되므로). `Err`를 결과로 모으려면 `match`나 결과값을 그대로 돌려준다. 원소마다 시간 제한을 두려면 `f` 안에서 [`timeout`](../prelude/concurrency.html#fn-timeout)을 쓴다.
+`pmap` 자신은 `Err`를 만들지 않으므로(런타임 에러는 실패로 올라간다) 결과 리스트를 `Ok`로 감싸지 않는다. 그래서 "한 서버가 실패해도 나머지는 받고 싶다"면 `f` 안에서 `!` 대신 결과값을 그대로 돌려준다. 어느 람다에서처럼 `f`로 쓴 람다 안의 `?`는 컴파일 에러 [E0237](../errors.html#E0237)이다(`Err`가 말없이 결과의 원소가 되므로). `Err`를 결과로 모으려면 `match`나 결과값을 그대로 돌려준다. 원소마다 시간 제한을 두려면 `f` 안에서 [`timeout`](../prelude/concurrency.html#fn-timeout)을 쓴다.
 
 #### 매개변수
 
@@ -98,8 +98,8 @@ hosts = ["web-1", "web-2", "db-1"]
 results = conc.pmap(hosts, h => timeout(() => exec(["ssh", h, "uptime"]), 5s), limit: 10)
 for (h, r) in zip(hosts, results):
   match r:
-    Ok(out) => print(h, trim(out.out))
-    Err(e)  => print(h, "FAILED:", e.kind)
+    Ok(Ok(out))         => print(h, trim(out.out))
+    Ok(Err(e)) | Err(e) => print(h, "FAILED:", e.kind)
   ;;
 ;;
 ```
@@ -160,7 +160,7 @@ got = scope(fn(s):
   for v in merged:
     v
   ;;
-;;)
+;;)!
 print(sort(got))
 ```
 
@@ -174,32 +174,39 @@ print(sort(got))
 
 :::fn conc.retry(f, times = 3, delay = 0ms) fung
 
-`f()`가 `Err`가 아닌 값을 돌려줄 때까지 몇 번 다시 부른다.
+`f()`가 `Ok`를 돌려줄 때까지 몇 번 다시 부른다.
 
 #### 설명
 
-`f()`를 부르고, 결과가 `Err`면 `delay`만큼 쉰 뒤 다시 부른다. 최대 `times`번 부르고, `Err`가 아닌 값이 나오면 곧바로 그 값을 돌려준다. 끝내 모두 `Err`면 **마지막** `Err`를 돌려준다. `times: 1`이면 한 번만 부른다. 일시적인 네트워크 오류나 아직 뜨지 않은 서비스처럼 "잠시 뒤에는 될 수 있는" 실패에 쓴다.
+`f()`를 부르고, 결과가 `Err`면 `delay`만큼 쉰 뒤 다시 부른다. 최대 `times`번 부르고, `Ok`가 나오면 곧바로 그 값을 돌려준다. 끝내 모두 `Err`면 **마지막** `Err`를 돌려준다. `times: 1`이면 한 번만 부른다. 일시적인 네트워크 오류나 아직 뜨지 않은 서비스처럼 "잠시 뒤에는 될 수 있는" 실패에 쓴다.
 
-`f`가 런타임 에러를 내면 다시 부르지 않고 그대로 실패한다. 다시 해 볼 실패는 `Err` 값으로 돌려줘야 한다. 쉬는 시간은 매번 같다(점점 늘리는 방식은 직접 쓴다).
+`f`의 결과를 보고 다시 할지 정하므로 `f`는 결과값(`Ok`·`Err`)을 돌려준다. 다른 값이면 런타임 에러 E0605(`nil`이면 E0604)다. 그래서 다른 통과 함수(`timeout` 등)와 달리 `Ok`로 감싸지 않고 `f`의 결과값을 그대로 돌려준다([결과값](../language/results.html)). `f`가 런타임 에러를 내면 다시 부르지 않고 그대로 실패한다. 다시 해 볼 실패는 `Err` 값으로 돌려줘야 한다. 쉬는 시간은 매번 같다(점점 늘리는 방식은 직접 쓴다).
 
 #### 매개변수
 
-- `f`: 인자 없는 함수.
+- `f`: 결과값을 돌려주는 인자 없는 함수.
 - `times`: 최대 시도 횟수(1 이상의 정수).
 - `delay`: 시도 사이에 쉬는 기간(`0s` 이상).
 
 #### 돌려주는 값
 
-`f`가 처음 돌려준 `Err`가 아닌 값, 또는 마지막 `Err`.
+`f`가 처음 돌려준 `Ok`, 또는 마지막 `Err`.
 
 #### 에러
 
 - `f`가 함수가 아니거나, `times`가 1 이상의 정수가 아니거나, `delay`가 음이 아닌 기간이 아니면 `f`를 부르기 전에 런타임 에러 E0403. 에러는 그 인자의 이름을 말한다.
+- `f`가 결과값이 아닌 값을 돌려주면 E0605(`nil`이면 E0604).
 
 ```fung run exit=1 error=E0403
 import conc
 
 print(conc.retry(() => Err("down"), times: 0))
+```
+
+```fung run exit=1 error=E0605
+import conc
+
+print(conc.retry(() => 42))
 ```
 
 #### 예제
@@ -224,7 +231,6 @@ print(r)
 import conc
 
 print(conc.retry(() => Err("still down"), times: 2))
-print(conc.retry(() => 42))
 ```
 
 **HTTP 요청 다시 하기**

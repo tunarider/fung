@@ -78,7 +78,7 @@ import http
 import json
 import time
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: [&quot;addr&quot;, &quot;log&quot;])!
 addr = get(opts.flags, &quot;addr&quot;, &quot;127.0.0.1:9095&quot;)
 log_file = get(opts.flags, &quot;log&quot;, &quot;alerts.jsonl&quot;)
 token = env(&quot;WEBHOOK_TOKEN&quot;) ?? fail(&quot;set WEBHOOK_TOKEN&quot;)
@@ -164,9 +164,9 @@ $ cat alerts.jsonl
 <p>멈춘 뒤 할 일이 없으면 <code>match</code> 대신 <code>!</code>로 충분하다. 깔끔하게 멈추면 <code>Ok(nil)</code>이라 <code>!</code>가 지나가고 종료 코드 0으로 끝나며(systemd 같은 관리 도구가 정상 종료로 기록한다), 듣지 못했을 때만 그 <code>Err</code>로 멈춘다. 아래 예는 <code>ready</code>에서 <code>request_stop()</code>을 불러, 띄우자마자 SIGTERM을 받은 것처럼 멈추게 한 것이다.</p>
 <div class="run"><pre><code>import http
 
-r = http.serve(&quot;127.0.0.1:0&quot;, req =&gt; &quot;hi&quot;, ready: _ =&gt; request_stop())
+r = http.serve(&quot;127.0.0.1:0&quot;, _req =&gt; &quot;hi&quot;, ready: _ =&gt; request_stop())
 print(&quot;serve returned&quot;, r)
-http.serve(&quot;127.0.0.1:0&quot;, req =&gt; &quot;hi&quot;, ready: _ =&gt; request_stop())!
+http.serve(&quot;127.0.0.1:0&quot;, _req =&gt; &quot;hi&quot;, ready: _ =&gt; request_stop())!
 print(&quot;stopped cleanly&quot;)</code></pre><pre class="out plain"><code>serve returned Ok(nil)
 stopped cleanly</code></pre></div>
 </div>

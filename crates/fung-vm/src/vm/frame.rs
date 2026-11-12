@@ -26,11 +26,33 @@ pub(super) struct Frame {
     /// this frame runs inside of (itself, or a helper it went on to,
     /// through calls and tail calls): what E0707 names (`user_callee`).
     pub entry: Option<Rc<RtProto>>,
+    /// What a frame rarely needs, boxed so the frame stays small: the
+    /// frame of user code a tail call replaced, and the return checks its
+    /// tail calls took along. Only a frame that needs one pays for it.
+    pub extra: Option<Box<Extra>>,
+}
+
+/// The rare parts of a frame (`Frame::extra`).
+#[derive(Default)]
+pub(super) struct Extra {
     /// The frame of user code a tail call into a built-in function
     /// replaced (L8): where an error inside is put (`user_pos`) and a
     /// line of the call path. Kept through the built-in function's own
-    /// tail calls; only that crossing pays for it.
-    pub tail_from: Option<Box<TailFrom>>,
+    /// tail calls.
+    pub tail_from: Option<TailFrom>,
+    /// The return types a function with one handed on with its tail
+    /// calls (TAILCHECK, D44): the frame's value is checked against each
+    /// when it returns, the latest first. One per place that took it
+    /// along, so tail calls going round (`a` ↔ `b`) do not pile them up.
+    pub checks: Vec<Check>,
+}
+
+/// A return check a tail call took along (D44): `proto`'s `types[ty]`,
+/// reported at `pos` (where that function's value is returned).
+pub(super) struct Check {
+    pub proto: Rc<RtProto>,
+    pub ty: usize,
+    pub pos: fung_front::source::Pos,
 }
 
 /// A frame of user code that a tail call into a built-in function
@@ -58,13 +80,14 @@ impl Frame {
             floor: slot(floor),
             tail_calls: 0,
             entry,
-            tail_from: None,
+            extra: None,
         }
     }
 
     /// A frame for a module body `proto` with its `globals`.
     pub fn body(proto: Rc<RtProto>, globals: Globals, base: usize) -> Frame {
         let closure = Closure {
+            code: proto.code.clone(),
             proto,
             captured: Default::default(),
             globals,
@@ -82,6 +105,30 @@ impl Frame {
     #[inline(always)]
     pub fn floor(&self) -> usize {
         self.floor as usize
+    }
+
+    /// The frame of user code a tail call into a built-in function
+    /// replaced, if any (L8).
+    pub fn tail_from(&self) -> Option<&TailFrom> {
+        self.extra.as_ref()?.tail_from.as_ref()
+    }
+
+    /// Whether the frame's value has return checks to pass (D44).
+    #[inline(always)]
+    pub fn has_checks(&self) -> bool {
+        self.extra.as_ref().is_some_and(|x| !x.checks.is_empty())
+    }
+
+    /// Takes `c` along: one check per place, the latest last (D44).
+    pub fn add_check(&mut self, c: Check) {
+        let checks = &mut self.extra.get_or_insert_with(Default::default).checks;
+        if let Some(i) = checks
+            .iter()
+            .position(|d| d.pos == c.pos && Rc::ptr_eq(&d.proto, &c.proto))
+        {
+            checks.remove(i);
+        }
+        checks.push(c);
     }
 
     pub fn proto(&self) -> &Rc<RtProto> {

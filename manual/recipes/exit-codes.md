@@ -37,18 +37,18 @@ else echo "OK - $n errors"; exit 0; fi
 import cli
 import fs
 
-fn finish(code, text):
+fn finish(code, summary):
   names = ["OK", "WARNING", "CRITICAL", "UNKNOWN"]
-  print("${names[code]} - ${text}")
+  print("${names[code]} - ${summary}")
   exit(code)
 ;;
 
-fn number(opts, name, default) = match parse_int(get(opts.flags, name, str(default))):
+fn number(parsed, name, default) = match parse_int(get(parsed.flags, name, str(default))):
   Ok(n)  => n
   Err(_) => finish(3, "--${name} is not a number")
 ;;
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["warn", "crit"])!
 file = first(opts.rest) ?? finish(3, "usage: check_errors.fung LOG [--warn N] [--crit N]")
 warn = number(opts, "warn", 1)
 crit = number(opts, "crit", 10)

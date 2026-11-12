@@ -4,8 +4,8 @@ fs.with_temp_dir(fn(d):
   p = path.join(d, "notes.txt")
   fs.write(p, "one\ntwo\n")!
   print(fs.read(p)!, fs.exists(p)!, path.base(p), path.ext(p), path.stem(p))
-  lines = fs.with_open(p, h => read_lines(h)!)
-  print(lines, fs.list(d)!)
+  got = fs.with_open(p, h => read_lines(h)!)!
+  print(got, fs.list(d)!)
   print(fs.read(path.join(d, "missing")) |> is_err)
   nil
 ;;)

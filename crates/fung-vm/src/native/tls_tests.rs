@@ -344,7 +344,7 @@ fn cancel_ends_a_handshake() {
     let start = Instant::now();
     let base = probe::read_waits();
     let o = run(&format!(
-        "scope(fn(s):\n  t = spawn(s, () => net.connect(\"127.0.0.1\", {port}, tls: true))\n  until(() => read_waits() > {base} and net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  print(net_waiting())\n;;)"
+        "scope(fn(s):\n  t = spawn(s, () => net.connect(\"127.0.0.1\", {port}, tls: true))\n  wait_for(() => read_waits() > {base} and net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  print(net_waiting())\n;;)"
     ));
     drop(l);
     assert_eq!(
@@ -374,7 +374,7 @@ fn cancel_ends_a_read_over_tls() {
         go
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nscope(fn(s):\n  t = spawn(s, () => net.read_line(c, 100))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n;;)\nnet.write(c, \"go\\n\")!\nprint(net.read_line(c, 100))\nnet.close(c)!"
+        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nscope(fn(s):\n  t = spawn(s, () => net.read_line(c, 100))\n  wait_for(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n;;)\nnet.write(c, \"go\\n\")!\nprint(net.read_line(c, 100))\nnet.close(c)!"
     ));
     assert_eq!(h.join().unwrap(), "go");
     assert_eq!(
@@ -567,10 +567,10 @@ fn a_reader_and_a_writer_run_at_once_over_tls() {
         got
     });
     let o = run(&format!(
-        "scope(fn(s):\n  c = net.connect(\"127.0.0.1\", {port}, tls: true)!\n  r = spawn(s, () => net.read_line(c, 10))\n  until(() => read_waits() > {base} and net_waiting() == 1)\n  print(net.write(c, repeat(\"한ab\", 600000)))\n  print(await(r))\n;;)"
+        "scope(fn(s):\n  c = net.connect(\"127.0.0.1\", {port}, tls: true)!\n  r = spawn(s, () => net.read_line(c, 10))\n  wait_for(() => read_waits() > {base} and net_waiting() == 1)\n  print(net.write(c, repeat(\"한ab\", 600000)))\n  print(await(r))\n;;)"
     ));
     let got = h.join().unwrap();
-    assert_eq!(out(&o), ("Ok(nil)\nOk(\"done\")\n", "", 0));
+    assert_eq!(out(&o), ("Ok(nil)\nOk(Ok(\"done\"))\n", "", 0));
     assert_eq!(got, "한ab".repeat(600_000).into_bytes());
 }
 
@@ -586,7 +586,7 @@ fn the_last_copy_closes_a_tls_connection() {
         s.read_to_end(&mut rest).map_err(|e| e.kind())
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nprint(sockets())"
+        "_c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nprint(sockets())"
     ));
     assert_eq!(out(&o), ("1\n", "", 0));
     assert_eq!(h.join().unwrap(), Err(std::io::ErrorKind::UnexpectedEof));
@@ -609,7 +609,7 @@ fn close_waits_for_close_notify() {
             .map_err(|e| e.kind())
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nscope(fn(sc):\n  w = spawn(sc, () => net.write(c, repeat(\"x\", 4000000)))\n  until(() => net_waiting() == 1)\n  print(net.close(c))\n  _ = await(w)\n  nil\n;;)\nprint(sockets())"
+        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nscope(fn(sc):\n  w = spawn(sc, () => net.write(c, repeat(\"x\", 4000000)))\n  wait_for(() => net_waiting() == 1)\n  print(net.close(c))\n  _ = await(w)\n  nil\n;;)\nprint(sockets())"
     ));
     assert_eq!(out(&o), ("Ok(nil)\n0\n", "", 0));
     let got = h.join().unwrap();
@@ -660,7 +660,7 @@ fn ssl_cert_file_gives_the_roots() {
         let (p1, p2) = ports.split_once(' ').unwrap();
         let o = exec(
             &format!(
-                "import _native.net as net\n{UNTIL}{HELPERS}print(msg(net.connect(\"localhost\", {p1}, tls: true)))\nprint(msg(net.connect(\"localhost\", {p2}, tls: true)))"
+                "import _native.net as net\n_keep_net = net\n{UNTIL}{HELPERS}print(msg(net.connect(\"localhost\", {p1}, tls: true)))\nprint(msg(net.connect(\"localhost\", {p2}, tls: true)))"
             ),
             Opts {
                 internal: true,
@@ -766,7 +766,7 @@ fn start_tls_upgrades_a_plain_connection() {
         let _ = handshake(&mut s);
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hi\\n\")!\nnet.read_line(c, 100)!\nprint(msg(net.start_tls(c, \"localhost\")))\nprint(type_of(net.start_tls(c, \"localhost\", timeout: 1)))"
+        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hi\\n\")!\nnet.read_line(c, 100)!\nprint(msg(net.start_tls(c, \"localhost\")))\nfn later(conn):\n  start = net.start_tls\n  start(conn, \"localhost\", timeout: 1)\n;;\nprint(type_of(later(c)))"
     ));
     h.join().unwrap();
     assert_eq!(out(&o).0, format!("{WRONG_NAME}\n"));
@@ -792,7 +792,7 @@ fn start_tls_refuses_a_connection_in_use() {
     });
     let base = probe::read_waits();
     let o = run(&format!(
-        "scope(fn(s):\n  c = net.connect(\"127.0.0.1\", {port})!\n  t = spawn(s, () => net.read_line(c, 10))\n  until(() => read_waits() > {base} and net_waiting() == 1)\n  print(net.start_tls(c, \"localhost\"))\n  cancel(t)\n  print(await(t))\n  print(net.close(c))\n;;)"
+        "scope(fn(s):\n  c = net.connect(\"127.0.0.1\", {port})!\n  t = spawn(s, () => net.read_line(c, 10))\n  wait_for(() => read_waits() > {base} and net_waiting() == 1)\n  print(net.start_tls(c, \"localhost\"))\n  cancel(t)\n  print(await(t))\n  print(net.close(c))\n;;)"
     ));
     h.join().unwrap();
     assert_eq!(

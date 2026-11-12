@@ -123,7 +123,9 @@ pub fn message(code: &str, args: &[Arg]) -> String {
         };
         next += 1;
         match (verb, arg) {
-            ('s' | 'v', a) => out.push_str(&a.plain()),
+            // an argument from the source or a program shows a control
+            // character as its escape, as the excerpt does (FE42)
+            ('s' | 'v', a) => out.push_str(&escaped(&a.plain())),
             ('q', Arg::Str(s)) => out.push_str(&quote(s)),
             ('d', Arg::Int(n)) => out.push_str(&n.to_string()),
             (v, Arg::Str(s)) => out.push_str(&format!("%!{v}(string={s})")),
@@ -191,7 +193,8 @@ fn write_call_path(b: &mut String, path: &[CallSite]) {
         let place = format!("{}:{}", c.file, c.line);
         b.push_str(&format!("   {place:<10} {func}"));
         if c.elided > 0 {
-            b.push_str(&format!(" ({} tail calls elided)", c.elided));
+            let calls = if c.elided == 1 { "call" } else { "calls" };
+            b.push_str(&format!(" ({} tail {calls} elided)", c.elided));
         }
         b.push('\n');
     };
@@ -213,6 +216,14 @@ fn write_call_path(b: &mut String, path: &[CallSite]) {
 
 const TAB_WIDTH: usize = 4;
 
+/// How many characters of a long line the excerpt shows on each side of
+/// the place it points at (FE53).
+const EXCERPT_CONTEXT: usize = 60;
+
+/// A line of at most this many characters is shown whole: only a line
+/// no one wrote by hand is cut.
+const EXCERPT_WHOLE: usize = 200;
+
 /// Appends the gutter, the source line, and the caret line. The caret
 /// line is drawn in terminal columns (L17): tabs are expanded, and the
 /// text before the caret and under it is measured by grapheme cluster
@@ -225,7 +236,6 @@ fn write_excerpt(b: &mut String, d: &Diag, raw: &str) {
     let gutter = " ".repeat(num.len());
 
     let width = |s: &str| crate::unicode::display_width(&visible(s));
-    let shown = visible(line);
     // the lexer counts columns after a leading BOM (zero columns on screen)
     let chars: Vec<char> = line
         .strip_prefix('\u{feff}')
@@ -235,11 +245,25 @@ fn write_excerpt(b: &mut String, d: &Diag, raw: &str) {
     let at = (d.pos.col as usize).saturating_sub(1).min(chars.len());
     let len = d.len.max(1);
     let end = (at + len).min(chars.len());
-    let before: String = chars[..at].iter().collect();
-    let under: String = chars[at..end].iter().collect();
-    let col = width(&before);
+    // A window of the line around the place, `…` where it is cut (FE53):
+    // a line of megabytes would print megabytes, twice.
+    let (lo, under_end, hi) = if chars.len() <= EXCERPT_WHOLE {
+        (0, end, chars.len())
+    } else {
+        let under_end = end.min(at + 2 * EXCERPT_CONTEXT);
+        let hi = (under_end + EXCERPT_CONTEXT).min(chars.len());
+        (at.saturating_sub(EXCERPT_CONTEXT), under_end, hi)
+    };
+    let cut_lo = if lo > 0 { "\u{2026}" } else { "" };
+    let cut_hi = if hi < chars.len() { "\u{2026}" } else { "" };
+    let window: String = chars[lo..hi].iter().collect();
+    let shown = format!("{cut_lo}{}{cut_hi}", visible(&window));
+    let before: String = chars[lo..at].iter().collect();
+    let under: String = chars[at..under_end].iter().collect();
+    let col = width(cut_lo) + width(&before);
     // past the line's end (an end of input) the carets count characters
-    let n = (width(&under) + (at + len - end)).max(1);
+    let past = if under_end == end { at + len - end } else { 0 };
+    let n = (width(&under) + past).max(1);
     b.push_str(&format!("{gutter} |\n"));
     b.push_str(&format!("{num} | {shown}\n"));
     b.push_str(&format!("{gutter} | {}{}", " ".repeat(col), "^".repeat(n)));
@@ -261,6 +285,25 @@ fn visible(s: &str) -> String {
     for c in s.chars() {
         match c {
             '\t' => out.push_str(&" ".repeat(TAB_WIDTH)),
+            '\r' => out.push_str("\\r"),
+            '\n' => out.push_str("\\n"),
+            c if c.is_control() => out.push_str(&format!("\\u{{{:X}}}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// A message's argument with each control character as its escape
+/// (`\n`, `\t`, `\u{1B}`), so a headline stays one line (FE42).
+fn escaped(s: &str) -> String {
+    if !s.chars().any(char::is_control) {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\t' => out.push_str("\\t"),
             '\r' => out.push_str("\\r"),
             '\n' => out.push_str("\\n"),
             c if c.is_control() => out.push_str(&format!("\\u{{{:X}}}", c as u32)),
@@ -400,6 +443,49 @@ mod tests {
         assert!(got.contains(&caret), "{got}");
     }
 
+    /// FE42: a control character in a message's argument is shown as its
+    /// escape too, so the headline stays one line and cannot redraw the
+    /// terminal.
+    #[test]
+    fn message_arguments_show_control_characters() {
+        let m = message("E0113", &[Arg::Str("\u{1b}[31ma\nb\tc\r".into())]);
+        assert!(m.contains("\\u{1B}[31ma\\nb\\tc\\r"), "{m}");
+        assert!(!m.contains('\u{1b}') && !m.contains('\n'), "{m}");
+    }
+
+    /// FE53: a long line shows a window around the caret, with `…` where
+    /// it was cut, and the caret stays under the place.
+    #[test]
+    fn a_long_line_is_cut_around_the_caret() {
+        let mut sm = SourceMap::new();
+        let line = format!("x = [{}] nope", "1, ".repeat(10_000));
+        let col = line.find("nope").unwrap() as u32 + 1;
+        let pos = at(&mut sm, "long.fung", &format!("{line}\n"), 1, col);
+        let d = error("E0204", pos, vec![Arg::Str("nope".into())]).span(4);
+        let got = format(&d, &sm);
+        assert!(got.len() < 400, "{}", got.len());
+        let shown = got.lines().nth(3).unwrap();
+        let caret = got.lines().nth(4).unwrap();
+        assert!(shown.starts_with("1 | …"), "{shown}");
+        assert!(shown.ends_with("] nope"), "{shown}");
+        let at_nope = shown.chars().count() - 4;
+        assert_eq!(caret.find('^'), Some(at_nope), "{shown}\n{caret}");
+        // the other side is cut too
+        let line = format!("nope + [{}]", "1, ".repeat(10_000));
+        let pos = at(&mut sm, "long2.fung", &format!("{line}\n"), 1, 1);
+        let d = error("E0204", pos, vec![Arg::Str("nope".into())]).span(4);
+        let got = format(&d, &sm);
+        let shown = got.lines().nth(3).unwrap();
+        assert!(shown.starts_with("1 | nope + [1, "), "{shown}");
+        assert!(shown.ends_with('…'), "{shown}");
+        assert!(got.len() < 400, "{}", got.len());
+        // a line someone wrote is shown whole
+        let line = format!("print({}nope)", "a + ".repeat(45));
+        let pos = at(&mut sm, "whole.fung", &format!("{line}\n"), 1, 187);
+        let d = error("E0204", pos, vec![Arg::Str("nope".into())]).span(4);
+        assert!(format(&d, &sm).contains(&format!("1 | {line}\n")));
+    }
+
     /// Each excerpt finds its line without reading the file from the
     /// start, so a file's many diagnostics show in linear time (FE16).
     #[test]
@@ -434,7 +520,8 @@ mod tests {
         let d = error("E0110", pos, vec![Arg::Str("`)`".into())]);
         assert_eq!(
             format(&d, &sm),
-            "error[E0110]: unexpected `)`\n  --> bom.fung:1:5\n  |\n1 | \u{feff}x = )\n  |     ^\n  |\n"
+            // (the BOM is not shown: it takes no column)
+            "error[E0110]: unexpected `)`\n  --> bom.fung:1:5\n  |\n1 | x = )\n  |     ^\n  |\n"
         );
     }
 
@@ -676,6 +763,23 @@ mod tests {
         assert_eq!(
             format(&d, &sm),
             "error[E0501]: cannot add int and str\n  --> r.fung:7:11\n call path (innermost first):\n   r.fung:7   format_size\n   r.fung:15  report (3 tail calls elided)\n   r.fung:22  <entry>\n"
+        );
+    }
+
+    /// FE61: one elided tail call is said in the singular.
+    #[test]
+    fn one_tail_call_is_singular() {
+        let mut sm = SourceMap::new();
+        let d = error("E0502", nowhere(&mut sm), vec![])
+            .with_call_path(vec![site("r.fung", 1, "f", 1), site("r.fung", 2, "g", 2)]);
+        let got = format(&d, &sm);
+        assert!(
+            got.contains("   r.fung:1   f (1 tail call elided)\n"),
+            "{got}"
+        );
+        assert!(
+            got.contains("   r.fung:2   g (2 tail calls elided)\n"),
+            "{got}"
         );
     }
 

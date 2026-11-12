@@ -49,6 +49,35 @@ const POLL_EVERY: u32 = 256;
 /// A task's number, unique in the runtime.
 pub(crate) type FiberId = u64;
 
+/// A hasher for the scheduler's own keys (task numbers, node addresses),
+/// which no one outside chooses: a multiply and a fold instead of SipHash
+/// on every turn (CC21).
+#[derive(Default)]
+pub(crate) struct IdHasher(u64);
+
+impl std::hash::Hasher for IdHasher {
+    fn finish(&self) -> u64 {
+        self.0 ^ (self.0 >> 29)
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.write_u64(u64::from(b));
+        }
+    }
+
+    fn write_u64(&mut self, x: u64) {
+        self.0 = (self.0.rotate_left(5) ^ x).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    }
+
+    fn write_usize(&mut self, x: usize) {
+        self.write_u64(x as u64);
+    }
+}
+
+/// A map keyed by a task number or an address (`IdHasher`).
+pub(crate) type IdMap<K, V> = HashMap<K, V, std::hash::BuildHasherDefault<IdHasher>>;
+
 /// What other threads tell the run thread.
 pub(crate) enum Event {
     /// A stop request for signal `sig` (0: `request_stop`), `stop.rs`.
@@ -164,7 +193,7 @@ struct Slot {
 /// One run's tasks: the root (the entry, a test block, a module body)
 /// and every task spawned under it.
 pub(super) struct Sched {
-    slots: HashMap<FiberId, Slot>,
+    slots: IdMap<FiberId, Slot>,
     queue: VecDeque<FiberId>,
     /// Parked tasks' deadlines: (when, task, which park).
     timers: BinaryHeap<Reverse<(Instant, FiberId, u64)>>,
@@ -188,7 +217,7 @@ pub(super) struct Sched {
 impl Sched {
     pub(super) fn new(root: Fiber) -> Sched {
         let id = root.id();
-        let mut slots = HashMap::new();
+        let mut slots = IdMap::default();
         slots.insert(
             id,
             Slot {
@@ -455,6 +484,10 @@ impl Sched {
 
     /// Queues the parked tasks whose deadline has come.
     fn timers_due(&mut self) {
+        // No timer, no clock (CC21).
+        if self.timers.is_empty() {
+            return;
+        }
         let now = Instant::now();
         while let Some(Reverse((at, id, seq))) = self.timers.peek().copied() {
             if at > now {
@@ -522,8 +555,8 @@ impl Sched {
             (a, b) => a.or(b),
         };
         f.cancel.watch(&f.waiter);
-        let now = Instant::now();
-        if f.cancel.is_cancelled() || until.is_some_and(|at| now >= at) {
+        // The clock only for a wait that has a deadline (CC21).
+        if f.cancel.is_cancelled() || until.is_some_and(|at| Instant::now() >= at) {
             // A park that is over at once is a turn given (a long native
             // between pieces, L6): the loop is looked at as for a yield,
             // or a socket another task waits on would wait for it.
@@ -589,6 +622,12 @@ impl Task<'_> {
         self.world.in_run = false;
         let (r, mut root) = ran.unwrap_or_else(|p| resume_unwind(p));
         self.exchange(&mut root);
-        r
+        // What the run printed is written before it returns (CC15): the
+        // command's own output comes after it. A write that failed and
+        // was not reported fails the run.
+        match (self.world.output.drain(), r) {
+            (Some(e), Ok(_)) => Err(crate::native::nat::write_err(e)),
+            (_, r) => r,
+        }
     }
 }

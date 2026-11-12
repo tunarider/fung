@@ -43,7 +43,8 @@ fn fixtures_args_and_stdin() {
 
 #[test]
 fn exit_code_must_match() {
-    let got = run_one("```fung run exit=1 error=E0606\nparse_int(\"abc\")\n```\n").unwrap();
+    let got = run_one("```fung run exit=1 error=E0606\nfn p(s) = parse_int(s)\np(\"abc\")\n```\n")
+        .unwrap();
     assert_eq!(got.code, 1);
     assert!(got.output.contains("E0606"), "{}", got.output);
     let e = run_one("```fung run\nparse_int(\"abc\")\n```\n").unwrap_err();
@@ -86,10 +87,10 @@ fn nondeterministic_output_is_refused() {
 fn check_and_fmt_failures_are_reported() {
     let e = run_one("```fung run\nprint(nope)\n```\n").unwrap_err();
     assert!(e[0].contains("check"), "{e:?}");
-    let e = run_one("```fung run\nx=1\n```\n").unwrap_err();
+    let e = run_one("```fung run\n_x=1\n```\n").unwrap_err();
     assert!(e[0].contains("fmt"), "{e:?}");
     // a check example is checked but not run
-    let e = run_one("```fung check\nx=1\n```\n").unwrap_err();
+    let e = run_one("```fung check\n_x=1\n```\n").unwrap_err();
     assert!(e[0].contains("fmt"), "{e:?}");
     assert!(run_one("```fung check\nexit(3)\n```\n").is_ok());
 }
@@ -507,7 +508,7 @@ fn an_expect_check_fence_is_compared_with_check() {
     let page = |shown: &str| {
         format!("{base}\n```fung check\nimport fs\nprint(1)\n```\n\n```expect check\n{shown}```\n")
     };
-    let right = "warning[W0101]: unused import `fs`\n  --> example.fung:1:8\n  |\n1 | import fs\n  |        ^^\n  |\n";
+    let right = "error[E0239]: unused import `fs`\n  --> example.fung:1:8\n  |\n1 | import fs\n  |        ^^\n  |\n help: remove it, or start its name with `_` if it is kept on purpose\n";
     std::fs::write(&c, page(right)).unwrap();
     let built = site::build(&m, &common::fung_bin(), &latest());
     assert!(built.is_ok(), "{:?}", built.err());
@@ -530,7 +531,7 @@ fn an_error_entry_shows_its_own_error() {
     assert!(e.contains("E0606") && e.contains("E0204"), "{e}");
     let text = text.replace(
         "```fung run exit=2 error=E0204\nprint(nope)\n```",
-        "```fung run exit=1 error=E0606\nparse_int(\"x\")\n```",
+        "```fung run exit=1 error=E0606\nfn p(s) = parse_int(s)\np(\"x\")\n```",
     );
     std::fs::write(&c, &text).unwrap();
     assert!(site::build(&m, &common::fung_bin(), &latest()).is_ok());

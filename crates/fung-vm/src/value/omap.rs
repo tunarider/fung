@@ -33,9 +33,9 @@ impl Probed for Option<Entry> {
 }
 
 impl Omap {
-    /// Whether a live entry's value holds a mutable one.
-    pub(super) fn holds_mutable(&self) -> bool {
-        self.ents.holds(Probe::Mutable)
+    /// Whether a live entry's value answers `p`.
+    pub(super) fn holds(&self, p: Probe) -> bool {
+        self.ents.holds(p)
     }
 
     /// Hands `f` each live value that holds a mutable one, a node at a

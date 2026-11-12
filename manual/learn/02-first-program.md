@@ -155,7 +155,7 @@ $ echo $?
 0
 ```
 
-`check`는 에러가 아닌 **경고(warning)**도 보여 준다. 예를 들어 가져오고 쓰지 않은 모듈이 있으면 이렇게 알린다. 경고는 실행을 막지 않는다.
+fung에는 경고가 없다. 실수일 가능성이 큰 코드도 에러다. 예를 들어 가져오고 쓰지 않은 모듈이 있으면 `run`도 `check`도 이렇게 멈춘다. 일부러 쥐기만 하는 이름은 `_`로 시작하면 된다.
 
 ```fung check
 import fs
@@ -164,12 +164,13 @@ print("hi")
 ```
 
 ```expect check
-warning[W0101]: unused import `fs`
+error[E0239]: unused import `fs`
   --> example.fung:1:8
   |
 1 | import fs
   |        ^^
   |
+ help: remove it, or start its name with `_` if it is kept on purpose
 ```
 
 ## 에러 메시지 읽기 {#errors}
@@ -292,7 +293,7 @@ print("servers:", total)
 - 설치는 `install.sh` 한 줄, 확인은 `fung version`.
 - 실행은 `fung -e '코드'`, `fung 파일.fung [인자…]`, 그리고 인자 없는 `fung`(REPL).
 - 스크립트는 위에서 아래로 실행되고, `#`는 주석, 명령줄 인자는 `args`.
-- `fung check`는 실행하지 않고 검사만 한다. 경고도 보여 준다.
+- `fung check`는 실행하지 않고 검사만 한다. 쓰지 않는 이름 같은 실수도 에러다(경고는 없다).
 - 에러는 번호, 내용, 위치, 발췌, 도움말 순서다. 컴파일 에러(종료 코드 2)면 아무것도 실행되지 않고, 런타임 에러(종료 코드 1)는 호출 경로를 보여 준다.
 
 레퍼런스: [명령줄 도구](../reference/cli.html), [에러와 종료 코드](../reference/cli.html#errors), [에러 카탈로그](../reference/errors.html), [`print`](../reference/prelude/io.html#fn-print), [`args`](../reference/prelude/program.html#fn-args). REPL의 내부는 [REPL](../vm/16-repl.html)에서 다룬다.

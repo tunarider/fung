@@ -110,9 +110,10 @@ up   web3</code></pre></div>
 r = scope(fn(s):
   users = spawn(s, () =&gt; fetch(&quot;users&quot;, 50ms))
   orders = spawn(s, () =&gt; fetch(&quot;orders&quot;, 20ms))
-  {users: await(users), orders: await(orders)}
+  {users: await(users)!, orders: await(orders)!}
 ;;)
-print(r)</code></pre><pre class="out plain"><code>{users: &quot;users (50ms)&quot;, orders: &quot;orders (20ms)&quot;}</code></pre></div>
+print(r)</code></pre><pre class="out plain"><code>Ok({users: &quot;users (50ms)&quot;, orders: &quot;orders (20ms)&quot;})</code></pre></div>
+<p>결과가 <code>Ok(…)</code>로 감싸여 있다. 태스크는 취소되거나 런타임 에러로 죽을 수 있으므로 <code>await</code>는 결과값을 돌려준다: 정상으로 끝났으면 <code>Ok(함수의 값)</code>, 아니면 <code>Err</code>. 태스크 범위도 취소될 수 있어서 <code>scope</code>도 <code>Ok(본문의 값)</code>을 돌려준다. 9장의 규칙 그대로, 실행 중에 실패할 수 있는 함수는 결과값을 돌려준다. 그래서 늘 <code>!</code>·<code>?</code>·<code>match</code>로 푼다. 위에서는 <code>await(…)!</code>로 태스크의 값을 꺼냈고, 바깥의 <code>Ok</code>는 그대로 찍었다.</p>
 <p><code>scope</code>의 가장 중요한 약속은 <strong>태스크 범위는 그 안의 태스크가 모두 끝나야 돌아온다</strong>는 것이다. <code>await</code>하지 않은 태스크도 범위가 끝날 때까지 기다린다. 그래서 <code>scope(</code> 다음 줄에 이르렀다면 그 안에서 시작한 일은 모두 끝났다. 어딘가에서 몰래 계속 도는 태스크가 없다. 본문이 먼저 끝나도, 늦은 태스크를 기다린 뒤에 <code>after scope</code>가 찍히는 것을 보자.</p>
 <div class="run"><pre><code>scope(fn(s):
   spawn(s, fn():
@@ -145,10 +146,11 @@ print(r)</code></pre><pre class="out err plain" data-code="1"><code>error[E0502]
 2 |   spawn(s, () =&gt; 1 // 0)
   |                    ^
   |
+  note: the task was spawned at example.fung:2
   note: scope opened at example.fung:1
  call path (innermost first):
    example.fung:2 &lt;lambda&gt;</code></pre></div>
-<p>에러 메시지의 <code>note: scope opened at …</code>가 실패가 올라온 태스크 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 <code>Err</code> 값을 돌려주는 것은 실패가 아니다. 그냥 <code>await</code>가 받는 결과일 뿐이다.</p>
+<p>에러 메시지의 <code>note: scope opened at …</code>가 실패가 올라온 태스크 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 <code>Err</code> 값을 돌려주는 것은 실패가 아니다. 그냥 <code>await</code>가 받는 결과일 뿐이다(<code>Ok(Err(e))</code>: 바깥 <code>Ok</code>는 태스크가 정상으로 끝났다는 뜻이다).</p>
 <p>다만 그 결과를 아무도 받지 않으면 이야기가 다르다. 9장에서 버려진 <code>Err</code>가 에러였듯, 핸들을 버려서 <code>Err</code>를 읽을 길이 사라지면 E0607로 범위가 실패한다. 결과가 필요 없는 일이라면 태스크의 함수를 <code>nil</code>로 맺어 "버린다"고 적는다.</p>
 <div class="run"><pre><code>scope(fn(s):
   spawn(s, () =&gt; parse_int(&quot;x&quot;))
@@ -175,20 +177,20 @@ print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code=
 ;;, e =&gt; eprint(&quot;task failed:&quot;, e.code, e.message, &quot;at&quot;, e.at))
 print(r)</code></pre><pre class="out plain"><code>task failed: E0502 division by zero at example.fung:2
 other task finished
-body finished</code></pre></div>
+Ok(&quot;body finished&quot;)</code></pre></div>
 <h2 id="timeout">기한: timeout</h2>
-<p>응답하지 않는 서버를 영원히 기다릴 수는 없다. <code>timeout(함수, 기간)</code>는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 기간 안에 끝나면 함수의 값을 그대로 돌려준다.</p>
+<p>응답하지 않는 서버를 영원히 기다릴 수는 없다. <code>timeout(함수, 기간)</code>는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 기간 안에 끝나면 함수의 값을 <code>Ok</code>로 감싸 돌려준다. 함수가 <code>Err</code>를 돌려줘도 <code>Ok(Err(e))</code>라서 시간 초과와 섞이지 않는다.</p>
 <div class="run"><pre><code>fn answer(d):
   sleep(d)
   &quot;answered after ${d}&quot;
 ;;
 
 print(timeout(() =&gt; answer(10ms), 1s))
-print(timeout(() =&gt; answer(5s), 1s))</code></pre><pre class="out plain"><code>answered after 10ms
+print(timeout(() =&gt; answer(5s), 1s))</code></pre><pre class="out plain"><code>Ok(&quot;answered after 10ms&quot;)
 Err({kind: 'timeout, message: &quot;timed out after 1s&quot;})</code></pre></div>
 <p>기한은 그 안에서 띄운 태스크, 외부 명령, HTTP 요청(13장)까지 모두에 걸린다. 기한이 지났을 때 도는 외부 명령은 끝내 준다(먼저 SIGTERM, 2초 안에 안 끝나면 SIGKILL). 그래서 <code>ssh</code>가 걸려 버린 서버도 정해진 시간 안에 포기할 수 있다.</p>
 <div class="run"><pre><code>print(timeout(() =&gt; sh(&quot;sleep 10; echo finished&quot;), 200ms))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
-<p><code>pmap</code>과 함께 쓰면 "서버마다 2초씩만 기다린다"가 된다. 서버마다의 결과에 시간 초과가 <code>Err</code>로 섞인다.</p>
+<p><code>pmap</code>과 함께 쓰면 "서버마다 2초씩만 기다린다"가 된다. 서버마다의 결과에 시간 초과가 <code>Err</code>로 섞인다. 제때 끝난 결과는 <code>probe</code>의 결과값을 <code>Ok</code>로 한 번 더 감싼 것이다.</p>
 <div class="run"><pre><code>import conc
 
 fn probe(host):
@@ -197,7 +199,7 @@ fn probe(host):
 ;;
 
 results = conc.pmap([&quot;web1&quot;, &quot;slow-db&quot;, &quot;web2&quot;], h =&gt; timeout(() =&gt; probe(h), 1s))
-print(results)</code></pre><pre class="out plain"><code>[Ok(&quot;web1 ok&quot;), Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), Ok(&quot;web2 ok&quot;)]</code></pre></div>
+print(results)</code></pre><pre class="out plain"><code>[Ok(Ok(&quot;web1 ok&quot;)), Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), Ok(Ok(&quot;web2 ok&quot;))]</code></pre></div>
 <h3 id="cancel">취소</h3>
 <p><code>cancel(태스크)</code>는 그 태스크를 취소하고, <code>cancel(태스크 범위)</code>는 그 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled})</code>를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.</p>
 <div class="run"><pre><code>scope(fn(s):
@@ -243,7 +245,7 @@ done = scope(fn(s):
   each([1, 2], id =&gt; spawn(s, () =&gt; worker(id, jobs_rx, res_tx)))
   spawn(s, () =&gt; each(1..=4, j =&gt; send(jobs_tx, j)!))
   for r in res_rx: r ;;
-;;)
+;;)!
 print(len(done), &quot;jobs done&quot;)</code></pre><pre class="out plain"><code>4 jobs done</code></pre></div>
 <p>기다리지 않고 한 번만 보고 싶을 때는 <code>recv_now(rx)</code>를 쓴다. 받을 값이 있으면 <code>Ok(v)</code>, 없으면 <code>Err({kind: 'empty})</code>를 곧바로 돌려준다. 보내는 쪽은 <code>send_now(tx, v)</code>이고, 가득 차서 기다려야 하면 <code>Err({kind: 'full})</code>이다. 반대로 값은 필요 없고 채널이 닫히기만 기다릴 때는 <code>wait_closed(rx)</code>를 쓴다. 정지 요청(Ctrl-C)을 기다리는 <code>wait_closed(stop_signal())</code>이 대표적인 쓰임이다.</p>
 <div class="run"><pre><code>(tx, rx) = channel(1)
@@ -289,13 +291,14 @@ results = conc.pmap(hosts, h =&gt; timeout(() =&gt; probe(h), 500ms))
 rows = zip(hosts, results)
 for (host, r) in rows:
   status = match r:
-    Ok(s)                 =&gt; s
+    Ok(Ok(s))             =&gt; s
+    Ok(Err(e))            =&gt; &quot;ERROR ${e.message}&quot;
     Err({kind: 'timeout}) =&gt; &quot;TIMEOUT&quot;
     Err(e)                =&gt; &quot;ERROR ${e.message}&quot;
   ;;
   print(pad_right(host, 6), status)
 ;;
-if any(results, is_err): exit(1) ;;</code></pre><pre class="out err plain" data-code="1"><code>web1   up
+if any(results, r =&gt; r != Ok(Ok(&quot;up&quot;))): exit(1) ;;</code></pre><pre class="out err plain" data-code="1"><code>web1   up
 web2   up
 db1    TIMEOUT</code></pre></div>
 </details>
@@ -310,8 +313,8 @@ total = scope(fn(s):
   counter = spawn(s, () =&gt; count_chars(rx))
   each([&quot;alpha&quot;, &quot;beta&quot;, &quot;gamma&quot;], row =&gt; send(tx, row)!)
   close(tx)
-  await(counter)
-;;)
+  await(counter)!
+;;)!
 print(total)</code></pre><pre class="out plain"><code>14</code></pre></div>
 </details>
 </div>
@@ -356,8 +359,8 @@ print(conc.pmap([&quot;a.txt&quot;, &quot;bb.txt&quot;, &quot;ccc.txt&quot;], le
 <details><summary>풀이 보기</summary>
 <div class="run"><pre><code>total = scope(fn(s):
   ts = map(1..=3, n =&gt; spawn(s, () =&gt; n * n))
-  fold(ts, 0, (acc, t) =&gt; acc + await(t))
-;;)
+  fold(ts, 0, (acc, t) =&gt; acc + await(t)!)
+;;)!
 print(total)</code></pre><pre class="out plain"><code>14</code></pre></div>
 </details>
 </div>
@@ -372,7 +375,7 @@ result = scope(fn(s):
     close(tx)
   ;;)
   fold(rx, 0, (acc, n) =&gt; acc + n)
-;;)
+;;)!
 print(result)</code></pre><pre class="out plain"><code>15</code></pre></div>
 </details>
 </div>
@@ -381,9 +384,9 @@ print(result)</code></pre><pre class="out plain"><code>15</code></pre></div>
 <li>동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.</li>
 <li>리스트의 일을 동시에 하려면 <code>conc.pmap(xs, f, limit: n)</code>. 결과는 입력 순서대로다.</li>
 <li>기다리지 않고 한 번 보기는 <code>recv_now</code>·<code>send_now</code>, 닫힘만 기다리기는 <code>wait_closed</code>.</li>
-<li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 <code>Err</code>를 아무도 읽지 않으면 E0607이다.</li>
+<li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 실패할 수 있으므로 <code>await</code>·<code>scope</code>·<code>timeout</code>은 <code>Ok(값)</code>이나 <code>Err</code>를 돌려준다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 <code>Err</code>를 아무도 읽지 않으면 E0607이다.</li>
 <li>태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 <code>supervise(f, on_fail)</code>.</li>
-<li><code>timeout(f, d)</code>는 기한이 지나면 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>. <code>cancel</code>로 직접 취소한다.</li>
+<li><code>timeout(f, d)</code>는 기한 안에 끝나면 <code>Ok(f의 값)</code>, 지나면 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>. <code>cancel</code>로 직접 취소한다.</li>
 <li>채널 <code>(tx, rx) = channel()</code>로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.</li>
 <li>함께 고치는 값은 <code>atom</code>·<code>deref</code>·<code>swap</code>. <code>swap</code>의 함수에는 효과를 쓸 수 없다(E0707).</li>
 </ul>

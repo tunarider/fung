@@ -1,0 +1,4 @@
+# `?` in a lambda `=>` is the same rule as `return` (D42), whatever the
+# lambda is given to.
+fn f(xs) = filter(xs, x => parse_int(x)? > 1)
+# expect-error: E0237

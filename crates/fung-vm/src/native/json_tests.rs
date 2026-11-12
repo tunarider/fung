@@ -215,14 +215,22 @@ fn stringify_follows_the_table() {
                 Value::Float(2.0),
             ]),
         ),
-        ("t", Value::tuple(vec![Value::Int(1), Value::Int(2)])),
-        ("s", Value::Sym(intern("ok"))),
-        ("when", when),
     ]);
     assert_eq!(
         stringify(m, Value::Nil),
-        r#"{"b":1,"a":[true,null,"x<y",2.0],"t":[1,2],"s":"ok","when":"2026-10-04T00:00:00Z"}"#
+        r#"{"b":1,"a":[true,null,"x<y",2.0]}"#
     );
+    // The JSON types only (D80): a symbol, a tuple or a time is E0513,
+    // with the way to write it.
+    for v in [
+        Value::tuple(vec![Value::Int(1), Value::Int(2)]),
+        Value::Sym(intern("ok")),
+        when,
+        list(vec![Value::Sym(intern("ok"))]),
+    ] {
+        assert_eq!(stringify(v, Value::Nil), "E0513");
+    }
+    assert_eq!(stringify(Value::Int(1), Value::Int(0)), "E0403");
     assert_eq!(
         stringify(list(vec![Value::Int(1), map(vec![])]), Value::Int(2)),
         "[\n  1,\n  {}\n]"

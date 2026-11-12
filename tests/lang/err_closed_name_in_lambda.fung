@@ -1,8 +1,8 @@
 # A name that left its block is not visible in a lambda either (03 rule
-# 4, FE3): it does not quietly become the prelude function `lines`.
+# 4, FE3).
 if true:
-  lines = ["a"]
+  _found = ["a"]
 ;;
-g = () => lines
+g = () => _found
 print(g())
 # expect-error: E0206

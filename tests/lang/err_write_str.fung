@@ -1,0 +1,3 @@
+# write takes a str only (D73): print is for values.
+write(1)
+# expect-error: E0403

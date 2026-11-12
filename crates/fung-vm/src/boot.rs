@@ -87,6 +87,7 @@ fn boot_file(
 ) -> Result<(), Vec<Diag>> {
     let loader = Loader {
         internal: true,
+        library: true,
         ..Loader::default()
     };
     let (b, errs) = loader.compile(file, src, Stage::All);

@@ -1,9 +1,25 @@
 //! Type aliases (07).
 
+use std::collections::HashSet;
+
 use super::fn_::{is_builtin_type, is_tag_name};
 use super::{Resolver, name_error};
 use crate::source::Pos;
 use crate::tree::{Head, Lit, Node, TypeTerm};
+
+/// The aliases being expanded, to find a cycle (E0218).
+type Visiting = HashSet<String>;
+
+/// Adds `terms` to the union `out`, each name once (FE40: an alias used
+/// twice would double the union at every level); `seen` holds the names
+/// in `out`.
+fn union_into(out: &mut Vec<TypeTerm>, seen: &mut HashSet<String>, terms: Vec<TypeTerm>) {
+    for t in terms {
+        if seen.insert(t.name.clone()) {
+            out.push(t);
+        }
+    }
+}
 
 impl Resolver<'_> {
     /// Registers the file's type aliases before anything else is resolved,
@@ -30,7 +46,7 @@ impl Resolver<'_> {
         }
         for name in self.alias_order.clone() {
             let pos = self.alias_pos[&name];
-            self.expand(&TypeTerm::plain(&name, pos), &mut Vec::new(), pos);
+            self.expand(&TypeTerm::plain(&name, pos), &mut Visiting::default(), pos);
         }
     }
 
@@ -38,41 +54,34 @@ impl Resolver<'_> {
     /// plain terms (the outer names the runtime checks); a cycle is E0218
     /// at `pos`, an unknown name E0212 where it is written.
     pub(super) fn expand_types(&mut self, alts: &[TypeTerm], pos: Pos) -> Vec<TypeTerm> {
-        let mut out = Vec::new();
+        let (mut out, mut seen) = (Vec::new(), HashSet::new());
         for a in alts {
-            out.extend(self.expand(a, &mut Vec::new(), pos));
+            let terms = self.expand(a, &mut Visiting::default(), pos);
+            union_into(&mut out, &mut seen, terms);
         }
         out
     }
 
-    fn expand(&mut self, t: &TypeTerm, visiting: &mut Vec<String>, pos: Pos) -> Vec<TypeTerm> {
+    fn expand(&mut self, t: &TypeTerm, visiting: &mut Visiting, pos: Pos) -> Vec<TypeTerm> {
         let name = t.name.as_str();
-        // `list[str]`: the names inside are checked, the outer type is the
-        // one kept, and only list and map hold elements (07, FE17).
-        if !t.elems.is_empty() {
-            self.check_elements(&t.elems);
-            let outer = TypeTerm::plain(name, t.pos);
-            let out = self.expand(&outer, visiting, pos);
-            if out.iter().any(|o| o.name != "list" && o.name != "map")
-                && self.reported.insert(t.to_string())
-            {
-                self.errs.push(name_error("E0232", t.pos, name));
-            }
-            return out;
-        }
-        if visiting.iter().any(|v| v == name) {
+        if visiting.contains(name) {
             if self.reported.insert(name.to_string()) {
                 self.errs.push(name_error("E0218", pos, name));
             }
             return Vec::new();
         }
+        if let Some(out) = self.expanded.get(name) {
+            return out.clone();
+        }
         if let Some(alts) = self.aliases.get(name).cloned() {
-            visiting.push(name.to_string());
-            let mut out = Vec::new();
+            visiting.insert(name.to_string());
+            let (mut out, mut seen) = (Vec::new(), HashSet::new());
             for a in &alts {
-                out.extend(self.expand(a, visiting, pos));
+                let terms = self.expand(a, visiting, pos);
+                union_into(&mut out, &mut seen, terms);
             }
-            visiting.pop();
+            visiting.remove(name);
+            self.expanded.insert(name.to_string(), out.clone());
             return out;
         }
         if is_builtin_type(name) || is_tag_name(name) {
@@ -82,42 +91,5 @@ impl Resolver<'_> {
             self.errs.push(name_error("E0212", t.pos, name));
         }
         Vec::new()
-    }
-}
-
-impl Resolver<'_> {
-    /// The names inside an element type (`str|list[int]`): each must name
-    /// a type, and one with an element type of its own must hold elements
-    /// (E0232). They are not expanded, so a type may name itself inside
-    /// (`type tree = list[tree]`), as a shape.
-    fn check_elements(&mut self, elems: &[TypeTerm]) {
-        for t in elems {
-            let name = t.name.as_str();
-            if !t.elems.is_empty() {
-                if !self.holds_elements(name) && self.reported.insert(format!("{name}[")) {
-                    self.errs.push(name_error("E0232", t.pos, name));
-                }
-                self.check_elements(&t.elems);
-                continue;
-            }
-            let known =
-                self.aliases.contains_key(name) || is_builtin_type(name) || is_tag_name(name);
-            if !known && self.reported.insert(name.to_string()) {
-                self.errs.push(name_error("E0212", t.pos, name));
-            }
-        }
-    }
-}
-
-impl Resolver<'_> {
-    /// Whether an element type may follow `name`: `list` or `map`, or an
-    /// alias whose terms are (one level, so a recursive alias ends).
-    fn holds_elements(&self, name: &str) -> bool {
-        let container = |t: &str| t == "list" || t == "map";
-        container(name)
-            || self
-                .aliases
-                .get(name)
-                .is_some_and(|alts| alts.iter().all(|t| container(&t.name)))
     }
 }

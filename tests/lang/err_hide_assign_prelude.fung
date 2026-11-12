@@ -1,0 +1,7 @@
+# An assignment cannot hide a prelude function (D38).
+fn f(xs):
+  len = 3
+  len + xs
+;;
+print(f(1))
+# expect-error: E0240

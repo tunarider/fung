@@ -55,7 +55,7 @@ fn parse(line) = match split(line, " "):
 # are the same problem.
 fn shape(message) = regex.replace(message, `\b\d+\b`, "N")
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["top"])!
 pattern = first(opts.rest) ?? "*.log"
 top = parse_int(get(opts.flags, "top", "3")) ?? fail("--top must be a number")
 files = fs.glob(pattern)!
@@ -91,7 +91,7 @@ for (n, msg) in errors:
 
 ## 줄별 설명 {#how}
 
-- `levels`: 최상위에서 한 번만 대입한 이름은 상수라서 최상위 함수 `parse` 안에서도 읽을 수 있다.
+- `levels`: 최상위 이름은 한 번만 묶이는 상수라서 최상위 함수 `parse` 안에서도 읽을 수 있다.
 - `parse`: 줄을 공백으로 쪼갠 리스트를 `match`로 모양을 맞춰 본다. `[_, _, level, ...words]`는 "날짜, 시각, 레벨, 나머지 단어들"이고, `when level in levels`가 레벨이 셋 중 하나일 때만 맞게 한다. 맞지 않는 줄은 `nil`이 되고 나중에 `filter`로 버린다. 필드 번호 대신 이름(`level`, `words`)으로 읽으므로 형식이 바뀌어도 고칠 곳이 한 곳이다.
 - `{level, message: …}`: `{level: level}`의 축약이다.
 - `shape`: 정규식 `\b\d+\b`(단어 하나가 통째로 숫자인 것)를 `N`으로 바꾼다. 정규식은 백슬래시를 그대로 쓰도록 원시 문자열 `` `…` ``에 넣는다.

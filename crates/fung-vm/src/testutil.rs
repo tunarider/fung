@@ -91,7 +91,13 @@ pub struct Opts {
     /// are then unmarked builtin, so errors report where they arise, as
     /// in user code; `patch` may mark some again.
     pub internal: bool,
+    /// The streams the runtime writes to, made from the two buffers the
+    /// outcome reads, and whether they are written apart (`output.rs`).
+    pub streams: fn(Buf, Buf) -> Streams,
 }
+
+/// Standard output and error for a test runtime, and whether apart.
+pub type Streams = (Box<dyn Write + Send>, Box<dyn Write + Send>, bool);
 
 impl Default for Opts {
     fn default() -> Opts {
@@ -104,6 +110,7 @@ impl Default for Opts {
             read: Loader::default().read_file,
             args: &[],
             internal: false,
+            streams: |out, err| (Box::new(out), Box::new(err), false),
         }
     }
 }
@@ -226,11 +233,13 @@ fn setup_with(
     }
     (opts.patch)(&mut entry);
     let (out, err) = (Buf::default(), Buf::default());
-    let rt = Runtime::new(
-        Box::new(out.clone()),
-        Box::new(err.clone()),
+    let (stdout, stderr, apart) = (opts.streams)(out.clone(), err.clone());
+    let rt = Runtime::with_streams(
+        stdout,
+        stderr,
         stdin.unwrap_or_else(|| Box::new(Cursor::new(opts.stdin.as_bytes().to_vec()))),
         b.sources,
+        apart,
     );
     // Booted after the program is compiled: the runtime holds the
     // program's sources, and boot appends the prelude's after them.
@@ -598,12 +607,27 @@ pub fn probes() -> Vec<Value> {
 /// fung helpers over `probes`, put before a program by `exec_waiting`:
 /// `until(f)` sleeps 1 ms at a time (letting the other tasks run) until
 /// `f()` is true; `blocked(ch, n)` waits until `n` tasks wait in `ch`.
-pub const UNTIL: &str = "fn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nfn blocked(ch, n) = until(() => queued(ch) >= n)\n";
+pub const UNTIL: &str = "fn wait_for(cond) = cond() then nil else fn(): sleep(1ms); wait_for(cond) ;;()\nfn blocked(q_end, q_min) = wait_for(() => queued(q_end) >= q_min)\n";
+
+/// A program with every top-level `import` line moved to the front, in
+/// order: a harness puts helpers before a test's own program, and imports
+/// come before every other statement (D55). The lines after the moved
+/// imports keep their numbers when the imports were the program's first.
+pub fn imports_first(src: &str) -> String {
+    let (imports, rest): (Vec<&str>, Vec<&str>) = src
+        .split_inclusive('\n')
+        .partition(|l| l.starts_with("import "));
+    let mut out = imports.concat();
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out + &rest.concat()
+}
 
 /// Runs `src` after `UNTIL` with the probes.
 pub fn exec_waiting(src: &str) -> Outcome {
     exec(
-        &format!("{UNTIL}{src}"),
+        &imports_first(&format!("{UNTIL}{src}")),
         Opts {
             extra: probes,
             ..Opts::default()
@@ -761,7 +785,9 @@ pub mod jobs {
     /// - `open_latch(name)`: `open(name)` from fung;
     /// - `settle_mark(name)`: `mark(name)`, and the scheduler's parked
     ///   count is reset so a test thread sees the next one;
-    /// - `pool_state()`: the pool's `[threads, idle, queued]`.
+    /// - `pool_state()`: the pool's `[threads, idle, queued]`;
+    /// - `in_line(file)`: how many tasks wait in line for a turn of the
+    ///   FIFO handle `file` (both sides).
     pub fn job_natives() -> Vec<Value> {
         fn block_job(t: &mut Task<'_>, a: crate::value::Args) -> Result<Flow, Stop> {
             let n = name(&a);
@@ -902,6 +928,16 @@ pub mod jobs {
             "waiting_io",
             vec![],
             |t: &mut Task, _| Ok(Value::Int(t.io_waiting_for_tests() as i64)),
+        )));
+        v.push(Value::Native(Native::leak(
+            "in_line",
+            vec![nat::param("file")],
+            |_: &mut Task, a| {
+                let Value::File(f) = &a[0] else {
+                    panic!("a file handle")
+                };
+                Ok(Value::Int(f.in_line_for_tests() as i64))
+            },
         )));
         v.push(Value::Native(Native::leak_step(
             "block_open_job",

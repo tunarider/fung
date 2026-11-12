@@ -80,16 +80,19 @@ pub(super) fn is_min_int_magnitude(t: &Token) -> bool {
     t.int == i64::MIN
 }
 
-/// The operator at the top of a slice's end that binds looser than `??`
-/// and `|>` (a comparison, `in`, `not`, `and`/`or`, `then … else`), as the
-/// error names it. Elsewhere `..` would bind tighter than it, so reading
-/// it as the end would change the meaning silently (FE27).
+/// The operator at the top of a slice's end that binds looser than `..`
+/// (`??`, `|>`, a comparison, `in`, `not`, `and`/`or`, `then … else`), as
+/// the error names it. A slice's end is the operand layer of `..`, as
+/// everywhere else: reading a looser operator as the end would change
+/// the meaning silently (FE27, D36).
 fn looser_than_a_slice(n: &Node) -> Option<String> {
     if n.paren {
         return None;
     }
     match (n.head, &n.lit) {
         (Head::Then, _) => Some("then … else".into()),
+        (Head::Coalesce, _) => Some("??".into()),
+        (Head::Pipe, _) => Some("|>".into()),
         (Head::Unary, Lit::Str(op)) if op == "not" => Some("not".into()),
         (Head::Binary, Lit::Str(op)) => match op.as_str() {
             "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "and" | "or" => Some(op.clone()),
@@ -143,7 +146,7 @@ impl<'a> Parser<'a> {
             e.help = Some("put it in parentheses: `(not x)`".into());
             return Err(e);
         }
-        let lhs = self.prefix()?;
+        let lhs = self.prefix(min_bp)?;
         self.infix_loop(lhs, start, min_bp)
     }
 
@@ -217,7 +220,26 @@ impl<'a> Parser<'a> {
             self.skip_newlines_after_operator();
             let rhs = self.expr(info.right)?;
             lhs = match info.text {
-                "|>" => Node::new(Head::Pipe, t.pos, vec![lhs, rhs]),
+                "|>" => {
+                    // `x |> f ?? d` and `a ?? b |> f` each have two
+                    // natural readings: the code says which (D35).
+                    let loose = |k: &Node| k.head == Head::Coalesce && !k.paren;
+                    if loose(&lhs) || loose(&rhs) {
+                        // the help shows this expression's two readings
+                        let help = if loose(&rhs) {
+                            "say which one goes first: `(x |> f) ?? d` or `x |> (f ?? d)`"
+                        } else {
+                            "say which one goes first: `(a ?? b) |> f` or `a ?? (b |> f)`"
+                        };
+                        let c = if loose(&rhs) { &rhs } else { &lhs };
+                        return Err(Box::new(
+                            crate::diag::error("E0127", c.pos, Vec::new())
+                                .span(2)
+                                .with_help(help),
+                        ));
+                    }
+                    Node::new(Head::Pipe, t.pos, vec![lhs, rhs])
+                }
                 "??" => Node::new(Head::Coalesce, t.pos, vec![lhs, rhs]),
                 ".." | "..=" => Node::with_lit(
                     Head::Range,
@@ -242,11 +264,13 @@ impl<'a> Parser<'a> {
         self.next();
         self.skip_newlines_after_operator();
         // `else` ends this branch, so a `..` in it is a range even inside
-        // slice brackets (FE27).
+        // slice brackets (FE27). Each branch may be a `return` (D50).
+        self.return_ok = true;
         let a = self.outside_slice(|p| p.expr(0))?;
         self.peek_infix(); // an `else` on the next line continues the expression
         self.expect_desc(Kind::KwElse, "`else` after then")?;
         self.skip_newlines_after_operator();
+        self.return_ok = true;
         let b = self.expr(0)?;
         let mut n = Node::new(Head::Then, t.pos, vec![cond, a, b]);
         self.span(&mut n, start);
@@ -275,7 +299,11 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn prefix(&mut self) -> PResult<Node> {
+    /// An operand: a literal, a name, a bracketed or block form, or a
+    /// prefix operator with its operand. `min_bp` is the binding power of
+    /// the operator it belongs to, 0 when it is a whole expression.
+    fn prefix(&mut self, min_bp: u32) -> PResult<Node> {
+        let return_ok = std::mem::take(&mut self.return_ok);
         let t = self.peek();
         let leaf = |head, lit| Ok(Node::leaf(head, t.pos, lit));
         match t.kind {
@@ -314,9 +342,12 @@ impl<'a> Parser<'a> {
             Kind::Tag => self.tag_expr(),
             Kind::KwFn => {
                 self.next();
-                self.fn_def(t, String::new())
+                self.fn_def(t, String::new(), t.pos)
             }
-            Kind::KwReturn => self.return_expr(t),
+            Kind::KwReturn if return_ok => self.return_expr(t),
+            Kind::KwReturn => Err(Box::new(
+                crate::diag::error("E0132", t.pos, Vec::new()).span(6),
+            )),
             Kind::Float => {
                 self.next();
                 leaf(Head::Float, Lit::Float(t.float))
@@ -331,7 +362,7 @@ impl<'a> Parser<'a> {
             }
             Kind::Name => {
                 if self.kind_from(self.i + 1) == Kind::FatArrow && self.bare_lambda_ok() {
-                    return self.lambda();
+                    return self.lambda_here(min_bp);
                 }
                 self.next();
                 leaf(Head::Name, Lit::Str(t.text.clone()))
@@ -350,7 +381,7 @@ impl<'a> Parser<'a> {
             }
             Kind::LParen => {
                 if self.lambda_params_ahead() && self.bare_lambda_ok() {
-                    return self.lambda();
+                    return self.lambda_here(min_bp);
                 }
                 self.paren_or_tuple()
             }
@@ -358,7 +389,20 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// `return` with an optional value; t is the `return` token.
+    /// A lambda where an operand starts: only a whole expression may be
+    /// one, since its body reads as far as it can (FE41).
+    fn lambda_here(&mut self, min_bp: u32) -> PResult<Node> {
+        if min_bp > 0 {
+            let t = self.peek();
+            let mut e = err("E0110", t.pos, vec![s("lambda")]);
+            e.help = Some("put the lambda in parentheses: `(x => …)`".into());
+            return Err(e);
+        }
+        self.lambda()
+    }
+
+    /// `return` with an optional value; t is the `return` token. Without
+    /// a value it is followed by what ends a statement or a branch (FE51).
     fn return_expr(&mut self, t: &'a Token) -> PResult<Node> {
         self.next();
         let value = match self.peek().kind {
@@ -366,6 +410,8 @@ impl<'a> Parser<'a> {
             | Kind::Semi
             | Kind::DoubleSemi
             | Kind::RParen
+            | Kind::RBracket
+            | Kind::RBrace
             | Kind::KwElse
             | Kind::Eof
             | Kind::Comma => Node::new(Head::Nil, t.pos, Vec::new()),
@@ -381,9 +427,15 @@ impl<'a> Parser<'a> {
         // It folds only as the minus's whole operand: `-a ** b` is
         // `-(a ** b)` and a postfix binds to the magnitude, which is out
         // of range there (FE9).
-        let nt = &self.toks[self.i + 1];
+        // a line ending in the minus continues (FE61)
+        let mut j = self.i + 1;
+        while self.toks[j].kind == Kind::Newline {
+            j += 1;
+        }
+        let nt = &self.toks[j];
         if nt.kind == Kind::Int && is_min_int_magnitude(nt) {
             self.next();
+            self.skip_newlines_after_operator();
             self.next();
             let after = self.peek_infix().kind;
             if matches!(
@@ -395,7 +447,16 @@ impl<'a> Parser<'a> {
                     | Kind::Bang
                     | Kind::Question
             ) {
-                return Err(err("E0102", nt.pos, vec![s(nt.text.clone())]));
+                let mut e = Box::new(
+                    crate::diag::error("E0135", nt.pos, vec![s(nt.text.clone())])
+                        .span(nt.text.len()),
+                );
+                e.help = Some(format!(
+                    "{}; here the minus applies to what follows the number, so put the negative number in parentheses: `(-{})`",
+                    crate::lexer::INT_RANGE,
+                    nt.text
+                ));
+                return Err(e);
             }
             return Ok(Node::leaf(Head::Int, t.pos, Lit::Int(i64::MIN)));
         }
@@ -417,8 +478,9 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses `(args)` into node's kids: positional, `_` holes (partial
-    /// application, 03), then named arguments. Inside the parentheses
-    /// newlines are whitespace and a trailing comma is allowed.
+    /// application, 03), a spread `...xs` as the last positional (D45),
+    /// then named arguments. Inside the parentheses newlines are
+    /// whitespace and a trailing comma is allowed.
     pub(super) fn call_args(&mut self, node: Node) -> PResult<Node> {
         let open = self.next().pos; // (
         self.nest += 1;
@@ -429,6 +491,7 @@ impl<'a> Parser<'a> {
 
     fn call_args_inner(&mut self, mut node: Node, open: Pos) -> PResult<Node> {
         let mut saw_named = false;
+        let mut saw_spread = false;
         let mut names: HashSet<&str> = HashSet::new();
         while !self.at(Kind::RParen) {
             if self.at(Kind::Name) && self.kind_from(self.i + 1) == Kind::Colon {
@@ -454,6 +517,19 @@ impl<'a> Parser<'a> {
                 // Positional arguments come first (03).
                 let pos = self.peek().pos;
                 return Err(err("E0126", pos, Vec::new()));
+            } else if saw_spread {
+                // A spread is the last positional argument (D45).
+                let pos = self.peek().pos;
+                return Err(err(
+                    "E0133",
+                    pos,
+                    vec![s("before another positional argument")],
+                ));
+            } else if self.at(Kind::Ellipsis) {
+                let pos = self.next().pos;
+                let e = self.expr(0)?;
+                node.kids.push(Node::new(Head::Spread, pos, vec![e]));
+                saw_spread = true;
             } else if self.at_hole() {
                 let pos = self.next().pos;
                 node.kids.push(Node::new(Head::Hole, pos, Vec::new()));
@@ -505,7 +581,6 @@ impl<'a> Parser<'a> {
                 ));
             }
             let e = sub.expr(0)?;
-            sub.skip_seps();
             if !sub.at(Kind::Eof) {
                 return Err(sub.unexpected());
             }

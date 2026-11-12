@@ -1,0 +1,16 @@
+# What D38 does not count as unused: names starting with `_`, a
+# parameter only a later default reads, a top-level fn, and the names an
+# imported module publishes (`_lib/greet.fung`'s `version`).
+import "./_lib/greet" (greet)
+
+_kept = 1
+fn helper() = 1
+fn f(a, b = a) = b
+fn g(_x) = 2
+(left, _right) = (1, 2)
+print(f(1), g(3), left, greet("x"))
+print(for _i in [1, 2]: 0 ;;)
+print(map([1], _ => 0))
+# expect: 1 2 1 hi, x
+# expect: [0, 0]
+# expect: [0]

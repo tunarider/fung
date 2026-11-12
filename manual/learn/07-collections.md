@@ -36,7 +36,7 @@ lede: 서버 목록, 설정 한 벌, 이름과 상태의 짝. 값 여러 개를 
 
 ```fung run
 servers = ["web-1", "web-2", "db-1", "cache-1"]
-print(len(servers), servers[0], servers[-1])
+print(len(servers), servers[0], servers[len(servers) - 1])
 print(servers[1..3], servers[..2], servers[2..])
 print(first(servers), last(servers), first([]))
 ```
@@ -228,7 +228,7 @@ JSON이나 설정에서 온 맵의 키는 있을 수도 없을 수도 있다. `c
 
 :::box mistake 튜플을 인덱스로 읽기 (E0509)
 
-`pair[0]`은 `cannot index a value of type tuple` 에러다. 튜플은 `(a, b) = pair`처럼 풀어서 받는다. 원소가 많아져 순서를 헷갈릴 정도면 튜플 대신 이름 붙은 키가 있는 맵을 쓴다.
+`pair[0]`은 `cannot index tuple with int` 에러다. 튜플은 `(a, b) = pair`처럼 풀어서 받는다. 원소가 많아져 순서를 헷갈릴 정도면 튜플 대신 이름 붙은 키가 있는 맵을 쓴다.
 
 :::
 

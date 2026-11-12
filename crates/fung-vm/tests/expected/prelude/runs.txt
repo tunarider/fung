@@ -8,7 +8,7 @@
 ==== "print(map(1, x => x))"
 -- stdout
 -- stderr
-| error[E0506]: cannot map over int
+| error[E0506]: cannot iterate over int
 |   --> -e:1:10
 |   |
 | 1 | print(map(1, x => x))
@@ -32,7 +32,7 @@
 ==== "print(map(1, 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot map over int
+| error[E0506]: cannot iterate over int
 |   --> -e:1:10
 |   |
 | 1 | print(map(1, 1))
@@ -67,19 +67,19 @@
 |    -e:1       f
 |    -e:2       <entry>
 -- exit: 1
-==== "print(map([1, 2], (a, b) => a))"
+==== "print(map([1, 2], (a, b) => a + b))"
 -- stdout
 -- stderr
 | error[E0407]: missing argument `b`
 |   --> -e:1:10
 |   |
-| 1 | print(map([1, 2], (a, b) => a))
+| 1 | print(map([1, 2], (a, b) => a + b))
 |   |          ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, x) => a), fold(5..5, 0, (a, x) => a + 1))"
+==== "print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, _x) => a), fold(5..5, 0, (a, _x) => a + 1))"
 -- stdout
 | 10 7 0
 -- stderr
@@ -135,30 +135,30 @@
 |    -e:1       <lambda>
 |    -e:1       <entry>
 -- exit: 1
-==== "print(filter([1, 2, 3, 4], x => x > 2), filter(0..10, x => x % 3 == 0), filter([], x => 1))"
+==== "print(filter([1, 2, 3, 4], x => x > 2), filter(0..10, x => x % 3 == 0), filter([], _x => 1))"
 -- stdout
 | [3, 4] [0, 3, 6, 9] []
 -- stderr
 -- exit: 0
-==== "print(filter([1], x => 1))"
+==== "print(filter([1], _x => 1))"
 -- stdout
 -- stderr
 | error[E0505]: expected bool, got int
 |   --> -e:1:13
 |   |
-| 1 | print(filter([1], x => 1))
+| 1 | print(filter([1], _x => 1))
 |   |             ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(filter(\"ab\", x => true))"
+==== "print(filter(\"ab\", _x => true))"
 -- stdout
 -- stderr
 | error[E0506]: cannot filter str
 |   --> -e:1:13
 |   |
-| 1 | print(filter("ab", x => true))
+| 1 | print(filter("ab", _x => true))
 |   |             ^
 |   |
 |  call path (innermost first):
@@ -188,7 +188,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(each([1, 2], x => print(x)), each(0..0, x => fail(\"no\")))"
+==== "print(each([1, 2], x => print(x)), each(0..0, _x => fail(\"no\")))"
 -- stdout
 | 1
 | 2
@@ -326,18 +326,18 @@
 |    -e:1       <lambda>
 |    -e:1       <entry>
 -- exit: 1
-==== "print(find([1, 2, 3], x => x > 1), find([], x => true), find(0..10, x => x * x > 10))"
+==== "print(find([1, 2, 3], x => x > 1), find([], _x => true), find(0..10, x => x * x > 10))"
 -- stdout
 | 2 nil 4
 -- stderr
 -- exit: 0
-==== "print(find([1], x => 1))"
+==== "print(find([1], _x => 1))"
 -- stdout
 -- stderr
 | error[E0505]: expected bool, got int
 |   --> -e:1:11
 |   |
-| 1 | print(find([1], x => 1))
+| 1 | print(find([1], _x => 1))
 |   |           ^
 |   |
 |  call path (innermost first):
@@ -367,7 +367,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(any([1, 2], x => x > 1), any([], x => true), all([], … (123 bytes, 4fb88a89657d06a4)
+==== "print(any([1, 2], x => x > 1), any([], _x => true), all([],… (125 bytes, 92907da77d1ebffc)
 -- stdout
 | true false true true false
 -- stderr
@@ -384,13 +384,13 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(all([1], x => nil))"
+==== "print(all([1], _x => nil))"
 -- stdout
 -- stderr
 | error[E0505]: expected bool, got nil
 |   --> -e:1:10
 |   |
-| 1 | print(all([1], x => nil))
+| 1 | print(all([1], _x => nil))
 |   |          ^
 |   |
 |  call path (innermost first):
@@ -408,11 +408,37 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(flatten([[1], 2, [], [[3]]]), flatten(0..3), flatten([]))"
+==== "print(flatten([[1], 0..2, [], [[3]]]), flatten([]))"
 -- stdout
-| [1, 2, [3]] [0, 1, 2] []
+| [1, 0, 1, [3]] []
 -- stderr
 -- exit: 0
+==== "print(flatten([[1], 2]))"
+-- stdout
+-- stderr
+| error[E0506]: cannot flatten an element of type int
+|   --> -e:1:14
+|   |
+| 1 | print(flatten([[1], 2]))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: every element of `flatten`'s list is a list or a range; put a single value in a list: `[x]`
+-- exit: 1
+==== "print(flatten(0..3))"
+-- stdout
+-- stderr
+| error[E0506]: cannot flatten an element of type int
+|   --> -e:1:14
+|   |
+| 1 | print(flatten(0..3))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: every element of `flatten`'s list is a list or a range; put a single value in a list: `[x]`
+-- exit: 1
 ==== "print(flatten(1))"
 -- stdout
 -- stderr
@@ -443,13 +469,13 @@
 |    -e:1       <entry>
 |  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
-==== "print(group_by([1], x => nil))"
+==== "print(group_by([1], _x => nil))"
 -- stdout
 -- stderr
 | error[E0514]: cannot use a value of type nil as a map key
 |   --> -e:1:15
 |   |
-| 1 | print(group_by([1], x => nil))
+| 1 | print(group_by([1], _x => nil))
 |   |               ^
 |   |
 |  call path (innermost first):
@@ -645,11 +671,38 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(join([\"a\", 1, 2.0, nil, 'x, [1, \"b\"]], \"-\"), join([]), join(0..3), join([\"a\", \"b\"]))"
+==== "print(join([\"a\", 1, 2.0, 'x, [1, \"b\"]], \"-\"), join([]), join(0..3), join([\"a\", \"b\"]))"
 -- stdout
-| a-1-2.0-nil-'x-[1, "b"]  012 ab
+| a-1-2.0-'x-[1, "b"]  012 ab
 -- stderr
 -- exit: 0
+==== "print(join([1, nil]))"
+-- stdout
+-- stderr
+| error[E0519]: `nil` in `join`: it is not put into text silently
+|   --> -e:1:11
+|   |
+| 1 | print(join([1, nil]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
+-- exit: 1
+==== "print(join([[1, Ok(2)]]))"
+-- stdout
+-- stderr
+| error[E0519]: an `Ok` value in `join`: it is not put into text silently
+|   --> -e:1:11
+|   |
+| 1 | print(join([[1, Ok(2)]]))
+|   |           ^
+|   |
+|   note: it is inside the value put into text
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
+-- exit: 1
 ==== "print(join(1, 2))"
 -- stdout
 -- stderr
@@ -679,11 +732,23 @@
 | a
 -- stderr
 -- exit: 0
-==== "print(trim(\"  a \\t\"), trim(\"xxaxx\", \"x\"), trim(\"abc… (122 bytes, edf232f0317f6413)
+==== "print(trim(\"  a \\t\"), trim(\"xxaxx\", \"x\"), trim(\"abcba\", \"ab\"), trim(\"\u{a0}a\u{3000}\"))"
 -- stdout
-| a a c a aa
+| a a c a
 -- stderr
 -- exit: 0
+==== "print(trim(\"aa\", \"\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `cut` must be a non-empty str, got ""
+|   --> -e:1:11
+|   |
+| 1 | print(trim("aa", ""))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(trim(1))"
 -- stdout
 -- stderr
@@ -737,11 +802,23 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(replace(\"a-b-c\", \"-\", \"+\"), replace(\"ab\", \"\… (132 bytes, 8acf764ba7f3ddda)
+==== "print(replace(\"a-b-c\", \"-\", \"+\"), replace(\"\", \"a\", \"x\"), replace(\"aaa\", \"aa\", \"b\"))"
 -- stdout
-| a+b+c -a-b- x ba
+| a+b+c  ba
 -- stderr
 -- exit: 0
+==== "print(replace(\"ab\", \"\", \"-\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `old` must be a non-empty str, got ""
+|   --> -e:1:14
+|   |
+| 1 | print(replace("ab", "", "-"))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(replace(\"a\", \"b\", 1))"
 -- stdout
 -- stderr
@@ -1060,7 +1137,7 @@
 -- exit: 1
 ==== "print(parse_int(\"12\"), parse_int(\"x\"), parse_int(\" 1\"… (122 bytes, 696896cff831da33)
 -- stdout
-| Ok(12) Err({kind: 'parse, message: "not an integer: \"x\""}) Err({kind: 'parse, message: "not an integer: \" 1\""}) Ok(1000) Err({kind: 'parse, message: "not an integer: \"99999999999999999999\""})
+| Ok(12) Err({kind: 'parse, message: "not an integer: \"x\""}) Err({kind: 'parse, message: "not an integer: \" 1\""}) Ok(1000) Err({kind: 'parse, message: "not an integer: \"99999999999999999999\" (an int holds -9223372036854775808 to 9223372036854775807)"})
 -- stderr
 -- exit: 0
 ==== "print(parse_int(1))"
@@ -1077,7 +1154,7 @@
 -- exit: 1
 ==== "print(parse_float(\"1.5\"), parse_float(\"x\"), parse_float(\"1e400\"), parse_float(\"nan\"))"
 -- stdout
-| Ok(1.5) Err({kind: 'parse, message: "not a number: \"x\""}) Err({kind: 'parse, message: "not a number: \"1e400\""}) Err({kind: 'parse, message: "not a number: \"nan\""})
+| Ok(1.5) Err({kind: 'parse, message: "not a number: \"x\""}) Err({kind: 'parse, message: "not a number: \"1e400\" (a float holds up to about 1.8e308)"}) Err({kind: 'parse, message: "not a number: \"nan\""})
 -- stderr
 -- exit: 0
 ==== "print(parse_float(nil))"
@@ -1286,9 +1363,7 @@
 | 1 | x = dbg(1, "t", "w")
 |   |        ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "x = dbg(3, text: \"t\", where: \"w\")"
 -- stdout
 -- stderr
@@ -1298,9 +1373,7 @@
 | 1 | x = dbg(3, text: "t", where: "w")
 |   |        ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(args)"
 -- stdout
 | []
@@ -1315,9 +1388,7 @@
 | 1 | print(len(1, 2))
 |   |          ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(map(xs: [1], f: x => x + 1))"
 -- stdout
 | [2]
@@ -1332,9 +1403,7 @@
 | 1 | print(map([1], g: 1))
 |   |          ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(fold([1, 2], 0))"
 -- stdout
 -- stderr
@@ -1344,9 +1413,7 @@
 | 1 | print(fold([1, 2], 0))
 |   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(join([\"a\"], \"-\", \"x\"))"
 -- stdout
 -- stderr
@@ -1356,9 +1423,7 @@
 | 1 | print(join(["a"], "-", "x"))
 |   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(map, fold, print)"
 -- stdout
 | <fn map> <fn fold> <fn print>
@@ -1437,7 +1502,7 @@
 | [1, 3] 1 true
 -- stderr
 -- exit: 0
-==== "print(map(0..=2, x => x), filter(0..=2, x => true), fold(-2..=2, 0, (a, x) => a + x))"
+==== "print(map(0..=2, x => x), filter(0..=2, _x => true), fold(-2..=2, 0, (a, x) => a + x))"
 -- stdout
 | [0, 1, 2] [0, 1, 2] 0
 -- stderr
@@ -1695,7 +1760,7 @@
 |  call path (innermost first):
 |    -e:1       <lambda>
 |    -e:1       <lambda>
-|    -e:1       a (1 tail calls elided)
+|    -e:1       a (1 tail call elided)
 |    -e:3       <entry>
 -- exit: 1
 ==== "fn g(x) = x / 0\nprint(map([1], x => g(x)))"
@@ -1708,7 +1773,7 @@
 |   |             ^
 |   |
 |  call path (innermost first):
-|    -e:1       g (1 tail calls elided)
+|    -e:1       g (1 tail call elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(len(map(0..200000, x => x)))"
@@ -1739,17 +1804,17 @@
 |    -e:2       <entry>
 |  help: make the recursion a tail call or use `fold`
 -- exit: 1
-==== "fn r(n) = n == 0 then 0 else fold([n], 0, (a, x) => r(x - 1))\nprint(r(60000))"
+==== "fn r(n) = n == 0 then 0 else fold([n], 0, (_a, x) => r(x - 1))\nprint(r(60000))"
 -- stdout
 | 0
 -- stderr
 -- exit: 0
-==== "fn r(n) = n == 0 then 0 else fold([n], 0, (a, x) => r(x - 1))\nprint(r(30000))"
+==== "fn r(n) = n == 0 then 0 else fold([n], 0, (_a, x) => r(x - 1))\nprint(r(30000))"
 -- stdout
 | 0
 -- stderr
 -- exit: 0
-==== "print(group_by(0..6, x => x % 2 == 0 then \"even\" else \"odd\"), pairs(group_by([], x => \"a\")))"
+==== "print(group_by(0..6, x => x % 2 == 0 then \"even\" else \"odd\"), pairs(group_by([], _x => \"a\")))"
 -- stdout
 | {even: [0, 2, 4], odd: [1, 3, 5]} []
 -- stderr
@@ -1798,7 +1863,7 @@
 ==== "sum([1, \"a\"])"
 -- stdout
 -- stderr
-| error[E0501]: cannot add int and str
+| error[E0506]: cannot sum str
 |   --> -e:1:4
 |   |
 | 1 | sum([1, "a"])
@@ -1806,12 +1871,12 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
-|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
+|  help: `sum` adds numbers and durations; join text with `join`, lists with `flatten`
 -- exit: 1
 ==== "map([[1, \"a\"]], sum)"
 -- stdout
 -- stderr
-| error[E0501]: cannot add int and str
+| error[E0506]: cannot sum str
 |   --> -e:1:4
 |   |
 | 1 | map([[1, "a"]], sum)
@@ -1819,7 +1884,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
-|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
+|  help: `sum` adds numbers and durations; join text with `join`, lists with `flatten`
 -- exit: 1
 ==== "pad_left(\"a\", 3, \"\")"
 -- stdout
@@ -1845,13 +1910,13 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "until(1, x => x + \"a\", x => false)"
+==== "until(1, x => x + \"a\", _x => false)"
 -- stdout
 -- stderr
 | error[E0501]: cannot add int and str
 |   --> -e:1:17
 |   |
-| 1 | until(1, x => x + "a", x => false)
+| 1 | until(1, x => x + "a", _x => false)
 |   |                 ^
 |   |
 |  call path (innermost first):
@@ -1912,7 +1977,7 @@
 ==== "print(sum([nil]))"
 -- stdout
 -- stderr
-| error[E0501]: cannot add nil and nil
+| error[E0506]: cannot sum nil
 |   --> -e:1:10
 |   |
 | 1 | print(sum([nil]))
@@ -1920,11 +1985,12 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
+|  help: `sum` adds numbers and durations; join text with `join`, lists with `flatten`
 -- exit: 1
 ==== "print(sum([true]))"
 -- stdout
 -- stderr
-| error[E0501]: cannot add bool and bool
+| error[E0506]: cannot sum bool
 |   --> -e:1:10
 |   |
 | 1 | print(sum([true]))
@@ -1932,6 +1998,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
+|  help: `sum` adds numbers and durations; join text with `join`, lists with `flatten`
 -- exit: 1
 ==== "print(max([nil]))"
 -- stdout
@@ -1981,13 +2048,13 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(sort_by([1], x => nil))"
+==== "print(sort_by([1], _x => nil))"
 -- stdout
 -- stderr
 | error[E0501]: cannot compare nil and nil
 |   --> -e:1:14
 |   |
-| 1 | print(sort_by([1], x => nil))
+| 1 | print(sort_by([1], _x => nil))
 |   |              ^
 |   |
 |  call path (innermost first):
@@ -2076,7 +2143,7 @@
 ==== "import time\nprint(sum([time.now()]))"
 -- stdout
 -- stderr
-| error[E0501]: cannot add time and time
+| error[E0506]: cannot sum time
 |   --> -e:2:10
 |   |
 | 2 | print(sum([time.now()]))
@@ -2084,6 +2151,7 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+|  help: `sum` adds numbers and durations; join text with `join`, lists with `flatten`
 -- exit: 1
 ==== "import conc\nprint(conc.retry(() => 1 / 0))"
 -- stdout
@@ -2229,9 +2297,7 @@
 | 1 | print(env())
 |   |          ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(range(3))"
 -- stdout
 -- stderr
@@ -2251,9 +2317,7 @@
 | 1 | print(read_line(f: nil))
 |   |                ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(atom(v: 1))"
 -- stdout
 -- stderr
@@ -2263,9 +2327,7 @@
 | 1 | print(atom(v: 1))
 |   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "(tx, rx) = channel(1)\nsend(tx, x: 1)\nprint(recv(rx))"
 -- stdout
 | Ok(1)
@@ -2280,14 +2342,24 @@
 | 1 | print(take([1]))
 |   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
-==== "import conc\nprint(conc.retry(() => Ok(1)), conc.retry(() =… (138 bytes, 1195aad07448a66d)
+-- exit: 2
+==== "import conc\nprint(conc.retry(() => Ok(1)), conc.retry(() =… (142 bytes, ab4bf80a56fb6802)
 -- stdout
-| Ok(1) 2 64 4
+| Ok(1) Ok(2) 64 4
 -- stderr
 -- exit: 0
+==== "import conc\nprint(conc.retry(() => 2, times: 1))"
+-- stdout
+-- stderr
+| error[E0605]: `conc.retry` on a value of type int, which is not a result (Ok(x) or Err(e))
+|   --> -e:2:17
+|   |
+| 2 | print(conc.retry(() => 2, times: 1))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
 ==== "print(is_ok(Ok(1)), is_err(Err(1)), first([]), last(0..3), zip([1], [2, 3]), unique([1, 1]), contains(\"abc\", \"b\"))"
 -- stdout
 | true true nil 2 [(1, 2)] [1] true
@@ -2302,9 +2374,7 @@
 | 1 | spawn()
 |   |      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "spawn(1, 2)"
 -- stdout
 -- stderr
@@ -2326,9 +2396,7 @@
 | 1 | channel(1, 2)
 |   |        ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "await(t: 1, x: 2)"
 -- stdout
 -- stderr
@@ -2338,9 +2406,7 @@
 | 1 | await(t: 1, x: 2)
 |   |      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "recv()"
 -- stdout
 -- stderr
@@ -2350,9 +2416,7 @@
 | 1 | recv()
 |   |     ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "swap(1)"
 -- stdout
 -- stderr
@@ -2362,9 +2426,7 @@
 | 1 | swap(1)
 |   |     ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "sleep(d: 1ms, d: 2ms)"
 -- stdout
 -- stderr
@@ -2417,9 +2479,9 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "t = scope(s => spawn(s, () => 1))\nprint(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"
+==== "t = scope(s => spawn(s, () => 1))!\nprint(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"
 -- stdout
-| <task> [<task>] true 'task 1 1 nil
+| <task> [<task>] true 'task Ok(1) Ok(1) nil
 -- stderr
 -- exit: 0
 ==== "scope(s => print(spawn(s, () => 1) == spawn(s, () => 1)))"
@@ -2427,7 +2489,7 @@
 | false
 -- stderr
 -- exit: 0
-==== "supervise(s => print(await(spawn(s, () => 1 / 0)), await(spawn(s, () => [1][5]))), e => nil)"
+==== "supervise(s => print(await(spawn(s, () => 1 / 0)), await(spawn(s, () => [1][5]))), _e => nil)"
 -- stdout
 | Err({kind: 'error, code: "E0502", message: "division by zero", at: "-e:1"}) Err({kind: 'error, code: "E0507", message: "index 5 is out of range (length 1)", at: "-e:1"})
 -- stderr
@@ -2437,7 +2499,7 @@
 | Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
 -- exit: 0
-==== "t = scope(s => spawn(s, () => 1))\nt < t"
+==== "t = scope(s => spawn(s, () => 1))!\nt < t"
 -- stdout
 -- stderr
 | error[E0501]: cannot compare task and task
@@ -2488,12 +2550,12 @@
 | Err("x")
 -- stderr
 -- exit: 0
-==== "print(spawn, type_of(await), channel == channel)"
+==== "print(spawn, type_of(await), channel != nil)"
 -- stdout
 | <fn spawn> 'fn true
 -- stderr
 -- exit: 0
-==== "(t, c) = channel()\n(_t2, c2) = channel()\nprint(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != 1)"
+==== "(t, c) = channel()\n(_t2, c2) = channel()\nprint(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != nil)"
 -- stdout
 | <sender> <receiver> [<receiver>] 'sender 'receiver true false true
 -- stderr
@@ -2537,7 +2599,7 @@
 ==== "(_tx, rx) = channel(1)\nrx[0]"
 -- stdout
 -- stderr
-| error[E0509]: cannot index a value of type receiver
+| error[E0509]: cannot index receiver with int
 |   --> -e:2:3
 |   |
 | 2 | rx[0]
@@ -2625,17 +2687,17 @@
 -- exit: 1
 ==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (226 bytes, f89af6beb2cc101f)
 -- stdout
-| Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Ok(nil) Err({kind: 'timeout, message: "timed out after 1ms"}) Err({kind: 'timeout, message: "timed out after 0s"})
+| Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Err({kind: 'timeout, message: "timed out after 1ms"}) Err({kind: 'timeout, message: "timed out after 0s"})
 -- stderr
 -- exit: 0
 ==== "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => se… (136 bytes, 170d3b82b0a82afa)
 -- stdout
-| Err({kind: 'timeout, message: "timed out after 10ms"}) Ok(1) Ok(nil)
+| Err({kind: 'timeout, message: "timed out after 10ms"}) Ok(1) Ok(Ok(nil))
 -- stderr
 -- exit: 0
 ==== "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => … (129 bytes, 225068134b6e5134)
 -- stdout
-| Ok(nil) Ok(1)
+| Ok(nil) Ok(Ok(1))
 -- stderr
 -- exit: 0
 ==== "(tx, rx) = channel(1)\nscope(fn(s):\n  spawn(s, fn(): each(… (144 bytes, f65c04262e6033a7)
@@ -2643,7 +2705,7 @@
 | 1225
 -- stderr
 -- exit: 0
-==== "(t, c) = channel()\nclose(t)\nprint(any(c, x => true), all(… (266 bytes, 7407e1c1bd5ecaa2)
+==== "(t, c) = channel()\nclose(t)\nprint(any(c, _x => true), all… (272 bytes, 50560e5f533a8930)
 -- stdout
 | false true {} [] [] 1 nil nil nil []  [] nil []
 -- stderr
@@ -2695,12 +2757,12 @@
 | Ok({out: "", err: "", code: 0, signal: nil}) Ok({out: "", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
-==== "print(exec([\"sh\", \"-c\", \"echo $A$B\"], env: {\"B\": \"2\", \"A\": \"1\"}))"
+==== "print(exec([\"sh\", \"-c\", `echo $A$B`], env: {\"B\": \"2\", \"A\": \"1\"}))"
 -- stdout
 | Ok({out: "12\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
-==== "print(exec([\"sh\", \"-c\", \"echo \\\"$fung_x\\\"\"], env: {\"fung_x\": \"lo\"}))"
+==== "print(exec([\"sh\", \"-c\", `echo \"$fung_x\"`], env: {\"fung_x\": \"lo\"}))"
 -- stdout
 | Ok({out: "lo\n", err: "", code: 0, signal: nil})
 -- stderr
@@ -2712,29 +2774,29 @@
 |
 -- stderr
 -- exit: 0
-==== "print(sh(\"echo $PWD\", cwd: \"/tmp\"), sh(\"echo $PWD\", cwd: \"/usr/../tmp/\"))"
+==== "print(sh(`echo $PWD`, cwd: \"/tmp\"), sh(`echo $PWD`, cwd: \"/usr/../tmp/\"))"
 -- stdout
 | Ok({out: "/tmp\n", err: "", code: 0, signal: nil}) Ok({out: "/tmp\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
-==== "print(sh(\"echo $PWD\", cwd: \"/tmp\", env: {\"X\": \"1\"}))"
+==== "print(sh(`echo $PWD`, cwd: \"/tmp\", env: {\"X\": \"1\"}))"
 -- stdout
 | Ok({out: "/tmp\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
-==== "print(sh(\"echo $PWD\", cwd: \"\"))"
+==== "print(sh(`echo $PWD`, cwd: \"\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `cwd` must be a non-empty str, got ""
 |   --> -e:1:9
 |   |
-| 1 | print(sh("echo $PWD", cwd: ""))
+| 1 | print(sh(`echo $PWD`, cwd: ""))
 |   |         ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(sh(\"echo \\\"$X\\\"\", env: {\"X\": \"a b=c\"}))"
+==== "print(sh(`echo \"$X\"`, env: {\"X\": \"a b=c\"}))"
 -- stdout
 | Ok({out: "a b=c\n", err: "", code: 0, signal: nil})
 -- stderr
@@ -2746,7 +2808,7 @@
 -- exit: 0
 ==== "print(exec([\"/nonexistent/x\"]), exec([\"/etc\"]), exec([\"\"]))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `/nonexistent/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `/etc`: permission denied"}) Err({kind: 'not_found, message: "cannot run ``: empty command name"})
+| Err({kind: 'not_found, message: "cannot run `/nonexistent/x`: no such file or directory"}) Err({kind: 'permission, message: "cannot run `/etc`: permission denied"}) Err({kind: 'invalid, message: "cannot run ``: empty command name"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"ls\"], cwd: \"/nonexistent\"), exec([\"ls\"], cwd: \"/etc/hosts\"))"
@@ -2756,17 +2818,17 @@
 -- exit: 0
 ==== "print(exec([\"sh\", \"-c\", \"echo\\u{0}\"]), exec([\"/bin/ls\\u{0}\"]), exec([\"x\\u{0}y\"]))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `sh`: argument contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `/bin/ls\u{0}`: argument contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `x\u{0}y`: argument contains a NUL byte"})
+| Err({kind: 'invalid, message: "cannot run `sh`: argument contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `/bin/ls\u{0}`: argument contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `x\u{0}y`: argument contains a NUL byte"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"sh\"], env: {\"A\\u{0}\": \"x\"}), exec([\"sh… (127 bytes, 8f8fd505d1ab49ac)
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `ls`: working directory contains a NUL byte"})
+| Err({kind: 'invalid, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `ls`: working directory contains a NUL byte"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"ls\"], cwd: \"/\\u{0}\", env: {}))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `ls`: working directory contains a NUL byte"})
+| Err({kind: 'invalid, message: "cannot run `ls`: working directory contains a NUL byte"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"./definitely-not-here\"]), exec([\"sh/\"]))"
@@ -2774,13 +2836,13 @@
 | Err({kind: 'not_found, message: "cannot run `./definitely-not-here`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `sh/`: no such file or directory"})
 -- stderr
 -- exit: 0
-==== "print(exec([\"sh\", \"-c\", \"echo $FOO\"], env: {\"FOO\": 1}))"
+==== "print(exec([\"sh\", \"-c\", `echo $FOO`], env: {\"FOO\": 1}))"
 -- stdout
 -- stderr
 | error[E0403]: argument `env` must be a map of variable names (not empty, no `=`) to strings, got a map holding int
 |   --> -e:1:11
 |   |
-| 1 | print(exec(["sh", "-c", "echo $FOO"], env: {"FOO": 1}))
+| 1 | print(exec(["sh", "-c", `echo $FOO`], env: {"FOO": 1}))
 |   |           ^
 |   |
 |  call path (innermost first):
@@ -2891,9 +2953,7 @@
 | 1 | print(exec())
 |   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(exec([\"true\"], shell: 1))"
 -- stdout
 -- stderr
@@ -2903,9 +2963,7 @@
 | 1 | print(exec(["true"], shell: 1))
 |   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(env(1))"
 -- stdout
 -- stderr
@@ -2918,11 +2976,47 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(env(\"FUNG_TEST_UNSET_VAR\"), env(\"\"), env(\"A=B\"), type_of(env_all()), env(\"HOME\") == env_all()[\"HOME\"])"
+==== "print(env(\"FUNG_TEST_UNSET_VAR\"), type_of(env_all()), env(\"HOME\") == env_all()[\"HOME\"])"
 -- stdout
-| nil nil nil 'map true
+| nil 'map true
 -- stderr
 -- exit: 0
+==== "print(env(\"\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `name` must be a variable name (not empty, no `=` or NUL), got ""
+|   --> -e:1:10
+|   |
+| 1 | print(env(""))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(env(\"A=B\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `name` must be a variable name (not empty, no `=` or NUL), got "A=B"
+|   --> -e:1:10
+|   |
+| 1 | print(env("A=B"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(env(\"A\\u{0}\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `name` must be a variable name (not empty, no `=` or NUL), got "A\u{0}"
+|   --> -e:1:10
+|   |
+| 1 | print(env("A\u{0}"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(sh(\"printf 'a\\\\nb\\\\n'\")!.out |> lines, sh(\"printf ok\")!.out |> len)"
 -- stdout
 | ["a", "b"] 2
@@ -3092,10 +3186,10 @@
 | Ok(nil) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"})
 -- stderr
 -- exit: 0
-==== "import fs\nprint(fs.open(\"/nonexistent-fung-test/x\"), fs.… (277 bytes, df1bcce60304e0f1)
+==== "import fs\nprint(fs.open(\"/nonexistent-fung-test/x\"), fs.… (278 bytes, 061adee0e78b36a2)
 -- stdout
 | Err({kind: 'not_found, message: "cannot open `/nonexistent-fung-test/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot open `/nonexistent-fung-test/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot read `/nonexistent-fung-test/x`: no such file or directory"})
-| Ok("[package]") Ok(nil)
+| Ok(Ok("[package]")) Ok(Ok(nil))
 -- stderr
 -- exit: 0
 ==== "import fs\nprint(fs.read(1))"
@@ -3143,9 +3237,7 @@
 | 2 | print(fs.stat())
 |   |              ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.exists(\"x\", \"y\"))"
 -- stdout
 -- stderr
@@ -3155,9 +3247,7 @@
 | 2 | print(fs.exists("x", "y"))
 |   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.mkdir(path: 1))"
 -- stdout
 -- stderr
@@ -3203,9 +3293,7 @@
 | 2 | print(fs.walk())
 |   |              ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.walk(dir: 1))"
 -- stdout
 -- stderr
@@ -3287,20 +3375,18 @@
 | 2 | print(fs.open("/dev/null", 'read, nil, 1))
 |   |              ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
-==== "import fs\nprint(close(1))"
+-- exit: 2
+==== "print(close(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `x` must be sender | file, got int
-|   --> -e:2:12
+|   --> -e:1:12
 |   |
-| 2 | print(close(1))
+| 1 | print(close(1))
 |   |            ^
 |   |
 |  call path (innermost first):
-|    -e:2       <entry>
+|    -e:1       <entry>
 -- exit: 1
 ==== "import fs\nprint(close())"
 -- stdout
@@ -3311,9 +3397,7 @@
 | 2 | print(close())
 |   |            ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.write_line(\"x\", \"y\"))"
 -- stdout
 -- stderr
@@ -3699,13 +3783,13 @@
 |    -e:1       <entry>
 |  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
-==== "print(group_by([1], x => 'odd))"
+==== "print(group_by([1], _x => 'odd))"
 -- stdout
 -- stderr
 | error[E0514]: cannot use a value of type sym as a map key
 |   --> -e:1:15
 |   |
-| 1 | print(group_by([1], x => 'odd))
+| 1 | print(group_by([1], _x => 'odd))
 |   |               ^
 |   |
 |  call path (innermost first):
@@ -3797,7 +3881,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(find(0..100000000000000000, x => true))"
+==== "print(find(0..100000000000000000, _x => true))"
 -- stdout
 | 0
 -- stderr
@@ -3814,23 +3898,23 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(any(0..100000000000000000, x => true))"
+==== "print(any(0..100000000000000000, _x => true))"
 -- stdout
 | true
 -- stderr
 -- exit: 0
-==== "print(all(0..100000000000000000, x => false))"
+==== "print(all(0..100000000000000000, _x => false))"
 -- stdout
 | false
 -- stderr
 -- exit: 0
-==== "print(group_by(0..100000000000000000, x => 1))"
+==== "print(group_by(0..100000000000000000, _x => 1))"
 -- stdout
 -- stderr
 | error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:15
 |   |
-| 1 | print(group_by(0..100000000000000000, x => 1))
+| 1 | print(group_by(0..100000000000000000, _x => 1))
 |   |               ^
 |   |
 |  call path (innermost first):
@@ -3968,7 +4052,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(find(0..1000000000000000000, x => true))"
+==== "print(find(0..1000000000000000000, _x => true))"
 -- stdout
 | 0
 -- stderr
@@ -3985,23 +4069,23 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(any(0..1000000000000000000, x => true))"
+==== "print(any(0..1000000000000000000, _x => true))"
 -- stdout
 | true
 -- stderr
 -- exit: 0
-==== "print(all(0..1000000000000000000, x => false))"
+==== "print(all(0..1000000000000000000, _x => false))"
 -- stdout
 | false
 -- stderr
 -- exit: 0
-==== "print(group_by(0..1000000000000000000, x => 1))"
+==== "print(group_by(0..1000000000000000000, _x => 1))"
 -- stdout
 -- stderr
 | error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:15
 |   |
-| 1 | print(group_by(0..1000000000000000000, x => 1))
+| 1 | print(group_by(0..1000000000000000000, _x => 1))
 |   |               ^
 |   |
 |  call path (innermost first):

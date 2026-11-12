@@ -49,15 +49,15 @@ fn odd_files() -> Vec<(&'static str, &'static [u8])> {
             b"import \"./badmod\"\nprint(badmod.x)\n",
         ),
         // A module stem that is no name (So, Nl: UAX #31).
-        ("mⓐ.fung", b"v = 1\n"),
+        ("mⓐ.fung", "fn v() = 1\n".as_bytes()),
         (
             "uses_odd_stem.fung",
             "import \"./mⓐ\"\nprint(1)\n".as_bytes(),
         ),
-        ("mⅻ.fung", b"v = 1\n"),
+        ("mⅻ.fung", "fn v() = 1\n".as_bytes()),
         (
             "uses_numeral_stem.fung",
-            "import \"./mⅻ\"\nprint(1)\n".as_bytes(),
+            "import \"./mⅻ\"\nprint(mⅻ.v())\n".as_bytes(),
         ),
         // Format (Cf) characters print as escapes, U+13440 does not.
         (
@@ -89,14 +89,14 @@ fn deep_shapes() -> Vec<String> {
         format!("type t = {nested_type}"),
         else_if,
         nested_fn,
-        format!("x = {{a: 1}}\ny = x{}", ".a".repeat(n)),
-        format!("fn f() = f\ny = f{}", "()".repeat(n)),
-        format!("xs = [1]\ny = xs{}", "[0]".repeat(n)),
-        format!("y = 1{}", " + 1".repeat(50_000)),
-        format!("fn f(x) = x\ny = 1{}", " |> f".repeat(50_000)),
-        format!("y = true{}", " and true".repeat(50_000)),
-        format!("y = {}1{}", "[".repeat(n), "]".repeat(n)),
-        format!("y = {}1", "-".repeat(n)),
+        format!("x = {{a: 1}}\n_y = x{}", ".a".repeat(n)),
+        format!("fn f() = f\n_y = f{}", "()".repeat(n)),
+        format!("xs = [1]\n_y = xs{}", "[0]".repeat(n)),
+        format!("_y = 1{}", " + 1".repeat(50_000)),
+        format!("fn f(x) = x\n_y = 1{}", " |> f".repeat(50_000)),
+        format!("_y = true{}", " and true".repeat(50_000)),
+        format!("_y = {}1{}", "[".repeat(n), "]".repeat(n)),
+        format!("_y = {}1", "-".repeat(n)),
     ]
 }
 
@@ -105,21 +105,21 @@ fn deep_shapes() -> Vec<String> {
 fn long_chains() -> Vec<String> {
     let n = 200_000;
     vec![
-        format!("y = 1{}", " + 1".repeat(n)),
-        format!("x = {{b: 1}}\ny = x{}", ".b".repeat(n)),
-        format!("y = nope{}", ".b".repeat(n)),
-        format!("fn f() = f\ny = f{}", "()".repeat(n)),
-        format!("y = nope{}", "()".repeat(n)),
-        format!("fn f(x) = x\ny = 1{}", " |> f".repeat(n)),
+        format!("_y = 1{}", " + 1".repeat(n)),
+        format!("x = {{b: 1}}\n_y = x{}", ".b".repeat(n)),
+        format!("_y = nope{}", ".b".repeat(n)),
+        format!("fn f() = f\n_y = f{}", "()".repeat(n)),
+        format!("_y = nope{}", "()".repeat(n)),
+        format!("fn f(x) = x\n_y = 1{}", " |> f".repeat(n)),
         // One error at the end: n undefined names would make the output
         // (an excerpt of the whole line per error) quadratic.
-        format!("fn f(x) = x\ny = 1{} |> nope", " |> f".repeat(n)),
+        format!("fn f(x) = x\n_y = 1{} |> nope", " |> f".repeat(n)),
     ]
 }
 
 /// How many dump cases there are (Review: a case must not go missing
 /// unnoticed; change it together with the cases).
-const DUMP_CASES: usize = 1184;
+const DUMP_CASES: usize = 1544;
 
 /// A dump longer than this is kept as a hash (the deep and long shapes).
 const LIMIT: usize = 64 * 1024;
@@ -182,7 +182,7 @@ fn dumps_match_the_expected_output() {
         // characters that are no name characters (UAX #31), and quoting
         // escapes what is not printable.
         vec!["dump", "ast", "-e", "x² = 1"],
-        vec!["dump", "core", "-e", "aⅫ = 1"],
+        vec!["dump", "core", "-e", "aⅫ = 1\nprint(aⅫ)"],
         vec!["dump", "ast", "-e", "Ⓐ = 1"],
         vec!["dump", "ast", "-e", "हिंदी = 1"],
         vec!["dump", "core", "-e", "ß1 = 2\nprint(ß1)"],
@@ -191,7 +191,7 @@ fn dumps_match_the_expected_output() {
         vec!["dump", "ast", "-e", "x = ٣"],
         vec!["dump", "ast", "-e", "x = \u{378}"],
         vec!["dump", "ast", "-e", "x = \"a\u{378}b\u{E000}\""],
-        vec!["dump", "bytecode", "-e", "x = \"a\u{378}b\""],
+        vec!["dump", "bytecode", "-e", "x = \"a\u{378}b\"\nprint(x)"],
         vec!["dump", "core", "-e", "fn f(x: Ⓐ) = x"],
     ] {
         cases.push(extra.into_iter().map(OsString::from).collect());

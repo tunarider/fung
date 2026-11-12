@@ -17,7 +17,7 @@ print(backoff("3"))
 
 메시지는 위에서부터 이렇게 읽는다.
 
-1. **첫 줄** `error[E0403]: …`: 에러 번호와 한 줄 설명. 번호로 이 쪽의 항목을 찾는다. 경고는 `warning[W0102]`처럼 시작한다.
+1. **첫 줄** `error[E0403]: …`: 에러 번호와 한 줄 설명. 번호로 이 쪽의 항목을 찾는다.
 2. **위치** `--> example.fung:1:12`: 파일 이름, 줄, 칸(열). 칸은 1부터 센다.
 3. **소스 발췌**: 그 줄을 그대로 보이고 아래에 `^`로 문제의 자리를 가리킨다. `^` 옆에 짧은 설명(예: `not found in this scope`)이 붙기도 한다.
 4. **호출 경로** `call path (innermost first)`: 실행 중의 에러에만 붙는다. 에러가 난 함수부터 바깥쪽으로, 누가 누구를 불렀는지 보여 준다. `<entry>`는 실행한 파일의 최상위, `<lambda>`는 이름 없는 함수다. 아주 깊은 재귀는 가운데를 `… n more`로 줄인다.
@@ -31,7 +31,7 @@ files = ["a.log", "b.log"]
 print(len(fiels))
 ```
 
-이 쪽의 에러 예는 모두 페이지를 만들 때 실제로 돌린 출력이 붙는다(출력 칸 머리의 종료 코드도 실제 값이다). `fung run`으로는 보이지 않는 경고(W01xx, `fung check`가 보여 준다)와 `fung test`·REPL에서만 나는 에러만 그 명령의 실제 출력을 옮겨 적었다. 고친 코드도 실제로 실행된다.
+이 쪽의 에러 예는 모두 페이지를 만들 때 실제로 돌린 출력이 붙는다(출력 칸 머리의 종료 코드도 실제 값이다). `fung test`·REPL에서만 나는 에러만 그 명령의 실제 출력을 옮겨 적었다. 고친 코드도 실제로 실행된다.
 
 ## 종료 코드 {#exit-codes}
 
@@ -62,7 +62,7 @@ print(len(fiels))
 
 fung이 쓰지 않는 글자가 코드에 나왔다. 문자열과 주석 밖에서는 정해진 연산자와 괄호, 이름에 쓰는 글자만 올 수 있다.
 
-흔한 원인: 다른 언어의 연산자(`@`, `&&`의 `&`, `$` 등)를 그대로 썼거나, 복사해 온 코드에 보이지 않는 특수 문자가 섞였다. 옛 Mac 줄 끝처럼 `\n` 없이 홀로 선 CR(`\r`)도 이 에러다(주석 안에서도). 에러 발췌는 그런 제어 문자를 `\r`처럼 보인다.
+흔한 원인: 다른 언어의 연산자(`@`, `&&`의 `&`, `$` 등)를 그대로 썼거나, 복사해 온 코드에 보이지 않는 특수 문자가 섞였다. 옛 Mac 줄 끝처럼 `\n` 없이 홀로 선 CR(`\r`)도 이 에러다(주석 안에서도). 양방향 제어 문자(U+202A~U+202E, U+2066~U+2069)는 주석과 문자열 안에서도 이 에러다: 글자가 읽히는 순서와 다르게 보여, 주석이나 문자열처럼 보이는 곳에 코드를 숨길 수 있기 때문이다(문자열에 필요하면 `"\u{202E}"`처럼 이스케이프로 쓴다). 에러 발췌는 그런 제어 문자를 `\r`처럼 보인다.
 
 ```fung run exit=2 error=E0101
 used = 75
@@ -82,7 +82,7 @@ print(used * 100)
 
 숫자 모양으로 시작했는데 숫자 규칙에 맞지 않는다. 숫자 바로 뒤에 글자가 붙으면 하나의 잘못된 숫자로 본다.
 
-흔한 원인: `3x`처럼 숫자와 글자를 붙여 씀, 16진수에 없는 글자(`0xfg`), 기간 단위가 아닌 글자(`30sec`; 기간 단위는 `ms`·`s`·`m`·`h`뿐이다), 소수부 없는 `1.`(정수 바로 뒤의 `.`는 소수부나 범위 `..`만 된다). 대문자 접두사·지수(`0XFF`, `1E5`; 소문자만 된다), 0이 아닌데 0.0으로 아래 넘치는 실수(`1e-400`). `1.2.3` 같은 버전 문자열은 숫자 `1.2` 뒤의 필드 접근으로 읽혀 E0112가 된다. 버전은 문자열 `"1.2.3"`으로 쓴다.
+흔한 원인: `3x`처럼 숫자와 글자를 붙여 씀, 16진수에 없는 글자(`0xfg`), 기간 단위가 아닌 글자(`30sec`; 기간 단위는 `ms`·`s`·`m`·`h`뿐이다), 소수부 없는 `1.`(정수 바로 뒤의 `.`는 소수부나 범위 `..`만 된다). 대문자 접두사·16진 숫자·지수(`0XFF`, `0xFF`, `1E5`; 소문자만 된다). 모양은 맞는데 값이 타입에 담기지 않는 수는 [E0135](#E0135)다. `1.2.3` 같은 버전 문자열은 숫자 `1.2` 뒤의 필드 접근으로 읽혀 E0112가 된다. 버전은 문자열 `"1.2.3"`으로 쓴다.
 
 ```fung run exit=2 error=E0102
 retries = 3x
@@ -173,6 +173,8 @@ print("\u{1f600}")
 
 흔한 원인: `,`를 두 번 씀, 보간 `${…}` 안의 식이 덜 끝남(``unexpected `}` ``). 괄호 안 목록에서 `,`를 빠뜨리거나 괄호를 닫지 않은 것은 [E0112](#E0112)다. 문법이 읽고 나서 금지하는 모양(같은 매개변수 두 번, 태그의 이름 인자 등)은 저마다 번호가 있다([E0118](#E0118)~[E0126](#E0126)).
 
+다른 언어의 습관이면 도움말이 fung의 쓰는 법을 알려 준다([E0134](#E0134)의 표): `a || b`는 `or`, 앞에 붙은 `!x`는 `not x`, `x += 1`·`x++`는 새 값을 다시 묶기, `(a, b) -> a + b`는 `=>`, `{ … }` 블록은 `:` … `;;`. 예약어를 이름으로 묶으면(`match = 1`) 메시지가 그 낱말을 짚는다(``unexpected reserved word `match` ``).
+
 ```fung run exit=2 error=E0110
 print(1,, 2)
 ```
@@ -217,7 +219,15 @@ x = 5
 if x > 0: print("positive") ;;
 ```
 
-`;;`를 빠뜨리면 파일 끝에서야 알아채므로, 위치가 파일의 마지막 줄 다음을 가리킨다(`expected ;; to close the if, found end of file`). 그때는 열어 둔 블록을 위로 거슬러 찾는다. 닫지 않은 괄호는 괄호 안에서 줄바꿈이 공백이라 다음 줄에서 멈추고, 어디서 열었는지 `note`가 짚는다.
+`;;`를 빠뜨리면 파일 끝에서야 알아채므로, 위치가 파일의 마지막 줄 다음을 가리킨다(`expected ;; to close the if, found end of file`). 그래서 `note`가 그 블록을 연 자리(``note: the `if` opened at 2:3``)를 짚고, 그 뒤에 블록보다 덜 들여 쓴 줄이 있으면 블록을 거기서 닫으려던 것은 아닌지 그 줄도 알려 준다. 다른 언어처럼 `end`로 닫으려 했으면 도움말이 `;;`를 알려 준다. 닫지 않은 괄호는 괄호 안에서 줄바꿈이 공백이라 다음 줄에서 멈추고, 어디서 열었는지 `note`가 짚는다.
+
+```fung run exit=2 error=E0112
+fn check(x):
+  if x > 0:
+    print("positive")
+
+check(1)
+```
 
 ```fung run exit=2 error=E0112
 ports = [80, 443
@@ -294,7 +304,7 @@ print(connect(host: "db1", port: 5432))
 
 :::error E0117
 
-태그에 빈 괄호를 붙였다. 인자 없는 태그는 심볼이므로(`Red`는 `'Red`) 괄호 없이 쓴다. `Red()`를 따로 두면 `Red`처럼 보이지만 같지 않은 값이 생기므로 막는다. 식에서도 패턴에서도 같다. 파이프의 오른쪽 `x |> Ok()`는 파이프가 인자를 채우므로(`Ok(x)`) 된다.
+태그에 빈 괄호를 붙였다. 인자 없는 태그는 심볼이므로(`Red`는 `sym("Red")`) 괄호 없이 쓴다. `Red()`를 따로 두면 `Red`처럼 보이지만 같지 않은 값이 생기므로 막는다. 식에서도 패턴에서도 같다. 파이프의 오른쪽 `x |> Ok()`는 파이프가 인자를 채우므로(`Ok(x)`) 된다.
 
 ```fung run exit=2 error=E0117
 light = Red()
@@ -304,7 +314,7 @@ light = Red()
 
 ```fung run
 light = Red
-print(light, light == 'Red)
+print(light, light == Red)
 ```
 
 :::
@@ -388,8 +398,8 @@ m = {"db_${env}": 1}
 고치는 법: 실행 중에 만든 키는 `put`으로 넣는다. 패턴이면 이름으로 묶고 `when`으로 견준다.
 
 ```fung run
-env = "prod"
-m = put({}, "db_${env}", 1)
+stage = "prod"
+m = put({}, "db_${stage}", 1)
 print(m)
 ```
 
@@ -429,7 +439,7 @@ print(double(4))
 
 :::error E0125
 
-슬라이스 `xs[a..b]`의 한쪽 끝의 맨 위에 `..`보다 약하게 묶이는 연산자(비교, `in`, `not`, `and`·`or`, `then … else`)가 있다. 슬라이스 밖에서는 `..`가 먼저 묶이므로(`c then 0 else 1..2`는 `c then 0 else (1..2)`), 그런 끝을 그대로 받으면 같은 글자가 자리에 따라 다른 뜻이 된다. 그래서 괄호로 묶어 뜻을 정하게 한다. `??`와 `|>`는 그대로 끝이 된다.
+슬라이스 `xs[a..b]`의 한쪽 끝의 맨 위에 `..`보다 약하게 묶이는 연산자(`??`, `|>`, 비교, `in`, `not`, `and`·`or`, `then … else`)가 있다. 슬라이스 밖에서는 `..`가 먼저 묶이므로(`a ?? 0..2`는 `a ?? (0..2)`, `c then 0 else 1..2`는 `c then 0 else (1..2)`), 그런 끝을 그대로 받으면 같은 글자가 자리에 따라 다른 뜻이 된다. 그래서 괄호로 묶어 뜻을 정하게 한다. 0.6.0까지는 `??`와 `|>`를 그대로 끝으로 받았다.
 
 ```fung run exit=2 error=E0125
 xs = [1, 2, 3]
@@ -461,6 +471,195 @@ print(connect("example.com", tls: true))
 
 :::
 
+:::error E0127
+
+`??`와 `|>`를 괄호 없이 섞었다. `x |> f ?? d`는 "파이프로 구한 뒤 없으면 기본값"으로도, "`f ?? d`를 파이프로 부르기"로도 읽히고, `a ?? b |> f`도 두 가지로 읽힌다. 어느 우선순위를 골라도 한쪽 읽기가 말없이 뒤집히므로(0.6.0까지는 `??`가 먼저 묶여 `"x" |> env ?? "d"`의 기본값이 사라졌다), 비교 연쇄(E0111)처럼 괄호로 순서를 적게 한다.
+
+```fung run exit=2 error=E0127
+print("NOT_SET" |> env ?? "default")
+```
+
+고치는 법: 먼저 할 쪽을 괄호로 감싼다.
+
+```fung run
+print(("NOT_SET" |> env) ?? "default")
+```
+
+:::
+
+:::error E0128
+
+대문자로 시작하는 심볼을 따옴표로 썼다. 인자 없는 태그 `Red`가 바로 그 심볼이므로 `'Red`는 같은 값의 둘째 표기다. 표기를 하나로 두려고 막는다. 기본 도움말은 따옴표를 뺀 태그를 보인다.
+
+```fung run exit=2 error=E0128
+color = 'Red
+```
+
+고치는 법: 따옴표를 뺀다. 결과값의 이름(`Ok`·`Err`)은 값 없이 쓸 수 없으므로(E0236) 결과값인지는 `is_ok`·`is_err`로 가린다.
+
+```fung run
+color = Red
+print(color == Red, type_of(color))
+```
+
+:::
+
+:::error E0129
+
+보통 문자열 안에서 `$` 바로 뒤에 이름이 왔다. `"$name"`은 셸이나 다른 언어에서 보간이지만 fung에서는 보간이 아니라 글자 그대로라, 값이 들어간 줄 알기 쉽다. `$` 뒤가 이름의 첫 글자가 아니면(`"$5"`, 끝의 `$`) 글자다. 원시 문자열 `` `…` ``에는 보간이 없으므로 해당하지 않는다.
+
+```fung run exit=2 error=E0129
+user = "ann"
+print("hello $user")
+```
+
+고치는 법: 값은 `${user}`로, 글자 그대로는 `\$user`로 쓴다. `$`가 많은 셸 명령은 원시 문자열로 쓴다.
+
+```fung run
+user = "ann"
+print("hello ${user}, not \$user")
+```
+
+:::
+
+:::error E0130
+
+타입 표기에 원소 타입을 적었다(`list[int]`, `map[str]`). 런타임은 바깥 타입만 검사하므로 원소 타입은 적어도 지켜지지 않는다. 검사하지 않는 표기는 두지 않는다. 0.6.0까지는 원소 타입을 적을 수 있었다(이름만 검사했다).
+
+```fung run exit=2 error=E0130
+fn total(xs: list[int]) = sum(xs)
+```
+
+고치는 법: 바깥 타입만 쓴다.
+
+```fung run
+fn total(xs: list) = sum(xs)
+print(total([1, 2, 3]))
+```
+
+:::
+
+:::error E0131
+
+같은 블록에서 `return` 문장 뒤에 문장이 더 있다. `return`이 함수를 끝내므로 뒤의 문장은 결코 실행되지 않는다. 지우려던 코드가 남았거나, `return`을 조건 안에 넣으려던 실수다.
+
+```fung run exit=2 error=E0131
+fn check(n):
+  return n > 0
+  print("checked")
+;;
+```
+
+고치는 법: 실행되지 않는 문장을 지우거나, `return`을 그 뒤로 옮긴다.
+
+```fung run
+fn check(n):
+  print("checked")
+  n > 0
+;;
+print(check(1))
+```
+
+:::
+
+:::error E0132
+
+`return`을 값 자리에 썼다: 연산자의 피연산자, 호출 인자, 리스트·맵·튜플의 원소, 대입의 오른쪽, 괄호 안. `return`은 문장이거나 가지의 끝(`if`·`match` 절의 본문, `then … else`의 가지, `fn f() = …`의 본문)에만 온다. 값 자리의 `return`은 그 식의 나머지가 계산되지 않는다는 것을 숨긴다.
+
+```fung run exit=2 error=E0132
+fn port(cfg):
+  p = cfg.port ?? return 80
+  p + 1
+;;
+```
+
+고치는 법: 조건을 문장으로 드러내거나 `then … else`의 가지로 쓴다.
+
+```fung run
+fn port(cfg):
+  if cfg.port == nil: return 80 ;;
+  cfg.port + 1
+;;
+print(port({port: nil}), port({port: 8000}))
+```
+
+:::
+
+:::error E0133
+
+펼침 `...xs`를 호출의 마지막 위치 인자가 아닌 곳에 썼다: 다른 위치 인자 앞, 리스트 리터럴 안, 태그의 값. 펼침은 리스트나 범위의 원소를 호출의 위치 인자로 늘어놓는 것이고, 리스트를 잇는 방법은 `+` 하나다.
+
+```fung run exit=2 error=E0133
+base = ["-v"]
+print([...base, "-q"])
+```
+
+고치는 법: 리스트는 `+`로 잇고, 펼침은 이름 인자 앞의 마지막 위치 인자로 쓴다.
+
+```fung run
+base = ["-v"]
+print(base + ["-q"])
+print("args:", ...base + ["-q"])
+```
+
+:::
+
+:::error E0134
+
+다른 언어에서 키워드인 낱말을 문장 첫머리에 키워드처럼 썼다. fung에서 이 낱말들은 키워드가 아니라 보통 이름이라, 그대로 두면 뒤따르는 토큰에서 엉뚱한 에러가 난다. 그래서 그 낱말을 짚고 fung의 쓰는 법을 도움말로 알려 준다. 알아보는 낱말과 도움말은 한 표(`crates/fung-front/src/habits.rs`)에 있다.
+
+- `elif`·`elsif`·`elseif` → `else if`
+- `while`·`loop` → `for x in xs:`, 재귀, [`until`](prelude/loops.html)·[`iterate`](prelude/loops.html)
+- `let`·`var`·`const`·`val` → 키워드 없이 `x = 1`
+- `def`·`function`·`func`·`fun` → `fn name(x): … ;;`
+- `lambda` → `x => x + 1`
+- `switch`·`case` → `match`
+- `try`·`catch`·`except`·`raise`·`throw` → 예외가 없다. `Err(…)`를 돌려주고 `?`·`!`·`match`로 다룬다
+- `from` → `import m (a, b)`
+- `end`·`endif`·`fi`·`done` → 블록은 `;;`로 닫는다(줄에 홀로 선 `end`는 이름으로 읽히므로 닫지 않은 블록의 [E0112](#E0112)에 도움말로 붙는다)
+
+`null`·`undefined`·`nullptr`를 값으로 쓰면 없는 이름([E0204](#E0204))이고, 도움말이 `nil`을 알려 준다. 기호도 같은 표에서 도움말을 얻는다: `&&`([E0101](#E0101))는 `and`, `||`·앞에 붙은 `!`·`x += 1`·`x++`·`->` 람다·`{` 블록·`match = 1`([E0110](#E0110))은 각각 `or`·`not`·다시 묶기·`=>`·`:` … `;;`·예약어 안내, 조건 자리의 `=`([E0112](#E0112))는 `==`.
+
+이 낱말을 이름으로 쓰는 것은 그대로 된다(`let = 1`, `while(x)` 같은 호출). 낱말 바로 뒤(또는 바로 뒤 괄호 다음)에서 문법 에러가 날 때만 이 에러다.
+
+```fung run exit=2 error=E0134
+x = 2
+if x == 1:
+  print("one")
+elif x == 2:
+  print("two")
+;;
+```
+
+```fung run
+x = 2
+if x == 1:
+  print("one")
+else if x == 2:
+  print("two")
+;;
+```
+
+:::
+
+:::error E0135
+
+숫자 모양은 맞는데 값이 그 타입에 담기지 않는다. 정수는 64비트(-9223372036854775808부터 9223372036854775807까지)이고, 실수는 약 1.8e308까지이며 0이 아닌데 0.0으로 아래 넘치는 수(`1e-400`)도 받지 않는다. 가장 작은 정수 `-9223372036854775808`은 빼기 기호와 한 덩어리일 때만 된다. 그 수에 `**`·인덱스·호출·`!`·`?`가 바로 붙으면 그것이 빼기보다 먼저 묶여 크기만 남으므로 이 에러다(괄호로 묶는다).
+
+```fung run exit=2 error=E0135
+limit = 99999999999999999999
+print(limit)
+```
+
+고치는 법: 정수 범위를 넘는 수는 실수로 쓴다.
+
+```fung run
+limit = 1e20
+print(limit)
+```
+
+:::
+
 ## E02xx: 이름과 스코프 {#e02}
 
 문법이 맞으면 fung은 이름(변수, 함수, 타입)이 어디서 무엇을 가리키는지 정한다. 이것을 이름 해석(resolve)이라 하고, 이름이 보이는 범위를 스코프(scope)라 한다. 이 단계의 에러가 E02xx다. 역시 실행 전에 찾는 컴파일 에러라 종료 코드는 2이고, 한 번에 여러 개를 보고할 수 있다. 규칙은 [변수와 스코프](language/scope.html)에 있다: 이름은 위에서 아래로 묶이고, 블록은 바깥 변수를 읽을 수만 있고, 블록 안의 이름은 밖으로 새지 않는다.
@@ -469,20 +668,11 @@ print(connect("example.com", tls: true))
 
 그 자리에서 보이지 않는 이름을 썼다.
 
-흔한 원인: 오타(도움말이 비슷한 이름을 알려 준다), 대입보다 위에서 읽음, 람다가 아직 대입되지 않은 이름을 씀, 최상위 `fn`이 두 번 이상 대입되는 최상위 변수를 읽음.
+흔한 원인: 오타(도움말이 비슷한 이름을 알려 준다), 대입보다 위에서 읽음, 람다가 아직 대입되지 않은 이름을 씀.
 
 ```fung run exit=2 error=E0204
 files = ["a.log", "b.log"]
 print(len(fiels))
-```
-
-최상위 `fn`은 한 번만 대입되는 최상위 이름(상수)만 볼 수 있다. 두 번 대입하는 이름을 읽으면 같은 E0204가 나고, 도움말이 이유를 설명한다.
-
-```fung run exit=2 error=E0204
-level = 1
-level = 2
-fn show() = level
-print(show())
 ```
 
 고치는 법: 철자를 고치거나, 대입을 위로 옮기거나, 값을 인자로 넘긴다.
@@ -496,7 +686,7 @@ print(len(files))
 
 :::error E0205
 
-블록 안에서 블록 바깥의 변수에 다시 대입했다. fung의 블록(`if`·`for`·함수 본문 등)은 바깥 이름을 읽을 수만 있다. 값이 어디서 바뀌는지 찾아 헤매지 않게 하려는 규칙이다.
+블록 안에서 블록 바깥의 변수에 다시 대입했다. fung의 블록(`if`·`for`·함수 본문 등)은 바깥 이름을 읽을 수만 있다. 값이 어디서 바뀌는지 찾아 헤매지 않게 하려는 규칙이다. 최상위 `fn` 안에서 파일의 최상위 이름(상수)에 대입하는 것도 같다(본문의 맨 바깥 블록에서도). 노트가 바깥 이름을 묶은 줄을 알려 준다. 함수·import한 이름·prelude 함수처럼 변수가 아닌 이름을 다시 묶으면 [E0240](#E0240)이다.
 
 흔한 원인: 셸이나 다른 언어처럼 반복문 안에서 카운터를 늘림.
 
@@ -522,7 +712,7 @@ print(count, total)
 
 :::error E0206
 
-블록 안에서 만든 이름을 블록 밖에서 읽었다. 블록 안의 이름은 블록이 끝나면 사라진다. `if` 가지, `match` 절(패턴이 묶은 이름 포함), `for`(변수와 본문에서 만든 이름)가 모두 블록이고, 도움말이 어느 것인지에 맞춰 그 값을 쓰는 길을 알려 준다. 같은 이름의 prelude 함수가 있어도 그것으로 읽지 않는다(`for len in xs` 뒤의 `len(…)`도 이 에러다).
+블록 안에서 만든 이름을 블록 밖에서 읽었다. 블록 안의 이름은 블록이 끝나면 사라진다. `if` 가지, `match` 절(패턴이 묶은 이름 포함), `for`(변수와 본문에서 만든 이름)가 모두 블록이고, 도움말이 어느 것인지에 맞춰 그 값을 쓰는 길을 알려 준다.
 
 흔한 원인: `if`의 두 가지에서 같은 변수에 대입하고 아래에서 쓰려 함, `for`가 끝난 뒤 그 변수로 마지막 원소를 읽으려 함.
 
@@ -598,7 +788,7 @@ print(greeting)
 
 :::error E0210
 
-같은 이름의 `fn`을 두 번 정의했다. fung에는 인자 개수로 함수를 고르는 오버로딩(overloading)이 없다.
+같은 이름의 `fn`을 두 번 정의했다. 파일의 최상위든 한 블록 안이든 같다. `note`가 첫 정의의 줄을 알려 준다. fung에는 인자 개수로 함수를 고르는 오버로딩(overloading)이 없다.
 
 ```fung run exit=2 error=E0210
 fn area(w, h) = w * h
@@ -659,25 +849,7 @@ print(retry(3))
 
 :::error E0213
 
-`for` 본문 안에서 `return`을 썼다. `for`는 사실 `map`이 부르는 람다라서, 본문의 `return`은 바깥 함수가 아니라 그 람다에서 돌아오게 된다. 뜻과 다르게 동작하므로 막았다.
-
-흔한 원인: "찾으면 바로 돌려준다"를 반복문과 `return`으로 씀.
-
-```fung run exit=2 error=E0213
-fn first_big(sizes):
-  for s in sizes:
-    if s > 100: return s ;;
-  ;;
-  nil
-;;
-```
-
-고치는 법: 찾기는 `find`, 검사는 `all`·`any`, 누적은 `fold`로 쓴다.
-
-```fung run
-fn first_big(sizes) = find(sizes, s => s > 100)
-print(first_big([10, 300, 500]))
-```
+쓰지 않는 번호다. `for` 본문 안의 `return`에 내던 에러였는데, 람다 안의 `return`·`?`와 한 규칙으로 [E0237](#E0237)에 합쳤다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
 
 :::
 
@@ -805,19 +977,7 @@ print(area(Rect(2, 3)))
 
 :::error E0220
 
-`for` 본문 안에서 `?`를 썼다. E0213과 같은 이유다: 본문은 람다라서 `?`가 바깥 함수가 아니라 람다에서 `Err`를 돌려주고, 그 `Err`는 결과 리스트의 원소가 될 뿐이다.
-
-```fung run exit=2 error=E0220
-fn ports(xs) = for x in xs: parse_int(x)? ;;
-```
-
-고치는 법: 첫 `Err`에서 멈추는 `try_map`을 쓴다. 결과는 `Ok(리스트)`나 첫 `Err`다.
-
-```fung run
-fn ports(xs) = try_map(xs, x => parse_int(x))
-print(ports(["80", "443"]))
-print(ports(["80", "http"]))
-```
+쓰지 않는 번호다. `for` 본문 안의 `?`에 내던 에러였는데, 람다 안의 `return`·`?`와 한 규칙으로 [E0237](#E0237)에 합쳤다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
 
 :::
 
@@ -939,16 +1099,7 @@ print(max_retries, home, cfg.HOME)
 
 :::error E0226
 
-`map`에 바로 넘긴 람다 안에서 `?`를 썼다(위치로든 `f:`로든, 병렬판 `conc.pmap`도 같다). 람다의 `?`는 람다에서 `Err`를 돌려줄 뿐이고, `map`은 그 `Err`를 결과 리스트의 원소로 넣는다. 바깥 함수는 실패를 모르고 지나간다.
-
-```fung run exit=2 error=E0226
-fn ports(xs) = Ok(xs |> map(s => parse_int(s)?))
-```
-
-```fung run
-fn ports(xs) = try_map(xs, s => parse_int(s))
-print(ports(["80", "443"]))
-```
+쓰지 않는 번호다. `map`·`conc.pmap`에 넘긴 람다 안의 `?`에 내던 에러였는데, 어느 람다든 `return`·`?`를 막는 [E0237](#E0237)에 합쳤다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
 
 :::
 
@@ -981,10 +1132,10 @@ print("a.txt" |> (f => path.join("/tmp", f)))
 fn total(...ns: int) = fold(ns, 0, (a, b) => a + b)
 ```
 
-고치는 법: `list`나 `list[int]`로 적거나 아무것도 적지 않는다. `list[int]`의 원소 타입은 읽는 사람을 위한 표기이고 검사하지 않는다.
+고치는 법: `list`로 적거나 아무것도 적지 않는다(원소 타입은 적지 않는다, E0130).
 
 ```fung run
-fn total(...ns: list[int]) = fold(ns, 0, (a, b) => a + b)
+fn total(...ns: list) = fold(ns, 0, (a, b) => a + b)
 print(total(1, 2, 3))
 ```
 
@@ -1024,18 +1175,7 @@ print(nums)
 
 :::error E0232
 
-원소를 담지 않는 타입에 원소 타입을 붙였다. `[…]`는 리스트와 맵의 원소를 적는 표기라 `list`·`map`(과 그것으로 펼쳐지는 별칭)에만 붙는다.
-
-```fung run exit=2 error=E0232
-fn f(x: int[str]) = x
-```
-
-고치는 법: 바깥 타입만 쓰거나(`x: int`), 원소를 담는 타입으로 고친다(`x: list[str]`). 0.5.0까지는 말없이 지나갔다.
-
-```fung run
-fn f(x: list[str]) = len(x)
-print(f(["a", "b"]))
-```
+쓰지 않는 번호다. 원소를 담지 않는 타입에 원소 타입을 붙였을 때(`int[str]`) 내던 에러였는데, 원소 타입이 언어에서 빠지면서(어디에 붙여도 [E0130](#E0130)) 쓰지 않는다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
 
 :::
 
@@ -1065,7 +1205,9 @@ fn cleanup() = print("cleaned")
 cleanup
 ```
 
-고치는 법: 호출이면 `()`를 붙이고, 대입이면 `=`를 쓰고, 여러 줄 식이면 연산자를 줄 끝에 둔다. `fung -e`의 마지막 값도 버려지므로 보려면 `print(…)`로 감싼다. 일부러 버리려면 `_ = 식`. 예외는 맨 `nil` 하나다: 문장으로 쓴 `match`에서 할 일이 없는 절을 `_ => nil`로 적게 둔다. 실행 중에 계산된 `Err`를 버리는 것은 여전히 E0606이다. 0.6.0까지는 말없이 버렸다.
+효과가 없다고 알려진 내장 함수·표준 모듈 함수(`put`, `sort`, `replace`, `path.join`, `json.parse` 등 값을 계산해 돌려줄 뿐인 것)를 문장으로 부른 것도 같다(메시지 ``the result of `put(…)` is computed and discarded``). `put(m, k, v)`가 `m`을 바꾼다고 여긴 실수가 흔하다. 함수를 받는 내장 함수(`map`·`each` 등)와 사용자 함수는 무엇을 할지 모르므로 해당하지 않는다.
+
+고치는 법: 호출이면 `()`를 붙이고, 대입이면 `=`를 쓰고, 효과 없는 함수면 결과를 이름에 담고(`m = put(m, k, v)`), 여러 줄 식이면 연산자를 줄 끝에 둔다. `fung -e`의 마지막 값도 버려지므로 보려면 `print(…)`로 감싼다. 일부러 버리려면 `_ = 식`. 예외는 맨 `nil` 하나다: 문장으로 쓴 `match`에서 할 일이 없는 절을 `_ => nil`로 적게 둔다. 실행 중에 계산된 `Err`를 버리는 것은 여전히 E0606이다. 0.6.0까지는 말없이 버렸다.
 
 ```fung run
 fn cleanup() = print("cleaned")
@@ -1076,7 +1218,7 @@ cleanup()
 
 :::error E0235
 
-guard 없는 `match` 절의 패턴이 모든 값에 맞는데(`_`, 맨 이름, 그런 갈래가 하나라도 있는 `|` 대안, 예: `1 | _`) 그 뒤에 절이 더 있다. 앞 절이 모든 값을 가져가므로 뒤 절은 결코 돌지 않는다. 패턴의 이름은 바깥 변수와 비교하지 않고 새 이름을 묶으므로 `limit => …`도 모든 값에 맞는다. 절 본문 안의 `y => y + 1` 줄도 새 절로 읽혀 여기에 걸린다.
+`match`에 결코 돌지 않는 절이 있다. 두 경우다. guard 없는 절의 패턴이 모든 값에 맞는데(`_`, 맨 이름, 그런 갈래가 하나라도 있는 `|` 대안, 예: `1 | _`) 그 뒤에 절이 더 있으면, 앞 절이 모든 값을 가져가므로 뒤 절은 결코 돌지 않는다(에러가 앞 절을 가리킨다). guard 없는 앞 절이 이미 맞는 리터럴(쓴 그대로 같은 수·문자열·심볼·`nil` 등)을 패턴으로 쓴 절도 결코 돌지 않는다(에러가 뒤 절을 가리킨다). 패턴의 이름은 바깥 변수와 비교하지 않고 새 이름을 묶으므로 `limit => …`도 모든 값에 맞는다. 절 본문 안의 `y => y + 1` 줄도 새 절로 읽혀 여기에 걸린다.
 
 ```fung run exit=2 error=E0235
 limit = 5
@@ -1087,7 +1229,7 @@ fn f(x) = match x:
 print(f(3))
 ```
 
-고치는 법: 모든 값에 맞는 절을 마지막에 둔다. 바깥 변수와 비교하려면 guard를 쓴다(`v when v == limit =>`). 절의 값인 람다는 괄호로 감싼다(`1 => (y => y + 1)`). 0.6.0까지는 말없이 뒤 절을 버렸다.
+고치는 법: 모든 값에 맞는 절을 마지막에 둔다. 바깥 변수와 비교하려면 guard를 쓴다(`v when v == limit =>`). 절의 값인 람다는 괄호로 감싼다(`1 => (y => y + 1)`). 겹친 리터럴 절은 하나를 지우거나 본문을 한 절로 합친다. 0.6.0까지는 말없이 뒤 절을 버렸다.
 
 ```fung run
 limit = 5
@@ -1102,7 +1244,7 @@ print(f(3), f(5))
 
 :::error E0236
 
-`Ok`·`Err`에 값을 하나가 아닌 개수로 주었다. 결과값은 값을 정확히 하나 담는다. 식에서도 패턴에서도 같고, 파이프가 채운 값도 센다: `x |> Ok(2)`는 `Ok(x, 2)`라 이 에러다. 0.6.0까지는 `Ok(1, 2)`가 "같은 이름의 보통 태그"였다.
+`Ok`·`Err`에 값을 하나가 아닌 개수로 주었다. 결과값은 값을 정확히 하나 담는다. 식에서도 패턴에서도 같고, 파이프가 채운 값도 센다: `x |> Ok(2)`는 `Ok(x, 2)`라 이 에러다. 값이 없는 맨 `Ok`·`Err`도(개수 0) 이 에러다: 다른 태그라면 심볼이겠지만 결과값의 이름은 값 없이 쓰지 않는다. 파이프의 오른쪽 `x |> Ok`만 파이프가 값을 채우므로 된다. 0.6.0까지는 `Ok(1, 2)`가 "같은 이름의 보통 태그"였고 맨 `Ok`는 심볼이었다.
 
 ```fung run exit=2 error=E0236
 fn divmod(a, b) = b == 0 then Err("division by zero") else Ok(a // b, a % b)
@@ -1114,6 +1256,125 @@ print(divmod(7, 2))
 ```fung run
 fn divmod(a, b) = b == 0 then Err("division by zero") else Ok((a // b, a % b))
 print(divmod(7, 2))
+```
+
+:::
+
+:::error E0237
+
+람다 `=>`나 `for` 본문 안에서 `return`이나 `?`를 썼다. 람다는 일찍 돌아갈 수 없다. 허락하면 `return`·`?`는 바깥 함수가 아니라 람다에서 돌아오고, 그 값은 받은 함수가 쓰는 대로 쓰인다: `map`이면 `Err`가 결과 리스트의 원소가 되고, `filter`면 조건 자리에서 런타임 에러가 된다. `for` 본문도 `map`이 부르는 람다라 같다. 0.6.0까지는 `for` 본문(E0213·E0220)과 `map`·`conc.pmap`에 바로 넘긴 람다의 `?`(E0226)만 막았다.
+
+```fung run exit=2 error=E0237
+fn ports(xs) = map(xs, s => parse_int(s)?)
+```
+
+고치는 법: 실패할 수 있는 변환은 첫 `Err`에서 멈추는 `try_map`, 찾기는 `find`, 검사는 `all`·`any`, 누적은 `fold`를 쓴다. 정말 일찍 돌아가야 하면 익명 함수 `fn(x): … ;;`로 쓴다.
+
+```fung run
+fn ports(xs) = try_map(xs, parse_int)
+print(ports(["80", "443"]), ports(["80", "http"]))
+fn first_big(xs) = find(xs, fn(x):
+  if x < 0: return false ;;
+  x > 100
+;;)
+print(first_big([10, 300]))
+```
+
+:::
+
+:::error E0238
+
+파일의 맨 바깥(최상위)에서 이미 묶은 이름을 다시 대입하거나 패턴으로 다시 묶었다. 최상위 이름은 한 번만 묶이고, 그래서 모두 상수라 최상위 `fn`이 언제든 읽을 수 있다. 블록(함수 본문, `if` 가지 등) 안에서는 같은 이름에 다시 대입할 수 있다. 노트가 처음 묶은 줄을 알려 준다.
+
+```fung run exit=2 error=E0238
+retries = 3
+retries = retries + 1
+print(retries)
+```
+
+고치는 법: 바뀐 값에 새 이름을 붙이거나, 식 하나로 계산하거나, 함수 안에서 계산한다.
+
+```fung run
+retries = 3
+max_tries = retries + 1
+print(max_tries)
+```
+
+:::
+
+:::error E0239
+
+묶고 한 번도 읽지 않은 이름이 있다. 지역 변수, 매개변수(람다·`for`·`match` 패턴이 묶는 이름 포함), import가 모두 해당한다. 다시 대입하기만 하는 것은 읽는 것이 아니다. 진입 파일의 최상위 이름도 지역으로 센다. 계산해 놓고 쓰는 것을 잊었거나, 이름을 잘못 적었을 가능성이 크다. 메시지가 어떤 이름인지(`variable`, `parameter`, `import`) 알려 준다.
+
+이 에러는 파일에 다른 에러가 없을 때만 나온다. 쓰지 않는 이름은 다른 에러(오타로 읽지 못한 이름, 다시 묶지 못한 이름)의 결과일 때가 많기 때문이다. 세지 않는 것: `_`로 시작하는 이름, 최상위 `fn`, import된 파일의 공개 이름(그 모듈의 인터페이스). 이전에는 경고 W0101·W0102였다.
+
+```fung run exit=2 error=E0239
+fn total(xs):
+  count = len(xs)
+  fold(xs, 0, (a, b) => a + b)
+;;
+print(total([1, 2]))
+```
+
+고치는 법: 쓰지 않는 대입·매개변수·import를 지운다. 일부러 쥐고 있는 값이나 받기만 하는 매개변수는 이름을 `_`로 시작한다(채널의 끝을 함수가 끝날 때까지 살려 둠, 콜백이 넘겨 주는 값을 쓰지 않음).
+
+```fung run
+fn total(xs) = fold(xs, 0, (a, b) => a + b)
+fn on_fail(_e) = nil
+(name, _size) = ("a.txt", 3)
+print(total([1, 2]), on_fail(1), name)
+```
+
+:::
+
+:::error E0240
+
+새로 묶는 이름이 그 자리에서 보이는 바깥 이름을 가린다. 바깥 블록이나 바깥 함수의 이름, 최상위 이름과 최상위 `fn`, import한 이름, prelude 함수, 지역 `fn` 자신의 이름이 해당하고, 묶는 방법(매개변수, 람다의 매개변수, `for`의 변수, `match` 절의 패턴, 구조 분해, 지역 `fn`, 최상위 `fn`, import, 함수·prelude 이름에 대한 대입)과 상관없다. 한 자리에서 이름 하나는 한 가지만 뜻하게 하려는 규칙이다: 가려진 이름을 읽으려다 내 값을 읽는 실수(`match x: x => …`는 `x`와 비교하지 않는다)가 없어진다. 메시지가 무엇을 가리는지, 노트가 그 이름을 묶은 줄을 알려 준다. 바깥 변수에 대입하는 것은 [E0205](#E0205), 모듈 이름을 가리는 것은 [E0308](#E0308)이다. 이전에는 prelude 이름을 가리는 것만 경고 W0103이었다.
+
+```fung run exit=2 error=E0240
+limit = 10
+fn clamp(xs, limit) = map(xs, x => x > limit then limit else x)
+print(clamp([5, 20], limit))
+```
+
+```fung run exit=2 error=E0240
+fn summary(xs):
+  max = 0
+  len(xs) + max
+;;
+print(summary([1]))
+```
+
+고치는 법: 새 이름에 다른 이름을 붙인다(`cap`, `biggest`).
+
+```fung run
+limit = 10
+fn clamp(xs, cap) = map(xs, x => x > cap then cap else x)
+print(clamp([5, 20], limit))
+```
+
+import된 파일의 인터페이스, 곧 공개 최상위 이름과 공개 `fn`의 매개변수는 prelude 함수와 같은 이름이어도 된다(`http.get`, `path.join`, `timeout:`). 부르는 쪽은 그것을 모듈 이름을 붙여 읽거나 인자 이름으로만 쓴다([모듈](language/modules.html)).
+
+:::
+
+:::error E0241
+
+`|` 대안 가운데 하나가 결코 맞지 않는다. 앞의 대안이 모든 값에 맞거나(`_`, 맨 이름), 같은 대안을 다시 썼다(`1 | 1`, `x | x`). 앞 대안이 이미 모든 값을 가져가므로 뒤 대안은 쓸모가 없고, 대개 다른 값을 쓰려던 실수다. 절 단위로 결코 돌지 않는 절은 [E0235](#E0235)다.
+
+```fung run exit=2 error=E0241
+fn kind(code) = match code:
+  200 | 200 => "ok"
+  _         => "other"
+;;
+print(kind(201))
+```
+
+```fung run
+fn kind(code) = match code:
+  200 | 201 => "ok"
+  _         => "other"
+;;
+print(kind(201))
 ```
 
 :::
@@ -1401,7 +1662,7 @@ import _native.fs
 
 :::error E0311
 
-`import`를 함수나 블록 안에 썼다. `import`는 파일 최상위에만 둔다. 함수 안의 `import`가 무시되므로 아래의 이름도 함께 E0204가 된다.
+`import`를 함수나 블록 안에 썼다. `import`는 파일 최상위의 맨 앞에만 둔다(다른 문장 뒤면 E0313). 함수 안의 `import`가 무시되므로 아래의 이름도 함께 E0204가 된다.
 
 ```fung run exit=2 error=E0311
 fn load(p):
@@ -1435,9 +1696,28 @@ print(["caf\xe9", "caf\u{e9}"])
 
 :::
 
+:::error E0313
+
+파일의 다른 문장 뒤에 `import`를 썼다. `import`는 파일 맨 앞, 다른 모든 문장보다 먼저 온다. 가져온 모듈은 파일의 첫 문장보다 먼저 실행되므로, 그 순서가 코드의 모양에도 드러나게 한다. 0.6.0까지는 어디에 쓰든 파일 맨 앞으로 끌어올렸다.
+
+```fung run exit=2 error=E0313
+print("start")
+import json
+```
+
+고치는 법: 모든 `import`를 파일 맨 위로 옮긴다.
+
+```fung run
+import json
+
+print("start", json.stringify([1]))
+```
+
+:::
+
 ## E04xx: 호출과 타입 표기 {#e04}
 
-함수를 부를 때 인자가 맞지 않거나, 인자와 반환값이 적어 둔 타입과 다르면 E04xx다. fung은 동적 타입 언어라서 이것들은 실행 중에, 그 호출이 실제로 일어날 때 검사한다. 그래서 `fung check`로는 찾지 못하고, 종료 코드는 1이다. 메시지의 호출 경로가 어느 호출에서 났는지 알려 준다. 규칙은 [함수](language/functions.html)와 [타입 표기](language/types.html)에 있다.
+함수를 부를 때 인자가 맞지 않거나, 인자와 반환값이 적어 둔 타입과 다르면 E04xx다. fung은 동적 타입 언어라서 이것들은 대개 실행 중에, 그 호출이 실제로 일어날 때 검사하고, 종료 코드는 1이다. 메시지의 호출 경로가 어느 호출에서 났는지 알려 준다. 다만 호출 대상이 컴파일 때 정해지는 호출(가려지지 않은 최상위 `fn`, prelude 함수, import한 모듈의 함수)의 인자 개수와 이름(E0402·E0405·E0406·E0407)은 실행 전에 같은 번호와 문구로 잡고, 그때는 컴파일 에러라 `fung check`도 찾고 종료 코드는 2다. 규칙은 [함수](language/functions.html)와 [타입 표기](language/types.html)에 있다.
 
 :::error E0401
 
@@ -1459,10 +1739,15 @@ print(deploy())
 
 :::error E0402
 
-위치 인자를 함수가 받는 것보다 많이 넘겼다. 메시지는 함수 이름, 받는 개수, 넘긴 개수를 적는다. 내장 함수도 같다.
+위치 인자를 함수가 받는 것보다 많이 넘겼다. 메시지는 함수 이름, 받는 개수, 넘긴 개수를 적는다. 내장 함수도 같다. 호출 대상이 컴파일 때 정해지면 실행 전에 잡는다(종료 코드 2). 변수에 든 함수 값이나 펼친 인자(`...xs`)는 부를 때 센다(종료 코드 1).
+
+```fung run exit=2 error=E0402
+fn connect(host, port) = "${host}:${port}"
+print(connect("db1", 5432, 10s))
+```
 
 ```fung run exit=1 error=E0402
-fn connect(host, port) = "${host}:${port}"
+connect = (host, port) => "${host}:${port}"
 print(connect("db1", 5432, 10s))
 ```
 
@@ -1499,15 +1784,15 @@ print(backoff(parse_int("3")!))
 
 함수가 돌려준 값이 `->` 뒤에 적은 반환 타입이 아니다.
 
-흔한 원인: 문자열 그대로 돌려줌, 어떤 가지에서만 다른 타입을 돌려줌. 자기 자신을 꼬리 호출하는 함수는 반복이 끝난 뒤 한 번 검사한다.
+흔한 원인: 문자열 그대로 돌려줌, 어떤 가지에서만 다른 타입을 돌려줌. 꼬리 호출은 프레임을 재사용하고 그 검사를 이어받으므로, 꼬리 호출한 함수가 돌려준 값도 프레임이 돌아올 때 검사하고 에러는 반환 타입을 적은 함수를 가리킨다.
 
 ```fung run exit=1 error=E0404
-fn port_of(url) -> int = split(url, ":")[-1]
+fn port_of(url) -> int = split(url, ":")[1]
 print(port_of("db1:5432"))
 ```
 
 ```fung run
-fn port_of(url) -> int = parse_int(split(url, ":")[-1])!
+fn port_of(url) -> int = parse_int(split(url, ":")[1])!
 print(port_of("db1:5432"))
 ```
 
@@ -1517,7 +1802,7 @@ print(port_of("db1:5432"))
 
 같은 매개변수를 위치 인자와 이름 인자로 두 번 주었다. 같은 이름 인자를 두 번 쓴 것은 실행 전에 [E0116](#E0116)으로 잡힌다.
 
-```fung run exit=1 error=E0405
+```fung run exit=2 error=E0405
 fn connect(host, port) = "${host}:${port}"
 print(connect("db1", host: "db2"))
 ```
@@ -1537,7 +1822,7 @@ print(connect("db1", port: 5432))
 
 흔한 원인: 매개변수 이름의 오타.
 
-```fung run exit=1 error=E0406
+```fung run exit=2 error=E0406
 fn connect(host, port = 22) = "${host}:${port}"
 print(connect("db1", prot: 2222))
 ```
@@ -1551,11 +1836,11 @@ print(connect("db1", port: 2222))
 
 :::error E0407
 
-기본값이 없는 매개변수에 인자를 주지 않았다.
+기본값이 없는 매개변수에 인자를 주지 않았다. 소스에 이름이 없는 매개변수(패턴 매개변수, 부분 적용의 `_`)는 이름 대신 자리로 불린다(`missing argument 1`).
 
 흔한 원인: 인자 빠뜨림, 함수의 첫 매개변수를 잊음(`spawn(f)`는 `spawn(s, f)`의 태스크 범위 `s`가 빠진 것이라 E0407이다).
 
-```fung run exit=1 error=E0407
+```fung run exit=2 error=E0407
 fn connect(host, port) = "${host}:${port}"
 print(connect("db1"))
 ```
@@ -1575,7 +1860,7 @@ print(connect("db1"))
 
 :::error E0501
 
-이항 연산자가 받은 두 값의 타입 조합으로는 계산할 수 없다. 메시지는 연산(`add`, `subtract` …)과 두 타입을 적는다.
+이항 연산자가 받은 두 값의 타입 조합으로는 계산할 수 없다. 메시지는 연산(`add`, `subtract` …)과 두 타입을 적는다. 함수는 같음이 없어서 `==`·`!=`로 견주거나 `unique`에 넣어도 이 에러다(``cannot compare fn and fn``).
 
 흔한 원인: 문자열과 숫자를 `+`로 이음, `nil`(없는 값)로 계산함, 기간을 정수로 `//` 나눔.
 
@@ -1667,7 +1952,7 @@ if len(xs) > 0: print("not empty") ;;
 
 :::error E0506
 
-연산이나 내장 함수가 그 타입의 값에는 할 수 없는 일이다. 메시지가 하려던 일과 타입을 적는다(`cannot negate str`, `cannot take the length of int`, `cannot map over str`, `cannot zip the elements of int`, `cannot get a key from list` 등).
+연산이나 내장 함수가 그 타입의 값에는 할 수 없는 일이다. 메시지가 하려던 일과 타입을 적는다(`cannot negate str`, `cannot take the length of int`, `cannot iterate over str`(`map`과 값 자리의 `for`), `cannot zip the elements of int`, `cannot get a key from list`, 리스트·범위가 아닌 값을 펼친 `cannot spread str` 등).
 
 흔한 원인: 문자열에 단항 `-`, 숫자에 `len`, 문자열에 리스트 함수(`first("abc")`; 문자열은 `chars`로 리스트로 바꾼다).
 
@@ -1684,18 +1969,18 @@ print(first(chars("abc")))
 
 :::error E0507
 
-인덱스가 범위를 벗어났다. 리스트와 문자열의 인덱스는 0부터 `길이 - 1`까지이고, 음수는 뒤에서부터 센다(`-1`이 마지막). 슬라이스의 시작이나 끝이 길이를 넘어도 이 에러이고, 그때는 문구가 `slice end 5 is out of range (length 2)`처럼 어느 쪽인지 말한다.
+인덱스가 범위를 벗어났다. 리스트와 문자열의 인덱스는 0부터 `길이 - 1`까지이고, 음수는 언제나 범위 밖이다(뒤에서 세지 않는다). 슬라이스의 시작이나 끝이 길이를 넘어도 이 에러이고, 그때는 문구가 `slice end 5 is out of range (length 2)`처럼 어느 쪽인지 말한다.
 
 ```fung run exit=1 error=E0507
 hosts = ["web1", "web2"]
 print(hosts[2])
 ```
 
-고치는 법: 길이를 먼저 확인한다. 마지막 원소는 `xs[-1]`, 있는 만큼만 원하면 `take`·`drop`을 쓴다.
+고치는 법: 길이를 먼저 확인한다. 마지막 원소는 `last(xs)`나 `xs[len(xs) - 1]`, 있는 만큼만 원하면 `take`·`drop`을 쓴다.
 
 ```fung run
 hosts = ["web1", "web2"]
-print(hosts[-1], len(hosts) > 2 then hosts[2] else "none")
+print(last(hosts), len(hosts) > 2 then hosts[2] else "none")
 ```
 
 :::
@@ -1722,7 +2007,7 @@ print(get(cfg, "port", 5432), get(cfg, "port") ?? 5432, "port" in cfg)
 
 :::error E0509
 
-인덱스 `x[i]`를 쓸 수 없는 값에 썼다. 인덱스는 리스트, 문자열, 맵에만 된다.
+인덱스 `x[i]`나 필드 `x.name`이 그 값에 뜻이 없다. 메시지가 두 타입을 적는다(`cannot index tuple with int`). 인덱스는 리스트·문자열(정수 위치나 범위), 맵(문자열 키), 모듈(멤버 이름)에만 된다. 리스트를 문자열로 찾는 것(`xs["a"]`)도 이 에러다. 필드 `x.name`은 맵과 모듈에만 있다. `xs.len`처럼 다른 언어의 메서드 습관으로 쓰면 도움말이 함수 호출 `len(…)`을 알려 준다.
 
 흔한 원인: 튜플을 인덱스로 꺼냄. 튜플의 원소는 패턴으로만 꺼낸다.
 
@@ -1773,18 +2058,18 @@ print(3 in 0..10, 3 in [1, 2, 3])
 
 값을 다른 타입으로 바꿀 수 없다. 메시지가 값과 바꾸려던 타입을 적는다.
 
-흔한 원인: 숫자가 아닌 문자열을 `int`로 바꿈, 공백이 든 문자열을 `sym`으로 바꿈, JSON으로 나타낼 수 없는 값(기간, 태그 등)을 `json.stringify`에 넘김.
+흔한 원인: 숫자가 아닌 문자열을 `int`로 바꿈, 공백이 든 문자열을 `sym`으로 바꿈, JSON에 없는 타입의 값(심볼, 튜플, 시각, 기간, 태그 등)을 `json.stringify`에 넘김.
 
 ```fung run exit=1 error=E0513
 print(int("8080x"))
 ```
 
-고치는 법: 실패할 수 있는 입력은 `Ok`/`Err`를 돌려주는 `parse_int`·`parse_float`로 바꾸고 결과를 다룬다. JSON에는 문자열이나 숫자로 바꿔서 넣는다.
+고치는 법: 실패할 수 있는 입력은 `Ok`/`Err`를 돌려주는 `parse_int`·`parse_float`로 바꾸고 결과를 다룬다. JSON에는 문자열이나 숫자로 바꿔서 넣는다(심볼은 `sym_name`, 튜플은 리스트, 시각은 `time.format`).
 
 ```fung run
 import json
 print(parse_int("8080x"))
-print(json.stringify({wait: str(5s)}))
+print(json.stringify({wait: str(5s), state: sym_name('ok)}))
 ```
 
 :::
@@ -1809,14 +2094,14 @@ print(group_by([1, 2, 3, 4], x => str(x % 2)))
 
 정규식이나 glob(`fs.glob`)의 패턴이 잘못되었다. 메시지에 패턴과 무엇이 틀렸는지가 붙는다. 패턴은 코드가 정하는 것이라 `Err` 값이 아니라 런타임 에러다.
 
-흔한 원인: 괄호·대괄호를 닫지 않음, 글자 그대로 찾으려던 `(` `.` `*`를 이스케이프하지 않음.
+흔한 원인: 괄호·대괄호를 닫지 않음, 글자 그대로 찾으려던 `(` `.` `*`를 이스케이프하지 않음, `fs.glob`에 하위 디렉터리까지의 `**`를 씀(`fs.walk`와 `filter`를 쓴다).
 
 ```fung run exit=1 error=E0515
 import regex
 print(regex.is_match("a(b", "(b"))
 ```
 
-고치는 법: 특수 문자는 `\`로 이스케이프한다. 정규식은 백틱 원시 문자열로 쓰면 `\`를 두 번 쓰지 않아도 된다.
+고치는 법: 특수 문자는 `\`로 이스케이프한다. 정규식은 백틱 원시 문자열로 쓰면 `\`를 두 번 쓰지 않아도 된다. 바깥에서 온 글을 패턴에 넣을 때는 [`regex.escape`](modules/regex.html#fn-regex-escape)를 쓴다.
 
 ```fung run
 import regex
@@ -1845,20 +2130,20 @@ print(xs[1..3], take(drop(xs, 2), 10))
 
 :::error E0517
 
-심볼과 문자열을 비교했다. 둘은 다른 타입이라 늘 다르다. 그런데 JSON, 파일, 명령 출력에서 온 값은 늘 문자열이라 `status == 'ok`가 조용히 거짓이 되는 함정이 흔해서, 이 비교를 에러로 만들었다. 리스트·맵 안에서 맞붙어도, `in`도 같다.
+`==`·`!=`·`in`이 타입이 다른 두 값을 견줬다. 다른 타입의 값은 결코 같지 않으므로 그런 비교는 거의 늘 실수다. JSON, 파일, 명령 출력, 환경 변수에서 온 값은 늘 문자열이라 `status == 'ok`나 `env("PORT") == 8080`이 조용히 거짓이 되는 함정이 흔해서, 이 비교를 에러로 만들었다. 예외는 숫자끼리(`1 == 1.0`)와 한쪽이 `nil`인 경우(`x == nil`)다. 타입은 `type_of`가 주는 이름이되, 태그 값은 이름이 달라도 모두 한 타입으로 견준다(`Ok(1) == Err(1)`은 `false`, 이름은 값의 일부다). 채널의 두 끝(`sender`·`receiver`)은 다른 타입이다. 리스트·맵 안에서 맞붙어도, `in`·`unique`도 같다. 리터럴 패턴은 비교가 아니라 타입까지 보는 시험이라 타입이 다르면 맞지 않을 뿐이다.
 
 ```fung run exit=1 error=E0517
 import json
-back = json.parse(`{"status": "ok"}`)!
+back = json.parse(`{"status": "ok", "port": "8080"}`)!
 print(back.status == 'ok)
 ```
 
-고치는 법: 문자열 쪽을 `sym(s)`로 바꾸거나, 비교 대상을 문자열로 쓴다.
+고치는 법: 한쪽을 바꿔서 견준다(`sym(s)`, `int(s)`, `str(n)`). 타입부터 가려야 하면 `type_of`나 `match`를 쓴다. 0.6.0까지는 심볼과 문자열만 에러였고 다른 조합은 말없이 `false`였다.
 
 ```fung run
 import json
-back = json.parse(`{"status": "ok"}`)!
-print(sym(back.status) == 'ok, back.status == "ok")
+back = json.parse(`{"status": "ok", "port": "8080"}`)!
+print(sym(back.status) == 'ok, back.status == "ok", int(back.port) == 8080)
 ```
 
 :::
@@ -1884,18 +2169,19 @@ print(is_utf8(s), json.stringify({name: is_utf8(s) then s else bytes(s)}))
 
 :::error E0519
 
-문자열 보간이나 `join`에 결과값(`Ok`·`Err`)이 들어갔다. 결과를 풀지 않은 실수가 `Ok("…")` 같은 글이 되어 경로·주소·명령 인자로 흘러가지 않도록 멈춘다. `print`와 `str`은 결과값을 그대로 보이고, 리스트·맵 안의 결과값은 리스트의 모양으로 보인다.
+문자열 보간이나 `join`에 글로 말없이 넣지 않는 값이 들어갔다: 결과값(`Ok`·`Err`), `nil`, 핸들(함수·모듈·태스크·범위·채널 끝·atom·파일·소켓). 리스트·맵·튜플·태그 안 어느 깊이에 있어도 같다. 결과를 풀지 않은 실수가 `Ok("…")` 같은 글이 되어, 없는 값이 `nil`이라는 글이 되어 경로·주소·명령 인자로 흘러가지 않도록 멈춘다. `print`와 `str`은 무엇이든 그대로 보인다.
 
 ```fung run exit=1 error=E0519
 r = Ok("127.0.0.1:8080")
 print("http://${r}/")
 ```
 
-고치는 법: `!`·`?`로 풀어서 넣는다. 결과 자체를 글로 쓰려면 `str(r)`로 바꾼다. 0.5.0까지는 말없이 글이 되었다.
+고치는 법: 결과는 `!`·`?`로 풀고, `nil`일 수 있는 값에는 `??`로 기본값을 준다. 값 자체를 글로 쓰려면(로그) `str(x)`로 바꾼다. 0.5.0까지는 결과값이, 0.6.0까지는 `nil`과 핸들, 컬렉션 안의 값이 말없이 글이 되었다.
 
 ```fung run
 r = Ok("127.0.0.1:8080")
-print("http://${r!}/", str(r))
+host = nil
+print("http://${r!}/", str(r), "host=${host ?? "localhost"}")
 ```
 
 :::
@@ -1954,6 +2240,42 @@ for i in reverse(1..=n):
 
 :::
 
+:::error E0523
+
+정수와 실수를 섞은 산술(`+ - * / // % **`)에서 정수가 실수로 정확히 옮겨지지 않는다. 실수는 2<sup>53</sup>까지의 정수만 모두 정확히 담으므로, 그보다 큰 일부 정수는 가장 가까운 실수로 바뀌어 값이 말없이 달라진다. 비교(`==`, `<`)는 정수와 실수를 정확히 견주므로 이 에러가 없다.
+
+```fung run exit=1 error=E0523
+id = 9007199254740993
+print(id + 0.5)
+```
+
+고치는 법: 반올림해도 되면 `float(n)`으로 일부러 바꾼다. 정확한 값이 필요하면 정수끼리 계산한다. 0.6.0까지는 말없이 반올림했다.
+
+```fung run
+id = 9007199254740993
+print(float(id) + 0.5, id + 1)
+```
+
+:::
+
+:::error E0524
+
+정수를 음의 정수로 거듭제곱했다(`2 ** -1`). 결과가 정수가 아니므로, 결과의 타입이 지수의 값에 따라 바뀌지 않게 에러로 한다.
+
+```fung run exit=1 error=E0524
+n = -1
+print(2 ** n)
+```
+
+고치는 법: 지수(나 밑)를 실수로 쓴다. 0.6.0까지는 실수를 돌려줬다.
+
+```fung run
+n = -1
+print(2 ** float(n), 2.0 ** n)
+```
+
+:::
+
 ## E06xx: 패턴과 결과값 {#e06}
 
 `match`와 구조 분해 대입은 값을 패턴(pattern)에 맞춰 본다. 맞는 패턴이 없으면 E0601·E0602다. fung은 실패할 수 있는 일의 결과를 예외(exception)로 던지지 않고 `Ok(값)`·`Err(내용)`이라는 값으로 돌려준다. 이 결과값을 `!`·`?`로 잘못 다루거나 확인하지 않고 버리면 E0603~E0606이다([match와 패턴](language/match.html), [결과값과 에러](language/results.html)). 모두 실행 중의 에러다.
@@ -1993,7 +2315,7 @@ print(status_text(500))
 
 ```fung run exit=1 error=E0602
 line = "web1 10.0.0.1"
-[name, addr, role] = split(line, " ")
+[_name, _addr, _role] = split(line, " ")
 ```
 
 고치는 법: 개수가 달라질 수 있으면 `...rest`로 나머지를 받거나 `match`로 경우를 나눈다.
@@ -2012,7 +2334,7 @@ print(name, addr, rest)
 
 ```fung run exit=1 error=E0603
 import fs
-text = fs.read("config.json")!
+_text = fs.read("config.json")!
 ```
 
 고치는 법: 실패를 정말 멈춤으로 다루려면 그대로 둔다. 어떤 실패는 넘어가야 하면 `match`로 종류(`kind`)를 가려 처리한다.
@@ -2037,7 +2359,7 @@ print(text)
 
 ```fung run exit=1 error=E0604
 cfg = {host: "db1"}
-port = get(cfg, "port")!
+_port = get(cfg, "port")!
 ```
 
 고치는 법: `nil`에는 `??`로 기본값을 준다. 없을 때 호출자에게 넘기려면 `match`나 `if x == nil: return nil ;;`로 드러내 쓴다.
@@ -2072,7 +2394,7 @@ print(try_map(["1", "2"], parse_int), map([1, 2], x => x * 2))
 
 버려지는 자리: 문장으로 쓴 호출, 그런 자리의 `if`·`match` 가지의 끝, `for` 문장의 본문, 파일의 마지막 식, `each`에 준 함수, `with`의 `release`, `supervise`의 `on_fail`, `test` 블록이 돌려준 값. 외부 명령이 실패해도 `exec`가 `Err`를 돌려주므로 같다.
 
-버려지는 값이 리스트면 그 원소(한 겹만)도 본다. `for`로 끝나는 함수를 문장으로 부르거나 `map(…)`을 문장으로 쓰면 리스트가 버려지는데, 그 안의 첫 `Err`가 E0606이 되고 `note: element 2 of the discarded list (of 3)`처럼 몇 번째 원소인지 덧붙는다.
+버려지는 값이 리스트·맵·튜플·태그면 그 안을 깊이와 상관없이 본다. `for`로 끝나는 함수를 문장으로 부르거나 `map(…)`을 문장으로 쓰면 리스트가 버려지는데, 그 안의 첫 `Err`가 E0606이 되고 `note: element 2 of the discarded list (of 3)`처럼 어디 있는지 덧붙는다(더 깊으면 `note: key "db" of the discarded map, then the value of `Ok(…)``처럼 길을 잇는다). 0.6.0까지는 리스트의 한 겹만 봤다.
 
 ```fung run exit=1 error=E0606
 import fs
@@ -2098,7 +2420,7 @@ print("done")
 
 태스크의 함수가 `Err`를 돌려줬는데, 그 결과를 아무도 `await`로 읽지 않은 채 읽을 수 없게 되었다. 핸들을 버리고 띄운 일이 실패하면 아무도 모르게 지나가므로, 버려지는 `Err`(E0606)처럼 에러로 만든다. 에러는 `spawn`한 자리를 가리키고 그 범위를 실패시킨다(`supervise`면 `on_fail`이 받는다).
 
-읽을 수 없게 되는 때는 셋이다. 태스크가 끝났을 때 핸들이 하나도 남지 않았거나, 끝난 뒤 마지막 핸들이 읽히지 않은 채 사라졌거나, 범위가 닫힐 때 읽지 않은 핸들이 범위 밖에 남았을 때다. 어느 경우든 에러인지 아닌지는 같고, 알리는 때만 다르다. 리스트를 돌려주면 그 원소(한 겹)도 본다. 취소·시간 초과로 끝난 태스크의 `Err`는 런타임이 만든 것이라 세지 않는다.
+읽을 수 없게 되는 때는 셋이다. 태스크가 끝났을 때 핸들이 하나도 남지 않았거나, 끝난 뒤 마지막 핸들이 읽히지 않은 채 사라졌거나, 범위가 닫힐 때 읽지 않은 핸들이 범위 밖에 남았을 때다. 어느 경우든 에러인지 아닌지는 같고, 알리는 때만 다르다. 리스트·맵·튜플·태그를 돌려주면 그 안도 깊이와 상관없이 본다. 취소·시간 초과로 끝난 태스크의 `Err`는 런타임이 만든 것이라 세지 않는다.
 
 ```fung run exit=1 error=E0607
 import fs
@@ -2112,7 +2434,7 @@ print("saved")
 import fs
 scope(fn(s):
   t = spawn(s, () => fs.write("missing/out.txt", "data"))
-  match await(t):
+  match await(t)!:
     Ok(_)  => print("saved")
     Err(e) => print("skip:", e.kind)
   ;;
@@ -2169,7 +2491,7 @@ FAIL example.fung: a task exits
 흔한 원인: 받는 쪽이 보내는 끝을 자기도 쥐고 있어서 채널이 닫히지 않음, 버퍼 없는 채널(`channel()`)에 받는 태스크 없이 보냄.
 
 ```fung run exit=1 error=E0702
-(tx, rx) = channel()
+(_tx, rx) = channel()
 print(recv(rx))
 ```
 
@@ -2192,7 +2514,7 @@ fn collect() = scope(fn(s):
     send(tx, 2)!
   ;;)
   for x in rx: x ;;
-;;)
+;;)!
 print(collect())
 ```
 
@@ -2218,16 +2540,21 @@ print(collect())
 
 :::error E0706
 
-이미 끝난 태스크 범위에 태스크를 띄웠다. 태스크 범위는 그 안의 태스크가 모두 끝나야 닫히는 울타리인데, 닫힌 뒤에 들어오는 태스크는 기다려 줄 사람이 없다.
+이미 닫힌 태스크 범위의 핸들로 `spawn`하거나 `cancel`했다. 태스크 범위는 그 안의 태스크가 모두 끝나야 닫히는 울타리인데, 닫힌 뒤에 들어오는 태스크는 기다려 줄 사람이 없고, 취소할 것도 남아 있지 않다.
 
-흔한 원인: `scope`의 함수가 태스크 범위 값 `s`를 돌려주고 밖에서 그것으로 `spawn`함.
+흔한 원인: `scope`의 함수가 태스크 범위 값 `s`를 돌려주고 밖에서 그것으로 `spawn`하거나 `cancel`함.
 
 ```fung run exit=1 error=E0706
-s = scope(s => s)
+s = scope(s => s)!
 spawn(s, () => print("late"))
 ```
 
-고치는 법: `spawn`은 태스크 범위의 함수 안에서 부른다.
+```fung run exit=1 error=E0706
+s = scope(s => s)!
+cancel(s)
+```
+
+고치는 법: 범위 핸들은 태스크 범위의 함수 안에서만 쓴다.
 
 ```fung run
 scope(fn(s):
@@ -2261,8 +2588,8 @@ print("hits:", new)
 atom에 담을 수 없는 값을 넣었다. atom은 평범한 데이터(숫자, 문자열, 리스트, 맵 …)만 담는다. 다른 atom, 채널의 끝, 태스크, 태스크 범위, 파일, 소켓은 상태가 있는 자원이라 담을 수 없다.
 
 ```fung run exit=1 error=E0708
-(tx, rx) = channel()
-latest = atom(tx)
+(tx, _rx) = channel()
+_latest = atom(tx)
 ```
 
 고치는 법: 데이터만 atom에 둔다. 자원은 변수나 인자로 넘긴다.
@@ -2373,10 +2700,10 @@ print(depth(200_000))
 
 :::error E0806
 
-fung의 크기 한도를 넘었다. 메시지가 무엇이(`characters`, `elements`) 한도를 넘었는지 적는다. 문자열은 1억 글자, `map` 등이 만드는 리스트는 1억 원소가 한도이고, 실행 중에 결과를 만들기 전에 검사하므로 메모리를 다 쓰기 전에 멈춘다(종료 코드 1). 인자·매개변수 개수 한도는 컴파일할 때 검사하는 [E0230](#E0230)이다(0.4.0까지는 그것도 E0806이었다).
+fung의 크기 한도를 넘었다. 메시지가 무엇이(`characters`, `elements`) 한도를 넘었는지 적는다. 문자열은 1억 글자, 리스트(와 맵)는 1억 원소가 한도다. 리스트를 만드는 모든 길(`+`, `flatten`, `put`·`merge`, 범위나 받는 끝에서 만드는 `map`·`filter` 등, 펼치기)이 검사하고, 되도록 결과를 만들기 전에 검사하므로 메모리를 다 쓰기 전에 멈춘다(종료 코드 1). 값 하나의 한도이고 전체 메모리 한도는 없다. 값을 글로 바꾸는 `str`·보간·`print`·`fail`도 글이 한도의 바이트(글자당 4바이트)를 넘는 순간 멈춘다: 부분을 나눠 쓴 리스트는 작아도 글이 끝없이 길 수 있다. 인자·매개변수 개수 한도는 컴파일할 때 검사하는 [E0230](#E0230)이다(0.4.0까지는 그것도 E0806이었다).
 
 ```fung run exit=1 error=E0806
-line = repeat("=", 200_000_000)
+_line = repeat("=", 200_000_000)
 ```
 
 고치는 법: 한 번에 거대한 값을 만들지 말고 나눠서 처리한다(파일은 줄 단위로 읽고 쓰는 식).
@@ -2474,81 +2801,25 @@ print(r)
 
 :::
 
-## W01xx: 경고 {#w01}
+## W01xx: 은퇴한 경고 {#w01}
 
-경고는 틀렸다고 단정할 수는 없지만 실수일 가능성이 큰 코드를 알려 준다. 프로그램을 멈추지 않고 종료 코드도 바꾸지 않는다. 경고는 `fung check`와 `fung test`가 찍는다. `fung run`은 경고를 찍지 않고 그대로 실행한다. 그래서 아래 예의 출력은 `fung check example.fung`을 실제로 돌려 옮겨 적었다.
+fung에는 경고가 없다. 예전에 `fung check`·`fung test`만 보이던 경고는 모두 에러가 되었고 번호는 다시 쓰지 않는다.
 
 :::error W0101
 
-가져오고 한 번도 쓰지 않은 모듈이 있다.
-
-```fung check
-import fs
-import path
-print(path.join("a", "b"))
-```
-
-```expect check
-warning[W0101]: unused import `fs`
-  --> example.fung:1:8
-  |
-1 | import fs
-  |        ^^
-  |
-```
-
-고치는 법: 쓰지 않는 `import` 줄을 지운다.
+쓰지 않는 번호다. 쓰지 않는 import에 내던 경고였는데, 지금은 에러 [E0239](#E0239)다. 나오지 않으므로 예가 없다.
 
 :::
 
 :::error W0102
 
-함수 안에서 대입하고 한 번도 읽지 않은 변수가 있다. 계산을 해 놓고 결과를 쓰는 것을 잊었을 가능성이 크다.
-
-```fung check
-fn total(xs):
-  count = len(xs)
-  fold(xs, 0, (a, b) => a + b)
-;;
-print(total([1, 2]))
-```
-
-```expect check
-warning[W0102]: unused variable `count`
-  --> example.fung:2:3
-  |
-2 |   count = len(xs)
-  |   ^^^^^
-  |
- help: prefix it with `_` if it is intentional
-```
-
-고치는 법: 쓰지 않는 대입을 지운다. 일부러 쥐고 있는 값이라면(예: 채널의 끝을 함수가 끝날 때까지 살려 둠) 이름을 `_`로 시작한다(`_count`).
+쓰지 않는 번호다. 읽지 않는 지역 변수에 내던 경고였는데, 지금은 에러 [E0239](#E0239)다. 나오지 않으므로 예가 없다.
 
 :::
 
 :::error W0103
 
-변수나 매개변수가 같은 이름의 prelude 함수를 가린다. 그 아래에서는 그 이름이 내장 함수가 아니라 내 변수를 가리키므로, 나중에 내장 함수를 부르려 하면 헷갈린다.
-
-```fung check
-fn summary(xs):
-  max = 0
-  len(xs) + max
-;;
-print(summary([1]))
-```
-
-```expect check
-warning[W0103]: `max` shadows a prelude function
-  --> example.fung:2:3
-  |
-2 |   max = 0
-  |   ^^^
-  |
-```
-
-고치는 법: 다른 이름(`biggest`, `limit` 등)을 쓴다.
+쓰지 않는 번호다. prelude 함수를 가리는 이름에 내던 경고였는데, 지금은 에러 [E0240](#E0240)이다. 나오지 않으므로 예가 없다.
 
 :::
 

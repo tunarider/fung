@@ -26,7 +26,7 @@ fn _list(xs, verb) = type_of(xs) == 'list then xs else map(_r.items(xs, verb), x
 # A range's first number. The range natives (_r) give the rest without
 # counting it, so first/last/take/drop build only what they return, and a
 # range wider than the int range works too (02).
-fn _start(r) = find(r, x => true)
+fn _start(r) = find(r, _ => true)
 
 # Up to n values from a receiving end, stopping early: the rest stays in
 # the channel (05).
@@ -56,7 +56,7 @@ fn first(xs):
 fn last(xs):
   if type_of(xs) == 'range: return _r.last(xs) ;;
   ys = _list(xs, "take the last of")
-  is_empty(ys) then nil else ys[-1]
+  is_empty(ys) then nil else ys[len(ys) - 1]
 ;;
 
 # take/drop never fail on a count past the end (06): n is cut to len
@@ -69,6 +69,7 @@ fn _clamp(n, size):
 ;;
 
 fn take(xs, n):
+  _arg.count("n", n)
   if type_of(xs) == 'receiver: return _receive(xs, _clamp(n, n), []) ;;
   if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp(n, n)), x => x) ;;
   ys = _list(xs, "take from")
@@ -76,6 +77,7 @@ fn take(xs, n):
 ;;
 
 fn drop(xs, n):
+  _arg.count("n", n)
   if type_of(xs) == 'range: return map(_r.slice(xs, _clamp(n, n)), x => x) ;;
   ys = _list(xs, "drop from")
   ys[_clamp(n, len(ys))..]
@@ -93,7 +95,7 @@ fn _padding(s, n, pad):
   _arg.count("n", n)
   _r.pad(pad)
   missing = n - len(s)
-  missing <= 0 then "" else repeat(pad, int(missing / len(pad)) + 1)[..missing]
+  missing <= 0 then "" else repeat(pad, missing // len(pad) + 1)[..missing]
 ;;
 
 fn pad_left(s: str, n: int, pad: str = " ") = _padding(s, n, pad) + s
@@ -101,8 +103,14 @@ fn pad_right(s: str, n: int, pad: str = " ") = s + _padding(s, n, pad)
 
 # ---- Results --------------------------------------------------------
 
-fn is_ok(x) = type_of(x) == 'Ok
-fn is_err(x) = type_of(x) == 'Err
+fn is_ok(x) = match x:
+  Ok(_) => true
+  _     => false
+;;
+fn is_err(x) = match x:
+  Err(_) => true
+  _      => false
+;;
 
 # ---- Iteration ------------------------------------------------------
 

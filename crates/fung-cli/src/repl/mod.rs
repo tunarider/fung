@@ -61,11 +61,12 @@ const HELP: &str = "commands:
 /// `fung` without arguments: a terminal gets the line
 /// editor, anything else plain line reading.
 pub fn start() -> Out {
-    let rt = Runtime::new(
+    let rt = Runtime::with_streams(
         Box::new(ProcessOut::stdout()),
         Box::new(ProcessOut::stderr()),
         Box::new(std::io::BufReader::with_capacity(STDIN_BUFFER, raw_stdin())),
         SourceMap::new(),
+        fung_vm::vm::std_streams_apart(),
     );
     if let Err(errs) = rt.boot(Vec::new()) {
         let text: String = rt.with_sources(|s| errs.iter().map(|e| diag::format(e, s)).collect());
@@ -295,6 +296,9 @@ impl Session {
         // its tasks while their cleanup still ran: one line says so.
         let abandoned = self.rt.take_abandoned();
         if self.rt.recover_interrupt() {
+            // A deadlock reported before the Ctrl-C fails only this input,
+            // as below (CC18).
+            self.rt.recover_deadlock();
             if abandoned {
                 let _ = writeln!(self.err, "{ABANDONED}");
             }

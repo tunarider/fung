@@ -23,7 +23,9 @@ fn fan_in(s: scope, rxs: list):
     _ = scope(fn(inner):
       each(rxs, r => spawn(inner, fn(): _forward(r, tx) then cancel(inner) else nil ;;))
     ;;)
-    close(tx)
+    # closed already when the returned end is gone (D72)
+    _ = close(tx)
+    nil
   ;;)
   rx
 ;;
@@ -38,6 +40,8 @@ fn _forward(r, tx) = match recv(r):
 # Parallel map: at most `limit` tasks at once (nil = no limit; D11),
 # results in input order, in a scope of its own: a runtime error in f
 # fails pmap (05), an Err that f returns is a result like any other.
+# pmap itself gives no runtime Err (its scope fails or is cancelled
+# instead), so it gives f's values as they are, not in Ok (D65).
 fn pmap(xs, f: fn, limit: int | nil = nil):
   if limit != nil: _arg.positive("limit", limit) ;;
   items = xs |> map(x => x)
@@ -46,7 +50,7 @@ fn pmap(xs, f: fn, limit: int | nil = nil):
     else _pmap_workers(items, f, limit)
 ;;
 
-fn _pmap_all(items, f) = scope(s => items |> map(x => spawn(s, () => f(x))) |> map(await))
+fn _pmap_all(items, f) = scope(s => items |> map(x => spawn(s, () => f(x))) |> map(t => await(t)!))!
 
 # `limit` workers take the next index from a channel as each finishes, so
 # a slow item holds up only its own worker. Each gives its (index, value)
@@ -55,7 +59,7 @@ fn _pmap_workers(items, f, limit):
   (jobs_tx, jobs) = channel(len(items))
   each(0..len(items), i => send(jobs_tx, i))
   close(jobs_tx)
-  done = scope(s => 0..limit |> map(_ => spawn(s, () => _work(items, f, jobs, []))) |> map(await))
+  done = scope(s => 0..limit |> map(_ => spawn(s, () => _work(items, f, jobs, []))) |> map(t => await(t)!))!
   done |> flatten |> sort_by(((i, _)) => i) |> map(((_, v)) => v)
 ;;
 
@@ -64,8 +68,9 @@ fn _work(items, f, jobs, acc) = match recv(jobs):
   _     => acc
 ;;
 
-# Calls f until it returns a non-Err value, at most `times` tries (from
-# 1; D11), sleeping `delay` between tries; the last Err is returned (06).
+# Calls f until it returns Ok, at most `times` tries (from 1; D11),
+# sleeping `delay` between tries; the last Err is returned (06). It looks
+# at f's result, so f returns one (D65): another value is E0605.
 fn retry(f: fn, times: int = 3, delay: dur = 0ms):
   _arg.positive("times", times)
   _arg.dur("delay", delay)
@@ -73,7 +78,7 @@ fn retry(f: fn, times: int = 3, delay: dur = 0ms):
 ;;
 
 fn _retry(f, times, delay):
-  r = f()
+  r = _arg.result("conc.retry", f())
   if times == 1 or not is_err(r): return r ;;
   sleep(delay)
   _retry(f, times - 1, delay)

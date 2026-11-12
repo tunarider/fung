@@ -1,0 +1,4 @@
+# A spread is the last positional argument of a call (D45).
+fn add(a, b) = a + b
+print(add(...[1], 2))
+# expect-error: E0133

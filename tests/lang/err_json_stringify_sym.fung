@@ -1,0 +1,4 @@
+# A symbol is no JSON value (D80): `sym_name` makes it a string.
+import json
+print(json.stringify(['a]))
+# expect-error: E0513

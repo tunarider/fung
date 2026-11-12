@@ -36,6 +36,61 @@ pub struct File {
     state: Mutex<Option<Io>>,
     /// Where an open handle goes when its last copy drops (L11 B).
     closer: Closer,
+    /// A FIFO's read and write turns (`turn.rs`, CC14): its operations
+    /// wait in the event loop, which keeps one wait per descriptor and
+    /// interest, so one task at a time reads it and one writes it.
+    pub(crate) turns: Turns,
+}
+
+/// The read and the write turn of a FIFO handle.
+#[derive(Default)]
+pub(crate) struct Turns {
+    read: super::turn::Turnstile,
+    write: super::turn::Turnstile,
+}
+
+/// One FIFO operation's hold on a turn of its handle (CC14): taken at
+/// its first try, given back when it ends, stops or is dropped.
+pub(crate) struct PipeTurn {
+    file: std::sync::Arc<File>,
+    write: bool,
+    hold: super::turn::Hold,
+}
+
+impl PipeTurn {
+    /// The read turn of `file` (else the write turn), not taken yet.
+    pub(crate) fn new(file: std::sync::Arc<File>, write: bool) -> std::rc::Rc<PipeTurn> {
+        std::rc::Rc::new(PipeTurn {
+            file,
+            write,
+            hold: Default::default(),
+        })
+    }
+
+    fn turnstile(&self) -> &super::turn::Turnstile {
+        if self.write {
+            &self.file.turns.write
+        } else {
+            &self.file.turns.read
+        }
+    }
+
+    /// Whether the operation holds the turn, taking it if it can; false:
+    /// it waits in line (`IoStep::Park`).
+    pub(crate) fn take(&self, me: &std::sync::Arc<crate::vm::Waiter>) -> bool {
+        self.hold.take(self.turnstile(), me)
+    }
+
+    /// The operation is over: the turn goes to the next in line.
+    pub(crate) fn end(&self) {
+        self.hold.end(self.turnstile());
+    }
+}
+
+impl Drop for PipeTurn {
+    fn drop(&mut self) {
+        self.end();
+    }
 }
 
 /// A handle dropped open: its runtime's closer flushes and closes it off
@@ -141,6 +196,7 @@ impl File {
             path,
             state: Mutex::new(Some(io)),
             closer,
+            turns: Turns::default(),
         }
     }
 
@@ -207,6 +263,12 @@ impl File {
             }
             Some(Io::Write(_) | Io::Pipe(_)) => None,
         }
+    }
+
+    /// How many tasks wait for a turn of the handle (tests).
+    #[cfg(test)]
+    pub(crate) fn in_line_for_tests(&self) -> usize {
+        self.turns.read.in_line() + self.turns.write.in_line()
     }
 
     /// Whether the handle is a FIFO (read and written on the run thread).
@@ -401,6 +463,11 @@ pub(crate) fn open(path: &[u8], mode: Mode, perm: Option<u32>) -> io::Result<Io>
     match mode {
         Mode::Read => {
             let f = o.read(true).open(path)?;
+            // A directory opens for reading, and fails at the first read:
+            // it fails at the open instead (D78), as the other modes do.
+            if f.metadata()?.is_dir() {
+                return Err(io::Error::from_raw_os_error(libc::EISDIR));
+            }
             return Ok(Io::Read(Reading {
                 r: BufReader::with_capacity(BUF_SIZE, f),
                 part: Vec::new(),

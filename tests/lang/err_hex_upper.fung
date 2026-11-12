@@ -1,0 +1,4 @@
+# Hex digits are lowercase, like the prefixes and the exponent (D56).
+print(0xff)
+print(0xFF)
+# expect-error: E0102

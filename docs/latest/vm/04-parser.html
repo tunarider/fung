@@ -232,7 +232,7 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump ast 
 <ul>
 <li><code>E0110 unexpected …</code>: 이 자리에 올 수 없는 토큰.</li>
 <li><code>E0112 expected …, found …</code>: 특정 토큰이 와야 하는 자리(<code>then</code> 뒤의 <code>else</code> 등). 괄호 안 목록에서 원소 뒤에 <code>,</code>도 닫는 괄호도 아닌 것이 오면 <code>expected `,` or `]` </code>이고, 괄호를 연 자리를 <code>note</code>가 짚는다. 가장 흔한 실수(빠뜨린 쉼표, 닫지 않은 괄호)가 "무엇을 기대했는지"를 말하게 하려는 것이다.</li>
-<li><code>E0126</code>: 이름 인자 뒤의 위치 인자. 그 밖에 문법은 맞게 읽었지만 금지하는 모양도 저마다 번호가 있다(E0116~E0125).</li>
+<li><code>E0126</code>: 이름 인자 뒤의 위치 인자. 그 밖에 문법은 맞게 읽었지만 금지하는 모양도 저마다 번호가 있다(E0116~E0132).</li>
 <li><code>E0111</code>: 비교 연쇄.</li>
 <li><code>E0115 expression nesting too deep (limit 10000)</code>: 식이나 패턴이 만 겹 넘게 중첩됨.</li>
 </ul>

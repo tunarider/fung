@@ -1,0 +1,59 @@
+# The shapes the compiler's jumps take (VM26-VM29, VM31) keep what the
+# program means. `??` goes on past its right side, `or` and `not` jump
+# on true, a branch that returns needs no jump past the others, jumps to
+# jumps go straight to the end, and MATCH jumps by itself when it fails.
+
+# A branch that returns, in a value that is not the function's end: the
+# other branch still goes on after it.
+fn early(m, c):
+  v = c then return "none" else get(m, "a") ?? 0
+  "got ${v}"
+;;
+print(early({a: 1}, false), early({}, true), early({}, false))
+# expect: got 1 none got 0
+
+# `??` at the function's end, with an Ok, nil and Err on the left.
+fn pick(r, d) = r ?? d
+print(pick(Ok(2), 9), pick(nil, 9), pick(Err('x), 9), pick(3, 9))
+# expect: 2 9 9 3
+
+# `??` at the end, where the left path lets go of a local the right
+# side reads.
+fn either(r, xs) = r ?? len(xs)
+print(either(Ok(5), [1, 2]), either(nil, [1, 2]))
+# expect: 5 2
+
+# `or`, `and` and `not` as conditions, and as values.
+fn cls(x) = x > 7 or x < 3 then "out" else "in"
+fn mid(x) = not (x < 3 or x > 7) and x != 5 then "mid" else "no"
+print(map([1, 5, 6, 9], cls), map([1, 5, 6, 9], mid))
+# expect: ["out", "in", "in", "out"] ["no", "no", "mid", "no"]
+fn ordered(a, b) = a == nil or b != nil and a < b
+print(ordered(nil, 1), ordered(1, nil), ordered(1, 2), ordered(2, 1))
+# expect: true false true false
+
+# A literal condition takes its branch only.
+fn lit(x):
+  y = if true: x + 1 else: 0 ;;
+  if false: return 0 ;;
+  y
+;;
+print(lit(1))
+# expect: 2
+
+# A branch inside a branch: the inner jumps go to the end at once.
+fn nest(x, y) = str(x then (y then 1 else 2) else 3)
+print(nest(true, true), nest(true, false), nest(false, true))
+# expect: 1 2 3
+
+# A match whose arms return before its end.
+fn arm(x):
+  r = match x:
+    0            => return "zero"
+    n when n > 0 => "pos"
+    _            => "neg"
+  ;;
+  "${r}!"
+;;
+print(arm(0), arm(2), arm(-2))
+# expect: zero pos! neg!

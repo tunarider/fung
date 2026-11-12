@@ -83,28 +83,28 @@ headers = token == nil then {accept: &quot;application/json&quot;}
 
 # One page as a map. A 429 (too many requests) waits as the server asks
 # and tries the same page again.
-fn page(url, tries = 1):
-  res = http.get(url, headers: headers, timeout: 30s)?
+fn page(at, tries = 1):
+  res = http.get(at, headers: headers, timeout: 30s)?
   match res.status:
     200                =&gt; json.parse(res.body)
     429 when tries &lt; 5 =&gt;
       wait = parse_int(get(res.headers, &quot;retry-after&quot;, &quot;1&quot;)) ?? 1
       eprint(&quot;rate limited, waiting ${wait}s&quot;)
       sleep(wait * 1s)
-      page(url, tries + 1)
-    code               =&gt; Err({kind: 'http, message: &quot;${url}: HTTP ${code}&quot;})
+      page(at, tries + 1)
+    code               =&gt; Err({kind: 'http, message: &quot;${at}: HTTP ${code}&quot;})
   ;;
 ;;
 
 # All the items from url on: pages are fetched one after another, each
 # naming the next. Returns Ok(items) or the first Err.
-fn all_items(url, acc, n):
+fn all_items(from, acc, n):
   if n &gt; max_pages: return Err({kind: 'limit, message: &quot;more than ${max_pages} pages&quot;}) ;;
-  p = page(url)?
-  items = acc + get(p, &quot;items&quot;, [])
+  p = page(from)?
+  got = acc + get(p, &quot;items&quot;, [])
   match get(p, &quot;next&quot;):
-    nil  =&gt; Ok(items)
-    next =&gt; all_items(next, items, n + 1)
+    nil  =&gt; Ok(got)
+    next =&gt; all_items(next, got, n + 1)
   ;;
 ;;
 
@@ -125,7 +125,7 @@ rate limited, waiting 1s
 <p>세 페이지를 따라갔고, 두 번째 요청에서 429를 받아 1초 기다린 뒤 같은 페이지를 다시 받았다. <code>rate limited…</code>와 <code>6 items</code>는 표준 에러로 가므로 <code>&gt; hosts.jsonl</code>로 돌리면 파일에는 항목 줄만 남는다.</p>
 <h2 id="how">줄별 설명</h2>
 <ul>
-<li><code>token</code>·<code>headers</code>: 토큰은 스크립트에 적지 않고 환경 변수에서 읽는다. 없으면(<code>nil</code>) <code>authorization</code> 헤더 없이 보낸다. 최상위에서 한 번만 대입한 이름이라 아래 함수들이 그대로 읽는다.</li>
+<li><code>token</code>·<code>headers</code>: 토큰은 스크립트에 적지 않고 환경 변수에서 읽는다. 없으면(<code>nil</code>) <code>authorization</code> 헤더 없이 보낸다. 최상위 이름은 한 번만 묶이는 상수라 아래 함수들이 그대로 읽는다.</li>
 <li><code>page</code>: 페이지 하나를 받아 JSON을 맵으로 바꾼다. <code>http.get(…)?</code>의 <code>?</code>는 네트워크 실패면 그 <code>Err</code>를 곧바로 돌려보낸다. 상태 코드는 <code>match</code>로 가른다. <code>200</code>이면 <code>json.parse</code>의 결과(<code>Ok(맵)</code>이나 <code>Err</code>)가 곧 반환값이다.</li>
 <li><code>429 when tries &lt; 5</code>: 리터럴 패턴 <code>429</code>에 guard를 붙여 다섯 번까지만 기다린다. <code>Retry-After</code> 헤더(응답 헤더 키는 늘 소문자다)의 초를 읽고, 숫자가 아니면 1초로 친다. <code>sleep(wait * 1s)</code>처럼 숫자에 <code>1s</code>를 곱하면 기간이 된다. 기다린 뒤 같은 URL로 자기 자신을 다시 부른다.</li>
 <li><code>code =&gt;</code>: 나머지 상태 코드는 이름 <code>code</code>에 묶어 에러 메시지에 넣는다. 패턴의 이름은 늘 새로 묶는 변수다.</li>

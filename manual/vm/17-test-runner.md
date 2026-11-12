@@ -46,11 +46,11 @@ test "sees one server":
   assert len(servers) == 1
 ;;
 
-servers = servers + ["web2"]
-print("top level ran with", len(servers), "servers")
+more = servers + ["web2"]
+print("top level ran with", len(more), "servers")
 
 test "sees two servers":
-  assert len(servers) == 2
+  assert len(more) == 2
   assert double(21) == 42
 ;;
 ```
@@ -60,7 +60,7 @@ test "sees two servers":
 1. 블록의 본문이 **자식 원형 하나**로 컴파일된다. 람다와 똑같다.
 2. 블록이 있던 자리에 `CLOSURE`(함수 값 만들기)와 <strong>`TEST` 명령</strong>이 들어간다. `TEST`는 만든 함수를 이름과 함께 런타임의 테스트 목록(`World::tests`)에 **등록**만 한다(`crates/fung-vm/src/vm/m6.rs`의 `exec_m6`, `TestCase`). 실행하지는 않는다.
 
-그래서 최상위가 끝까지 돌고 나면 블록들이 순서대로 등록되어 있다. 각 블록은 **자기 자리에서** 만들어졌으므로, 첫 블록은 `servers`가 하나일 때의 값을, 둘째 블록은 둘일 때의 값을 복사해 쥐고 있다.
+그래서 최상위가 끝까지 돌고 나면 블록들이 순서대로 등록되어 있다. 각 블록은 **자기 자리에서** 만들어졌으므로, 그때까지 대입된 이름의 값을 복사해 쥐고 있다. 첫 블록이 만들어질 때는 `more`가 아직 없어서, 첫 블록에서 `more`를 쓰면 컴파일 에러다.
 
 ```plain
 $ fung test order_test.fung

@@ -1,0 +1,4 @@
+(tx, rx) = channel(3)
+send(tx, 1)
+drop(rx, -1)
+# expect-error: E0403

@@ -10,6 +10,7 @@ pub mod desugar;
 pub mod diag;
 pub mod extras;
 pub mod format;
+pub mod habits;
 pub mod lexer;
 pub mod loader;
 pub mod oserr;

@@ -15,9 +15,9 @@ print(tx, rx)
 # A producer: only the task holds the sending end, so the channel
 # closes when the task ends and the loop below ends with it.
 fn numbers(s, n):
-  (tx, rx) = channel()
-  spawn(s, () => each(0..n, i => send(tx, i)))
-  rx
+  (out, ins) = channel()
+  spawn(s, () => each(0..n, i => send(out, i)))
+  ins
 ;;
 
 scope(fn(s):

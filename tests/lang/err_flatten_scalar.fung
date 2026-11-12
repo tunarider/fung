@@ -1,0 +1,5 @@
+# `flatten` flattens lists and ranges; another element is an error (D77).
+print(flatten([0..2, [5], []]))
+# expect: [0, 1, 5]
+print(flatten([1, [2]]))
+# expect-error: E0506

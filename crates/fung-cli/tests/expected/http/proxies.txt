@@ -140,7 +140,7 @@
 -- program: print(http.get("http://example.test/a"))
 -- env: HTTP_PROXY=http://127.0.0.1:99999
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://example.test/a`: proxy `127.0.0.1:99999`: invalid port `99999`"})
+| Err({kind: 'invalid, message: "cannot request `http://example.test/a`: proxy `127.0.0.1:99999`: invalid port `99999`"})
 -- stderr
 -- exit: 0
 ==== case 06

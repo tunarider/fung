@@ -225,7 +225,7 @@ impl Task<'_> {
             .frames
             .iter()
             .rev()
-            .find_map(|f| match &f.tail_from {
+            .find_map(|f| match f.tail_from() {
                 _ if !f.proto().builtin => Some(func_name(f)),
                 Some(t) => Some(proto_name(&t.proto)),
                 None => None,

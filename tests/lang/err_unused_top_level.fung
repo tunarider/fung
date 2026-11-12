@@ -1,0 +1,4 @@
+# The entry file's top level counts as local: its unread names are errors (D38).
+total = 3
+print(1)
+# expect-error: E0239

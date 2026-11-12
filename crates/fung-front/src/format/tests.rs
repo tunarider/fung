@@ -359,8 +359,8 @@ fn fn_typed_parameters() {
         ),
         ("fn f() -> fn:\nprint\n;;\n", "fn f() -> fn:\n  print\n;;\n"),
         (
-            "fn f(h: fn | nil, g: list[fn]):\nh\n;;\n",
-            "fn f(h: fn | nil, g: list[fn]):\n  h\n;;\n",
+            "fn f(h: fn | nil, g: list):\nh\n;;\n",
+            "fn f(h: fn | nil, g: list):\n  h\n;;\n",
         ),
         (
             "apply(fn(x): x ;;, fn(y):\ny\n;;)\nz = 1\n",
@@ -502,6 +502,9 @@ fn parentheses_that_change_the_meaning_stay() {
     check_all(&[
         ("y = x |> ( f(1) )", "y = x |> (f(1))\n"),
         ("y = xs[ (0..2) ]", "y = xs[(0..2)]\n"),
-        ("y = xs[a ?? 0 .. b ?? 2]", "y = xs[a ?? 0..b ?? 2]\n"),
+        (
+            "y = xs[(a ?? 0) .. (b ?? 2)]",
+            "y = xs[(a ?? 0)..(b ?? 2)]\n",
+        ),
     ]);
 }

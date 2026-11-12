@@ -52,10 +52,10 @@ fn parse_facts(text) = lines(text)
 fn row(host):
   r = timeout(() => exec(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, probe]), 20s)
   match r:
-    Ok(res) =>
+    Ok(Ok(res))         =>
       facts = parse_facts(res.out)
       [host] + map(columns, c => get(facts, c, "-")) + ["ok"]
-    Err(e)  => [host] + map(columns, _ => "-") + [why(e)]
+    Ok(Err(e)) | Err(e) => [host] + map(columns, _ => "-") + [why(e)]
   ;;
 ;;
 
@@ -66,9 +66,9 @@ fn why(e) = match e:
 ;;
 
 # Rows of strings → aligned lines, two spaces between columns.
-fn table(rows):
-  widths = 0..len(rows[0]) |> map(i => rows |> map(r => len(r[i])) |> max)
-  rows |> map(fn(r):
+fn table(grid):
+  widths = 0..len(grid[0]) |> map(i => grid |> map(r => len(r[i])) |> max)
+  grid |> map(fn(r):
     n = len(r)
     cells = zip(take(r, n - 1), widths) |> map(((c, w)) => pad_right(c, w))
     join(cells + [last(r)], "  ")

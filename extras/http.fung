@@ -23,16 +23,23 @@ import _native.process as _proc
 import _native.time as _time
 
 # The prelude's `timeout`: the public functions' parameter of that name
-# hides it inside them.
-fn _within(d, f) = timeout(f, d)
+# hides it inside them. f's own result (in Ok, D65), or the timeout's Err.
+fn _within(d, f) = match timeout(f, d):
+  Ok(r) => r
+  e     => e
+;;
 
 # ---- The public functions (06) -----------------------------------------
 
-fn get(url: str, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864) = _request("GET", url, nil, headers, timeout, max_body)
+fn get(url: str, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10) = _request("GET", url, nil, headers, timeout, max_body, redirects)
 
-fn post(url: str, body: str | nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864) = _request("POST", url, body, headers, timeout, max_body)
+fn post(url: str, body: str | nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10) = _request("POST", url, body, headers, timeout, max_body, redirects)
 
-fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864) = _request(method, url, body, headers, timeout, max_body)
+fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10) = _request(method, url, body, headers, timeout, max_body, redirects)
+
+# A string as a URL holds it, and back (D73; `_native.net`).
+url_encode = _net.url_encode
+url_decode = _net.url_decode
 
 # Binds `addr`, tells `ready` the address, and serves until a stop
 # request (05 "정지 요청": the first SIGINT or SIGTERM, or
@@ -40,16 +47,17 @@ fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, time
 # finish for at most `drain`, cancels what is left (answered 503) and
 # returns Ok(nil). Cancelled itself (an outer scope, `timeout`, an exit) it
 # stops at once. With `reuse_port`, several processes may listen on one
-# port (SO_REUSEPORT). A bind failure is `Err 'network`.
+# port (SO_REUSEPORT). An address that does not read is `Err 'invalid`,
+# a bind failure `Err 'network` (D70).
 fn serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_port: bool = false):
   _arg.dur("drain", drain)
   l = match _net.listen(addr, reuse_port):
     Ok(l)  => l
-    Err(e) => return Err({kind: 'network, message: "cannot listen on `${addr}`: ${e.message}"})
+    Err(e) => return Err({kind: e.kind == 'invalid then 'invalid else 'network, message: "cannot listen on `${addr}`: ${e.message}"})
   ;;
   # a stop request has closed the listener already (`_stopper`)
-  with(() => l, l => _serve_on(l, handler, ready, drain), fn(l):
-    _ = _net.close(l)
+  with(() => l, opened => _serve_on(opened, handler, ready, drain), fn(opened):
+    _ = _net.close(opened)
     nil
   ;;)
 ;;
@@ -57,7 +65,10 @@ fn serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_
 # ---- One request ----------------------------------------------------------
 
 # Internal errors are maps {kind, message}: message is the reason that
-# follows "cannot request `<url>`: ". `_failed` gives the public Err.
+# follows "cannot request `<url>`: ". `_failed` gives the public Err. Its
+# kind (D70): `'invalid` for the syntax of a URL, a scheme, an address or
+# a proxy value (`_invalid`), `'io` for an answer past `max_body`,
+# `'timeout` for the request's time, and `'network` for the rest.
 #
 # The request's `limit` is one deadline over the whole request (a
 # `timeout` scope, 05): the lookup, the connection, the handshake, a
@@ -73,15 +84,16 @@ fn serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_
 # no two names differ only in case (they would be one header; LB34), and
 # none is Content-Length, Transfer-Encoding or Trailer (the request frames
 # its body itself).
-fn _request(method, url, body, headers, limit, cap):
+fn _request(method, url, body, headers, limit, cap, hops):
   _arg.token("method", method)
   _arg.str_map("headers", headers)
   _arg.headers("headers", headers)
   _arg.count("max_body", cap)
+  _arg.count("redirects", hops)
   if limit != nil: _arg.dur("timeout", limit) ;;
   r = limit == nil
-    then _attempt(method, url, body, headers, cap)
-    else _within(limit, () => _attempt(method, url, body, headers, cap))
+    then _attempt(method, url, body, headers, cap, hops)
+    else _within(limit, () => _attempt(method, url, body, headers, cap, hops))
   match r:
     Ok(res) => Ok(res)
     Err(e)  => _failed(url, e)
@@ -92,7 +104,13 @@ fn _request(method, url, body, headers, limit, cap):
 # time running out.
 fn _failed(url, e) = e.kind == 'timeout
   then Err({kind: 'timeout, message: "request to `${_shown(url)}` timed out"})
-  else Err({kind: 'network, message: "cannot request `${_shown(url)}`: ${e.message}"})
+  else Err({kind: _public_kind(e.kind), message: "cannot request `${_shown(url)}`: ${e.message}"})
+
+fn _public_kind(k) = match k:
+  'invalid => 'invalid
+  'limit   => 'io
+  _        => 'network
+;;
 
 # The URL an error shows: as given, but never with its password (errors go
 # to logs). One that reads and has a password is written as the redirect
@@ -109,29 +127,33 @@ fn _hide_password(url):
   rest = url[len(scheme) + 3..]
   auth = _before(_before(_before(rest, "/"), "?"), "#")
   if not ("@" in auth): return url ;;
-  userinfo = join(split(auth, "@")[..-1], "@")
+  parts = split(auth, "@")
+  userinfo = join(parts[..len(parts) - 1], "@")
   if not (":" in userinfo): return url ;;
   "${scheme}://${_before(userinfo, ":")}:***@" + rest[len(userinfo) + 1..]
 ;;
 
 fn _err(message) = {kind: 'network, message}
 
+# A URL, scheme, address or proxy value that does not read (D70).
+fn _invalid(message) = {kind: 'invalid, message}
+
 # The URL, then the request and one for each redirect (`_hop`).
-fn _attempt(method, url, body, headers, cap):
+fn _attempt(method, url, body, headers, cap, hops):
   u0 = match _parse_url(url):
     Ok(u)  => u
-    Err(e) => return Err(_err("invalid URL: ${e.message}"))
+    Err(e) => return Err(_invalid("invalid URL: ${e.message}"))
   ;;
   u = put(u0, "host", _remove_empty_port(u0.host))
   hs = fold(pairs(headers), {}, (m, (k, v)) => put(m, _canonical(k), v))
-  r = {first: u, headers: hs, body, proxies: _proxies(), cap}
+  r = {first: u, headers: hs, body, proxies: _proxies(), cap, redirects: hops}
   _hop(r, u, method, true, false, nil, 1)
 ;;
 
 # An empty port is no port: "host:" → "host" (RFC 3986 3.2.3).
 fn _remove_empty_port(h) = ends_with(h, ":") and ":" in _after_last(h, "]") then h[..len(h) - 1] else h
 
-fn _after_last(s, sep) = split(s, sep)[-1]
+fn _after_last(s, sep) = last(split(s, sep))
 
 # Userinfo in the URL becomes Basic authorization (RFC 7617) when the
 # user set no Authorization header (an empty one counts as none). It is
@@ -184,8 +206,8 @@ fn _hop(r, u, method, with_body, strip, prev, n):
   if next == nil:
     return Ok(res)
   ;;
-  if n > _redirect_limit:
-    return Err(_err("too many redirects (limit ${_redirect_limit})"))
+  if n > r.redirects:
+    return Err(_err("too many redirects (limit ${r.redirects})"))
   ;;
   # RFC 9110 15.4: 307 and 308 keep the method and the body (a string
   # can always be sent again); 301, 302 and 303 make a GET (a HEAD stays
@@ -200,18 +222,15 @@ fn _hop(r, u, method, with_body, strip, prev, n):
 # goes down from https to http, to another port (the scheme's own when
 # none is written), or to a host that is not the first one or under it
 # leaves it, and the credentials stay behind for good (as curl does).
-fn _leaves_origin(first, next) = (first.scheme == "https" and next.scheme != "https")
-  or _port_of(first) != _port_of(next)
-  or (next.host != first.host and not _same_site(first.host, next.host))
+fn _leaves_origin(origin, next) = (origin.scheme == "https" and next.scheme != "https")
+  or _port_of(origin) != _port_of(next)
+  or (next.host != origin.host and not _same_site(origin.host, next.host))
 
 # The port a URL reaches: its own, else its scheme's (RFC 9110 4.2).
 fn _port_of(u):
   (_, p) = _host_port(u.host)
   p != "" then p else (u.scheme == "https" then "443" else "80")
 ;;
-
-# At most 10 redirects are followed: the 11th is an error.
-_redirect_limit = 10
 
 # The user's headers again for a redirect: without the credentials once
 # a request left the first URL's origin (`_leaves_origin`, for good), without
@@ -230,8 +249,8 @@ _body_headers = ["Content-Encoding", "Content-Language", "Content-Location", "Co
 
 # A host that is the first one or under it (case aside; the port is
 # `_leaves_origin`'s).
-fn _same_site(first, next):
-  (parent, _) = _host_port(first)
+fn _same_site(origin, next):
+  (parent, _) = _host_port(origin)
   (sub, _) = _host_port(next)
   _domain_or_sub(lower(sub), lower(parent))
 ;;
@@ -283,14 +302,14 @@ fn _resolve_path(base, ref):
   ;;
   elems = split(full, "/")
   (dst, _) = fold(elems, ("/", true), _path_step)
-  out = elems[-1] == "." or elems[-1] == ".." then dst + "/" else dst
+  out = last(elems) == "." or last(elems) == ".." then dst + "/" else dst
   len(out) > 1 and out[1] == "/" then out[1..] else out
 ;;
 
-fn _path_step((dst, first), elem) = match elem:
+fn _path_step((dst, at_root), elem) = match elem:
   "."  => (dst, false)
   ".." => _path_up(dst)
-  _    => ((first then dst else dst + "/") + elem, false)
+  _    => ((at_root then dst else dst + "/") + elem, false)
 ;;
 
 fn _path_up(dst):
@@ -304,15 +323,15 @@ fn _path_up(dst):
 fn _send(method, u, body, hs, r, ctx):
   why = _check_request(u)
   if why != nil:
-    return Err(_err(ctx + why))
+    return Err(_invalid(ctx + why))
   ;;
   proxy = match _proxy_for(r.proxies, u):
-    Ok(p)    => p
-    Err(why) => return Err(_err(ctx + why))
+    Ok(p)  => p
+    Err(e) => return Err({kind: e.kind, message: ctx + e.message})
   ;;
   c = _open(u, proxy, hs, ctx)?
   via = proxy != nil and u.scheme == "http" then proxy else nil
-  res = match _exchange(c, method, u, body, hs, via, ctx, r.cap):
+  res = match _exchange(c, method, u, body, hs, via, ctx, {cap: r.cap, follow: r.redirects > 0}):
     Ok((x, nil)) => Ok((x, nil))
     Ok((x, loc)) => _redirect(u, x, loc, ctx)
     Err(e)       => Err(e)
@@ -325,7 +344,7 @@ fn _send(method, u, body, hs, r, ctx):
 # read: the connection closes. Ok((response, next URL)).
 fn _redirect(u, res, loc, ctx) = match _resolve(u, loc):
   Ok(next) => Ok((res, next))
-  Err(why) => Err(_err("${ctx}invalid Location header `${loc}`: ${why}"))
+  Err(why) => Err(_invalid("${ctx}invalid Location header `${loc}`: ${why}"))
 ;;
 
 # The checks before connecting.
@@ -357,7 +376,7 @@ fn _dial(hostport, tls, ctx):
   (host, port_text) = _host_port(hostport)
   port = _port(port_text, tls)
   if port == nil:
-    return Err(_err("${ctx}invalid port `${port_text}`"))
+    return Err(_invalid("${ctx}invalid port `${port_text}`"))
   ;;
   match _net.connect(host, port, tls: tls, alpn: tls then ["http/1.1"] else nil):
     Ok(c)  => Ok(c)
@@ -379,16 +398,16 @@ fn _port(text, tls):
 # Writes the request and reads the answer: Ok((response, nil)), or for
 # a redirect Ok((response, Location)) with its body unread. `via` is the
 # proxy an http request goes through.
-fn _exchange(c, method, u, body, hs, via, ctx, cap):
+fn _exchange(c, method, u, body, hs, via, ctx, lim):
   match _net.write(c, _request_text(method, u, body, hs, via)):
     # A server may answer before the request is all sent and close (RFC
     # 9112 9.6, an early 413): the answer is read if it came, else the
     # write's error stands (L13).
-    Err(e) => match _read_response(c, method, ctx, cap):
+    Err(e) => match _read_response(c, method, ctx, lim):
       Ok(res) => Ok(res)
       Err(_)  => Err({kind: e.kind, message: ctx + e.message})
     ;;
-    Ok(_)  => _read_response(c, method, ctx, cap)
+    Ok(_)  => _read_response(c, method, ctx, lim)
   ;;
 ;;
 
@@ -434,7 +453,7 @@ fn _parse_proxy(var):
       Err(e)                      => e.message
     ;;
   ;;
-  Err("invalid ${name} `${_hide_proxy_password(s, slashless)}`: ${why}")
+  Err(_invalid("invalid ${name} `${_hide_proxy_password(s, slashless)}`: ${why}"))
 ;;
 
 # `scheme:` when `s` has no `://` and its first `:` is followed by `/`
@@ -464,7 +483,7 @@ fn _names_a_host(p):
   host != ""
 ;;
 
-# Ok(the proxy or nil), or Err(why). A CGI program does not use
+# Ok(the proxy or nil), or Err({kind, message}). A CGI program does not use
 # HTTP_PROXY: there it can come from the request's `Proxy` header
 # (CVE-2016-5385, "httpoxy").
 fn _proxy_for(p, u):
@@ -472,10 +491,10 @@ fn _proxy_for(p, u):
   if proxy == nil:
     Ok(nil)
   else if u.scheme == "http" and p.cgi:
-    Err("HTTP_PROXY is not used in a CGI program")
+    Err(_err("HTTP_PROXY is not used in a CGI program"))
   else if not _use_proxy(p.no, u):
     Ok(nil)
-  else if type_of(proxy) == 'Err:
+  else if is_err(proxy):
     proxy
   else:
     Ok(proxy)
@@ -654,20 +673,20 @@ fn _open(u, proxy, hs, ctx):
   ;;
   at = "${ctx}proxy `${proxy.host}`: "
   if proxy.scheme == "socks5" or proxy.scheme == "socks5h":
-    return Err(_err("${at}${proxy.scheme} proxies are not supported"))
+    return Err(_invalid("${at}${proxy.scheme} proxies are not supported"))
   else if proxy.scheme != "http" and proxy.scheme != "https":
     # not taken for an http proxy on port 80 (L13)
-    return Err(_err("${at}unsupported proxy scheme `${proxy.scheme}`"))
+    return Err(_invalid("${at}unsupported proxy scheme `${proxy.scheme}`"))
   ;;
   if tls and proxy.scheme == "https":
-    return Err(_err("${at}https through an https proxy is not supported"))
+    return Err(_invalid("${at}https through an https proxy is not supported"))
   ;;
   c = _dial(proxy.host, proxy.scheme == "https", at)?
   if not tls:
     return Ok(c)
   ;;
   r = _tunnel(c, u, _proxy_auth(proxy, hs), ctx, at)
-  if type_of(r) == 'Err:
+  if is_err(r):
     _ = _net.close(c)
   ;;
   r
@@ -681,8 +700,8 @@ fn _open(u, proxy, hs, ctx):
 fn _tunnel(c, u, auth, ctx, at):
   (host, port_text) = _host_port(u.host)
   addr = (":" in host then "[${host}]" else host) + ":" + (port_text == "" then "443" else port_text)
-  lines = ["CONNECT ${addr} HTTP/1.1", "Host: ${_host_header(addr)}", "User-Agent: ${_net.user_agent()}"] + (auth == nil then [] else ["Proxy-Authorization: ${auth}"])
-  answer = match _net.write(c, join(lines, "\r\n") + "\r\n\r\n"):
+  head = ["CONNECT ${addr} HTTP/1.1", "Host: ${_host_header(addr)}", "User-Agent: ${_net.user_agent()}"] + (auth == nil then [] else ["Proxy-Authorization: ${auth}"])
+  answer = match _net.write(c, join(head, "\r\n") + "\r\n\r\n"):
     Err(e) => Err(e)
     Ok(_)  => _connect_answer(c)
   ;;
@@ -799,6 +818,8 @@ _body_cap = 67108864
 
 # A body past `cap` bytes: kind 'limit, so the server (16 MiB) can tell
 # it from a broken body; the client reports it as any other failure.
+# A body past `cap`: the client's `_failed` makes it `'io` (outside text
+# over its limit, D70), the server answers 413.
 fn _too_long_for(cap) = {kind: 'limit, message: "response body longer than ${cap} bytes"}
 
 _exceeded = "response head longer than ${_header_limit} bytes"
@@ -809,29 +830,29 @@ fn _head_err(e, ctx) = e.kind == 'limit then _at('network, ctx, _exceeded) else 
 
 fn _head_line(c, budget) = budget < 0 then Err({kind: 'limit, message: ""}) else _net.read_line(c, budget)
 
-fn _read_response(c, method, ctx, cap) = match _net.read_line(c, _header_limit):
+fn _read_response(c, method, ctx, lim) = match _net.read_line(c, _header_limit):
   Ok(nil)  => Err(_err(ctx + "connection closed before a response"))
-  Ok(line) => _read_head(c, method, ctx, line, _header_limit - byte_len(line) - 2, cap)
+  Ok(line) => _read_head(c, method, ctx, line, _header_limit - byte_len(line) - 2, lim)
   Err(e)   => Err(e.kind == 'limit then _head_err(e, ctx) else {kind: e.kind, message: ctx + e.message})
 ;;
 
 # The rest of the head after the status line; interim answers (1xx but
 # 101) are skipped (RFC 9110 15.2).
-fn _read_head(c, method, ctx, line, budget, cap):
+fn _read_head(c, method, ctx, line, budget, lim):
   (major, minor, code) = match _status_line(line):
     Ok(s)    => s
     Err(why) => return Err(_at('network, ctx, why))
   ;;
   (fields, left) = _fields(c, budget, ctx)?
   if code >= 100 and code <= 199 and code != 101:
-    return _next_head(c, method, ctx, left, cap)
+    return _next_head(c, method, ctx, left, lim)
   ;;
-  _finish(c, method, ctx, major, minor, code, fields, cap)
+  _finish(c, method, ctx, major, minor, code, fields, lim)
 ;;
 
-fn _next_head(c, method, ctx, budget, cap) = match _head_line(c, budget):
+fn _next_head(c, method, ctx, budget, lim) = match _head_line(c, budget):
   Ok(nil)  => Err(_at('network, ctx, _head_cut))
-  Ok(line) => _read_head(c, method, ctx, line, budget - byte_len(line) - 2, cap)
+  Ok(line) => _read_head(c, method, ctx, line, budget - byte_len(line) - 2, lim)
   Err(e)   => Err(_head_err(e, ctx))
 ;;
 
@@ -893,7 +914,7 @@ _head_cut = "connection closed in the response head"
 # what came (LB26, LB31): `header_lines` the lines in order with their
 # names as written, `headers` the map of them (`_header_map`), nothing
 # added or taken out.
-fn _finish(c, method, ctx, major, minor, code, fields, cap):
+fn _finish(c, method, ctx, major, minor, code, fields, lim):
   h = _group(fields)
   chunked = match _transfer_encoding(h, major, minor):
     Ok(x)    => x
@@ -908,11 +929,12 @@ fn _finish(c, method, ctx, major, minor, code, fields, cap):
     why => return Err(_at('network, ctx, why))
   ;;
   headers = _header_map(h)
-  loc = _location(code, h)
+  # `redirects: 0` follows none: a redirect is then the answer (D73)
+  loc = lim.follow then _location(code, h) else nil
   if loc != nil:
     return Ok(({status: code, headers, header_lines: fields, body: ""}, loc))
   ;;
-  body = _read_body(c, method, code, chunked, length, cap)?
+  body = _read_body(c, method, code, chunked, length, lim.cap)?
   Ok(({status: code, headers, header_lines: fields, body}, nil))
 ;;
 
@@ -951,12 +973,12 @@ fn _transfer_encoding(h, major, minor):
 # end of the connection or is chunked.
 fn _length(h, code, method, chunked):
   cls = "content-length" in h then h["content-length"] else []
-  first = len(cls) > 0 then _trim_space(cls[0]) else ""
-  if len(cls) > 1 and any(cls, v => _trim_space(v) != first):
+  given = len(cls) > 0 then _trim_space(cls[0]) else ""
+  if len(cls) > 1 and any(cls, v => _trim_space(v) != given):
     return Err("conflicting Content-Length headers (${join(cls, ", ")})")
   ;;
-  n = len(cls) > 0 then _parse_length(first) else Ok(-1)
-  if type_of(n) == 'Err:
+  n = len(cls) > 0 then _parse_length(given) else Ok(-1)
+  if is_err(n):
     n
   else if method == "HEAD" or code // 100 == 1 or code == 204 or code == 304:
     Ok(0)
@@ -1144,11 +1166,11 @@ fn _parse_url(raw):
   (u, frag) = _cut(raw, "#")
   match _parse(u):
     Err(why) => Err(_err(why))
-    Ok(url)  => frag == "" then Ok(url) else _with_fragment(url, raw, frag)
+    Ok(url)  => frag == "" then Ok(url) else _with_fragment(url, frag)
   ;;
 ;;
 
-fn _with_fragment(url, raw, frag) = match _escape_error(frag, 'fragment):
+fn _with_fragment(url, frag) = match _escape_error(frag, 'fragment):
   nil => Ok(put(url, "fragment", frag))
   why => Err(_err(why))
 ;;
@@ -1166,6 +1188,11 @@ fn _parse(raw):
   (rest, query, force) = ends_with(rest0, "?") and len(split(rest0, "?")) == 2
     then (rest0[..len(rest0) - 1], "", true)
     else _cut3(rest0, "?")
+  # a stray `%` is refused, not re-encoded (D75), as in the path
+  match _escape_error(query, 'query):
+    nil => nil
+    bad => return Err(bad)
+  ;;
   if not starts_with(rest, "/") and scheme != "":
     return Ok(_url(scheme, rest, nil, "", "", query, force, false))
   ;;
@@ -1243,15 +1270,15 @@ fn _host(h):
 # "[...]" with an optional port: an IPv6 address (with a zone), which an
 # IPv4 address in brackets is not.
 fn _ip_literal(h):
-  close = _last_index(h, "]")
-  if close < 0:
+  bracket = _last_index(h, "]")
+  if bracket < 0:
     return Err("missing `]` in host")
   ;;
-  colon_port = h[close + 1..]
+  colon_port = h[bracket + 1..]
   if not _valid_port(colon_port):
     return Err(starts_with(colon_port, ":") then "invalid port `${colon_port[1..]}`" else "unexpected `${colon_port}` after `]`")
   ;;
-  name = h[1..close]
+  name = h[1..bracket]
   why = _escape_error(_before(name, "%25"), 'host)
   addr = replace(name, "%25", "%")
   if why != nil:
@@ -1283,7 +1310,7 @@ fn _host_port(h):
 ;;
 
 # The %XX escapes checked (RFC 3986 2.1): nil, or why `s` is not valid in
-# `mode` ('path, 'fragment, 'user, 'host).
+# `mode` ('path, 'query, 'fragment, 'user, 'host).
 fn _escape_error(s, mode) = "%" not in s and (mode != 'host or all(chars(s), _host_char))
   then nil else _scan(chars(s), 0, mode)
 
@@ -1446,7 +1473,7 @@ fn _cut3(s, sep):
 # Character indexes of the first and the last sep, -1 without one.
 fn _index(s, sep) = sep in s then len(split(s, sep)[0]) else -1
 
-fn _last_index(s, sep) = sep in s then len(s) - len(split(s, sep)[-1]) - len(sep) else -1
+fn _last_index(s, sep) = sep in s then len(s) - len(last(split(s, sep))) - len(sep) else -1
 
 fn _trim_ows(s) = trim(s, " \t")
 
@@ -1548,7 +1575,7 @@ fn _spawn_conn(c, handler, conns):
 # runs.
 fn _guarded(c, handler):
   state = atom(nil)
-  with(() => c, c => _conn(c, handler, state), c => _end_conn(c, state))
+  with(() => c, opened => _conn(opened, handler, state), done => _end_conn(done, state))
 ;;
 
 fn _end_conn(c, state):
@@ -1661,16 +1688,16 @@ fn _request_head(c, line, budget):
   else if any(keys(h), k => not _is_token(k)):
     return Err(_bad_request)
   ;;
-  pairs = match _query_pairs(u.query):
+  listed = match _query_pairs(u.query):
     nil => return Err(_bad_request)
     ps  => ps
   ;;
-  query = fold(pairs, {}, (m, (k, v)) => put(m, k, v))
+  query = fold(listed, {}, (m, (k, v)) => put(m, k, v))
   # the target's host for an absolute form (RFC 9112 3.2.2: Host is then
   # ignored, LB32), else Host's
   host = u.host ?? ("host" in h then h["host"][0] else nil)
   length = chunked then -1 else max([n, 0])
-  Ok({method, target, major, minor, path: u.path, host, query: _sorted(query), query_pairs: pairs, headers: _header_map(h), header_lines: fields, h, length, chunked})
+  Ok({method, target, major, minor, path: u.path, host, query: _sorted(query), query_pairs: listed, headers: _header_map(h), header_lines: fields, h, length, chunked})
 ;;
 
 # The header lines within the head's budget, at most `_max_values`:
@@ -1858,12 +1885,13 @@ else:
 fn _call(c, rq, handler, state, body):
   req = {method: rq.method, target: rq.target, host: rq.host, path: rq.path, query: rq.query, query_pairs: rq.query_pairs, headers: rq.headers, header_lines: rq.header_lines, body}
   reset(state, ('handling, rq))
-  r = supervise(s => await(spawn(s, () => Ok(handler(req)))), e => eprint("http: handler failed: error[${e.code}]: ${e.message}"))
+  r = supervise(s => await(spawn(s, () => handler(req))), e => eprint("http: handler failed: error[${e.code}]: ${e.message}"))
   reset(state, 'done)
+  # supervise's Ok of await's: the handler's value, or its failure.
   match r:
-    Ok(res)             => _answer(c, rq, res)
-    Err({kind: 'error}) => _http_error(c, rq, 500)
-    Err(_)              => nil
+    Ok(Ok(res))             => _answer(c, rq, res)
+    Ok(Err({kind: 'error})) => _http_error(c, rq, 500)
+    _                       => nil
   ;;
 ;;
 
@@ -1910,6 +1938,11 @@ fn _parts(res):
     return Ok((200, {}, res))
   else if t != "map":
     return Err("handler returned ${t}, expected a str or a map")
+  ;;
+  # a key of its own is a misspelt one (D67): `statu` would answer 200
+  match find(keys(res), k => k not in ["status", "body", "headers"]):
+    nil => nil
+    k   => return Err("unknown key `${k}`, expected status, body or headers")
   ;;
   status = "status" in res then res["status"] else 200
   body = "body" in res then res["body"] else ""
@@ -1967,8 +2000,8 @@ fn _reply(rq, status, hs, body):
   date = "Date" in hs then "" else "Date: ${_http_date()}\r\n"
   length = allowed and "Content-Length" not in hs and (not head or body != "") then "Content-Length: ${byte_len(body)}\r\n" else ""
   connection = not closes and is11 then "Connection: close\r\n" else ""
-  lines = _header_lines(hs, closes then suppressed else suppressed + ["Connection"])
-  _reply_line(is11, status) + lines + date + length + connection + "\r\n" + (allowed and not head then body else "")
+  header_text = _header_lines(hs, closes then suppressed else suppressed + ["Connection"])
+  _reply_line(is11, status) + header_text + date + length + connection + "\r\n" + (allowed and not head then body else "")
 ;;
 
 # The status line (RFC 9112 4); a code without a standard reason phrase

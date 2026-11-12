@@ -1,0 +1,4 @@
+# env's name is a variable name, as exec's env checks it (D76): not
+# empty, no `=`.
+print(env("A=B"))
+# expect-error: E0403

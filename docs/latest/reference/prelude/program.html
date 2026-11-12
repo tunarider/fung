@@ -188,7 +188,7 @@ error[E0803]: disk full
    example.fung:3 &lt;lambda&gt;
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <p><strong>exit와 기한에도 정리는 돈다</strong></p>
-<div class="run"><pre><code>r = timeout(() =&gt; with(() =&gt; &quot;lock&quot;, fn(c):
+<div class="run"><pre><code>r = timeout(() =&gt; with(() =&gt; &quot;lock&quot;, fn(_c):
   sleep(1s)
   &quot;done&quot;
 ;;, fn(c):
@@ -234,7 +234,7 @@ if not is_empty(missing):
 ;;
 print(&quot;all set&quot;)</code></pre><pre class="out err plain" data-code="2"><code>missing env: DB_HOST, DB_USER</code></pre></div>
 <p><strong>exit 뒤에도 정리는 돈다</strong></p>
-<div class="run"><pre><code>with(() =&gt; &quot;tmp&quot;, fn(t):
+<div class="run"><pre><code>with(() =&gt; &quot;tmp&quot;, fn(_t):
   print(&quot;exiting&quot;)
   exit(3)
 ;;, t =&gt; print(&quot;cleaned&quot;, t))</code></pre><pre class="out err plain" data-code="3"><code>exiting

@@ -37,11 +37,14 @@ pub(super) struct Scope {
     pub(super) made: Made,
     /// First slot this block may use; restored on exit.
     pub(super) base: usize,
-    /// For warnings (08): where each name was bound, which were read,
-    /// and which are parameters (never reported as unused).
+    /// For E0239 (D38): where each name was bound, which were read, and
+    /// which are parameters.
     pub(super) pos: HashMap<String, Pos>,
     pub(super) used: HashSet<String>,
     pub(super) param: HashSet<String>,
+    /// The names of the fns this block defines (`fn a() …`): a second
+    /// one is E0210 (FE61).
+    pub(super) fns: HashSet<String>,
 }
 
 impl Scope {
@@ -54,6 +57,7 @@ impl Scope {
             pos: HashMap::new(),
             used: HashSet::new(),
             param: HashSet::new(),
+            fns: HashSet::new(),
         }
     }
 }
@@ -69,21 +73,17 @@ pub(super) struct FnScope {
     pub(super) captures: Vec<Capture>,
     pub(super) cap_index: HashMap<String, usize>,
     pub(super) self_name: String,
-    /// The synthetic lambda of a `for`: return inside is E0213.
+    /// The synthetic lambda of a `for`: `return` and `?` inside are
+    /// E0237 (D42).
     pub(super) for_body: bool,
-    /// A lambda written as the `f` of the prelude's map or of `conc.pmap`
-    /// (the name the error shows): `?` inside is E0226, the trap of a for
-    /// body (03, SP1).
-    pub(super) map_body: Option<&'static str>,
+    /// A lambda `=>`: `return` and `?` inside are E0237 (D42).
+    pub(super) lambda: bool,
     /// A parameter default is being resolved: `return` there is E0211
     /// (FE38).
     pub(super) in_default: bool,
     /// A hoisted top-level fn: it and the functions inside it see the
     /// file's constants when called (03, L9).
     pub(super) top: bool,
-    /// The names a top-level fn binds in its own code: its locals, which
-    /// hide the file's constants of those names throughout it (03, L9).
-    pub(super) own: HashSet<String>,
     /// The blocks that bind each name, outermost first: a lookup takes
     /// the last without walking every block (FE16).
     pub(super) bound_in: HashMap<String, Vec<usize>>,
@@ -107,13 +107,14 @@ impl FnScope {
         }
     }
 
-    /// Binds name in block `block`, or rebinds it there.
-    pub(super) fn bind(&mut self, block: usize, name: &str, b: Binding) {
-        if self.blocks[block]
+    /// Binds name in block `block`, or rebinds it there; true when the
+    /// block did not bind it before.
+    pub(super) fn bind(&mut self, block: usize, name: &str, b: Binding) -> bool {
+        let new = self.blocks[block]
             .names
             .insert(name.to_string(), b)
-            .is_none()
-        {
+            .is_none();
+        if new {
             if block == 0 && !self.closed.contains_key(name) {
                 self.lasting.push(name.to_string());
             }
@@ -121,6 +122,7 @@ impl FnScope {
             let i = at.partition_point(|&x| x < block);
             at.insert(i, block);
         }
+        new
     }
 
     /// The innermost block that binds name.

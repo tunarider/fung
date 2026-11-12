@@ -1,0 +1,7 @@
+# A slice end counts from the start too (D37): all but the last
+# character is `s[..len(s) - 1]`.
+s = "1024K"
+print(s[..len(s) - 1], s[len(s) - 1..])
+# expect: 1024 K
+print(s[..-1])
+# expect-error: E0507

@@ -99,10 +99,10 @@ fn parse_facts(text) = lines(text)
 fn row(host):
   r = timeout(() =&gt; exec([&quot;ssh&quot;, &quot;-o&quot;, &quot;BatchMode=yes&quot;, &quot;-o&quot;, &quot;ConnectTimeout=5&quot;, host, probe]), 20s)
   match r:
-    Ok(res) =&gt;
+    Ok(Ok(res))         =&gt;
       facts = parse_facts(res.out)
       [host] + map(columns, c =&gt; get(facts, c, &quot;-&quot;)) + [&quot;ok&quot;]
-    Err(e)  =&gt; [host] + map(columns, _ =&gt; &quot;-&quot;) + [why(e)]
+    Ok(Err(e)) | Err(e) =&gt; [host] + map(columns, _ =&gt; &quot;-&quot;) + [why(e)]
   ;;
 ;;
 
@@ -113,9 +113,9 @@ fn why(e) = match e:
 ;;
 
 # Rows of strings → aligned lines, two spaces between columns.
-fn table(rows):
-  widths = 0..len(rows[0]) |&gt; map(i =&gt; rows |&gt; map(r =&gt; len(r[i])) |&gt; max)
-  rows |&gt; map(fn(r):
+fn table(grid):
+  widths = 0..len(grid[0]) |&gt; map(i =&gt; grid |&gt; map(r =&gt; len(r[i])) |&gt; max)
+  grid |&gt; map(fn(r):
     n = len(r)
     cells = zip(take(r, n - 1), widths) |&gt; map(((c, w)) =&gt; pad_right(c, w))
     join(cells + [last(r)], &quot;  &quot;)

@@ -27,7 +27,7 @@ fn await_parks() {
         out(
             "print(scope(fn(s):\n  t = spawn(s, () => sleep(5ms))\n  await(t)\n  parks() >= 1\n;;))"
         ),
-        ("true\n".into(), "".into())
+        ("Ok(true)\n".into(), "".into())
     );
 }
 
@@ -35,9 +35,9 @@ fn await_parks() {
 fn a_finished_task_is_awaited_without_parking() {
     assert_eq!(
         out(
-            "print(scope(fn(s):\n  t = spawn(s, () => 1)\n  until(() => finished(t))\n  n = parks()\n  await(t)\n  parks() == n\n;;))"
+            "print(scope(fn(s):\n  t = spawn(s, () => 1)\n  wait_for(() => finished(t))\n  n = parks()\n  await(t)\n  parks() == n\n;;))"
         ),
-        ("true\n".into(), "".into())
+        ("Ok(true)\n".into(), "".into())
     );
 }
 
@@ -71,16 +71,16 @@ fn recv_and_send_park() {
     // The receiver waits first.
     assert_eq!(
         out(
-            "(tx, rx) = channel()\nprint(scope(fn(s):\n  t = spawn(s, fn(): r = recv(rx); parks() >= 1 ;;)\n  blocked(rx, 1)\n  send(tx, 1)\n  await(t)\n;;))"
+            "(tx, rx) = channel()\nprint(scope(fn(s):\n  t = spawn(s, fn(): _r = recv(rx); parks() >= 1 ;;)\n  blocked(rx, 1)\n  send(tx, 1)\n  await(t)\n;;))"
         ),
-        ("true\n".into(), "".into())
+        ("Ok(Ok(true))\n".into(), "".into())
     );
     // The sender waits first.
     assert_eq!(
         out(
             "(tx, rx) = channel()\nprint(scope(fn(s):\n  t = spawn(s, fn(): send(tx, 1); parks() >= 1 ;;)\n  blocked(rx, 1)\n  recv(rx)\n  await(t)\n;;))"
         ),
-        ("true\n".into(), "".into())
+        ("Ok(Ok(true))\n".into(), "".into())
     );
 }
 
@@ -91,10 +91,10 @@ fn a_walk_over_a_receiver_parks() {
         "join(rx, \",\")",
         "sort(rx)",
         "sort_by(rx, x => -x)",
-        "flatten(rx)",
+        "flatten(map(rx, x => [x]))",
     ] {
         let src = format!(
-            "(tx, rx) = channel()\nprint(scope(fn(s):\n  t = spawn(s, fn(): r = {walk}; [r, parks() >= 1] ;;)\n  blocked(rx, 1)\n  send(tx, 2)\n  send(tx, 1)\n  close(tx)\n  await(t)\n;;))"
+            "(tx, rx) = channel()\nprint(scope(fn(s):\n  t = spawn(s, fn(): r = {walk}; [r, parks() >= 1] ;;)\n  blocked(rx, 1)\n  send(tx, 2)\n  send(tx, 1)\n  close(tx)\n  await(t)!\n;;)!)"
         );
         let (o, e) = out(&src);
         assert!(o.ends_with(", true]\n"), "{walk}: {o}{e}");
@@ -108,7 +108,7 @@ fn a_walk_over_a_receiver_parks() {
 fn a_cancelled_walk_leaves_the_rest_in_the_channel() {
     assert_eq!(
         out(
-            "(tx, rx) = channel(3)\neach([1, 2, 3], x => send(tx, x))\n(htx, hrx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    Ok(me) = recv(hrx)\n    each(rx, x => cancel(me))\n  ;;)\n  send(htx, t)\n  print(await(t), buffered(rx))\n;;)"
+            "(tx, rx) = channel(3)\neach([1, 2, 3], x => send(tx, x))\n(htx, hrx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    Ok(me) = recv(hrx)\n    each(rx, _x => cancel(me))\n  ;;)\n  send(htx, t)\n  print(await(t), buffered(rx))\n;;)"
         ),
         (
             "Err({kind: 'cancelled, message: \"cancelled\"}) 2\n".into(),
@@ -118,7 +118,7 @@ fn a_cancelled_walk_leaves_the_rest_in_the_channel() {
     // Cancelled while the walk waits for a value.
     assert_eq!(
         out(
-            "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(rx, x => x))\n  blocked(rx, 1)\n  cancel(t)\n  print(await(t))\n;;)"
+            "(_tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(rx, x => x))\n  blocked(rx, 1)\n  cancel(t)\n  print(await(t))\n;;)"
         ),
         (
             "Err({kind: 'cancelled, message: \"cancelled\"})\n".into(),
@@ -141,7 +141,7 @@ fn a_scope_waiting_for_children_parks() {
 fn an_outer_cancel_waits_for_the_children_then_unwinds() {
     assert_eq!(
         out(
-            "(_tx, rx) = channel()\nprint(timeout(() => scope(fn(s):\n  spawn(s, () => with(() => 1, r => recv(rx), fn(r): sleep(50ms); print(\"released\") ;;))\n  recv(rx)\n;;), 20ms))"
+            "(_tx, rx) = channel()\nprint(timeout(() => scope(fn(s):\n  spawn(s, () => with(() => 1, _r => recv(rx), fn(_r): sleep(50ms); print(\"released\") ;;))\n  recv(rx)\n;;), 20ms))"
         ),
         (
             "released\nErr({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
@@ -224,7 +224,7 @@ fn reading_a_file_handle_offloads() {
 fn regex_compile_offloads_once() {
     assert_eq!(
         out(
-            "import regex\nn = offloads()\nregex.is_match(\"a\", \"a+(park-test)?\")\nm = offloads()\nregex.is_match(\"aa\", \"a+(park-test)?\")\nprint(m - n, offloads() - m)"
+            "import regex\nn = offloads()\n_ = regex.is_match(\"a\", \"a+(park-test)?\")\nm = offloads()\n_ = regex.is_match(\"aa\", \"a+(park-test)?\")\nprint(m - n, offloads() - m)"
         ),
         ("1 0\n".into(), "".into())
     );
@@ -297,7 +297,7 @@ fn nothing_sleeps_a_thread_but_the_parking_point() {
 fn every_yield_point_lets_others_run() {
     for (src, want) in [
         (
-            "fn spin(n) = n == 0 then 0 else spin(n - 1)\nr = spin(30000)",
+            "fn spin(k) = k == 0 then 0 else spin(k - 1)\nr = spin(30000)",
             "0",
         ),
         ("r = len(map(0..30000, x => x + 1))", "30000"),
@@ -388,7 +388,7 @@ fn with_job_natives(src: &str) -> crate::testutil::Outcome {
 #[test]
 fn offloads_reuse_pool_threads() {
     let s = crate::testutil::setup(
-        "fn settle() = match pool_state():\n  [t, i, 0] when i == t => nil\n  _ => settle()\n;;\nfor i in 0..200:\n  settle()\n  count_job(\"reuse\")\n;;",
+        "fn settle() = match pool_state():\n  [t, i, 0] when i == t => nil\n  _ => settle()\n;;\nfor _i in 0..200:\n  settle()\n  count_job(\"reuse\")\n;;",
         crate::testutil::Opts {
             extra: crate::testutil::jobs::job_natives,
             ..crate::testutil::Opts::default()
@@ -437,13 +437,13 @@ fn a_deadline_while_a_job_runs_wins_once_it_ends() {
         ("nc2", "fn(): block_job(\"nc2\"); len(\"x\") ;;"),
     ] {
         let o = with_job_natives(&format!(
-            "{}print(scope(fn(s):\n  spawn(s, fn():\n    until(() => pool_state() == [1, 0, 0])\n    sleep(20ms)\n    open_latch(\"{latch}\")\n  ;;)\n  print(timeout({body}, 10ms))\n;;))",
+            "{}print(scope(fn(s):\n  spawn(s, fn():\n    wait_for(() => pool_state() == [1, 0, 0])\n    sleep(20ms)\n    open_latch(\"{latch}\")\n  ;;)\n  print(timeout({body}, 10ms))\n;;))",
             crate::testutil::UNTIL
         ));
         assert_eq!(
             (o.out.as_str(), o.err.as_str()),
             (
-                "Err({kind: 'timeout, message: \"timed out after 10ms\"})\nnil\n",
+                "Err({kind: 'timeout, message: \"timed out after 10ms\"})\nOk(nil)\n",
                 ""
             ),
             "{latch}"
@@ -459,13 +459,13 @@ fn a_deadline_while_a_job_runs_wins_once_it_ends() {
 fn a_cancel_while_a_job_runs_drops_its_value() {
     for (latch, job) in [("cj1", "block_job"), ("cj2", "block_open_job")] {
         let o = with_job_natives(&format!(
-            "{}r = scope(fn(s):\n  t = spawn(s, () => {job}(\"{latch}\"))\n  until(() => pool_state() == [1, 0, 0])\n  cancel(t)\n  open_latch(\"{latch}\")\n  await(t)\n;;)\nprint(r)\nprint(handle_alive(\"{latch}\"))",
+            "{}r = scope(fn(s):\n  t = spawn(s, () => {job}(\"{latch}\"))\n  wait_for(() => pool_state() == [1, 0, 0])\n  cancel(t)\n  open_latch(\"{latch}\")\n  await(t)\n;;)\nprint(r)\nprint(handle_alive(\"{latch}\"))",
             crate::testutil::UNTIL
         ));
         assert_eq!(
             (o.out.as_str(), o.err.as_str(), o.exit),
             (
-                "Err({kind: 'cancelled, message: \"cancelled\"})\nfalse\n",
+                "Ok(Err({kind: 'cancelled, message: \"cancelled\"}))\nfalse\n",
                 "",
                 0
             ),
@@ -480,13 +480,13 @@ fn a_cancel_while_a_job_runs_drops_its_value() {
 #[test]
 fn a_late_wake_from_an_abandoned_job_is_harmless() {
     let o = with_job_natives(&format!(
-        "{}(tx, rx) = channel()\nprint(timeout(() => abandoning_block_job(\"lw\"), 10ms))\nprint(scope(fn(s):\n  spawn(s, fn():\n    open_latch(\"lw\")\n    until(() => pool_state()[1] == 1)\n    send(tx, 42)\n  ;;)\n  recv(rx)\n;;))",
+        "{}(tx, rx) = channel()\nprint(timeout(() => abandoning_block_job(\"lw\"), 10ms))\nprint(scope(fn(s):\n  spawn(s, fn():\n    open_latch(\"lw\")\n    wait_for(() => pool_state()[1] == 1)\n    send(tx, 42)\n  ;;)\n  recv(rx)\n;;))",
         crate::testutil::UNTIL
     ));
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
         (
-            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\nOk(42)\n",
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\nOk(Ok(42))\n",
             ""
         )
     );
@@ -498,7 +498,7 @@ fn a_late_wake_from_an_abandoned_job_is_harmless() {
 fn a_queued_job_is_dropped_at_the_deadline() {
     let o = crate::testutil::exec_prepared(
         &format!(
-            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"qd\"))\n  until(() => pool_state() == [1, 0, 0])\n  r = timeout(() => abandoning_block_job(\"qd2\"), 20ms)\n  open_latch(\"qd\")\n  open_latch(\"qd2\")\n  r\n;;))",
+            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"qd\"))\n  wait_for(() => pool_state() == [1, 0, 0])\n  r = timeout(() => abandoning_block_job(\"qd2\"), 20ms)\n  open_latch(\"qd\")\n  open_latch(\"qd2\")\n  r\n;;))",
             crate::testutil::UNTIL
         ),
         crate::testutil::Opts {
@@ -510,7 +510,7 @@ fn a_queued_job_is_dropped_at_the_deadline() {
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
         (
-            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n",
+            "Ok(Err({kind: 'timeout, message: \"timed out after 20ms\"}))\n",
             ""
         )
     );
@@ -537,7 +537,7 @@ fn an_await_cut_short_leaves_the_waiting_list() {
 fn waiters_left_after_cancellations_wake_in_order() {
     assert_eq!(
         out(
-            "(go_tx, go) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(go))\n  ws = map(0..40, i => spawn(s, fn(): _ = await(t); print(i) ;;))\n  until(() => awaiters(t) == 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  until(() => all(gone, finished))\n  print(\"left\", awaiters(t))\n  close(go_tx)\n;;)"
+            "(go_tx, go) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(go))\n  ws = map(0..40, i => spawn(s, fn(): _ = await(t); print(i) ;;))\n  wait_for(() => awaiters(t) == 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  wait_for(() => all(gone, finished))\n  print(\"left\", awaiters(t))\n  close(go_tx)\n;;)"
         ),
         (
             "left 14\n0\n3\n6\n9\n12\n15\n18\n21\n24\n27\n30\n33\n36\n39\n".into(),

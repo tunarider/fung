@@ -1,0 +1,7 @@
+# The same literal pattern twice in a match: the second arm never runs (D51).
+fn f(x) = match x:
+  1 => "a"
+  1 => "b"
+  _ => "d"
+;;
+# expect-error: E0235

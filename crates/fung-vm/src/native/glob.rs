@@ -18,6 +18,9 @@ pub(crate) struct BadPattern;
 #[derive(Debug)]
 pub(crate) enum Failure {
     Pattern,
+    /// An unescaped `**` outside a class: another glob's "any depth",
+    /// which this one does not have (D68; `fs.walk` does).
+    DoubleStar,
     Path(Vec<u8>, io::Error),
 }
 
@@ -209,6 +212,47 @@ fn has_meta(path: &[u8]) -> bool {
     path.iter().any(|c| matches!(c, b'*' | b'?' | b'[' | b'\\'))
 }
 
+/// Whether `pattern` (a valid one) holds two `*` in a row that are
+/// neither escaped nor in a class.
+fn double_star(pattern: &[u8]) -> bool {
+    let mut i = 0;
+    let mut class = false;
+    let mut star = false;
+    while i < pattern.len() {
+        let c = pattern[i];
+        match c {
+            b'\\' => {
+                star = false;
+                i += 2;
+                continue;
+            }
+            b'[' if !class => {
+                class = true;
+                // `]` right after `[` or `[^` is a member, not the end.
+                if pattern.get(i + 1) == Some(&b'^') {
+                    i += 1;
+                }
+                if pattern.get(i + 1) == Some(&b']') {
+                    i += 1;
+                }
+            }
+            b']' if class => class = false,
+            b'*' if !class => {
+                if star {
+                    return true;
+                }
+                star = true;
+                i += 1;
+                continue;
+            }
+            _ => {}
+        }
+        star = false;
+        i += 1;
+    }
+    false
+}
+
 /// Checks the whole pattern, every chunk of it, without matching.
 pub(crate) fn validate(mut pattern: &[u8]) -> Result<(), BadPattern> {
     while !pattern.is_empty() {
@@ -228,6 +272,9 @@ pub(crate) fn validate(mut pattern: &[u8]) -> Result<(), BadPattern> {
 /// directory parts first, then expands it upward.
 pub(crate) fn glob(pattern: &[u8]) -> Result<Vec<Vec<u8>>, Failure> {
     validate(pattern)?;
+    if double_star(pattern) {
+        return Err(Failure::DoubleStar);
+    }
     let mut files = Vec::new();
     let mut p = pattern;
     let mut found = loop {
@@ -328,6 +375,26 @@ mod tests {
             assert_eq!(
                 validate(good),
                 Ok(()),
+                "{:?}",
+                String::from_utf8_lossy(good)
+            );
+        }
+    }
+
+    /// `**` is no "any depth" here, so it is refused rather than read as
+    /// `*` (D68); escaped or in a class it is two ordinary stars.
+    #[test]
+    fn a_double_star_is_refused() {
+        for bad in [&b"**/*.txt"[..], b"a/**", b"x**y", b"***"] {
+            assert!(
+                matches!(glob(bad), Err(Failure::DoubleStar)),
+                "{:?}",
+                String::from_utf8_lossy(bad)
+            );
+        }
+        for good in [&b"\\**"[..], b"*\\*", b"[*]*", b"[]*]*", b"*/*"] {
+            assert!(
+                !super::double_star(good),
                 "{:?}",
                 String::from_utf8_lossy(good)
             );

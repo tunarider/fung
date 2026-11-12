@@ -72,7 +72,7 @@ Err({kind: 'parse, message: &quot;not an integer: \&quot;마흔둘\&quot;&quot;}
 <div class="run"><pre><code>import fs
 
 print(fs.read(&quot;missing.txt&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'not_found, message: &quot;cannot read `missing.txt`: no such file or directory&quot;})</code></pre></div>
-<p><code>Err</code>는 성공한 값이 아니므로 그대로 쓸 수 없다. <code>parse_int(&quot;x&quot;).message</code>라고 쓰면 맵이 아니라 <code>Err</code> 태그에서 키를 찾으므로 런타임 에러 E0509(<code>cannot index a value of type Err</code>)가 난다. 안의 값을 꺼내려면 아래의 방법 중 하나를 쓴다.</p>
+<p><code>Err</code>는 성공한 값이 아니므로 그대로 쓸 수 없다. <code>parse_int(&quot;x&quot;).message</code>라고 쓰면 맵이 아니라 <code>Err</code> 태그에서 키를 찾으므로 런타임 에러 E0509(<code>cannot index Err with str</code>)가 난다. 안의 값을 꺼내려면 아래의 방법 중 하나를 쓴다.</p>
 <h2 id="match">match로 꺼내기</h2>
 <p>결과값에서 안의 값을 꺼내는 가장 기본적인 방법은 8장의 <code>match</code>다. <code>Ok(n)</code>과 <code>Err(e)</code> 두 경우를 모두 적으므로, 실패를 잊고 지나갈 수 없다.</p>
 <div class="run"><pre><code>fn double_text(input) = match parse_int(input):
@@ -118,13 +118,13 @@ print(n)</code></pre><pre class="out err plain" data-code="2"><code>error[E0214]
 <p>짧은 스크립트에서는 "실패하면 그냥 멈추면 된다"인 경우가 많다. 설정 파일이 없으면 더 할 일이 없다. 이때 <code>!</code>를 붙인다. <code>Ok(v)</code>면 <code>v</code>를 꺼내고, <code>Err</code>면 프로그램을 종료 코드 1로 멈추며 이유를 보여 준다(E0603).</p>
 <div class="run"><pre><code>port = parse_int(&quot;8080&quot;)!
 print(&quot;port:&quot;, port)
-retries = parse_int(&quot;three&quot;)!
+_retries = parse_int(&quot;three&quot;)!
 print(&quot;never printed&quot;)</code></pre><pre class="out err plain" data-code="1"><code>port: 8080
 error[E0603]: unhandled Err: not an integer: &quot;three&quot;
-  --&gt; example.fung:3:29
+  --&gt; example.fung:3:30
   |
-3 | retries = parse_int(&quot;three&quot;)!
-  |                             ^
+3 | _retries = parse_int(&quot;three&quot;)!
+  |                              ^
   |
  call path (innermost first):
    example.fung:3 &lt;entry&gt;</code></pre></div>
@@ -135,17 +135,19 @@ error[E0603]: unhandled Err: not an integer: &quot;three&quot;
 port = env(&quot;PORT&quot;) ?? &quot;8080&quot;
 print(retries, port)</code></pre><pre class="out plain"><code>3 8080</code></pre></div>
 <h2 id="discard">버리면 안 된다</h2>
-<p>결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 첫 줄은 <code>parse_int</code>의 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 <code>Err</code>면 fung은 거기서 멈춘다(E0606).</p>
-<div class="run"><pre><code>parse_int(&quot;abc&quot;)
+<p>결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 <code>check_port(&quot;abc&quot;)</code> 줄은 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 <code>Err</code>면 fung은 거기서 멈춘다(E0606).</p>
+<div class="run"><pre><code>fn check_port(s) = parse_int(s)
+check_port(&quot;abc&quot;)
 print(&quot;여기까지 오지 않는다&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: &quot;abc&quot;
-  --&gt; example.fung:1:1
+  --&gt; example.fung:2:1
   |
-1 | parse_int(&quot;abc&quot;)
+2 | check_port(&quot;abc&quot;)
   | ^ this value is discarded
   |
  call path (innermost first):
-   example.fung:1 &lt;entry&gt;
+   example.fung:2 &lt;entry&gt;
  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`</code></pre></div>
+<p><code>parse_int(&quot;abc&quot;)</code>를 그대로 문장으로 썼다면 실행하기 전에 컴파일 에러(E0234)다. <code>parse_int</code>처럼 값을 계산해 돌려줄 뿐인 내장 함수는 결과를 버리면 아무 일도 하지 않은 셈이기 때문이다.</p>
 <p>실패를 조용히 무시하는 버그를 막으려는 규칙이다. 쉘 스크립트에서 <code>set -e</code>를 켜지 않아 실패한 명령 뒤로 스크립트가 계속 달려가는 사고를 생각하면 된다. fung에서는 늘 켜져 있는 셈이다. 파일 쓰기처럼 성공하면 쓸 값이 없는 함수(<code>Ok(nil)</code>을 돌려준다)도 마찬가지다. <code>fs.write(p, text)</code>만 쓰면 쓰기가 실패했을 때 E0606으로 멈춘다.</p>
 <p>정말 버려도 되는 실패라면 <code>_ = …</code>로 "일부러 버린다"고 적는다. 지우려던 임시 파일이 이미 없어도 상관없는 경우가 그렇다.</p>
 <div class="run"><pre><code>import fs
@@ -167,7 +169,7 @@ print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code=
  call path (innermost first):
    example.fung:5 &lt;entry&gt;
  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`</code></pre></div>
-<p>리스트 안의 리스트·튜플·맵까지 훑지는 않는다. <code>for</code>·<code>map</code>이 만드는 리스트는 한 겹이라 그것으로 충분하다.</p>
+<p>리스트 안의 리스트, 튜플, 맵, <code>Ok(…)</code> 안까지 어느 깊이든 훑는다. 버려지는 값 어디에든 <code>Err</code>가 있으면 멈춘다.</p>
 <h2 id="own">내 함수에서 실패 돌려주기</h2>
 <p>직접 만드는 함수도 같은 모양을 따르면 <code>match</code>·<code>?</code>·<code>!</code>·<code>??</code>가 그대로 통한다. 성공은 <code>Ok(값)</code>, 실패는 <code>Err(…)</code>로 돌려준다. <code>Err</code> 안에는 아무 값이나 넣을 수 있지만, 표준 라이브러리처럼 <code>{kind, message}</code> 맵을 넣으면 부르는 쪽이 <code>kind</code>로 나누고 <code>message</code>를 보여 주기 쉽다. 일찍 돌아갈 때는 <code>return</code>을 쓴다(5장).</p>
 <div class="run"><pre><code>fn check_port(p):
@@ -264,7 +266,7 @@ Err({kind: 'syntax, message: &quot;not key=value: broken&quot;})</code></pre></d
 <p>숫자 <code>42</code>나 문자열 <code>&quot;hi&quot;</code>처럼, 변수에 담고 함수에 넘기고 돌려받을 수 있는 것을 <strong>값</strong>이라고 한다(3장). "에러가 값이다"는 에러도 변수에 담고, 함수에 넘기고, 리스트에 모을 수 있다는 뜻이다. 던지고 잡는 특별한 무엇이 아니다.</p>
 </div>
 <div class="box mistake"><b>map의 람다 안에서 ?</b>
-<p><code>xs |&gt; map(x =&gt; parse_int(x)?)</code>는 컴파일 에러 E0226이다. <code>?</code>는 람다에서 돌아갈 뿐 바깥 함수에서 돌아가지 않으므로, 실패가 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 <code>try_map</code>을 쓴다. 모두 성공하면 <code>Ok(리스트)</code>, 아니면 처음 <code>Err</code>다.</p>
+<p><code>xs |&gt; map(x =&gt; parse_int(x)?)</code>는 컴파일 에러 E0237이다. 람다는 일찍 돌아갈 수 없다: 람다의 <code>?</code>가 돌려준 실패는 바깥 함수로 가지 않고 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 <code>try_map</code>을 쓴다. 모두 성공하면 <code>Ok(리스트)</code>, 아니면 처음 <code>Err</code>다.</p>
 <div class="run"><pre><code>print(try_map([&quot;1&quot;, &quot;2&quot;, &quot;3&quot;], parse_int))
 print(try_map([&quot;1&quot;, &quot;b&quot;, &quot;c&quot;], parse_int))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])
 Err({kind: 'parse, message: &quot;not an integer: \&quot;b\&quot;&quot;})</code></pre></div>
@@ -309,8 +311,8 @@ print(int_or(cfg, &quot;timeout&quot;, 10), int_or(cfg, &quot;retries&quot;, 3),
 <div class="exercise"><b>맞는 것만 더하기</b>
 <p><code>[&quot;10&quot;, &quot;x&quot;, &quot;25&quot;, &quot;&quot;, &quot;7&quot;]</code>에서 정수로 읽히는 것만 더하고, 읽히지 않은 줄 수도 함께 찍어 보자. 실패를 버리지 말고 <code>match</code>로 센다.</p>
 <details><summary>풀이 보기</summary>
-<div class="run"><pre><code>lines = [&quot;10&quot;, &quot;x&quot;, &quot;25&quot;, &quot;&quot;, &quot;7&quot;]
-(total, bad) = fold(lines, (0, 0), ((t, b), s) =&gt; match parse_int(s):
+<div class="run"><pre><code>texts = [&quot;10&quot;, &quot;x&quot;, &quot;25&quot;, &quot;&quot;, &quot;7&quot;]
+(total, bad) = fold(texts, (0, 0), ((t, b), s) =&gt; match parse_int(s):
   Ok(n)  =&gt; (t + n, b)
   Err(_) =&gt; (t, b + 1)
 ;;)
@@ -326,7 +328,7 @@ print(total, bad)</code></pre><pre class="out plain"><code>42 2</code></pre></di
 <li>리스트를 바꾸다 처음 실패에서 멈추려면 <code>try_map</code>.</li>
 <li>버그는 결과값이 아니라 런타임 에러다. <code>fail(메시지)</code>로 직접 낼 수 있다.</li>
 </ul>
-<p>정확한 규칙은 레퍼런스의 <a href="../reference/language/results.html">결과값과 에러</a>, 함수는 <a href="../reference/prelude/results.html">결과값</a>과 <a href="../reference/prelude/collections.html#fn-try_map"><code>try_map</code></a>, <a href="../reference/prelude/program.html#fn-fail"><code>fail</code></a>에 있다. 에러 번호는 <a href="../reference/errors.html#E0603">E0603</a>, <a href="../reference/errors.html#E0606">E0606</a>, <a href="../reference/errors.html#E0214">E0214</a>, <a href="../reference/errors.html#E0226">E0226</a>을 보라.</p>
+<p>정확한 규칙은 레퍼런스의 <a href="../reference/language/results.html">결과값과 에러</a>, 함수는 <a href="../reference/prelude/results.html">결과값</a>과 <a href="../reference/prelude/collections.html#fn-try_map"><code>try_map</code></a>, <a href="../reference/prelude/program.html#fn-fail"><code>fail</code></a>에 있다. 에러 번호는 <a href="../reference/errors.html#E0603">E0603</a>, <a href="../reference/errors.html#E0606">E0606</a>, <a href="../reference/errors.html#E0214">E0214</a>, <a href="../reference/errors.html#E0237">E0237</a>을 보라.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/08-patterns.html"><small>이전 장</small>8. 패턴과 match</a><a class="next" href="../learn/10-modules.html"><small>다음 장</small>10. 모듈로 나누기</a></nav>
 </div></main>
 </div>

@@ -7,7 +7,7 @@ fn check(x):
 check(1)
 if true: assert 1 == 1 ;;
 if true:
-  fn helper() = 2
+  fn _helper() = 2
 ;;
 for x in [1]: assert x == 1 ;;
 print("ok")

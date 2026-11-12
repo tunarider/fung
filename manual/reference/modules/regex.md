@@ -1,6 +1,6 @@
 ---
 lede: <code>import regex</code>. 정규식으로 문자열에서 모양을 찾고, 꺼내고, 바꾸고, 나눈다. 문법은 RE2 계열이라 역참조와 전후방 탐색이 없는 대신 항상 선형 시간에 돈다.
-description: fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기, 나누기(is_match, find, find_all, replace, split).
+description: fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기, 나누기(is_match, find, find_all, replace, split, escape).
 ---
 # regex — 정규식
 
@@ -94,8 +94,8 @@ print(regex.find_all(s, `(?-u:[^a])`) |> map(m => m.text))
 ```fung run
 import regex
 
-lines = ["INFO ok", "ERROR disk full", "error: retry", "WARN slow"]
-print(lines |> filter(l => regex.is_match(l, `(?i)^error`)))
+entries = ["INFO ok", "ERROR disk full", "error: retry", "WARN slow"]
+print(entries |> filter(l => regex.is_match(l, `(?i)^error`)))
 ```
 
 **전체 모양 검사**
@@ -223,8 +223,8 @@ print(ms |> map(m => int(m.text)) |> sum)
 import regex
 
 line = "user=kim role=admin  region=eu"
-pairs = regex.find_all(line, `(?P<k>\w+)=(?P<v>\S+)`)
-print(pairs |> fold({}, (acc, m) => put(acc, m.named.k, m.named.v)))
+found = regex.find_all(line, `(?P<k>\w+)=(?P<v>\S+)`)
+print(found |> fold({}, (acc, m) => put(acc, m.named.k, m.named.v)))
 ```
 
 **로그 줄 나누기**
@@ -371,6 +371,44 @@ print(regex.split("abc", ""))
 #### 같이 보기
 
 [`split`](../prelude/strings.html#fn-split), [`lines`](../prelude/strings.html#fn-lines), [텍스트 응답을 정규식으로 쪼개기](../../recipes/regex-split.html)
+
+:::
+
+:::fn regex.escape(s)
+
+문자열을 그 글자 그대로만 맞는 패턴으로 바꾼다.
+
+#### 설명
+
+사용자 입력이나 파일에서 읽은 글을 패턴 안에 넣으면 `.`·`*`·`(` 같은 글자가 패턴의 기호로 읽힌다. `regex.escape`는 그런 글자 앞에 `\`를 붙여 `s` 자체만 맞는 패턴을 만든다. UTF-8이 아닌 바이트는 그 바이트만 맞도록 `(?-u:\xff)`로 쓴다. 결과를 다른 패턴 조각과 이어 붙여 쓴다(`"^" + regex.escape(prefix)`).
+
+#### 매개변수
+
+- `s`: 문자열.
+
+#### 돌려주는 값
+
+패턴 문자열.
+
+#### 에러
+
+`s`가 문자열이 아니면 런타임 에러 E0403.
+
+#### 예제
+
+**바깥 글을 패턴에 넣기**
+
+```fung run
+import regex
+
+host = "api.example.com"
+print(regex.escape(host))
+print(regex.is_match("api.example.com:443", "^" + regex.escape(host) + ":"), regex.is_match("apixexample.com:443", "^" + regex.escape(host) + ":"))
+```
+
+#### 같이 보기
+
+[`regex.is_match`](#fn-regex-is_match), [`index_of`](../prelude/strings.html#fn-index_of)
 
 :::
 

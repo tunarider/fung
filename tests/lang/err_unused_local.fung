@@ -1,0 +1,7 @@
+# A local variable nobody reads is an error (D38).
+fn f():
+  unused = 1
+  2
+;;
+print(f())
+# expect-error: E0239

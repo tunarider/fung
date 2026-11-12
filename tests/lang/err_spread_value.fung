@@ -1,0 +1,6 @@
+# Only a list or a range spreads (D45).
+fn add(a, b) = a + b
+print(add(...[1, 2]))
+# expect: 3
+print(add(..."ab"))
+# expect-error: E0506

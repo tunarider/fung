@@ -49,18 +49,18 @@ fn parse(line) = match regex.find(line, entry):
 ;;
 
 # One line at a time until the input ends, so it works on `tail -f` too.
-# `seen` counts lines; returns (lines seen, lines kept, lines not understood).
-fn filter_lines(slow, seen, kept, bad):
+# `n` counts lines; returns (lines seen, lines kept, lines not understood).
+fn filter_lines(limit, n, n_kept, n_bad):
   line = read_line()!
-  if line == nil: return (seen, kept, bad) ;;
+  if line == nil: return (n, n_kept, n_bad) ;;
   r = parse(line)
-  if r == nil: return filter_lines(slow, seen + 1, kept, bad + 1) ;;
-  if r.status < 500 and r.took < slow: return filter_lines(slow, seen + 1, kept, bad) ;;
+  if r == nil: return filter_lines(limit, n + 1, n_kept, n_bad + 1) ;;
+  if r.status < 500 and r.took < limit: return filter_lines(limit, n + 1, n_kept, n_bad) ;;
   print(join([r.at, str(r.status), str(r.took // 1ms), r.method, r.path], "\t"))
-  filter_lines(slow, seen + 1, kept + 1, bad)
+  filter_lines(limit, n + 1, n_kept + 1, n_bad)
 ;;
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["slow"])!
 slow = parse_dur(get(opts.flags, "slow", "1s")) ?? fail("--slow takes a duration like 500ms")
 (seen, kept, bad) = filter_lines(slow, 0, 0, 0)
 eprint("kept ${kept} of ${seen} lines, ${bad} not understood")
@@ -72,7 +72,7 @@ eprint("kept ${kept} of ${seen} lines, ${bad} not understood")
 
 - `entry`: 접근 로그 한 줄을 읽는 정규식이다. 괄호로 묶은 다섯 조각(시각, 메서드, 경로, 상태, 걸린 초)이 `groups`에 순서대로 들어온다. 필드 번호를 세지 않고 줄의 모양을 적으므로, 따옴표 안의 요청 줄에 무엇이 오든 경로를 정확히 고른다.
 - `parse`: 맞지 않는 줄은 `nil`. 맞으면 `groups`를 이름 다섯 개로 풀어 맵을 만든다. 상태는 정규식이 숫자 세 개임을 보장하므로 `int`로 바꾸고, 걸린 시간은 `parse_float(secs)! * 1s`로 **기간**(duration) 값으로 만든다. 그러면 `--slow 500ms` 같은 옵션과 단위 걱정 없이 비교할 수 있다.
-- `filter_lines`: `read_line()`은 한 줄을 읽어 `Ok(줄)`을, 입력이 끝나면 `Ok(nil)`을 준다. 한 줄을 처리하고 자기 자신을 다시 부르는데, 함수의 마지막에서 부르는 호출(꼬리 호출)은 스택을 쌓지 않으므로 몇백만 줄이어도 된다. `return filter_lines(…)`도 꼬리 호출이다. 세는 값(`seen`·`kept`·`bad`)은 변수를 바꾸는 대신 다음 호출의 인자로 넘긴다.
+- `filter_lines`: `read_line()`은 한 줄을 읽어 `Ok(줄)`을, 입력이 끝나면 `Ok(nil)`을 준다. 한 줄을 처리하고 자기 자신을 다시 부르는데, 함수의 마지막에서 부르는 호출(꼬리 호출)은 스택을 쌓지 않으므로 몇백만 줄이어도 된다. `return filter_lines(…)`도 꼬리 호출이다. 세는 값(`n`·`n_kept`·`n_bad`)은 변수를 바꾸는 대신 다음 호출의 인자로 넘긴다.
 - `print(join(…, "\t"))`: 다음 명령이 `cut -f`나 `sort -t$'\t'`로 다루기 쉽게 탭으로 나눈다. 걸린 시간은 `r.took // 1ms`로 밀리초 정수로 바꿔서 `sort -n`이 숫자로 정렬할 수 있게 한다. `print`는 줄마다 바로 내보내므로 `tail -f` 뒤에서도 줄이 늦게 나오지 않는다.
 - `parse_dur(…) ?? fail(…)`: `"500ms"`, `"2s"`, `"1m30s"` 같은 문자열을 기간으로 바꾼다. 잘못된 값이면 알려 주고 멈춘다.
 - `eprint`: 요약은 표준 에러로. 파이프를 따라 흐르는 데이터와 사람이 읽을 메시지를 나눈다.

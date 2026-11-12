@@ -41,7 +41,7 @@
 <li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
 <li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
 <li class="sub">3부 뒷단: 트리에서 실행으로</li>
-<li><a href="../vm/08-bytecode.html" aria-current="page">8. 바이트코드와 스택 머신</a><ol class="toc2"><li><a href="#tree-to-list">트리에서 목록으로</a></li><li><a href="#stack-machine">스택 머신</a></li><li><a href="#encoding">명령 하나의 생김새</a></li><li><a href="#proto">함수 원형: Proto</a></li><li><a href="#reading">dump bytecode 읽기</a></li><li><a href="#follow">따라가기: 명령 하나씩</a></li><li><a href="#loop">실행 루프</a></li><li><a href="#jumps">점프: if는 어떻게 되나</a></li><li><a href="#statements">문장과 지역 변수</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../vm/08-bytecode.html" aria-current="page">8. 바이트코드와 스택 머신</a><ol class="toc2"><li><a href="#tree-to-list">트리에서 목록으로</a></li><li><a href="#stack-machine">스택 머신</a></li><li><a href="#encoding">명령 하나의 생김새</a></li><li><a href="#proto">함수 원형: Proto</a></li><li><a href="#reading">dump bytecode 읽기</a></li><li><a href="#follow">따라가기: 명령 하나씩</a></li><li><a href="#loop">실행 루프</a></li><li><a href="#jumps">점프: if는 어떻게 되나</a></li><li><a href="#statements">문장과 지역 변수</a></li><li><a href="#verify">검증기</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
 <li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
 <li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
 <li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
@@ -62,12 +62,12 @@
 <main><div class="col">
 <nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">3부 뒷단: 트리에서 실행으로</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>8장</span></nav>
 <h1>바이트코드와 스택 머신</h1>
-<p class="lede">트리를 평평한 명령 목록으로 바꾸고, 값을 쌓았다 꺼내는 작은 기계로 실행한다. 명령 하나는 32비트, 기계의 상태는 값 스택과 프레임 목록이 전부다.</p>
+<p class="lede">트리를 평평한 명령 목록으로 바꾸고, 값을 쌓았다 꺼내는 작은 기계로 실행한다. 명령 하나는 고정 폭, 기계의 상태는 값 스택과 프레임 목록이 전부다.</p>
 <ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li class="on">바이트코드</li><li>실행</li></ol>
 <div class="goals"><b>이 장에서 배울 것</b>
 <ul>
 <li>스택 머신이 계산하는 방법과, 레지스터 머신과의 차이</li>
-<li>fung 명령의 생김새: 32비트 한 단어에 명령과 피연산자</li>
+<li>fung 명령의 생김새: 고정 폭 한 단어에 명령과 피연산자</li>
 <li>함수 원형(Proto): 명령 목록, 상수 풀, 위치 표</li>
 <li>컴파일러가 코어 트리를 명령으로 바꾸는 법, 점프와 나중에 채우기</li>
 <li>VM의 실행 루프, 프레임과 슬롯, 그리고 <code>fung dump bytecode</code> 읽기</li>
@@ -116,15 +116,15 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
 <h3 id="register-machine">레지스터 머신</h3>
 <p>다른 길도 있다. <strong>레지스터 머신</strong>(register machine)은 실제 CPU처럼 번호 붙은 칸(레지스터)을 두고, 명령이 칸 번호를 직접 말한다. <code>MUL r3, r1, r2</code>는 "1번 칸과 2번 칸을 곱해 3번 칸에". 같은 계산을 더 적은 명령으로 할 수 있어서 명령을 읽고 갈래를 타는 비용이 준다. 대신 컴파일러가 "어느 값을 어느 칸에 둘지" 배정해야 해서 복잡해지고, 명령 하나가 칸 번호를 여럿 담느라 길어진다.</p>
 <h2 id="encoding">명령 하나의 생김새</h2>
-<p>fung의 명령 하나는 <strong>32비트 단어 하나</strong>다. 위 8비트가 명령의 종류(opcode), 아래 24비트가 피연산자(operand)다.</p>
+<p>fung의 명령 하나는 <strong>고정 폭 단어 하나</strong>다. 8비트가 명령의 종류(opcode), 24비트가 피연산자(operand)다. 피연산자가 둘 필요한 몇 명령(<code>MATCH</code>·<code>TAG</code>·<code>MAP</code>)은 둘째 24비트 피연산자를 더 쓴다(아래).</p>
 <pre class="plain"><code> 31        24 23                                 0
 ┌────────────┬────────────────────────────────────┐
 │   명령     │            피연산자                │
 │  (8비트)   │            (24비트)                │
 └────────────┴────────────────────────────────────┘
  CONST 5  =  명령 0번(CONST) | 피연산자 5</code></pre>
-<p>8비트면 명령을 256가지까지 둘 수 있고, fung은 지금 54가지를 쓴다. 24비트면 피연산자로 1,600만 남짓(16,777,215)까지 적을 수 있어서 상수 번호, 슬롯 번호, 점프할 명령 번호에 충분하다. 그래도 넘는 함수(프로그램이 만든 거대한 코드)는 잘라 담지 않고 컴파일 에러 E0230으로 멈춘다. 명령을 풀 때는 비트 연산 둘(오른쪽으로 24칸 밀기, 아래 24비트 걸러내기)이면 된다. 다만 VM은 실행할 때마다 풀지 않는다. 함수 원형을 VM에 들여올 때(링크, <code>vm/link.rs</code>) 명령 목록을 <code>{명령 종류, 피연산자}</code> 쌍의 배열로 한 번 풀어 두고, 실행 루프는 그 두 필드를 읽기만 한다.</p>
-<p>피연산자에 수 두 개가 필요한 명령은 24비트를 나눠 쓴다. <code>CALL</code>은 아래 12비트에 위치 인자 수, 그 위 12비트에 이름 인자 수를 담는다. 역어셈블 출력의 <code>; 1 positional, 0 named</code>가 그것을 풀어 보인 것이다.</p>
+<p>8비트면 명령을 256가지까지 둘 수 있고, fung은 지금 58가지를 쓴다. 24비트면 피연산자로 1,600만 남짓(16,777,215)까지 적을 수 있어서 상수 번호, 슬롯 번호, 점프할 명령 번호에 충분하다. 그래도 넘는 함수(프로그램이 만든 거대한 코드)는 잘라 담지 않고 컴파일 에러 E0230으로 멈춘다. 명령을 풀 때는 비트 연산 둘(오른쪽으로 24칸 밀기, 아래 24비트 걸러내기)이면 된다. 다만 VM은 실행할 때마다 풀지 않는다. 함수 원형을 VM에 들여올 때(링크, <code>vm/link.rs</code>) 명령 목록을 <code>{명령 종류, 둘째 피연산자, 피연산자}</code>의 배열로 한 번 풀어 두고, 실행 루프는 그 필드를 읽기만 한다. 명령 종류 1바이트 뒤의 빈 3바이트에 둘째 피연산자를 담아 명령 하나가 8바이트 그대로다.</p>
+<p>피연산자에 작은 수 두 개가 필요한 명령은 24비트를 나눠 쓴다. <code>CALL</code>은 아래 12비트에 위치 인자 수, 그 위 12비트에 이름 인자 수를 담는다. 역어셈블 출력의 <code>; 1 positional, 0 named</code>가 그것을 풀어 보인 것이다. 둘 다 큰 수일 수 있으면 둘째 피연산자를 쓴다. <code>MATCH</code>는 패턴이 맞지 않을 때 갈 명령 번호와 패턴 번호, <code>TAG</code>는 값의 수와 이름 상수, <code>MAP</code>은 값의 수와 키 목록 상수다(2026-11-11 점검 VM29·VM30·VM32). 역어셈블 출력은 둘째 피연산자를 첫째 뒤에 적는다(<code>MATCH 8 0</code>).</p>
 <p>명령은 무리로 나눠 보면 다음과 같다.</p>
 <table>
   <thead><tr><th>무리</th><th>명령</th></tr></thead>
@@ -133,8 +133,8 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
     <tr><td>연산</td><td><code>ADD</code> <code>SUB</code> <code>MUL</code> <code>DIV</code> <code>FLOORDIV</code> <code>MOD</code> <code>POW</code> <code>NEG</code> <code>NOT</code> <code>EQ</code> <code>NE</code> <code>LT</code> <code>GT</code> <code>LE</code> <code>GE</code> <code>IN</code> <code>CHECKBOOL</code></td></tr>
     <tr><td>접근</td><td><code>INDEX</code> <code>SLICE</code> <code>FIELD</code></td></tr>
     <tr><td>변수</td><td><code>LOADLOCAL</code> <code>MOVELOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code> <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
-    <tr><td>흐름</td><td><code>JUMP</code> <code>JUMPIFFALSE</code> <code>JUMPIFSET</code></td></tr>
-    <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code></td></tr>
+    <tr><td>흐름</td><td><code>JUMP</code> <code>JUMPIFFALSE</code> <code>JUMPIFTRUE</code> <code>JUMPIFSET</code></td></tr>
+    <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>CALLSPREAD</code> <code>TAILCALLSPREAD</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code> <code>TAILCHECK</code></td></tr>
     <tr><td>결과값</td><td><code>UNWRAPABORT</code>(<code>!</code>) <code>UNWRAPTEST</code>(<code>?</code>) <code>COALESCE</code>(<code>??</code>)</td></tr>
     <tr><td>패턴</td><td><code>MATCH</code> <code>MATCHORFAIL</code> <code>NOMATCH</code></td></tr>
     <tr><td>기타</td><td><code>IMPORT</code> <code>ASSERT</code> <code>TEST</code></td></tr>
@@ -254,6 +254,7 @@ print(double(9223372036854775807))</code></pre><pre class="out err plain" data-c
 <p>명령 목록에는 가지가 없다. 조건에 따라 다른 곳을 실행하려면 <strong>점프</strong>(jump)를 쓴다.</p>
 <ul>
 <li><code>JUMPIFFALSE n</code>: 맨 위 값을 꺼내 거짓이면 n번 명령으로 간다. 참이면 다음 명령으로. 불이 아니면 <code>E0505</code>.</li>
+<li><code>JUMPIFTRUE n</code>: 거꾸로, 참이면 n번으로 간다.</li>
 <li><code>JUMP n</code>: 무조건 n번으로 간다.</li>
 </ul>
 <p><code>if c then a else b</code>는 이렇게 펴진다.</p>
@@ -288,7 +289,8 @@ print(sign(-3))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0007  1:12  RETURN</code></pre></div>
 <p><code>sign</code>의 3번 <code>JUMPIFFALSE 6</code>은 조건이 거짓이면 6번(<code>&quot;plus&quot;</code>)으로, 참이면 4번(<code>&quot;minus&quot;</code>)을 올린 뒤 5번 <code>RETURN</code>으로 돌아간다. 위 그림의 <code>JUMP 끝으로</code>가 <code>RETURN</code>이 된 것은 이 <code>if</code>가 함수의 값을 바로 돌려주는 자리(꼬리 자리)에 있어서다. 끝에 가 봐야 <code>RETURN</code>뿐이므로 가지마다 그 자리에서 돌아간다. <code>&lt;main&gt;</code>의 <code>CONST 1 ; -3</code>도 보자. 3장에서 말한 대로 <code>-3</code>은 토큰 둘(<code>-</code>와 <code>3</code>)이고 트리에서도 "3의 부호를 바꿔라"지만, 수만으로 된 계산이라 컴파일러가 미리 접어 상수 -3 하나가 되었다.</p>
 <p>컴파일러가 <code>JUMPIFFALSE</code>를 낼 때는 else가 몇 번에서 시작할지 아직 모른다. 그래서 피연산자를 0으로 두고 그 명령의 번호를 기억해 두었다가, else를 낼 차례가 되면 그때의 번호로 <strong>나중에 채운다</strong>(backpatching). 코드의 <code>Proto::patch</code>가 그 일이다.</p>
-<p>조건이 <code>a and b</code>나 <code>a or b</code>이면(5장에서 <code>if</code>로 풀렸다) 컴파일러는 불 값을 만들었다가 다시 <code>JUMPIFFALSE</code>로 검사하지 않는다. <code>a</code>가 거짓이면 곧바로 else로, <code>a or b</code>의 <code>a</code>가 참이면 곧바로 then으로 점프한다. 비교의 결과처럼 이미 불인 값에는 <code>CHECKBOOL</code>도 붙이지 않는다. 문장 자리의 <code>else</code> 없는 <code>if</code>는 <code>nil</code>을 만들어 버리는 대신 then 가지만 자기 값을 버린다(<code>POP</code>).</p>
+<p>조건이 <code>a and b</code>나 <code>a or b</code>이면(5장에서 <code>if</code>로 풀렸다) 컴파일러는 불 값을 만들었다가 다시 <code>JUMPIFFALSE</code>로 검사하지 않는다. <code>a</code>가 거짓이면 곧바로 else로, <code>a or b</code>의 <code>a</code>가 참이면 <code>JUMPIFTRUE</code>로 곧바로 then으로 점프한다. 비교 같은 불 값의 <code>not</code>은 <code>NOT</code>을 내지 않고 두 갈 곳을 바꾼다(<code>if not (x &lt; 0):</code>는 <code>LT; JUMPIFTRUE</code>). 비교의 결과처럼 이미 불인 값에는 <code>CHECKBOOL</code>도 붙이지 않는다. 조건이 <code>true</code>·<code>false</code> 리터럴이면 검사하지 않는다. 문장 자리의 <code>else</code> 없는 <code>if</code>는 <code>nil</code>을 만들어 버리는 대신 then 가지만 자기 값을 버린다(<code>POP</code>).</p>
+<p>함수를 다 만들면 컴파일러가 점프를 한 번 더 손본다(<code>Proto::thread_jumps</code>). 무조건 <code>JUMP</code>로 가는 점프는 그 <code>JUMP</code>가 가는 곳으로 바로 가게 고치고, <code>RETURN</code>으로 가는 <code>JUMP</code>는 그 자리의 <code>RETURN</code>이 된다. <code>return</code>으로 끝난 가지 뒤에는 다른 가지를 건너뛰는 <code>JUMP</code>를 내지 않는다(2026-11-11 점검 VM27·VM28·VM31). 문자열 리터럴끼리의 <code>+</code>와 리터럴만 넣은 보간(<code>&quot;a${1}&quot;</code>)도 수 계산처럼 미리 접힌다.</p>
 <h2 id="statements">문장과 지역 변수</h2>
 <p>블록 안의 문장들은 차례로 컴파일된다. 대입은 "값 계산, 그다음 <code>STORELOCAL</code>(블록 안) 또는 <code>STOREGLOBAL</code>(최상위)"이다. 식 문장은 값을 계산한 뒤 <code>POP</code>으로 버린다. 버리는 값이 <code>Err</code>이면 <code>POP</code>이 <code>E0606</code>을 낸다. 실패를 조용히 버리지 않게 하는 장치다.</p>
 <div class="run"><pre><code>fn report(xs):
@@ -330,7 +332,7 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 <ul>
 <li><code>&lt;main&gt;</code>의 <code>CONST 1 ; [3, 4, 5]</code>: 원소가 모두 상수인 리스트는 컴파일할 때 상수 하나가 된다. 맵·튜플·태그 값(<code>{a: 1}</code>, <code>(1, &quot;x&quot;)</code>, <code>Ok(1)</code>)과 그런 것을 품은 것도 같다.</li>
 <li><code>STORELOCAL 1</code>, <code>STORELOCAL 2</code>: <code>total</code>과 <code>avg</code>의 슬롯(6장에서 정한 번호 그대로).</li>
-<li><code>LOADLOCAL 0</code>과 <code>MOVELOCAL 0</code>: <code>xs</code>(슬롯 0)의 첫 읽기는 복사하고, 마지막 읽기(<code>len(xs)</code>)는 값을 넘기며 칸을 비운다. 그래서 큰 리스트가 함수가 끝날 때까지 메모리에 남지 않는다. 넘기지 않은 마지막 읽기라면 그 문장 뒤에 <code>CLEARLOCAL</code>이 칸을 비운다(10장).</li>
+<li><code>LOADLOCAL 0</code>과 <code>MOVELOCAL 0</code>: <code>xs</code>(슬롯 0)의 첫 읽기는 복사하고, 마지막 읽기(<code>len(xs)</code>)는 값을 넘기며 칸을 비운다. 그래서 큰 리스트가 함수가 끝날 때까지 메모리에 남지 않는다. 넘기지 않은 마지막 읽기라면 그 문장 뒤(다른 가지에서만 읽히면 가지가 시작할 때, 클로저가 붙잡았다면 만든 바로 뒤)에 <code>CLEARLOCAL</code>이 칸을 비운다(10장).</li>
 <li><code>CONCAT 4</code>: 보간 조각 넷을 꺼내 하나의 문자열로 잇는다(5장의 <code>concat</code>).</li>
 <li>마지막 식은 <code>POP</code> 없이 <code>RETURN</code>이 된다. 함수의 값이기 때문이다.</li>
 </ul>
@@ -346,16 +348,29 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 <div class="box choice"><b>fung의 선택</b>
 <ul>
 <li><strong>스택 머신.</strong> 설계 문서 09의 구조 그대로 "스택 VM"이다. 레지스터 머신과 인라인 캐시(같은 자리의 이름 조회 결과를 기억하는 기법)는 "측정을 보고 정한다"로 미뤄 두었다(open-questions "성능"). 2026-10-14 측정에서는 호출의 빠른 길(인자가 그 자리에서 슬롯이 되기)과 범위를 리스트로 펼치지 않는 반복으로 함수 호출과 반복이 2.3~2.5배 빨라졌고, 남은 시간은 명령 해석 루프 자체라고 기록했다.</li>
-<li><strong>고정 폭 32비트 = 8비트 명령 + 24비트 피연산자.</strong> 디코딩과 점프 계산이 단순하고 역어셈블러가 쉽다. 24비트면 상수·슬롯·점프 위치에 충분하다. 가변 길이 바이트 열은 매 명령의 길이를 따져야 해서 택하지 않았다(설계 문서 09, 내부 구조 부록).</li>
+<li><strong>고정 폭 = 8비트 명령 + 24비트 피연산자(몇 명령은 둘째 24비트 피연산자).</strong> 디코딩과 점프 계산이 단순하고 역어셈블러가 쉽다. 24비트면 상수·슬롯·점프 위치에 충분하다. VM 안에서 명령 하나는 8바이트다. 가변 길이 바이트 열은 매 명령의 길이를 따져야 해서 택하지 않았다(설계 문서 09, 내부 구조 부록).</li>
 <li><strong>내장 함수는 상수로 직접.</strong> prelude 이름은 컴파일러가 함수 값을 상수 풀에 넣는다. 실행 중에 이름을 찾지 않는다(6장).</li>
 <li><strong>명령마다 소스 위치.</strong> 런타임 에러가 정확한 줄과 칸을 가리키는 이유다(7장). 실행 루프는 명령마다 위치를 읽지 않는다. 에러가 나거나 위치를 남겨야 하는 명령(내장 함수 호출, <code>import</code>)일 때만 프레임의 <code>ip - 1</code>로 표에서 찾는다.</li>
 </ul>
 </div>
+<h2 id="verify">검증기</h2>
+<p>VM은 컴파일러가 만든 바이트코드를 믿고 돈다. 명령마다 "피연산자가 상수 표 안에 있는가", "스택에 값이 충분한가", "읽는 칸에 값이 있는가"를 묻지 않는다. 묻지 않으니 빠르지만, 컴파일러가 약속을 어기면 VM이 패닉하거나(<code>VM stack underflow</code>) 엉뚱한 곳의 코드를 돈다.</p>
+<p>그래서 디버그 빌드의 컴파일러는 만든 프로그램마다 <strong>바이트코드 검증기</strong>(<code>bytecode::verify</code>)를 돌린다. JVM이 클래스 파일을 실을 때 하는 검증과 같은 생각이다. 검사는 다섯이다.</p>
+<ol>
+<li>피연산자가 그 명령이 가리키는 표(상수, 칸, 전역, 자식 함수, 패턴…) 안에 있다.</li>
+<li>점프는 같은 함수 안의 <strong>앞</strong>으로만 간다(반복문이 없는 언어라 뒤로 가는 점프가 없다).</li>
+<li>어느 길도 코드 끝에서 떨어지지 않는다. 모든 길이 <code>RETURN</code>·<code>TAILCALL</code>·<code>NOMATCH</code>로 끝난다.</li>
+<li>스택이 모자라지 않고, 두 길이 만나는 곳에서 스택 높이가 같다.</li>
+<li>지역 칸을 읽을 때(<code>LOADLOCAL</code>·<code>MOVELOCAL</code>·<code>CHECKTYPE</code>·클로저의 붙잡기) 그 칸이 <strong>모든 길에서</strong> 차 있다. 값 대신 "찼음/비었을 수 있음"만 들고 코드를 한 번 따라가는 추상 실행이다.</li>
+</ol>
+<p>점프가 모두 앞으로 가므로, 명령을 순서대로 한 번 훑으면 어떤 명령에 이르기 전에 그리로 오는 모든 길을 이미 본다. 그래서 고정점을 찾는 반복 없이 한 번에 끝난다. 덤으로 함수의 최대 스택 높이가 나온다.</p>
+<p>명령마다의 사실(이름, 피연산자가 무엇을 가리키는지, 스택에서 몇 개를 꺼내고 몇 개를 넣는지, 다음에 어디로 가는지)은 <code>op.rs</code>의 표 하나(<code>instructions!</code>)에 모여 있고, 역어셈블러와 검증기가 같은 표를 읽는다. 검증에 걸리면 디버그 빌드는 내부 에러(E0801)를 낸다. 시험은 저장소의 모든 fung 코드(언어 시험, 예제, 내장 모듈, 이 매뉴얼의 예제)를 릴리스 빌드에서도 검증한다.</p>
 <h2 id="source">코드에서 찾아보기</h2>
 <ul>
-<li><code>crates/fung-front/src/bytecode/op.rs</code>: 명령 종류 <code>Op</code>(번호가 고정된 <code>#[repr(u8)]</code> 열거형), 32비트 단어 <code>Instr</code>(<code>Instr::new</code>, <code>Instr::op</code>, <code>Instr::arg</code>), <code>CALL</code> 피연산자를 싸고 푸는 <code>encode_call</code>·<code>decode_call</code>, 이름 <code>Op::name</code>. VM은 링크 때 <code>Instr</code>를 <code>vm/link.rs</code>의 <code>Code</code>(<code>op</code>·<code>arg</code> 필드)로 한 번 푼다.</li>
-<li><code>crates/fung-front/src/bytecode.rs</code>: 함수 원형 <code>Proto</code>와 <code>Proto::emit</code>(명령과 위치를 함께 넣는다), <code>Proto::patch</code>(점프를 나중에 채운다), <code>Proto::add_const</code>(같은 상수 다시 쓰기).</li>
+<li><code>crates/fung-front/src/bytecode/op.rs</code>: 명령 표 <code>instructions!</code>가 만드는 명령 종류 <code>Op</code>(번호는 표의 자리), 명령마다의 사실 <code>Info</code>(피연산자의 뜻 <code>Operand</code>, 스택 효과 <code>Effect</code>, 흐름 <code>Flow</code>), 명령 단어 <code>Instr</code>(<code>Instr::new</code>, <code>Instr::with</code>, <code>Instr::op</code>, <code>Instr::arg</code>, 둘째 피연산자 <code>Instr::b</code>와 그 뜻 <code>Op::second</code>), <code>CALL</code> 피연산자를 싸고 푸는 <code>encode_call</code>·<code>decode_call</code>, 이름 <code>Op::name</code>. VM은 링크 때 <code>Instr</code>를 <code>vm/link.rs</code>의 <code>Code</code>(<code>op</code>·<code>arg</code> 필드와 <code>Code::b</code>, 8바이트)로 한 번 푼다.</li>
+<li><code>crates/fung-front/src/bytecode.rs</code>: 함수 원형 <code>Proto</code>와 <code>Proto::emit</code>(명령과 위치를 함께 넣는다), <code>Proto::patch</code>(점프를 나중에 채운다), <code>Proto::thread_jumps</code>(점프로 가는 점프 고치기), <code>Proto::add_const</code>(같은 상수 다시 쓰기).</li>
 <li><code>crates/fung-front/src/bytecode/disasm.rs</code>: <code>disassemble</code>, 곧 <code>fung dump bytecode</code>의 출력.</li>
+<li><code>crates/fung-front/src/bytecode/verify.rs</code>: 바이트코드 검증기 <code>verify</code>(위 다섯 검사, 최대 스택 높이 <code>Verified::max_stack</code>).</li>
 <li><code>crates/fung-front/src/compiler.rs</code>: <code>compile</code>과 <code>Compiler::block</code>(문장, <code>POP</code>, <code>CLEARLOCAL</code>), <code>Compiler::expr</code>(코어 형태마다 명령 내기), <code>Compiler::op</code>, <code>Compiler::if_expr</code>(점프 둘), <code>Compiler::let_stmt</code>. 함수와 호출은 <code>crates/fung-front/src/compiler/fn_.rs</code>의 <code>Compiler::function</code>과 <code>Compiler::call</code>.</li>
 <li><code>crates/fung-vm/src/vm/link.rs</code>: 원형을 실행용 <code>RtProto</code>로 바꾸며 상수를 실제 값으로 채우는 <code>link</code>.</li>
 <li><code>crates/fung-vm/src/vm.rs</code>: <code>Task</code>(값 스택 <code>stack</code>과 프레임 목록 <code>frames</code>)와 실행 루프 <code>Task::step_loop</code>, 정수 빠른 길 <code>Task::binary</code>.</li>
@@ -411,10 +426,10 @@ print(grade(95), grade(85), grade(10))</code></pre><pre class="out plain"><code>
 <ul>
 <li>스택 머신의 명령은 스택 맨 위의 값을 꺼내 계산하고 결과를 올린다. 컴파일러는 트리를 자식 먼저 걸으며 명령을 낸다.</li>
 <li>레지스터 머신은 명령이 칸 번호를 직접 말한다. 명령 수는 줄지만 컴파일러가 복잡해진다.</li>
-<li>fung 명령은 32비트 한 단어(8비트 명령 + 24비트 피연산자)이고, 54가지다.</li>
+<li>fung 명령은 고정 폭 한 단어(8비트 명령 + 24비트 피연산자, 몇 명령은 둘째 피연산자)이고, 58가지다.</li>
 <li>함수마다 원형(<code>Proto</code>)이 하나: 명령 목록, 상수 풀, 명령마다 위치, 슬롯 수, 매개변수 표, 자식 원형들.</li>
 <li>VM은 반복문 하나로 명령을 가져와 실행한다. 프레임마다 <code>base</code>가 있고, 슬롯 n은 <code>stack[base + n]</code>이다. 인자는 그 자리에서 슬롯이 된다.</li>
-<li><code>if</code>는 <code>JUMPIFFALSE</code>와 <code>JUMP</code>로 펴지고(꼬리 자리의 가지는 <code>JUMP</code> 대신 <code>RETURN</code>), 점프 위치는 나중에 채운다. 수만으로 된 계산은 컴파일러가 미리 접는다.</li>
+<li><code>if</code>는 <code>JUMPIFFALSE</code>(<code>or</code>·<code>not</code>은 <code>JUMPIFTRUE</code>도)와 <code>JUMP</code>로 펴지고(꼬리 자리의 가지와 <code>RETURN</code>으로 가는 점프는 <code>RETURN</code>), 점프 위치는 나중에 채운다. 수만으로 된 계산은 컴파일러가 미리 접는다.</li>
 </ul>
 <p>다음 장에서는 함수 값이 어떻게 만들어지는지, 클로저가 바깥 변수를 어떻게 붙잡는지, 기본값과 꼬리 호출이 바이트코드에서 어떻게 보이는지 본다. 명령줄 사용법은 <a href="../reference/cli.html">명령줄 레퍼런스</a>에 있다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/07-diagnostics.html"><small>이전 장</small>7. 에러 메시지 만들기</a><a class="next" href="../vm/09-closures.html"><small>다음 장</small>9. 함수와 클로저</a></nav>

@@ -157,6 +157,8 @@ pub(crate) const EFFECTS: &[(&str, &[&str])] = &[
         &[
             "print",
             "eprint",
+            "write",
+            "ewrite",
             "dbg",
             "read_line",
             "read_lines",
@@ -262,6 +264,9 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "lines",
             "join",
             "trim",
+            "trim_left",
+            "trim_right",
+            "index_of",
             "upper",
             "lower",
             "replace",
@@ -301,9 +306,14 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "headers",
             "header_problem",
             "is_token",
+            "result",
+            "options",
         ],
     ),
-    ("_native.net", &["local_addr", "user_agent"]),
+    (
+        "_native.net",
+        &["local_addr", "user_agent", "url_encode", "url_decode"],
+    ),
     ("_native.json", &["parse", "stringify"]),
     (
         "_native.path",
@@ -313,7 +323,7 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
     ("_native.range", &["items", "last", "pad", "slice"]),
     (
         "_native.regex",
-        &["is_match", "find", "find_all", "replace", "split"],
+        &["is_match", "find", "find_all", "replace", "split", "escape"],
     ),
     (
         "_native.time",
@@ -330,6 +340,59 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
         ],
     ),
 ];
+
+/// The pure builtins whose call can still do something the caller wants:
+/// they call a function they are given, or raise on purpose (`fail`, the
+/// argument checks of `_native.arg`). The other pure builtins, called as
+/// a statement, only compute a value to drop it (E0234, D39).
+#[cfg_attr(not(test), allow(dead_code))]
+const CALLS_OR_RAISES: &[(&str, &[&str])] = &[
+    (
+        "prelude",
+        &[
+            "fail",
+            "map",
+            "try_map",
+            "filter",
+            "fold",
+            "each",
+            "sort_by",
+            "find",
+            "any",
+            "all",
+            "group_by",
+            "scope",
+            "timeout",
+            "with",
+            "supervise",
+        ],
+    ),
+    (
+        "_native.arg",
+        &[
+            "count",
+            "positive",
+            "dur",
+            "list_of",
+            "str_map",
+            "token",
+            "headers",
+            "header_problem",
+            "is_token",
+            "result",
+            "options",
+        ],
+    ),
+    // It checks a pad argument (`_padding` in the prelude).
+    ("_native.range", &["pad"]),
+];
+
+/// Whether `name` of `module` is known to have no effect (D39): what the
+/// spec marks `pure`, for E0234 on a call of it as a statement.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn has_no_effect(module: &str, name: &str) -> bool {
+    is_listed(PURE, module, name) && !is_listed(CALLS_OR_RAISES, module, name)
+}
 
 /// Whether `table` lists `name` under `module`.
 pub(crate) fn is_listed(table: &[(&str, &[&str])], module: &str, name: &str) -> bool {

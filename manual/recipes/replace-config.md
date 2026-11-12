@@ -46,13 +46,13 @@ fn pair(arg):
 ;;
 
 # The line with its key's new value, or the line as it was.
-fn update(line, wanted):
+fn update(line, changes):
   m = regex.find(line, setting)
   if m == nil: return line ;;
-  [indent, key, sep, old] = m.groups
-  new = get(wanted, key, old)
-  if new != old: eprint("${key}: ${old} -> ${new}") ;;
-  indent + key + sep + new
+  [indent, key, sep, was] = m.groups
+  now = get(changes, key, was)
+  if now != was: eprint("${key}: ${was} -> ${now}") ;;
+  indent + key + sep + now
 ;;
 
 opts = cli.parse(args, bools: ["print"])!

@@ -1,0 +1,3 @@
+# An empty `sub` is everywhere: an argument error (D73), as split's sep.
+print(index_of("abc", ""))
+# expect-error: E0403

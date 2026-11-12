@@ -1,0 +1,4 @@
+# Only a map and a module have fields: `xs.len` is `len(xs)` (VA39).
+xs = [1, 2]
+print(xs.len)
+# expect-error: E0509

@@ -1,10 +1,11 @@
-# A task's Err result is the task's answer: read it with await (05).
+# A task's Err result is the task's answer: read it with await (05),
+# which gives it in Ok (D65: the runtime's own Err is the wait's failure).
 r = scope(fn(s):
   t = spawn(s, fn(): Err("no") ;;)
   await(t)
-;;)
+;;)!
 print(r)
-# expect: Err("no")
+# expect: Ok(Err("no"))
 
 # A task that returns nothing ends in nil, Errs it discards on purpose too.
 scope(fn(s):

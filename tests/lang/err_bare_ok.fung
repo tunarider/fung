@@ -1,0 +1,5 @@
+# A result holds exactly one value (D41): a bare `Ok` is not a symbol.
+# Only a pipe gives it its value: `x |> Ok`.
+print(1 |> Ok)
+x = Ok
+# expect-error: E0236

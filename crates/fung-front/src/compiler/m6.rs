@@ -87,8 +87,13 @@ impl Compiler<'_> {
         }
         let idx = self.function(&n.kids[0])?;
         self.proto.emit(Op::Closure, idx, n.pos);
+        self.captured(&n.kids[0]);
         let name = self.proto.add_const(Const::Str(lit_str(n).to_string()));
-        self.proto.emit(Op::Test, name, n.pos);
+        // An Err the block returns is reported at the expression that
+        // made it, its last statement (FE61).
+        let last = n.kids[0].kids.last().and_then(|body| body.kids.last());
+        self.proto
+            .emit(Op::Test, name, last.map_or(n.pos, Node::start_pos));
         Ok(())
     }
 
@@ -99,6 +104,6 @@ impl Compiler<'_> {
         if callee.head != Head::Prelude || lit_str(callee) != "dbg" || n.kids.len() != 2 {
             return false;
         }
-        !matches!(n.kids[1].head, Head::Named | Head::Hole)
+        !matches!(n.kids[1].head, Head::Named | Head::Hole | Head::Spread)
     }
 }

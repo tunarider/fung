@@ -14,17 +14,13 @@ test "return and ?":
   assert v == 3
   return nil
 ;;
-test "unused warning":
-  y = 1
-  assert true
-;;
 test "an Err at the end is discarded":
   (tx, _rx) = channel(1)
   close(tx)
   send(tx, 1)
 ;;
 test "a list of Errs at the end":
-  for x in [1]: fails("in a list") ;;
+  for _x in [1]: fails("in a list") ;;
 ;;
 test "an if at the end":
   if false: print(1) ;;

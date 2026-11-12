@@ -6,7 +6,7 @@
 //! module lists describe the `_native.*` bridges and the parameters of
 //! `conc` and `http`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 const SPEC: &str = include_str!("../../../spec/builtins.txt");
@@ -25,8 +25,14 @@ pub struct Builtins {
     /// Prelude natives that are functions → their parameter list as the
     /// spec writes it (`xs, sep=?`, `...args`).
     native_params: BTreeMap<String, String>,
+    /// Prelude functions written in fung → their parameter list.
+    fung_params: BTreeMap<String, String>,
     /// `(_native.x, name)` (or `(conc, name)`) → the member's parameter list.
     module_params: BTreeMap<(String, String), String>,
+    /// `(prelude, name)` and `(module, name)` of the functions known to
+    /// have no effect (the spec's `pure` mark): a call of one as a
+    /// statement only computes a value to drop it (E0234, D39).
+    pure: BTreeSet<(String, String)>,
 }
 
 impl Builtins {
@@ -35,6 +41,29 @@ impl Builtins {
     /// for an unknown name or a plain value such as `args`.
     pub fn native_signature(&self, name: &str) -> Option<&str> {
         self.native_params.get(name).map(String::as_str)
+    }
+
+    /// The parameter list of a prelude function, native or written in
+    /// fung, as the spec writes it. `None` for an unknown name or a value
+    /// that is no function.
+    pub fn prelude_signature(&self, name: &str) -> Option<&str> {
+        self.native_params
+            .get(name)
+            .or_else(|| self.fung_params.get(name))
+            .map(String::as_str)
+    }
+
+    /// Whether the prelude function `name` is known to have no effect
+    /// (D39).
+    pub fn prelude_pure(&self, name: &str) -> bool {
+        self.pure
+            .contains(&("prelude".to_string(), name.to_string()))
+    }
+
+    /// Whether the member `name` of `module` (a `_native.x` bridge, `conc`
+    /// or `http`) is known to have no effect (D39).
+    pub fn module_pure(&self, module: &str, name: &str) -> bool {
+        self.pure.contains(&(module.to_string(), name.to_string()))
     }
 
     /// The parameter list of a `_native.x` module member as the spec
@@ -89,8 +118,17 @@ pub fn parse(spec: &str) -> Builtins {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
+        // A function known to have no effect ends with ` pure` (D39).
+        let (line, pure) = match line.strip_suffix(" pure") {
+            Some(l) => (l, true),
+            None => (line, false),
+        };
         let mut parts = line.splitn(3, ' ');
         let (kind, layer, rest) = (parts.next(), parts.next(), parts.next());
+        if pure && let (Some(kind), Some(layer), Some(rest)) = (kind, layer, rest) {
+            let place = if kind == "prelude" { "prelude" } else { layer };
+            b.pure.insert((place.to_string(), entry_name(rest)));
+        }
         match (kind, layer, rest) {
             (Some("prelude"), Some("native"), Some(rest)) => {
                 let name = entry_name(rest);
@@ -99,7 +137,13 @@ pub fn parse(spec: &str) -> Builtins {
                 }
                 b.prelude_native.push(name)
             }
-            (Some("prelude"), Some("fung"), Some(rest)) => b.prelude_fung.push(entry_name(rest)),
+            (Some("prelude"), Some("fung"), Some(rest)) => {
+                let name = entry_name(rest);
+                if let Some(params) = entry_params(rest) {
+                    b.fung_params.insert(name.clone(), params);
+                }
+                b.prelude_fung.push(name)
+            }
             (Some("module"), Some(module), Some(rest)) => {
                 let name = entry_name(rest);
                 if let Some(params) = entry_params(rest) {
@@ -164,6 +208,27 @@ mod tests {
             b.module_signature("conc", "retry"),
             Some("f, times=?, delay=?")
         );
+    }
+
+    /// D39: the spec marks the functions known to have no effect; those
+    /// that take a function, and effects, are not marked.
+    #[test]
+    fn pure_functions_are_marked() {
+        let b = builtins();
+        for name in ["put", "sort", "len", "join", "env"] {
+            assert!(b.prelude_pure(name), "{name}");
+        }
+        for name in ["map", "each", "fold", "print", "fail", "send", "take"] {
+            assert!(!b.prelude_pure(name), "{name}");
+        }
+        assert!(b.module_pure("_native.path", "join"));
+        assert!(!b.module_pure("_native.fs", "read"));
+        assert!(!b.module_pure("_native.arg", "count"));
+        let s = super::parse("prelude native len(x) pure\nmodule _native.path base(p) pure\n");
+        assert!(s.prelude_pure("len"));
+        assert_eq!(s.native_signature("len"), Some("x"));
+        assert!(s.module_pure("_native.path", "base"));
+        assert_eq!(s.module_signature("_native.path", "base"), Some("p"));
     }
 
     #[test]

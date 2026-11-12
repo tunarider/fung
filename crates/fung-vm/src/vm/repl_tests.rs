@@ -212,7 +212,7 @@ fn tasks_run_inside_an_input_and_a_deadlock_is_reported() {
             s.input(
                 "scope(fn(s):\n  t = spawn(s, () => recv(c))\n  send(c_tx, 5)\n  await(t)\n;;)"
             ),
-            value("Ok(5)")
+            value("Ok(Ok(Ok(5)))")
         );
         assert_eq!(s.err.text(), "");
         assert!(!s.rt.deadlocked());
@@ -286,7 +286,7 @@ fn a_deadlock_is_recovered() {
         assert_eq!(s.input("print(\"after\")\nk"), value("7"));
         assert_eq!(
             s.input("scope(s => await(spawn(s, () => k + 1)))"),
-            value("8")
+            value("Ok(Ok(8))")
         );
 
         assert_eq!(s.input("swap(a, (n) => n + 1)"), value("2"));

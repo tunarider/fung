@@ -47,11 +47,24 @@ enum Num {
     Floats(f64, f64),
 }
 
+/// An int meeting a float in arithmetic, as the float it equals: one past
+/// 2^53 that a float cannot hold is E0523 (D48), never a silent rounding.
+/// `float(n)` rounds on purpose.
+pub(crate) fn exact_float(i: i64) -> Result<f64, Diag> {
+    let f = i as f64;
+    // 2^63 is where i64::MAX rounds to, and no i64 is.
+    if f < 9223372036854775808.0 && f as i64 == i {
+        Ok(f)
+    } else {
+        Err(error("E0523", no_pos(), vec![Arg::Int(i)]))
+    }
+}
+
 fn numeric(verb: &str, a: &Value, b: &Value) -> Result<Num, Diag> {
     match (a, b) {
         (Value::Int(x), Value::Int(y)) => Ok(Num::Ints(*x, *y)),
-        (Value::Int(x), Value::Float(y)) => Ok(Num::Floats(*x as f64, *y)),
-        (Value::Float(x), Value::Int(y)) => Ok(Num::Floats(*x, *y as f64)),
+        (Value::Int(x), Value::Float(y)) => Ok(Num::Floats(exact_float(*x)?, *y)),
+        (Value::Float(x), Value::Int(y)) => Ok(Num::Floats(*x, exact_float(*y)?)),
         (Value::Float(x), Value::Float(y)) => Ok(Num::Floats(*x, *y)),
         _ => Err(type_error(verb, &type_name(a), &type_name(b))),
     }
@@ -67,7 +80,7 @@ fn finite(f: f64) -> Result<Value, Diag> {
 }
 
 /// E0806 for a string past the limit of `MAX_CHARS` characters (02).
-fn too_many_chars() -> Diag {
+pub(crate) fn too_many_chars() -> Diag {
     error(
         "E0806",
         no_pos(),
@@ -119,13 +132,32 @@ pub(crate) fn check_returned(v: &Value) -> Result<(), Diag> {
     }
 }
 
+/// E0806 for `x + y` past the string limit.
+fn check_sum(x: &Text, y: &Text) -> Result<(), Diag> {
+    let bytes = x.as_bytes().len() as u64 + y.as_bytes().len() as u64;
+    if bytes > MAX_CHARS as u64 && (x.char_len() + y.char_len()) as u64 > MAX_CHARS as u64 {
+        return Err(too_many_chars());
+    }
+    Ok(())
+}
+
+/// `x + y` on two strings with `x` given away: a string no other value
+/// holds grows in place, so `s = s + t` in a loop copies `s` only when
+/// its room runs out (VA32).
+pub(crate) fn add_text(mut x: Rc<Text>, y: &Text) -> Result<Value, Diag> {
+    check_sum(&x, y)?;
+    if let Some(t) = Rc::get_mut(&mut x)
+        && t.append(y)
+    {
+        return Ok(Value::Str(x));
+    }
+    Ok(Value::Str(Rc::new(Text::concat(&x, y))))
+}
+
 pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
     match (a, b) {
         (Value::Str(x), Value::Str(y)) => {
-            let bytes = x.as_bytes().len() as u64 + y.as_bytes().len() as u64;
-            if bytes > MAX_CHARS as u64 && (x.char_len() + y.char_len()) as u64 > MAX_CHARS as u64 {
-                return Err(too_many_chars());
-            }
+            check_sum(x, y)?;
             return Ok(Value::Str(Rc::new(Text::concat(x, y))));
         }
         (Value::Dur(x), Value::Dur(y)) => return add_dur(*x, *y),
@@ -139,6 +171,17 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
             }
             if x.is_empty() {
                 return Ok(b.clone());
+            }
+            // The list limit holds for `+` as for every list built (D63).
+            if (x.len() as u64).saturating_add(y.len() as u64) > crate::native::nat::MAX_ELEMENTS {
+                return Err(error(
+                    "E0806",
+                    no_pos(),
+                    vec![
+                        Arg::Str("elements".into()),
+                        Arg::Int(crate::native::nat::MAX_ELEMENTS as i64),
+                    ],
+                ));
             }
             return Ok(Value::List(Rc::new(x.concat(y))));
         }
@@ -330,10 +373,17 @@ fn float_divmod(x: f64, y: f64) -> (f64, f64) {
     (q, m)
 }
 
-/// `**`: int ** non-negative int stays int (checked), otherwise float.
-/// Zero to a negative power is a division by zero (E0502, VA14).
+/// `**`: int ** non-negative int stays int (checked), int ** negative int
+/// is E0524 (D49: the result type does not follow the exponent's value),
+/// otherwise float. Zero to a negative float power is a division by zero
+/// (E0502, VA14).
 pub fn pow(a: &Value, b: &Value) -> Result<Value, Diag> {
     let n = numeric("raise", a, b)?;
+    if let Num::Ints(x, y) = n
+        && y < 0
+    {
+        return Err(error("E0524", no_pos(), vec![Arg::Int(x), Arg::Int(y)]));
+    }
     let (base_zero, exp_negative) = match n {
         Num::Floats(x, y) => (x == 0.0, y < 0.0),
         Num::Ints(x, y) => (x == 0, y < 0),
@@ -343,7 +393,6 @@ pub fn pow(a: &Value, b: &Value) -> Result<Value, Diag> {
     }
     match n {
         Num::Floats(x, y) => finite(x.powf(y)),
-        Num::Ints(x, y) if y < 0 => finite((x as f64).powf(y as f64)),
         Num::Ints(base, exp) => {
             let (mut result, mut base, mut exp) = (1i64, base, exp);
             while exp > 0 {

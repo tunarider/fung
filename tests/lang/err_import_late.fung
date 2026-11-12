@@ -1,0 +1,4 @@
+# `import` comes before the other statements of a file (D55).
+print("start")
+import json
+# expect-error: E0313

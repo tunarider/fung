@@ -51,6 +51,30 @@ print(cli.parse([], bools: [1]))"#,
         "E0403",
         "bools",
     ),
+    (
+        "cli",
+        "parse",
+        r#"import cli
+print(cli.parse([], values: [1]))"#,
+        "E0403",
+        "values",
+    ),
+    (
+        "cli",
+        "parse",
+        r#"import cli
+print(cli.parse([], values: ["-x"]))"#,
+        "E0403",
+        "values",
+    ),
+    (
+        "cli",
+        "parse",
+        r#"import cli
+print(cli.parse([], ["x"], ["x"]))"#,
+        "E0403",
+        "values",
+    ),
     // conc
     (
         "conc",
@@ -216,6 +240,14 @@ print(http.get("http://127.0.0.1:1/", max_body: -1))"#,
     ),
     (
         "http",
+        "get",
+        r#"import http
+print(http.get("http://127.0.0.1:1/", redirects: -1))"#,
+        "E0403",
+        "redirects",
+    ),
+    (
+        "http",
         "post",
         r#"import http
 print(http.post("http://127.0.0.1:1/", 1))"#,
@@ -265,7 +297,7 @@ print(http.serve("127.0.0.1:0", 1))"#,
     (
         "prelude",
         "until",
-        "print(until(1, 2, x => true))",
+        "print(until(1, 2, _x => true))",
         "E0403",
         "f",
     ),
@@ -279,7 +311,7 @@ print(http.serve("127.0.0.1:0", 1))"#,
 ];
 
 /// How many cases the table holds.
-const CASE_COUNT: usize = 39;
+const CASE_COUNT: usize = 43;
 
 fn run(bin: &Path, dir: &Path, src: &str) -> (String, String, Option<i32>) {
     let o = common::output(

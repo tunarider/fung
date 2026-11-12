@@ -10,63 +10,62 @@
 0008  9:1   ASSERT       0    ; h(Ok(1)) == 2
 0009  10:8  CONST        2    ; true
 0010  10:1  ASSERT       1    ; true
-0011  12:10 CONST        3    ; 1
-0012  12:14 CONST        1    ; 2
-0013  12:12 LT
-0014  12:5  NOT
-0015  12:5  JUMPIFFALSE  22
-0016  12:21 CONST        4    ; -1
-0017  12:26 CONST        5    ; 0
-0018  12:24 GT
-0019  12:24 JUMPIFFALSE  22
-0020  12:28 CONST        2    ; true
-0021  12:28 JUMP         23
-0022  12:31 CONST        6    ; false
-0023  12:1  STOREGLOBAL  2    ; c
-0024  13:5  CONST        1    ; 2
-0025  13:1  STOREGLOBAL  3    ; n
-0026  14:1  CONST        7    ; <fn print>
-0027  14:7  CONST        8    ; "x"
-0028  14:14 CONST        8    ; "x"
-0029  14:11 EQ
-0030  14:19 CONST        9    ; 2.0
-0031  14:25 LOADGLOBAL   3    ; n
-0032  14:23 DIV
-0033  14:28 CONST        10    ; 7
-0034  14:33 LOADGLOBAL   3    ; n
-0035  14:30 FLOORDIV
-0036  14:36 CONST        10    ; 7
-0037  14:40 LOADGLOBAL   3    ; n
-0038  14:38 MOD
-0039  14:43 LOADGLOBAL   3    ; n
-0040  14:48 CONST        11    ; 3
-0041  14:45 POW
-0042  14:51 CONST        3    ; 1
-0043  14:56 LOADGLOBAL   3    ; n
-0044  14:53 NE
-0045  14:59 CONST        3    ; 1
-0046  14:64 LOADGLOBAL   3    ; n
-0047  14:61 LE
-0048  14:67 CONST        3    ; 1
-0049  14:72 LOADGLOBAL   3    ; n
-0050  14:69 GE
-0051  14:6  CALL         8    ; 8 positional, 0 named
-0052  14:1  POP
-0053  14:78 CONST        10    ; 7
-0054  1:1   RETURN
+0011  12:11 CONST        3    ; 1
+0012  12:15 CONST        1    ; 2
+0013  12:13 LT
+0014  12:13 JUMPIFTRUE   21
+0015  12:22 CONST        4    ; -1
+0016  12:27 CONST        5    ; 0
+0017  12:25 GT
+0018  12:25 JUMPIFFALSE  21
+0019  12:29 CONST        2    ; true
+0020  12:29 JUMP         22
+0021  12:32 CONST        6    ; false
+0022  12:1  STOREGLOBAL  2    ; _c
+0023  13:5  CONST        1    ; 2
+0024  13:1  STOREGLOBAL  3    ; n
+0025  14:1  CONST        7    ; <fn print>
+0026  14:7  CONST        8    ; "x"
+0027  14:14 CONST        8    ; "x"
+0028  14:11 EQ
+0029  14:19 CONST        9    ; 2.0
+0030  14:25 LOADGLOBAL   3    ; n
+0031  14:23 DIV
+0032  14:28 CONST        10    ; 7
+0033  14:33 LOADGLOBAL   3    ; n
+0034  14:30 FLOORDIV
+0035  14:36 CONST        10    ; 7
+0036  14:40 LOADGLOBAL   3    ; n
+0037  14:38 MOD
+0038  14:43 LOADGLOBAL   3    ; n
+0039  14:48 CONST        11    ; 3
+0040  14:45 POW
+0041  14:51 CONST        3    ; 1
+0042  14:56 LOADGLOBAL   3    ; n
+0043  14:53 NE
+0044  14:59 CONST        3    ; 1
+0045  14:64 LOADGLOBAL   3    ; n
+0046  14:61 LE
+0047  14:67 CONST        3    ; 1
+0048  14:72 LOADGLOBAL   3    ; n
+0049  14:69 GE
+0050  14:6  CALL         8    ; 8 positional, 0 named
+0051  14:1  POP
+0052  14:78 CONST        10    ; 7
+0053  1:1   RETURN
 
 == outer ==
 0000  2:3   CLOSURE      0    ; loop
 0001  2:3   STORELOCAL   1
-0002  3:7   CLOSURE      1    ; <lambda>
-0003  3:3   STORELOCAL   2
-0004  3:3   CLEARLOCAL   0
+0002  3:8   CLOSURE      1    ; <lambda>
+0003  3:8   CLEARLOCAL   0
+0004  3:3   STORELOCAL   2
 0005  4:3   CONST        0    ; <fn each>
 0006  4:12  CONST        1    ; [1]
 0007  4:3   CLOSURE      2    ; <lambda>
 0008  4:3   CALL         2    ; 2 positional, 0 named
 0009  4:3   POP
-0010  5:19  CONST        2    ; (1, [2])
+0010  5:21  CONST        2    ; (1, [2])
 0011  5:3   MATCHORFAIL  0    ; ($3, [$4, ...])
 0012  6:10  MOVELOCAL    1
 0013  6:15  CONST        3    ; 2
@@ -86,10 +85,10 @@
 0010  2:39  TAILCALL     1    ; 1 positional, 0 named
 
 == <lambda> ==
-0000  3:12  MOVELOCAL    0
-0001  3:16  LOADCAPTURED 0
-0002  3:14  ADD
-0003  3:9   RETURN
+0000  3:13  MOVELOCAL    0
+0001  3:17  LOADCAPTURED 0
+0002  3:15  ADD
+0003  3:10  RETURN
 
 == <lambda> ==
 0000  4:17  CONST        0    ; <fn print>

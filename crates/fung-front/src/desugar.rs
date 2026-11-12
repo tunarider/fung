@@ -57,12 +57,14 @@ fn fn_info(n: &Node) -> &FnInfo {
     }
 }
 
-fn blank_info(name: &str) -> FnInfo {
+fn blank_info(name: &str, pos: Pos) -> FnInfo {
     FnInfo {
         name: name.to_string(),
+        name_pos: pos,
         params: Vec::new(),
         ret: None,
         for_body: false,
+        lambda: false,
         num_locals: 0,
         captures: Vec::new(),
     }
@@ -81,13 +83,13 @@ fn plain_param(name: String, pos: Pos) -> Param {
 
 /// Wraps an expression whose value must be a bool at runtime.
 fn check_bool(e: Node) -> Node {
-    Node::with_lit(Head::Op, e.pos, s("bool"), vec![e])
+    Node::with_lit(Head::Op, e.pos, s(crate::tree::BOOL_CHECK), vec![e])
 }
 
 impl Desugarer {
     /// Returns a fresh hidden variable name.
     fn hidden(&mut self, prefix: &str) -> String {
-        let name = format!("${prefix}{}", self.counter);
+        let name = format!("{}{prefix}{}", crate::tree::HIDDEN, self.counter);
         self.counter += 1;
         name
     }
@@ -200,7 +202,7 @@ impl Desugarer {
                 // copies the variables visible at that point and can fail on
                 // its own.
                 let body = self.walk(&n.kids[0])?;
-                let info = blank_info(&format!("test: {}", lit_str(n)));
+                let info = blank_info(&format!("test: {}", lit_str(n)), n.pos);
                 let f = Node::with_lit(Head::Fn, n.pos, Lit::Fn(Box::new(info)), vec![body]);
                 Ok(Node::with_lit(Head::Test, n.pos, n.lit.clone(), vec![f]))
             }
@@ -233,8 +235,14 @@ impl Desugarer {
             | Head::Unwrap
             | Head::Coalesce
             | Head::Arm
+            | Head::Spread
             | Head::Hole => self.map_kids(n.head, n),
             // Elsewhere a tag without arguments is its symbol (02).
+            // A result holds one value (D41): only a pipe gives a bare
+            // `Ok` its value, and the pipe never walks it here.
+            Head::BareTag if !holds_one_value(&lit_str(n), 0) => {
+                Err(result_arity(&lit_str(n), 0, n.pos))
+            }
             Head::BareTag => Ok(Node::leaf(Head::Symbol, n.pos, n.lit.clone())),
             Head::Int
             | Head::Float
@@ -296,13 +304,13 @@ impl Desugarer {
     /// Lowers `x |> f(a)` to `f(x, a)` and `x |> f` to `f(x)` (01). Only
     /// a call or tag written without parentheses takes the value as its
     /// first argument; any other right side, `(f(a))` included, is a
-    /// value the pipe calls (FE27).
+    /// value the pipe calls (FE27). The left value is evaluated first, as
+    /// every binary operator's (D57): a callee that is more than a name or
+    /// a field gets it through a hidden variable bound before it.
     fn pipe(&mut self, n: &Node) -> R {
         let rhs = &n.kids[1];
         if rhs.paren {
-            let x = self.walk(&n.kids[0])?;
-            let f = self.walk(rhs)?;
-            return Ok(Node::new(Head::Call, n.pos, vec![f, x]));
+            return self.pipe_call(n.pos, &n.kids[0], rhs, &[]);
         }
         // The piped value is the first argument; a hole beside it would
         // make a function of the rest instead (01: E0227).
@@ -339,6 +347,9 @@ impl Desugarer {
             return Ok(Node::with_lit(Head::Tag, t.pos, s(&lit_str(t)), kids));
         }
         if rhs.head == Head::Call {
+            if !evaluates_quietly(&rhs.kids[0]) {
+                return self.pipe_call(rhs.pos, &n.kids[0], &rhs.kids[0], &rhs.kids[1..]);
+            }
             // Insert the surface operand and walk the rebuilt call once: a
             // pre-walked operand would be walked again when pipes chain.
             // The operands are borrowed, so long chains are not copied.
@@ -348,15 +359,35 @@ impl Desugarer {
             kids.extend(rhs.kids[1..].iter());
             return self.call(rhs.pos, &kids);
         }
-        let x = self.walk(&n.kids[0])?;
-        let f = self.walk(rhs)?;
-        Ok(Node::new(Head::Call, n.pos, vec![f, x]))
+        self.pipe_call(n.pos, &n.kids[0], rhs, &[])
+    }
+
+    /// `f(x, args…)` for a pipe whose value is `x` and callee `f`: when `f`
+    /// is more than a name or a field, `x` goes into a hidden variable
+    /// first, so it is evaluated before `f` (D57).
+    fn pipe_call(&mut self, pos: Pos, x: &Node, f: &Node, args: &[Node]) -> R {
+        let x = self.walk(x)?;
+        if evaluates_quietly(f) {
+            let mut kids = vec![self.walk(f)?, x];
+            for a in args {
+                kids.push(self.walk(a)?);
+            }
+            return Ok(Node::new(Head::Call, pos, kids));
+        }
+        let tmp = self.hidden("p");
+        let bind = Node::new(Head::Let, x.pos, vec![name_leaf(x.pos, &tmp), x]);
+        let mut kids = vec![self.walk(f)?, name_leaf(pos, &tmp)];
+        for a in args {
+            kids.push(self.walk(a)?);
+        }
+        let call = Node::new(Head::Call, pos, kids);
+        Ok(Node::new(Head::Do, pos, vec![bind, call]))
     }
 
     /// Lowers `f(a, _, b)` to a block that evaluates f, a and b once into
     /// hidden variables and returns a lambda over the holes (03):
     ///
-    /// `(do (let $p0 f) (let $p1 a) (let $p2 b) (fn (h0) (do (call $p0 $p1 h0 $p2))))`
+    /// `(do (let $p0 f) (let $p1 a) (let $p2 b) (fn ($h0) (do (call $p0 $p1 $h0 $p2))))`
     fn partial(&mut self, pos: Pos, kids: &[&Node]) -> R {
         self.partial_with(pos, kids, None)
     }
@@ -366,23 +397,27 @@ impl Desugarer {
     /// function's body builds the tag instead of calling (FE18).
     fn partial_with(&mut self, pos: Pos, kids: &[&Node], tag: Option<&Node>) -> R {
         let mut block = Vec::new();
-        let mut info = blank_info("");
+        let mut info = blank_info("", pos);
         let mut call = Vec::new();
         let mut holes = 0;
         for k in kids {
             match k.head {
                 Head::Hole => {
-                    let name = format!("h{holes}");
+                    // hidden like the other made-up names: never written
+                    // in a call (FE55)
+                    let name = format!("{}h{holes}", crate::tree::HIDDEN);
                     holes += 1;
                     call.push(name_leaf(k.pos, &name));
                     info.params.push(plain_param(name, k.pos));
                 }
-                Head::Named => {
+                // A named argument's or a spread's value is evaluated
+                // once, like a positional one's.
+                Head::Named | Head::Spread => {
                     let v = self.walk(&k.kids[0])?;
                     let tmp = self.hidden("p");
                     block.push(Node::new(Head::Let, k.pos, vec![name_leaf(k.pos, &tmp), v]));
                     call.push(Node::with_lit(
-                        Head::Named,
+                        k.head,
                         k.pos,
                         k.lit.clone(),
                         vec![name_leaf(k.pos, &tmp)],
@@ -412,7 +447,7 @@ impl Desugarer {
 
     /// Lowers `for pat in e: body ;;` to `map(e, fn(pat): body ;;)` with the
     /// prelude's map, whatever the user has named `map` (01, 02). The lambda
-    /// is marked for_body so a return inside it is E0213 (03). A discarded
+    /// is marked for_body so a return inside it is E0237 (D42). A discarded
     /// for (01) lowers to the prelude's `each` instead, with its body's
     /// last item discarded too: no list is built, and each rejects an Err
     /// the body returns (02: 버려지는 Err).
@@ -424,7 +459,7 @@ impl Desugarer {
         } else {
             self.walk(body)?
         };
-        let mut info = blank_info("");
+        let mut info = blank_info("", n.pos);
         info.for_body = true;
         if pat.head == Head::Pbind {
             info.params = vec![plain_param(lit_str(pat), pat.pos)];
@@ -435,7 +470,7 @@ impl Desugarer {
             let destructure = Node::with_lit(
                 Head::Let,
                 pat.pos,
-                s("fresh"),
+                s(crate::tree::FRESH),
                 vec![pat.clone(), name_leaf(pat.pos, &tmp)],
             );
             body_c.kids.insert(0, destructure);
@@ -498,7 +533,12 @@ impl Desugarer {
                     .iter()
                     .filter_map(|(pat, tmp)| keep_names(pat, &used).map(|p| (p, tmp)))
                     .map(|(p, tmp)| {
-                        Node::with_lit(Head::Let, d.pos, s("fresh"), vec![p, name_leaf(d.pos, tmp)])
+                        Node::with_lit(
+                            Head::Let,
+                            d.pos,
+                            s(crate::tree::FRESH),
+                            vec![p, name_leaf(d.pos, tmp)],
+                        )
                     })
                     .collect();
                 if !lets.is_empty() {
@@ -519,7 +559,7 @@ impl Desugarer {
             prologue.push(Node::with_lit(
                 Head::Let,
                 pos,
-                s("fresh"),
+                s(crate::tree::FRESH),
                 vec![body_pattern, name_leaf(pos, &tmp)],
             ));
         }
@@ -638,6 +678,17 @@ fn without_names(pat: &Node, gone: &HashSet<String>) -> Node {
     strip_names(pat, &|name| gone.contains(name), &mut false)
 }
 
+/// Whether evaluating a pipe's callee can do nothing observable, so the
+/// piped value need not be evaluated before it (D57): a name, or a field
+/// of one, however deep.
+fn evaluates_quietly(f: &Node) -> bool {
+    match f.head {
+        Head::Name => true,
+        Head::Field => evaluates_quietly(&f.kids[0]),
+        _ => false,
+    }
+}
+
 /// Whether a tag of this name may have `count` values: `Ok` and `Err`
 /// take exactly one (02, SP12), counted after a pipe filled the first. The
 /// pattern is checked by the parser.
@@ -647,12 +698,20 @@ fn holds_one_value(name: &str, count: usize) -> bool {
 
 /// E0236 for an `Ok` or `Err` with `count` values.
 fn result_arity(name: &str, count: usize, pos: Pos) -> Box<Diag> {
-    Box::new(error(
+    let e = error(
         "E0236",
         pos,
         vec![Arg::Str(name.to_string()), Arg::Int(count as i64)],
-    ))
+    );
+    Box::new(if count == 0 {
+        e.with_help(BARE_RESULT_HELP)
+    } else {
+        e
+    })
 }
+
+/// E0236's help for a bare `Ok` or `Err` (D41).
+pub(crate) const BARE_RESULT_HELP: &str = "give it its value, `Ok(x)`; to test for a result, use `is_ok(r)`/`is_err(r)` or the pattern `Ok(_)`";
 
 #[cfg(test)]
 mod tests {
@@ -694,9 +753,65 @@ mod tests {
             ("x |> Ok()", "(do (tag Ok x))"),
             // A tag is what the parser read as one, not a guess from the
             // first letter (FE19): a quoted symbol is a value to call.
-            ("x |> 'Ok", "(do (call 'Ok x))"),
-            ("x |> 'ok", "(do (call 'ok x))"),
-            ("y = Ok", "(do (let y 'Ok))"),
+            ("x |> 'ok", "(do (do (let $p0 x) (call 'ok $p0)))"),
+            ("y = Red", "(do (let y 'Red))"),
+        ]);
+    }
+
+    /// A bare `Ok` or `Err` holds no value (D41): E0236 in an expression
+    /// and in a pattern; only a pipe gives it its value.
+    #[test]
+    fn a_bare_result_tag_is_an_error() {
+        for (src, col) in [
+            ("y = Ok", 5),
+            ("print(Err)", 7),
+            ("y = [1, Ok]", 9),
+            ("y = x |> (Ok)", 11),
+            ("y = match x:\n  Ok => 1\n  _ => 2\n;;", 3),
+            ("y = match x:\n  Err | 'a => 1\n  _ => 2\n;;", 3),
+        ] {
+            let mut sm = SourceMap::new();
+            let fid = sm.add("t.fung", src);
+            let (toks, _) = lex(fid, src).unwrap();
+            let e = match parse(&toks) {
+                Ok(t) => desugar(&t, true).unwrap_err(),
+                Err(e) => e,
+            };
+            assert_eq!((e.code.as_str(), e.pos.col), ("E0236", col), "{src}");
+            assert_eq!(e.args[1], Arg::Int(0), "{src}");
+            assert!(e.help.as_deref().unwrap_or("").contains("is_ok"), "{src}");
+        }
+        check(&[("x |> Ok", "(do (tag Ok x))")]);
+    }
+
+    /// A pipe evaluates its left value first (D57): a right side whose
+    /// callee is more than a name or a field gets the value through a
+    /// hidden variable bound before it.
+    #[test]
+    fn a_pipe_evaluates_its_left_value_first() {
+        check(&[
+            ("x |> f", "(do (call f x))"),
+            ("x |> m.f", "(do (call (field f m) x))"),
+            ("x |> m.n.f(1)", "(do (call (field f (field n m)) x 1))"),
+            ("x |> f(1)", "(do (call f x 1))"),
+            ("x |> Pair(2)", "(do (tag Pair x 2))"),
+            (
+                "a() |> mk()(2)",
+                "(do (do (let $p0 (call a)) (call (call mk) $p0 2)))",
+            ),
+            (
+                "a() |> (mk())",
+                "(do (do (let $p0 (call a)) (call (call mk) $p0)))",
+            ),
+            (
+                "a() |> fs[0]",
+                "(do (do (let $p0 (call a)) (call (index fs 0) $p0)))",
+            ),
+            (
+                "a() |> g().f",
+                "(do (do (let $p0 (call a)) (call (field f (call g)) $p0)))",
+            ),
+            ("x |> (f)", "(do (call f x))"),
         ]);
     }
 
@@ -876,11 +991,11 @@ mod tests {
             ),
             (
                 "f(a, _)",
-                "(do (do (let $p0 f) (let $p1 a) (fn (h0) (do (call $p0 $p1 h0)))))",
+                "(do (do (let $p0 f) (let $p1 a) (fn ($h0) (do (call $p0 $p1 $h0)))))",
             ),
             (
                 "g(_, k(1), _)",
-                "(do (do (let $p0 g) (let $p1 (call k 1)) (fn (h0, h1) (do (call $p0 h0 $p1 h1)))))",
+                "(do (do (let $p0 g) (let $p1 (call k 1)) (fn ($h0, $h1) (do (call $p0 $h0 $p1 $h1)))))",
             ),
             ("xs[0] + m.k", "(do (op + (index xs 0) (field k m)))"),
             ("r!", "(do (unwrap ! r))"),
@@ -956,7 +1071,7 @@ mod tests {
         );
         assert_eq!(
             core("xs |> (x => x) |> f"),
-            "(do (call f (call (fn (x) (do x)) xs)))"
+            "(do (call f (do (let $p0 xs) (call (fn (x) (do x)) $p0))))"
         );
     }
 

@@ -60,11 +60,11 @@ fn channels_send_receive_and_close() {
         ),
         (
             "(tx, rx) = channel(3)\neach([3, 1, 2], x => send(tx, x))\nclose(tx)\nprint(sort(rx), close(tx))",
-            "[1, 2, 3] Ok(nil)\n",
+            "[1, 2, 3] Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
         (
             "(tx, rx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    each(0..100, i => send(tx, i))\n    close(tx)\n  ;;)\n  print(fold(rx, 0, (a, x) => a + x), await(t))\n;;)",
-            "4950 Ok(nil)\n",
+            "4950 Ok(Ok(nil))\n",
         ),
         (
             "(tx, rx) = channel()\n(tx2, rx2) = channel()\nprint(type_of(tx), type_of(rx), tx == tx2, rx == rx2)",
@@ -72,7 +72,7 @@ fn channels_send_receive_and_close() {
         ),
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(rx))\n  send(tx, 'hi)\n  print(await(t))\n;;)",
-            "Ok('hi)\n",
+            "Ok(Ok('hi))\n",
         ),
         (
             "(tx, _rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  cancel(t)\n  print(await(t) |> is_err)\n;;)",
@@ -122,7 +122,7 @@ fn the_argument_errors_name_the_argument() {
 #[test]
 fn a_channel_prints_compares_and_types() {
     let (out, _, code) = run(
-        "(t, c) = channel()\n(_t2, c2) = channel()\nprint(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != 1)",
+        "(t, c) = channel()\n(_t2, c2) = channel()\nprint(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != nil)",
     );
     assert_eq!(
         (out.as_str(), code),
@@ -153,15 +153,15 @@ fn a_send_waits_for_a_receiver_or_for_room() {
     let cases = [
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  print(timeout(() => await(t), 20ms))\n  print(recv(rx), await(t))\n;;)",
-            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\nOk(1) Ok(nil)\n",
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\nOk(1) Ok(Ok(nil))\n",
         ),
         (
             "(tx, rx) = channel(1)\nscope(fn(s):\n  print(send(tx, 1))\n  t = spawn(s, () => send(tx, 2))\n  print(timeout(() => await(t), 20ms), recv(rx), await(t), recv(rx))\n;;)",
-            "Ok(nil)\nErr({kind: 'timeout, message: \"timed out after 20ms\"}) Ok(1) Ok(nil) Ok(2)\n",
+            "Ok(nil)\nErr({kind: 'timeout, message: \"timed out after 20ms\"}) Ok(1) Ok(Ok(nil)) Ok(2)\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  ts = for i in 0..4: spawn(s, () => send(tx, i)) ;;\n  xs = for _ in 0..4: recv(rx)! ;;\n  print(sort(xs), map(ts, await))\n;;)",
-            "[0, 1, 2, 3] [Ok(nil), Ok(nil), Ok(nil), Ok(nil)]\n",
+            "[0, 1, 2, 3] [Ok(Ok(nil)), Ok(Ok(nil)), Ok(Ok(nil)), Ok(Ok(nil))]\n",
         ),
         (
             "(tx, rx) = channel(2)\nscope(fn(s):\n  spawn(s, fn(): each(0..1000, i => send(tx, i)); close(tx) ;;)\n  print(len(map(rx, x => x)))\n;;)",
@@ -181,15 +181,15 @@ fn close_wakes_waiting_senders_and_receivers() {
     let cases = [
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  close(tx)\n  print(await(t), recv(rx))\n;;)",
-            "Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\n",
+            "Ok(Err({kind: 'closed, message: \"channel closed\"})) Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(rx))\n  blocked(rx, 1)\n  close(tx)\n  print(await(t))\n;;)",
-            "Err({kind: 'closed, message: \"channel closed\"})\n",
+            "Ok(Err({kind: 'closed, message: \"channel closed\"}))\n",
         ),
         (
             "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 1)\n  t = spawn(s, () => send(tx, 2))\n  blocked(rx, 1)\n  close(tx)\n  print(await(t), recv(rx), recv(rx))\n;;)",
-            "Err({kind: 'closed, message: \"channel closed\"}) Ok(1) Err({kind: 'closed, message: \"channel closed\"})\n",
+            "Ok(Err({kind: 'closed, message: \"channel closed\"})) Ok(1) Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
     ];
     for (src, want) in cases {
@@ -206,15 +206,15 @@ fn a_delivered_value_wins_over_a_later_cancel() {
     let cases = [
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  r = recv(rx)\n  cancel(t)\n  print(r, await(t))\n;;)",
-            "Ok(1) Ok(nil)\n",
+            "Ok(1) Ok(Ok(nil))\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => recv(rx))\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
-            "Ok(nil) Ok(1)\n",
+            "Ok(nil) Ok(Ok(1))\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => timeout(() => recv(rx), 10s))\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
-            "Ok(nil) Ok(1)\n",
+            "Ok(nil) Ok(Ok(Ok(1)))\n",
         ),
         (
             "(_tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(rx))\n  cancel(t)\n  print(await(t))\n  t2 = spawn(s, () => timeout(() => recv(rx), 10s))\n  blocked(rx, 1)\n  cancel(t2)\n  print(await(t2))\n;;)",
@@ -229,19 +229,19 @@ fn a_delivered_value_wins_over_a_later_cancel() {
     let blocked_first = [
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  r = recv(rx)\n  cancel(t)\n  print(r, await(t))\n;;)",
-            "Ok(1) Ok(nil)\n",
+            "Ok(1) Ok(Ok(nil))\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => recv(rx))\n  blocked(rx, 1)\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
-            "Ok(nil) Ok(1)\n",
+            "Ok(nil) Ok(Ok(1))\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => timeout(() => recv(rx), 10s))\n  blocked(rx, 1)\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
-            "Ok(nil) Ok(1)\n",
+            "Ok(nil) Ok(Ok(Ok(1)))\n",
         ),
         (
             "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 0)\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  r = recv(rx)\n  cancel(t)\n  print(r, await(t), recv(rx))\n;;)",
-            "Ok(0) Ok(nil) Ok(1)\n",
+            "Ok(0) Ok(Ok(nil)) Ok(1)\n",
         ),
     ];
     for _ in 0..10 {
@@ -276,7 +276,7 @@ fn a_cancelled_sender_takes_its_value_back() {
 fn iterating_natives_walk_a_channel() {
     let cases = [
         (
-            "(t, c) = channel()\nclose(t)\nprint(any(c, x => true), all(c, x => false), group_by(c, x => \"a\"), sort_by(c, x => x), filter(c, x => true), fold(c, 1, (a, b) => a), each(c, x => x))",
+            "(t, c) = channel()\nclose(t)\nprint(any(c, _x => true), all(c, _x => false), group_by(c, _x => \"a\"), sort_by(c, x => x), filter(c, _x => true), fold(c, 1, (a, _b) => a), each(c, x => x))",
             "false true {} [] [] 1 nil\n",
         ),
         (
@@ -284,8 +284,8 @@ fn iterating_natives_walk_a_channel() {
             "[1]\n",
         ),
         (
-            "(t, c) = channel(3)\neach([\"a\", 1, nil], x => send(t, x))\nclose(t)\nprint(join(c, \",\"))",
-            "a,1,nil\n",
+            "(t, c) = channel(3)\neach([\"a\", 1, 'b], x => send(t, x))\nclose(t)\nprint(join(c, \",\"))",
+            "a,1,'b\n",
         ),
         (
             "(t, c) = channel(3)\neach([1, 2, 3], x => send(t, x))\nclose(t)\nprint(find(c, x => x > 1), recv(c))",
@@ -340,13 +340,13 @@ fn a_cancelled_waiter_is_never_paired() {
         // The wrong receiver: r2 must get the value, not the cancelled r1.
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  r1 = spawn(s, () => recv(rx))\n  blocked(rx, 1)\n  r2 = spawn(s, () => recv(rx))\n  blocked(rx, 2)\n  cancel(r1)\n  print(send(tx, 1), await(r1), await(r2))\n;;)",
-            "Ok(nil) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(1)\n",
+            "Ok(nil) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(Ok(1))\n",
         ),
         // A lost value: the send must wait for the receiver that comes
         // after the cancel instead of handing the value to the cancelled one.
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, () => recv(rx))\n  blocked(rx, 1)\n  cancel(r)\n  r2 = spawn(s, () => recv(rx))\n  print(send(tx, 1), await(r), await(r2))\n;;)",
-            "Ok(nil) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(1)\n",
+            "Ok(nil) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(Ok(1))\n",
         ),
         // A cancelled sender delivers nothing.
         (
@@ -355,7 +355,7 @@ fn a_cancelled_waiter_is_never_paired() {
         ),
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  s1 = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  s2 = spawn(s, () => send(tx, 2))\n  blocked(rx, 2)\n  cancel(s1)\n  print(recv(rx), await(s1), await(s2))\n;;)",
-            "Ok(2) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(nil)\n",
+            "Ok(2) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(Ok(nil))\n",
         ),
         // The same with a full buffer: the cancelled sender's value does
         // not move into the freed place.
@@ -378,13 +378,13 @@ fn a_timed_out_receiver_is_never_paired() {
     // r is blocked (or already timed out, under heavy load) before r2
     // exists, so only r can be the first queued receiver.
     let o = exec_waiting(
-        "(tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, () => timeout(() => recv(rx), 30ms))\n  until(() => queued(rx) >= 1 or finished(r))\n  r2 = spawn(s, () => recv(rx))\n  hold(60)\n  print(send(tx, 1), await(r), await(r2))\n;;)",
+        "(tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, () => timeout(() => recv(rx), 30ms))\n  wait_for(() => queued(rx) >= 1 or finished(r))\n  r2 = spawn(s, () => recv(rx))\n  hold(60)\n  print(send(tx, 1), await(r), await(r2))\n;;)",
     );
     assert_eq!(
         (o.code.as_str(), o.out.as_str()),
         (
             "",
-            "Ok(nil) Err({kind: 'timeout, message: \"timed out after 30ms\"}) Ok(1)\n"
+            "Ok(nil) Ok(Err({kind: 'timeout, message: \"timed out after 30ms\"})) Ok(Ok(1))\n"
         )
     );
 }
@@ -434,7 +434,7 @@ fn a_channel_inside_what_is_sent_is_e0709() {
 #[test]
 fn a_channel_sent_into_itself_is_e0709_at_the_send_call() {
     let o = exec(
-        "(tx, rx) = channel(1)\nx = 1\n  send(tx, [rx])",
+        "(tx, rx) = channel(1)\n_x = 1\n  send(tx, [rx])",
         Opts::default(),
     );
     let e = o.error.expect("an error");
@@ -474,10 +474,10 @@ fn shared_sub_values_are_scanned_once() {
 fn channel_gives_two_ends() {
     assert_eq!(
         run(
-            "(tx, rx) = channel(1)\nprint(tx, rx, type_of(tx), type_of(rx), tx == tx, tx == rx, send(tx, 5), recv(rx))"
+            "(tx, rx) = channel(1)\nprint(tx, rx, type_of(tx), type_of(rx), tx == tx, rx != nil, send(tx, 5), recv(rx))"
         ),
         (
-            "<sender> <receiver> 'sender 'receiver true false Ok(nil) Ok(5)\n".into(),
+            "<sender> <receiver> 'sender 'receiver true true Ok(nil) Ok(5)\n".into(),
             "".into(),
             0
         )
@@ -488,18 +488,18 @@ fn channel_gives_two_ends() {
 fn the_wrong_end_is_a_type_error() {
     for (src, want) in [
         (
-            "(tx, rx) = channel(1)\nsend(rx, 1)",
+            "(_tx, rx) = channel(1)\nsend(rx, 1)",
             "argument `tx` must be sender",
         ),
         (
-            "(tx, rx) = channel(1)\nrecv(tx)",
+            "(tx, _rx) = channel(1)\nrecv(tx)",
             "argument `rx` must be receiver",
         ),
         (
-            "(tx, rx) = channel(1)\nclose(rx)",
+            "(_tx, rx) = channel(1)\nclose(rx)",
             "argument `x` must be sender | file",
         ),
-        ("(tx, rx) = channel(1)\nfor x in tx:\n  x\n;;", "E0506"),
+        ("(tx, _rx) = channel(1)\nfor x in tx:\n  x\n;;", "E0506"),
     ] {
         let (_, err, code) = run(src);
         assert!(err.contains(want), "{src}: {err}");
@@ -539,9 +539,26 @@ fn a_producer_that_ends_closes_its_channel() {
 /// the other end is a deadlock, reported instead of hanging.
 #[test]
 fn a_live_sender_at_top_level_is_a_deadlock() {
-    let (_, err, code) = run("(tx, rx) = channel()\nfor x in rx:\n  print(x)\n;;");
+    let (_, err, code) = run("(_tx, rx) = channel()\nfor x in rx:\n  print(x)\n;;");
     assert!(err.contains("E0702"), "{err}");
     assert_eq!(code, 1);
+}
+
+/// Closing a closed channel is `Err('closed)`, as closing a closed file
+/// is (D72): through any copy of the end, and also when the channel
+/// closed because its receiving ends went.
+#[test]
+fn closing_a_closed_channel_is_an_err() {
+    assert_eq!(
+        run(
+            "(tx, _rx) = channel(2)\nt2 = tx\nprint(close(tx), close(t2), close(tx))\nfn gone():\n  (tx3, _) = channel()\n  tx3\n;;\nprint(close(gone()))"
+        ),
+        (
+            "Ok(nil) Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\nErr({kind: 'closed, message: \"channel closed\"})\n".into(),
+            "".into(),
+            0
+        )
+    );
 }
 
 #[test]
@@ -567,7 +584,11 @@ fn dropping_the_receiver_wakes_a_blocked_sender() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'closed, message: \"channel closed\"})\n", "", 0)
+        (
+            "Ok(Ok(Err({kind: 'closed, message: \"channel closed\"})))\n",
+            "",
+            0
+        )
     );
 }
 
@@ -597,9 +618,9 @@ fn many_workers_share_a_receiver() {
 fn sending_an_end_into_its_own_channel_is_e0709() {
     // the big ones (L5): an end deep in a vector's trie, in views of it
     // that share its nodes, in its head, and in a big map
-    let big = "map(0..5000, i => i == 2500 then rx else i)";
+    let big = "map(0..5000, j => j == 2500 then rx else j)";
     let views = format!("map(0..300, i => ({big})[i..])");
-    let head = "[rx] + map(0..5000, i => i)";
+    let head = "[rx] + map(0..5000, j => j)";
     let views_of_head = format!("map(0..300, i => ({head})[..5001 - i])");
     let map = "fold(0..500, {}, (m, i) => put(m, str(i), i == 250 then rx else i))";
     for v in [
@@ -614,7 +635,7 @@ fn sending_an_end_into_its_own_channel_is_e0709() {
         views_of_head.as_str(),
         map,
     ] {
-        let (_, err, code) = run(&format!("(tx, rx) = channel(1)\nsend(tx, {v})"));
+        let (_, err, code) = run(&format!("(tx, rx) = channel(1)\n_keep = rx\nsend(tx, {v})"));
         assert!(err.contains("error[E0709]"), "{v}: {err}");
         assert_eq!(code, 1, "{v}");
     }
@@ -661,8 +682,8 @@ fn ends_cannot_go_into_atoms() {
 #[test]
 fn shared_values_without_ends_are_sent_and_held_at_once() {
     for src in [
-        "(tx, rx) = channel(1)\nx = fold(1..=40, 0, (a, i) => [a, a])\nprint(send(tx, x))",
-        "x = fold(1..=40, 0, (a, i) => (a, a))\nprint(type_of(atom(x)))",
+        "(tx, _rx) = channel(1)\nx = fold(1..=40, 0, (a, _i) => [a, a])\nprint(send(tx, x))",
+        "x = fold(1..=40, 0, (a, _i) => (a, a))\nprint(type_of(atom(x)))",
     ] {
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
@@ -680,7 +701,7 @@ fn shared_values_without_ends_are_sent_and_held_at_once() {
 /// pointing at the receiving end (`for` is `map` underneath).
 #[test]
 fn iterating_a_sender_says_to_use_the_receiving_end() {
-    let (_, err, _) = crate::testutil::run("(tx, rx) = channel()\nfor x in tx: print(x) ;;");
+    let (_, err, _) = crate::testutil::run("(tx, _rx) = channel()\nfor x in tx: print(x) ;;");
     assert!(err.contains("error[E0506]"), "{err}");
     assert!(
         err.contains("a sending end (`tx`) cannot be read; go over the receiving end (`rx`)"),
@@ -702,7 +723,7 @@ fn fan_in_stops_when_its_output_is_gone() {
     lines.sort();
     assert_eq!(
         (lines, err.as_str(), code),
-        (vec!["2", "stopped a", "stopped b"], "", 0)
+        (vec!["Ok(Ok(2))", "stopped a", "stopped b"], "", 0)
     );
 }
 
@@ -714,7 +735,10 @@ fn fan_in_lets_an_idle_input_go_when_its_output_is_gone() {
     let (out, err, code) = run("import conc\n(_idle_tx, idle) = channel()\n\
          fn ticker(s):\n  (tx, rx) = channel()\n  fn go(i) = match send(tx, i):\n    Ok(_) => go(i + 1)\n    Err(_) => print(\"stopped\")\n  ;;\n  spawn(s, () => go(0))\n  rx\n;;\n\
          print(timeout(() => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s), idle])\n  len(take(out, 2))\n;;), 10s))");
-    assert_eq!((out.as_str(), err.as_str(), code), ("stopped\n2\n", "", 0));
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("stopped\nOk(Ok(2))\n", "", 0)
+    );
 }
 
 /// The forwarding loop is a tail call: a long stream runs in constant
@@ -724,7 +748,10 @@ fn fan_in_forwards_a_long_stream() {
     let (out, err, code) = run(
         "import conc\nprint(scope(fn(s):\n  (tx, rx) = channel()\n  spawn(s, () => each(1..=200000, i => send(tx, i)))\n  sum(conc.fan_in(s, [rx]))\n;;))",
     );
-    assert_eq!((out.as_str(), err.as_str(), code), ("20000100000\n", "", 0));
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("Ok(20000100000)\n", "", 0)
+    );
 }
 
 /// Receivers that stop waiting leave the queue (`queued` counts only
@@ -734,7 +761,7 @@ fn fan_in_forwards_a_long_stream() {
 #[test]
 fn receivers_left_after_cancellations_are_paired_in_order() {
     let o = exec_waiting(
-        "(tx, rx) = channel()\nscope(fn(s):\n  ws = map(0..40, i => spawn(s, fn(): print(i, recv(rx)!) ;;))\n  blocked(rx, 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  until(() => all(gone, finished))\n  print(\"left\", queued(rx))\n  each(0..14, i => send(tx, i))\n;;)",
+        "(tx, rx) = channel()\nscope(fn(s):\n  ws = map(0..40, i => spawn(s, fn(): print(i, recv(rx)!) ;;))\n  blocked(rx, 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  wait_for(() => all(gone, finished))\n  print(\"left\", queued(rx))\n  each(0..14, i => send(tx, i))\n;;)",
     );
     let want: String = std::iter::once("left 14\n".to_string())
         .chain((0..14).map(|k| format!("{} {k}\n", k * 3)))
@@ -751,7 +778,7 @@ fn receivers_left_after_cancellations_are_paired_in_order() {
 #[test]
 fn a_cancelled_send_drops_its_value_at_once() {
     let o = exec_waiting(
-        "(a_tx, a) = channel()\n(out_tx, out) = channel(1)\nscope(fn(s):\n  each(0..2, i => spawn(s, () => send(a_tx, i)))\n  t = spawn(s, fn():\n    (b_tx, b) = channel(1)\n    send(out_tx, b_tx)\n    send(a_tx, b)\n  ;;)\n  b_tx = recv(out)!\n  blocked(a, 3)\n  cancel(t)\n  until(() => finished(t))\n  print(queued(a), send(b_tx, 1))\n  print(recv(a), recv(a))\n;;)",
+        "(a_tx, a) = channel()\n(out_tx, out) = channel(1)\nscope(fn(s):\n  each(0..2, i => spawn(s, () => send(a_tx, i)))\n  t = spawn(s, fn():\n    (b_tx, b) = channel(1)\n    send(out_tx, b_tx)\n    send(a_tx, b)\n  ;;)\n  b_tx = recv(out)!\n  blocked(a, 3)\n  cancel(t)\n  wait_for(() => finished(t))\n  print(queued(a), send(b_tx, 1))\n  print(recv(a), recv(a))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -790,7 +817,7 @@ fn recv_now_takes_from_a_blocked_sender_without_parking() {
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
         (
-            "Ok(1) Err({kind: 'empty, message: \"channel empty\"}) true\nOk(nil)\n",
+            "Ok(1) Err({kind: 'empty, message: \"channel empty\"}) true\nOk(Ok(nil))\n",
             "",
             0
         )
@@ -807,7 +834,7 @@ fn send_now_gives_up_on_a_full_channel() {
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
         (
-            "Ok(nil) Err({kind: 'full, message: \"channel full\"}) Ok(1)\nErr({kind: 'full, message: \"channel full\"})\nOk(nil) Ok(2)\nErr({kind: 'closed, message: \"channel closed\"})\n",
+            "Ok(nil) Err({kind: 'full, message: \"channel full\"}) Ok(1)\nErr({kind: 'full, message: \"channel full\"})\nOk(nil) Ok(Ok(2))\nErr({kind: 'closed, message: \"channel closed\"})\n",
             "",
             0
         )
@@ -824,7 +851,7 @@ fn wait_closed_waits_for_the_close_only() {
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
         (
-            "false\nnil Ok(1)\nnil\nErr({kind: 'timeout, message: \"timed out after 5ms\"})\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
+            "false\nOk(nil) Ok(1)\nnil\nErr({kind: 'timeout, message: \"timed out after 5ms\"})\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
             "",
             0
         )

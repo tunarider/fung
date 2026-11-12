@@ -677,9 +677,9 @@ fn index_cases() {
     let m = mapv(map_of(&[("name", s("x"))]));
     let ok = [
         (xs.clone(), Value::Int(0), "10"),
-        (xs.clone(), Value::Int(-1), "30"),
+        (xs.clone(), Value::Int(2), "30"),
         (s("참치"), Value::Int(1), r#""치""#),
-        (s("참치"), Value::Int(-2), r#""참""#),
+        (s("참치"), Value::Int(0), r#""참""#),
         (m.clone(), s("name"), r#""x""#),
     ];
     for (v, i, want) in ok {
@@ -693,11 +693,18 @@ fn index_cases() {
             "E0507",
             "index 3 is out of range (length 3)",
         ),
+        // an index counts from the start only (D37)
         (
             xs.clone(),
-            Value::Int(-4),
+            Value::Int(-1),
             "E0507",
-            "index -4 is out of range (length 3)",
+            "index -1 is out of range (length 3)",
+        ),
+        (
+            s("ab"),
+            Value::Int(-1),
+            "E0507",
+            "index -1 is out of range (length 2)",
         ),
         (
             xs.clone(),
@@ -711,18 +718,18 @@ fn index_cases() {
             "E0507",
             "index 2 is out of range (length 2)",
         ),
-        (xs.clone(), s("a"), "E0501", "cannot index list and str"),
+        (xs.clone(), s("a"), "E0509", "cannot index list with str"),
         (
             Value::tuple(ints(&[10, 20])),
             Value::Int(0),
             "E0509",
-            "cannot index a value of type tuple",
+            "cannot index tuple with int",
         ),
         (
             Value::Int(1),
             Value::Int(0),
             "E0509",
-            "cannot index a value of type int",
+            "cannot index int with int",
         ),
         (m.clone(), s("age"), "E0508", "key `age` not found"),
         (
@@ -731,7 +738,7 @@ fn index_cases() {
             "E0514",
             "cannot use a value of type int as a map key",
         ),
-        (s("a"), s("b"), "E0501", "cannot index str and str"),
+        (s("a"), s("b"), "E0509", "cannot index str with str"),
     ];
     for (v, i, code, want) in bad {
         let e = index::index(&v, &i).unwrap_err();
@@ -742,7 +749,8 @@ fn index_cases() {
     let l = List::new(ints(&big)).slice(10, 90);
     let lv = Value::List(Rc::new(l));
     assert_eq!(int_of(&index::index(&lv, &Value::Int(0)).unwrap()), 10);
-    assert_eq!(int_of(&index::index(&lv, &Value::Int(-1)).unwrap()), 89);
+    assert_eq!(int_of(&index::index(&lv, &Value::Int(79)).unwrap()), 89);
+    assert_eq!(code_of(index::index(&lv, &Value::Int(-1))), "E0507");
     assert_eq!(code_of(index::index(&lv, &Value::Int(80))), "E0507");
 }
 
@@ -754,7 +762,7 @@ fn field_cases() {
     let e = index::field(&m, "age").unwrap_err();
     assert_eq!(e.code, "E0508");
     let e = index::field(&s("a"), "b").unwrap_err();
-    assert_eq!(msg(&e), "cannot index str and str");
+    assert_eq!(msg(&e), "cannot index str with str");
 }
 
 fn slice_str(x: &Value, start: Value, end: Value, inclusive: bool) -> Result<String, String> {
@@ -775,7 +783,11 @@ fn slice_cases() {
     let cases: [(Value, Value, Result<&str, &str>); 11] = [
         (i(1), i(3), Ok("[2, 3]")),
         (n.clone(), i(2), Ok("[1, 2]")),
-        (i(-2), n.clone(), Ok("[2, 3]")),
+        (
+            i(-2),
+            n.clone(),
+            Err("E0507 slice start -2 is out of range (length 3)"),
+        ),
         (i(0), i(0), Ok("[]")),
         (i(3), n.clone(), Ok("[]")),
         (
@@ -833,7 +845,7 @@ fn slice_cases() {
     // a slice of a big list is a list with those items
     let big: Vec<i64> = (0..100).collect();
     let bl = list(ints(&big));
-    let got = index::slice(&bl, Some(&i(-60)), Some(&i(-10)), false).unwrap();
+    let got = index::slice(&bl, Some(&i(40)), Some(&i(90)), false).unwrap();
     let Value::List(l) = &got else { unreachable!() };
     let want: Vec<i64> = (40..90).collect();
     assert_eq!(l.iter().map(int_of).collect::<Vec<_>>(), want);
@@ -847,7 +859,11 @@ fn slice_inclusive_cases() {
     let i = Value::Int;
     let cases: [(Value, Value, Result<&str, &str>); 6] = [
         (i(1), i(2), Ok("[2, 3]")),
-        (i(0), i(-1), Ok("[1, 2, 3]")),
+        (
+            i(0),
+            i(-1),
+            Err("E0507 slice end -1 is out of range (length 3)"),
+        ),
         (n.clone(), i(0), Ok("[1]")),
         (
             i(0),
@@ -906,7 +922,7 @@ fn contains_cases() {
             Value::Float(-(i64::MIN as f64)),
             false,
         ),
-        (range(0, 10, false), s("1"), false),
+        (range(0, 10, false), Value::Nil, false),
     ];
     for (c, x, want) in cases {
         let got = index::contains(&c, &x).unwrap();

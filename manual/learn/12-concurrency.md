@@ -72,10 +72,12 @@ fn fetch(name, d):
 r = scope(fn(s):
   users = spawn(s, () => fetch("users", 50ms))
   orders = spawn(s, () => fetch("orders", 20ms))
-  {users: await(users), orders: await(orders)}
+  {users: await(users)!, orders: await(orders)!}
 ;;)
 print(r)
 ```
+
+결과가 `Ok(…)`로 감싸여 있다. 태스크는 취소되거나 런타임 에러로 죽을 수 있으므로 `await`는 결과값을 돌려준다: 정상으로 끝났으면 `Ok(함수의 값)`, 아니면 `Err`. 태스크 범위도 취소될 수 있어서 `scope`도 `Ok(본문의 값)`을 돌려준다. 9장의 규칙 그대로, 실행 중에 실패할 수 있는 함수는 결과값을 돌려준다. 그래서 늘 `!`·`?`·`match`로 푼다. 위에서는 `await(…)!`로 태스크의 값을 꺼냈고, 바깥의 `Ok`는 그대로 찍었다.
 
 `scope`의 가장 중요한 약속은 **태스크 범위는 그 안의 태스크가 모두 끝나야 돌아온다**는 것이다. `await`하지 않은 태스크도 범위가 끝날 때까지 기다린다. 그래서 `scope(` 다음 줄에 이르렀다면 그 안에서 시작한 일은 모두 끝났다. 어딘가에서 몰래 계속 도는 태스크가 없다. 본문이 먼저 끝나도, 늦은 태스크를 기다린 뒤에 `after scope`가 찍히는 것을 보자.
 
@@ -110,7 +112,7 @@ r = scope(fn(s):
 print(r)
 ```
 
-에러 메시지의 `note: scope opened at …`가 실패가 올라온 태스크 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 `Err` 값을 돌려주는 것은 실패가 아니다. 그냥 `await`가 받는 결과일 뿐이다.
+에러 메시지의 `note: scope opened at …`가 실패가 올라온 태스크 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 `Err` 값을 돌려주는 것은 실패가 아니다. 그냥 `await`가 받는 결과일 뿐이다(`Ok(Err(e))`: 바깥 `Ok`는 태스크가 정상으로 끝났다는 뜻이다).
 
 다만 그 결과를 아무도 받지 않으면 이야기가 다르다. 9장에서 버려진 `Err`가 에러였듯, 핸들을 버려서 `Err`를 읽을 길이 사라지면 E0607로 범위가 실패한다. 결과가 필요 없는 일이라면 태스크의 함수를 `nil`로 맺어 "버린다"고 적는다.
 
@@ -139,7 +141,7 @@ print(r)
 
 ## 기한: timeout {#timeout}
 
-응답하지 않는 서버를 영원히 기다릴 수는 없다. `timeout(함수, 기간)`는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 `Err({kind: 'timeout})`을 돌려준다. 기간 안에 끝나면 함수의 값을 그대로 돌려준다.
+응답하지 않는 서버를 영원히 기다릴 수는 없다. `timeout(함수, 기간)`는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 `Err({kind: 'timeout})`을 돌려준다. 기간 안에 끝나면 함수의 값을 `Ok`로 감싸 돌려준다. 함수가 `Err`를 돌려줘도 `Ok(Err(e))`라서 시간 초과와 섞이지 않는다.
 
 ```fung run
 fn answer(d):
@@ -157,7 +159,7 @@ print(timeout(() => answer(5s), 1s))
 print(timeout(() => sh("sleep 10; echo finished"), 200ms))
 ```
 
-`pmap`과 함께 쓰면 "서버마다 2초씩만 기다린다"가 된다. 서버마다의 결과에 시간 초과가 `Err`로 섞인다.
+`pmap`과 함께 쓰면 "서버마다 2초씩만 기다린다"가 된다. 서버마다의 결과에 시간 초과가 `Err`로 섞인다. 제때 끝난 결과는 `probe`의 결과값을 `Ok`로 한 번 더 감싼 것이다.
 
 ```fung run
 import conc
@@ -228,7 +230,7 @@ done = scope(fn(s):
   each([1, 2], id => spawn(s, () => worker(id, jobs_rx, res_tx)))
   spawn(s, () => each(1..=4, j => send(jobs_tx, j)!))
   for r in res_rx: r ;;
-;;)
+;;)!
 print(len(done), "jobs done")
 ```
 
@@ -282,13 +284,14 @@ results = conc.pmap(hosts, h => timeout(() => probe(h), 500ms))
 rows = zip(hosts, results)
 for (host, r) in rows:
   status = match r:
-    Ok(s)                 => s
+    Ok(Ok(s))             => s
+    Ok(Err(e))            => "ERROR ${e.message}"
     Err({kind: 'timeout}) => "TIMEOUT"
     Err(e)                => "ERROR ${e.message}"
   ;;
   print(pad_right(host, 6), status)
 ;;
-if any(results, is_err): exit(1) ;;
+if any(results, r => r != Ok(Ok("up"))): exit(1) ;;
 ```
 
 :::
@@ -307,8 +310,8 @@ total = scope(fn(s):
   counter = spawn(s, () => count_chars(rx))
   each(["alpha", "beta", "gamma"], row => send(tx, row)!)
   close(tx)
-  await(counter)
-;;)
+  await(counter)!
+;;)!
 print(total)
 ```
 
@@ -366,8 +369,8 @@ print(conc.pmap(["a.txt", "bb.txt", "ccc.txt"], len, limit: 2))
 ```fung run
 total = scope(fn(s):
   ts = map(1..=3, n => spawn(s, () => n * n))
-  fold(ts, 0, (acc, t) => acc + await(t))
-;;)
+  fold(ts, 0, (acc, t) => acc + await(t)!)
+;;)!
 print(total)
 ```
 
@@ -391,7 +394,7 @@ result = scope(fn(s):
     close(tx)
   ;;)
   fold(rx, 0, (acc, n) => acc + n)
-;;)
+;;)!
 print(result)
 ```
 
@@ -404,9 +407,9 @@ print(result)
 - 동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.
 - 리스트의 일을 동시에 하려면 `conc.pmap(xs, f, limit: n)`. 결과는 입력 순서대로다.
 - 기다리지 않고 한 번 보기는 `recv_now`·`send_now`, 닫힘만 기다리기는 `wait_closed`.
-- 태스크는 `scope` 안에서 `spawn(s, f)`로 띄우고 `await`로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 `Err`를 아무도 읽지 않으면 E0607이다.
+- 태스크는 `scope` 안에서 `spawn(s, f)`로 띄우고 `await`로 결과를 받는다. 실패할 수 있으므로 `await`·`scope`·`timeout`은 `Ok(값)`이나 `Err`를 돌려준다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 `Err`를 아무도 읽지 않으면 E0607이다.
 - 태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 `supervise(f, on_fail)`.
-- `timeout(f, d)`는 기한이 지나면 안의 일을 모두 취소하고 `Err({kind: 'timeout})`. `cancel`로 직접 취소한다.
+- `timeout(f, d)`는 기한 안에 끝나면 `Ok(f의 값)`, 지나면 안의 일을 모두 취소하고 `Err({kind: 'timeout})`. `cancel`로 직접 취소한다.
 - 채널 `(tx, rx) = channel()`로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.
 - 함께 고치는 값은 `atom`·`deref`·`swap`. `swap`의 함수에는 효과를 쓸 수 없다(E0707).
 

@@ -14,7 +14,7 @@ for (k, v) in pairs({a: 1, b: 2}):
 print(squares)
 ```
 
-<p>본문이 사실은 람다이므로 <code>for</code> 본문 안의 <code>return</code>과 <code>?</code>는 컴파일 에러다(<code>map</code>이나 <code>conc.pmap</code>의 <code>f</code>로 바로 쓴 람다 안의 <code>?</code>도 같다, E0226). 실패할 수 있는 변환은 첫 <code>Err</code>에서 멈추는 <code>try_map</code>, 찾기는 <code>find</code>, 검사는 <code>all</code>·<code>any</code>, 누적은 <code>fold</code>를 쓴다. <code>while</code>은 없다.</p>
+<p>본문이 사실은 람다이므로 <code>for</code> 본문 안의 <code>return</code>과 <code>?</code>는 람다 안에서처럼 컴파일 에러 E0237이다(<a href="functions.html">함수</a>의 "람다의 본문"). 실패할 수 있는 변환은 첫 <code>Err</code>에서 멈추는 <code>try_map</code>, 찾기는 <code>find</code>, 검사는 <code>all</code>·<code>any</code>, 누적은 <code>fold</code>를 쓴다. <code>while</code>은 없다.</p>
 <div class="aside">
 <p><strong>누적과 재귀의 비용.</strong> 리스트와 맵은 불변이지만 사본이 원본과 구조를 공유하므로, <code>fold</code>로 <code>acc + [x]</code>·<code>[x] + acc</code>나 <code>put(acc, k, v)</code>를 쌓는 것과 <code>[x, ...rest]</code>·<code>xs[1..]</code>로 꼬리를 떼는 재귀는 모두 선형이다(2만 개에 수십 ms). 두 리스트를 이으면 짧은 쪽을 긴 쪽에 붙이므로 비용은 짧은 쪽의 길이에 비례한다. 피할 것은 문자열을 <code>acc + s</code>로 쌓는 것이다. 리스트에 모아 <code>join</code>한다. 자세한 것은 <a href="../../vm/internals.html#collections">컬렉션의 내부</a>.</p>
 </div>
@@ -23,7 +23,7 @@ print(squares)
 
 `for`는 리스트를 만든다. 그래서 몸통에서 `return`으로 빠져나갈 수 없다(`find`·`any`·`fold`를 쓴다).
 
-```fung run exit=2 error=E0213
+```fung run exit=2 error=E0237
 fn first_big(xs):
   for x in xs:
     if x > 2: return x else: nil ;;

@@ -56,8 +56,8 @@ use std::time::{Duration, Instant};
 use super::nat::{self, native, native_step, opt, param};
 use super::oserr;
 use super::sock;
+use super::turn::{Hold, Turnstile};
 use crate::value::{Args, Lit, Module, Native, Value};
-use crate::vm::FiberId;
 use crate::vm::poller::Interest;
 use crate::vm::{CancelNode, Flow, IoStep, Kind, Stop, Task, Waiter};
 
@@ -177,6 +177,14 @@ pub fn module() -> Rc<Module> {
                 ),
             ),
             ("user_agent", native("user_agent", user_agent_fn, vec![])),
+            (
+                "url_encode",
+                native("url_encode", url_encode_fn, vec![param("s")]),
+            ),
+            (
+                "url_decode",
+                native("url_decode", url_decode_fn, vec![param("s")]),
+            ),
         ]
     });
     let mut m = Module::new("net", "_native.net");
@@ -202,6 +210,8 @@ static WRITE_WAITS: AtomicUsize = AtomicUsize::new(0);
 #[derive(Debug)]
 enum Fail {
     Network(String),
+    /// An address or a port that does not read (`'invalid`, D70).
+    Invalid(String),
     /// The connection or listener was closed by this program (`'closed`:
     /// the server's accept loop ends on it).
     Closed(String),
@@ -216,6 +226,7 @@ enum Fail {
 fn fail_value(f: Fail) -> Value {
     let (kind, msg) = match f {
         Fail::Network(m) => ("network", m),
+        Fail::Invalid(m) => ("invalid", m),
         Fail::Closed(m) => ("closed", m),
         Fail::Timeout(m) => ("timeout", m),
         Fail::Limit(m) => ("limit", m),
@@ -270,88 +281,6 @@ fn wait_io(a: &mut Attempt, fd: RawFd, interest: Interest, deadline: Option<Inst
     Fail::Block
 }
 
-/// One task at a time on a connection's read side or write side, for a
-/// whole operation and the waits in it. The others park in line, first
-/// come first served: a released turn goes to the first in line (L14), so
-/// a task that starts its next operation at once cannot keep it while
-/// others wait. A cancellation or deadline ends a wait in line too; a
-/// task the turn was handed to that leaves without taking it hands it on.
-#[derive(Default)]
-struct Turnstile {
-    state: Mutex<TurnState>,
-}
-
-#[derive(Default)]
-struct TurnState {
-    /// Held, or handed to `handed` and not yet taken.
-    busy: bool,
-    /// The task the turn was handed to, which has not taken it yet.
-    handed: Option<FiberId>,
-    /// The tasks waiting, oldest first.
-    line: std::collections::VecDeque<Arc<Waiter>>,
-}
-
-impl Turnstile {
-    fn is_busy(&self) -> bool {
-        lock(&self.state).busy
-    }
-
-    /// Takes the turn (free, or handed to this task), or lines the task
-    /// up and says it waits.
-    fn take(&self, a: &mut Attempt) -> Result<(), Fail> {
-        let mut s = lock(&self.state);
-        let me = a.me.id();
-        if !s.busy {
-            s.busy = true;
-            return Ok(());
-        }
-        if s.handed == Some(me) {
-            s.handed = None;
-            return Ok(());
-        }
-        if !s.line.iter().any(|w| w.id() == me) {
-            s.line.push_back(a.me.clone());
-            IN_LINE.fetch_add(1, Ordering::SeqCst);
-        }
-        a.blocked = Some(IoStep::Park);
-        Err(Fail::Block)
-    }
-
-    /// Gives the turn up: to the first in line, if any.
-    fn release(&self) {
-        let mut s = lock(&self.state);
-        Self::hand_on(&mut s);
-    }
-
-    /// Task `me` stops waiting without taking the turn (its wait ended
-    /// some other way): it leaves the line, and a turn handed to it goes
-    /// on to the next.
-    fn leave(&self, me: FiberId) {
-        let mut s = lock(&self.state);
-        let before = s.line.len();
-        s.line.retain(|w| w.id() != me);
-        IN_LINE.fetch_sub(before - s.line.len(), Ordering::SeqCst);
-        if s.handed == Some(me) {
-            Self::hand_on(&mut s);
-        }
-    }
-
-    fn hand_on(s: &mut TurnState) {
-        match s.line.pop_front() {
-            Some(w) => {
-                IN_LINE.fetch_sub(1, Ordering::SeqCst);
-                s.busy = true;
-                s.handed = Some(w.id());
-                w.wake();
-            }
-            None => {
-                s.busy = false;
-                s.handed = None;
-            }
-        }
-    }
-}
-
 /// Which turn of a connection an operation holds for its whole run.
 #[derive(Clone, Copy)]
 enum Side {
@@ -366,9 +295,7 @@ enum Side {
 /// `Drop`.
 struct IoState {
     waiting: Cell<bool>,
-    held: Cell<bool>,
-    /// Waiting in the turn's line, as this task.
-    in_line: Cell<Option<FiberId>>,
+    hold: Hold,
     turn: Option<(Arc<Conn>, Side)>,
 }
 
@@ -385,13 +312,8 @@ impl IoState {
 
     fn end(&self) {
         self.set_waiting(false);
-        let Some((c, side)) = &self.turn else {
-            return;
-        };
-        if self.held.replace(false) {
-            c.turnstile(*side).release();
-        } else if let Some(me) = self.in_line.take() {
-            c.turnstile(*side).leave(me);
+        if let Some((c, side)) = &self.turn {
+            self.hold.end(c.turnstile(*side));
         }
     }
 }
@@ -414,8 +336,7 @@ fn run_io<T: 'static>(
 ) -> Result<Flow, Stop> {
     let state = Rc::new(IoState {
         waiting: Cell::new(false),
-        held: Cell::new(false),
-        in_line: Cell::new(None),
+        hold: Hold::default(),
         turn,
     });
     let st = state.clone();
@@ -428,14 +349,10 @@ fn run_io<T: 'static>(
         };
         let r = (|| {
             if let Some((c, side)) = &st.turn
-                && !st.held.get()
+                && !st.hold.take(c.turnstile(*side), &a.me)
             {
-                if let Err(e) = c.turnstile(*side).take(&mut a) {
-                    st.in_line.set(Some(a.me.id()));
-                    return Err(e);
-                }
-                st.in_line.set(None);
-                st.held.set(true);
+                a.blocked = Some(IoStep::Park);
+                return Err(Fail::Block);
             }
             step(&mut a)
         })();
@@ -531,8 +448,8 @@ impl Conn {
             local,
             sock: Mutex::new(Some(Arc::new(Counted::new(s)))),
             rd: Mutex::new(ReadState::default()),
-            rd_turn: Turnstile::default(),
-            wr_turn: Turnstile::default(),
+            rd_turn: Turnstile::counted(&IN_LINE),
+            wr_turn: Turnstile::counted(&IN_LINE),
             deadline: Mutex::new(None),
             tls: None,
         }
@@ -795,8 +712,8 @@ impl Conn {
         Ok(Conn {
             sock: Mutex::new(Some(s)),
             rd: Mutex::new(ReadState::default()),
-            rd_turn: Turnstile::default(),
-            wr_turn: Turnstile::default(),
+            rd_turn: Turnstile::counted(&IN_LINE),
+            wr_turn: Turnstile::counted(&IN_LINE),
             deadline: Mutex::new(None),
             tls: None,
             name: self.name.clone(),
@@ -1236,7 +1153,7 @@ fn run_dial(t: &mut Task<'_>, mut d: Dial) -> Result<Flow, Stop> {
 fn listen(addr: &str, reuse_port: bool, found: Option<Vec<Target>>) -> Result<Listener, Fail> {
     let (host, port) = split_host_port(addr)
         .and_then(|(h, p)| Ok((h, parse_port(p)?)))
-        .map_err(Fail::Network)?;
+        .map_err(Fail::Invalid)?;
     let bound = if host.is_empty() {
         let any6 = SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), port);
         match sock::listen(&any6, reuse_port) {
@@ -1302,7 +1219,7 @@ fn connect_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     };
     let alpn = need_alpn(&a[3])?;
     let Ok(port) = u16::try_from(port) else {
-        return Ok(Flow::Done(fail_value(Fail::Network(format!(
+        return Ok(Flow::Done(fail_value(Fail::Invalid(format!(
             "invalid port `{port}`"
         )))));
     };
@@ -1743,6 +1660,64 @@ fn user_agent_fn(_: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
     Ok(text(
         format!("fung/{}", crate::version::version()).as_bytes(),
     ))
+}
+
+/// `url_encode(s)` (`http.url_encode`, D73): `s` with every byte but
+/// the unreserved ones (RFC 3986 2.3: `A-Z a-z 0-9 - . _ ~`) written as
+/// `%XX` (upper-case hex, 2.1), so it can stand as a query value or a
+/// path segment whatever it holds (`&`, `=`, `/`, `+`, `#`, a space).
+fn url_encode_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
+    let s = nat::need_bytes("s", &a[0])?;
+    let mut out = Vec::with_capacity(s.len());
+    for &b in s {
+        if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+            out.push(b);
+        } else {
+            out.extend_from_slice(format!("%{b:02X}").as_bytes());
+        }
+    }
+    Ok(text(&out))
+}
+
+/// `url_decode(s)` (`http.url_decode`, D73): `Ok` of `s` with each
+/// `%XX` decoded to its byte (`+` stays `+`: RFC 3986, not a form), or
+/// `Err({kind: 'invalid, message})` for a `%` without two hex digits, as
+/// a URL with one is refused (D75).
+fn url_decode_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
+    let s = nat::need_bytes("s", &a[0])?;
+    let hex = |b: u8| (b as char).to_digit(16);
+    let mut out = Vec::with_capacity(s.len());
+    let mut i = 0;
+    while i < s.len() {
+        if s[i] != b'%' {
+            out.push(s[i]);
+            i += 1;
+            continue;
+        }
+        match (
+            s.get(i + 1).and_then(|&b| hex(b)),
+            s.get(i + 2).and_then(|&b| hex(b)),
+        ) {
+            (Some(h), Some(l)) => {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+            }
+            _ => {
+                // the `%` and at most two characters after it
+                let end: usize = i + fung_front::text::units(&s[i..])
+                    .take(3)
+                    .map(|(_, u)| u.byte_len())
+                    .sum::<usize>();
+                let bad = fung_front::text::lossy(&s[i..end]).into_owned();
+                return Ok(nat::err_value(
+                    "invalid",
+                    &format!("invalid escape `{bad}`"),
+                    Vec::new(),
+                ));
+            }
+        }
+    }
+    Ok(nat::ok(text(&out)))
 }
 
 /// Test probes: the counters, and a gate that holds lookups of

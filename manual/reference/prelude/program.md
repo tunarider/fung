@@ -128,7 +128,7 @@ with(() => "/tmp/lock", fn(lock):
 **exit와 기한에도 정리는 돈다**
 
 ```fung run
-r = timeout(() => with(() => "lock", fn(c):
+r = timeout(() => with(() => "lock", fn(_c):
   sleep(1s)
   "done"
 ;;, fn(c):
@@ -198,7 +198,7 @@ print("all set")
 **exit 뒤에도 정리는 돈다**
 
 ```fung run exit=3
-with(() => "tmp", fn(t):
+with(() => "tmp", fn(_t):
   print("exiting")
   exit(3)
 ;;, t => print("cleaned", t))

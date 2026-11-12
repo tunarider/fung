@@ -113,7 +113,7 @@
 </div>
 <div class="run"><pre><code>fn slow(name) = with(
   () =&gt; name,
-  n =&gt; sleep(10s),
+  _n =&gt; sleep(10s),
   n =&gt; print(&quot;release&quot;, n),
 )
 
@@ -127,6 +127,7 @@ error[E0502]: division by zero
 9 |   spawn(s, () =&gt; 1 / 0)
   |                    ^
   |
+  note: the task was spawned at example.fung:9
   note: scope opened at example.fung:7
  call path (innermost first):
    example.fung:9 &lt;lambda&gt;</code></pre></div>
@@ -149,7 +150,7 @@ error[E0502]: division by zero
   t = spawn(s, () =&gt; sleep(10s))
   cancel(t)
   await(t)
-;;)
+;;)!
 print(r)
 
 r2 = scope(fn(s):
@@ -197,8 +198,8 @@ print(timeout(() =&gt; &quot;fast&quot;, 1s))
 print(timeout(() =&gt; [&quot;inner answered&quot;, timeout(() =&gt; sleep(10s), 50ms)], 1s))
 print(timeout(() =&gt; [&quot;inner answered&quot;, timeout(() =&gt; sleep(10s), 1s)], 50ms))
 print(timeout(() =&gt; exec([&quot;sleep&quot;, &quot;5&quot;]), 200ms))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 100ms&quot;})
-fast
-[&quot;inner answered&quot;, Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})]
+Ok(&quot;fast&quot;)
+Ok([&quot;inner answered&quot;, Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})])
 Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})
 Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
 <p>세 번째 줄은 안쪽 기한이 먼저라 안쪽 <code>timeout</code>이 답했고 바깥은 그 값을 받았다. 네 번째 줄은 바깥 기한이 먼저라 안쪽은 값을 내지 못하고 되감겼고, 바깥 <code>timeout</code>이 답했다. 마지막 줄은 외부 명령 <code>sleep 5</code>가 200 ms에 끝났다(아래 "외부 명령").</p>
@@ -221,7 +222,7 @@ Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></
 
 print(timeout(() =&gt; double(21), 0s))
 print(timeout(() =&gt; double(21), 1s))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 0s&quot;})
-42</code></pre></div>
+Ok(42)</code></pre></div>
 <h3 id="os-waits">운영체제를 기다리던 중이었다면</h3>
 <p>13장의 기다림들은 기한과 취소를 이렇게 받는다.</p>
 <ul>
@@ -273,12 +274,12 @@ print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code=
   fail(&quot;close failed&quot;)
 ;;
 
-with(() =&gt; &quot;db&quot;, c =&gt; 1 / 0, close_conn)</code></pre><pre class="out err plain" data-code="1"><code>closing db
+with(() =&gt; &quot;db&quot;, _c =&gt; 1 / 0, close_conn)</code></pre><pre class="out err plain" data-code="1"><code>closing db
 error[E0502]: division by zero
-  --&gt; example.fung:6:25
+  --&gt; example.fung:6:26
   |
-6 | with(() =&gt; &quot;db&quot;, c =&gt; 1 / 0, close_conn)
-  |                         ^
+6 | with(() =&gt; &quot;db&quot;, _c =&gt; 1 / 0, close_conn)
+  |                          ^
   |
   note: also failed in release: error[E0803]: close failed
  call path (innermost first):
@@ -334,12 +335,12 @@ scope(fn(s):
     wait_closed(stop)
     print(&quot;got the stop request: draining&quot;)
   ;;)
-  exec([&quot;sh&quot;, &quot;-c&quot;, &quot;kill -TERM $PPID&quot;])!
+  exec([&quot;sh&quot;, &quot;-c&quot;, `kill -TERM $PPID`])!
 ;;)
 print(&quot;finished cleanly&quot;)</code></pre><pre class="out plain"><code>got the stop request: draining
 finished cleanly</code></pre></div>
 <div class="run"><pre><code>fn work(_):
-  exec([&quot;sh&quot;, &quot;-c&quot;, &quot;kill -TERM $PPID&quot;])!
+  exec([&quot;sh&quot;, &quot;-c&quot;, `kill -TERM $PPID`])!
   sleep(10s)
 ;;
 
@@ -373,8 +374,8 @@ print(timeout(() =&gt; &quot;fast&quot;, 1s))
 print(timeout(() =&gt; [&quot;inner answered&quot;, timeout(() =&gt; sleep(10s), 50ms)], 1s))
 print(timeout(() =&gt; [&quot;inner answered&quot;, timeout(() =&gt; sleep(10s), 1s)], 50ms))
 print(timeout(() =&gt; exec([&quot;sleep&quot;, &quot;5&quot;]), 200ms))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 100ms&quot;})
-fast
-[&quot;inner answered&quot;, Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})]
+Ok(&quot;fast&quot;)
+Ok([&quot;inner answered&quot;, Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})])
 Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})
 Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
 <p>셋째 줄은 안쪽 기한(50 ms)이 먼저 지나 안쪽 노드가 <strong>자기 기한으로</strong> 만료되므로 안쪽 <code>timeout</code>이 <code>Err({kind: 'timeout})</code>을 내고, 바깥은 그 값이 든 리스트를 받는다. 넷째 줄은 안쪽 노드가 바깥 기한(50 ms)을 물려받았다. 만료되는 것은 바깥 노드이고, 안쪽은 "자기 기한이 아닌 취소"라 그대로 되감긴다. 그래서 리스트가 만들어지지 않고 바깥 <code>timeout</code>이 답한다. 마지막 줄은 200 ms에 명령에 SIGTERM이 가고, <code>sleep</code>이 그 신호로 끝나서 2초를 기다리지 않는다.</p>

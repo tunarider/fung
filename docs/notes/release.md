@@ -86,10 +86,14 @@ macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않�
 ## 6. CI와 릴리스를 나눈 이유
 
 - `ci.yml`: main·작업 브랜치(`claude/**`) 푸시와 PR마다 커밋 전 검사와 같은 것을 돈다.
-  - `rust`(Linux·macOS): Linux에서 `cargo-deny`·`cargo-audit`, 두 운영체제에서 `cargo fmt --check`, clippy, 디버그·릴리스 테스트.
+  - `rust`(Linux x86_64·Linux arm64·macOS): Linux x86_64에서 `cargo-deny`·`cargo-audit`, 세 러너에서 `cargo fmt --check`, clippy, 디버그·릴리스 테스트.
+    arm64 Linux는 전에 릴리스 때만 빌드했다(TL10, 2026-11-12에 더함).
     (6b 전에는 Go 구현을 검사하는 `test` 작업도 있었다.)
   - `musl`(Linux): 릴리스와 같은 스크립트로 linux/amd64 musl 바이너리를 만들고 `check-release.sh`로 검사한다. C 의존성이 새로 생기거나 glibc에만
     링크되는 것이 끼면 릴리스 날이 아니라 그 PR에서 깨진다.
+- `audit.yml`: 주 1회(월요일 03:17 UTC)와 손으로 `cargo-deny`·`cargo-audit`만 돈다. 푸시가 없는 동안 새로 나온 RustSec 공지를 알기 위해서다(TL10).
+- 세 워크플로의 서드파티 액션은 태그가 아니라 커밋 SHA로 고정하고 줄 끝 주석에 버전을 적는다. 태그는 옮길 수 있어서, 쓰기 권한과 서명을 가진
+  `publish` 작업이 남의 바뀐 코드를 돌 수 있기 때문이다. 올릴 때는 `gh api repos/<액션>/git/ref/tags/<태그>`로 커밋을 찾는다(주석 태그면 한 번 더 따라간다).
 - `release.yml`: 네 작업이 차례로 돈다.
   1. `test`: 태그 모양(`vX.Y.Z`) 확인, 릴리스 노트 뽑기(절이 없으면 여기서 멈춤), 테스트(디버그·릴리스).
   2. `build`: 위 표의 러너 셋에서 묶음을 만들고 그 자리에서 `check-release.sh`로 검사한다. Linux 작업은 `file`·`ldd`·`readelf` 출력도 기록에 남긴다.

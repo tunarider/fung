@@ -1,0 +1,4 @@
+# A call to a prelude function is checked when the file is compiled (D43).
+print("never")
+print(len([1], [2]))
+# expect-error: E0402

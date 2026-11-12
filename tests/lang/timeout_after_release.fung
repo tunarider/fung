@@ -1,0 +1,22 @@
+# A deadline that passed while a release or a scope's wait ran is
+# enforced as soon as the task is back under its own node (CC16).
+r = timeout(fn():
+  scope(fn(s):
+    spawn(s, fn():
+      with(() => 1, x => x, _x => sleep(100ms))
+    ;;)
+    nil
+  ;;)
+  print("after scope: not reached")
+  "returned normally"
+;;, 20ms)
+print(r)
+
+r2 = timeout(fn():
+  with(() => 1, x => x, _x => sleep(100ms))
+  print("after with: not reached")
+  "returned normally"
+;;, 20ms)
+print(r2)
+# expect: Err({kind: 'timeout, message: "timed out after 20ms"})
+# expect: Err({kind: 'timeout, message: "timed out after 20ms"})

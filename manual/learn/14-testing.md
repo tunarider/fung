@@ -1,5 +1,5 @@
 ---
-description: test 블록과 assert, fung test로 테스트 돌리기, dbg로 값 보기, fung fmt로 모양 맞추기, fung check의 경고.
+description: test 블록과 assert, fung test로 테스트 돌리기, dbg로 값 보기, fung fmt로 모양 맞추기, fung check로 실행 전에 검사하기.
 lede: 스크립트를 고칠 때마다 손으로 다시 돌려 보는 것은 지치는 일이다. 이 장은 코드가 맞게 도는지 코드로 확인하는 테스트, 그리고 코드를 깔끔하게 지켜 주는 포맷터와 검사기를 배운다.
 ---
 # 테스트와 포맷터
@@ -9,7 +9,7 @@ lede: 스크립트를 고칠 때마다 손으로 다시 돌려 보는 것은 지
 - `test` 블록과 `assert`로 테스트 쓰기, `fung test`로 돌리기
 - 실패한 테스트의 메시지 읽기
 - 테스트하기 좋게 코드를 나누는 법
-- `dbg`로 중간 값 보기, `fung fmt`로 모양 맞추기, `fung check`의 경고
+- `dbg`로 중간 값 보기, `fung fmt`로 모양 맞추기, `fung check`로 실행 전에 검사하기
 :::
 
 ## 테스트란 {#why}
@@ -164,7 +164,7 @@ ok   example.fung: rotate renames each log
 1 passed, 0 failed
 ```
 
-`with_temp_dir`는 함수가 돌려준 값을 그대로 돌려주므로, 그 함수의 본문은 값을 쓰는 자리다. 블록이 `assert`로 끝나면 값이 없어 에러(E0224)이므로, 돌려줄 것이 없다는 뜻으로 끝에 `nil`을 쓴다.
+`with_temp_dir`는 함수가 돌려준 값을 `Ok`로 감싸 돌려주므로(디렉터리를 만들지 못하면 `Err`), 그 함수의 본문은 값을 쓰는 자리다. 블록이 `assert`로 끝나면 값이 없어 에러(E0224)이므로, 돌려줄 것이 없다는 뜻으로 끝에 `nil`을 쓴다.
 
 ## dbg로 중간 값 보기 {#dbg}
 
@@ -215,18 +215,17 @@ for h in hosts:
 
 ## fung check: 실행하기 전에 검사 {#check}
 
-`fung check 파일`은 프로그램을 실행하지 않고 문법, 이름, import를 검사한다(2장). 에러가 없어도 실수일 가능성이 큰 것은 **경고**(warning)로 알려 준다. 경고는 `fung check`와 `fung test`에서만 보이고, `fung run`은 경고를 찍지 않는다. 매일 도는 스크립트의 로그가 경고로 더러워지지 않게 하려는 것이다.
+`fung check 파일`은 프로그램을 실행하지 않고 문법, 이름, import를 검사한다(2장). fung에는 경고가 없어서, 실수일 가능성이 큰 이름도 `run`과 똑같이 컴파일 에러다. 서버에 올리기 전이나 편집기의 저장 훅에서 돌리면 실행하기 전에 잡는다.
 
 <table>
   <thead><tr><th>번호</th><th>뜻</th><th>고치는 법</th></tr></thead>
   <tbody>
-    <tr><td><code>W0101</code></td><td>가져오고 쓰지 않는 import</td><td>지운다</td></tr>
-    <tr><td><code>W0102</code></td><td>만들고 읽지 않는 변수</td><td>지우거나, 일부러면 이름 앞에 <code>_</code></td></tr>
-    <tr><td><code>W0103</code></td><td>prelude 함수와 같은 이름의 변수·함수</td><td>다른 이름을 짓는다</td></tr>
+    <tr><td><code>E0239</code></td><td>만들고 읽지 않는 변수·매개변수·import</td><td>지우거나, 일부러면 이름 앞에 <code>_</code></td></tr>
+    <tr><td><code>E0240</code></td><td>보이는 이름(바깥 변수, 최상위 이름, prelude 함수 등)과 같은 이름을 새로 묶음</td><td>다른 이름을 짓는다</td></tr>
   </tbody>
 </table>
 
-아래 파일을 `fung check example.fung`으로 검사한 결과가 그 아래에 있다. 셋 다 경고라서 종료 코드는 0이다.
+아래 파일을 `fung check example.fung`으로 검사한 결과가 그 아래에 있다. 에러가 있으므로 종료 코드는 2다. 쓰지 않는 이름(E0239)은 다른 에러가 없을 때 나온다.
 
 ```fung check
 import fs
@@ -234,8 +233,8 @@ import path
 
 fn report(rows):
   total = len(rows)
-  lines = rows |> map(r => "- ${r}")
-  join(lines, "\n")
+  items = rows |> map(r => "- ${r}")
+  join(items, "\n")
 ;;
 
 print(path.base("/tmp/x.log"))
@@ -243,28 +242,23 @@ print(report(["a", "b"]))
 ```
 
 ```expect check
-warning[W0101]: unused import `fs`
+error[E0239]: unused import `fs`
   --> example.fung:1:8
   |
 1 | import fs
   |        ^^
   |
-warning[W0102]: unused variable `total`
+ help: remove it, or start its name with `_` if it is kept on purpose
+error[E0239]: unused variable `total`
   --> example.fung:5:3
   |
 5 |   total = len(rows)
   |   ^^^^^
   |
- help: prefix it with `_` if it is intentional
-warning[W0103]: `lines` shadows a prelude function
-  --> example.fung:6:3
-  |
-6 |   lines = rows |> map(r => "- ${r}")
-  |   ^^^^^
-  |
+ help: remove it, or start its name with `_` if it is kept on purpose
 ```
 
-`lines`를 가린 것은 지금은 문제가 없지만, 같은 함수 안에서 나중에 prelude의 `lines(문자열)`을 부르려 하면 함수가 아니라 그 리스트를 부르게 되어 에러가 난다. `rows_text`처럼 다른 이름을 짓는다.
+`items` 대신 `lines`라고 지었다면 prelude의 `lines`를 가리므로 E0240이었을 것이다. 가린 이름이 있으면 같은 함수 안에서 나중에 prelude의 `lines(문자열)`을 부르려다 그 리스트를 부르게 되므로, fung은 처음부터 막는다.
 
 :::exercise 크기 표시 함수 테스트
 바이트 수를 `"512 B"`, `"1.5 KiB"`, `"3.0 MiB"`처럼 바꾸는 함수 `human(n)`을 쓰고, 경계(1023, 1024, 1048576)를 확인하는 테스트 블록을 붙여 보자. 1024 미만은 `B`, 1024² 미만은 `KiB`, 그 이상은 `MiB`다. 소수 첫째 자리까지만 보이려면 `int(x * 10) / 10`처럼 자른다.
@@ -306,7 +300,7 @@ ok   example.fung: bytes, KiB and MiB
 ## 짚고 넘어가기 {#notes}
 
 :::box learn 태스크의 순서는 약속되지 않는다
-`fung test`는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 일부러 섞는다. 언어가 그 순서를 약속하지 않으므로, 우연히 맞던 순서에 기대는 시험이 언젠가 드러나게 하려는 것이다. 실패하면 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N …` 한 줄이 나온다. `FUNG_SCHED_SEED=N fung test …`로 같은 순서를 다시 돌려 고친다. 결과의 순서가 중요하면 태스크마다 `await`로 차례대로 받거나 정렬한다.
+`fung test`는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 일부러 섞는다. 언어가 그 순서를 약속하지 않으므로, 우연히 맞던 순서에 기대는 시험이 언젠가 드러나게 하려는 것이다. 태스크를 띄운 파일에서 실패하면 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N …` 한 줄이 나온다(태스크가 없으면 순서도 없으므로 나오지 않는다). `FUNG_SCHED_SEED=N fung test …`로 같은 순서를 다시 돌려 고친다. 결과의 순서가 중요하면 태스크마다 `await`로 차례대로 받거나 정렬한다.
 :::
 
 :::box mistake 테스트 블록을 함수 안에 쓰기
@@ -354,7 +348,7 @@ print("all good")
 파일을 읽는 일과 세는 일을 나누면 세는 함수는 파일 없이 시험할 수 있다.
 
 ```fung run
-fn errors(lines) = lines |> filter(l => starts_with(l, "ERROR")) |> len
+fn errors(log) = log |> filter(l => starts_with(l, "ERROR")) |> len
 assert errors(["ERROR a", "INFO b", "ERROR c"]) == 2
 assert errors([]) == 0
 print(errors(["ERROR x"]))
@@ -386,6 +380,6 @@ print(r)
 - `fung test`는 파일의 최상위 코드도 먼저 실행한다. 계산은 라이브러리 파일로 떼어 내고 진입 파일은 얇게 둔다.
 - `dbg(식)`은 식과 값을 표준 에러에 찍고 값을 그대로 돌려준다.
 - `fung fmt`는 공백·들여쓰기·정렬을 하나의 스타일로 고친다(줄바꿈은 그대로). `--check`는 CI용.
-- `fung check`는 실행 없이 검사하고 W0101·W0102·W0103 경고를 보여 준다.
+- `fung check`는 실행 없이 검사한다. 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0240)도 에러다.
 
 정확한 규칙은 레퍼런스의 [테스트와 디버깅](../reference/language/testing.html)과 [명령줄 도구](../reference/cli.html#test)에 있다. 포맷터와 테스트 실행기가 어떻게 만들어졌는지는 VM 책의 [포맷터](../vm/15-formatter.html)와 [테스트 실행기](../vm/17-test-runner.html)에서 다룬다. 여기까지 왔다면 fung으로 쓸 수 있는 스크립트의 재료는 모두 갖췄다. 예제 모음의 레시피에서 실제 작업에 맞춰 조합해 보자.

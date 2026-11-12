@@ -1,0 +1,33 @@
+# The parenthesised forms the stricter rules of the third review ask for.
+import json
+
+# `??` and `|>` say which goes first (D35).
+print(("x" |> env) ?? "d", "x" |> (env ?? print))
+# expect: d nil
+print((Err("none") ?? "{}") |> json.parse)
+# expect: Ok({})
+
+# A slice's ends are the operand layer of `..` (D36).
+fn half(n) = n // 2
+xs = [1, 2, 3, 4]
+a = nil
+print(xs[(a ?? 0)..3], xs[(4 |> half)..])
+# expect: [1, 2, 3] [3, 4]
+
+# An early return from a callback is an anonymous fn's (D42).
+fn g(ys) = find(ys, fn(y):
+  if y > 1: return true ;;
+  false
+;;)
+print(g([1, 2]))
+# expect: 2
+
+# `return` ends a branch of `then … else` (D50).
+fn pos(n) = n > 0 then return n else 0
+print(pos(2), pos(-1))
+# expect: 2 0
+
+# A type names no element type (D52).
+fn count(ys: list, ...rest: list) -> int = len(ys) + len(rest)
+print(count([1], 2))
+# expect: 2

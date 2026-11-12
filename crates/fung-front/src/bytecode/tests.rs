@@ -324,21 +324,22 @@ fn m4_ops_disassemble() {
         ..main_proto()
     };
     p.emit(Op::List, 2, at);
-    p.emit(Op::Tag, 1, at);
+    let ok = p.add_const(Const::Sym("Ok".into()));
+    p.emit_with(Op::Tag, 1, ok, at);
     p.emit(Op::Slice, 3, at);
     let c = p.add_const(Const::Str("name".into()));
     p.emit(Op::Field, c, at);
-    p.emit(Op::Match, 0, at);
+    p.emit_with(Op::Match, 6, 0, at);
     p.emit(Op::Range, 1, at);
     p.emit(Op::In, 0, at);
     assert_eq!(
         disassemble(&p),
         "== <main> ==\n\
          0000  1:1   LIST         2\n\
-         0001  1:1   TAG          1    ; 1 args\n\
+         0001  1:1   TAG          1 0    ; 'Ok, 1 args\n\
          0002  1:1   SLICE        3    ; start, end\n\
-         0003  1:1   FIELD        0    ; name\n\
-         0004  1:1   MATCH        0    ; $0\n\
+         0003  1:1   FIELD        1    ; name\n\
+         0004  1:1   MATCH        6 0    ; $0, else 6\n\
          0005  1:1   RANGE        1    ; inclusive\n\
          0006  1:1   IN\n"
     );
@@ -436,6 +437,10 @@ fn every_opcode_has_its_name_and_number() {
         "TEST",
         "CLEARLOCAL",
         "MOVELOCAL",
+        "CALLSPREAD",
+        "TAILCALLSPREAD",
+        "TAILCHECK",
+        "JUMPIFTRUE",
     ];
     assert_eq!(Op::ALL.len(), names.len());
     for (i, (op, name)) in Op::ALL.iter().zip(names).enumerate() {
@@ -465,4 +470,199 @@ fn every_opcode_has_its_name_and_number() {
 fn encode_masks_the_operand_to_24_bits() {
     let i = Instr::new(Op::Const, (1 << 24) + 5);
     assert_eq!((i.op(), i.arg()), (Op::Const, 5));
+}
+
+// ---- the verifier (VM22) ----
+
+/// A proto with `code` (one position each), `locals` slots and one
+/// constant.
+fn code(locals: usize, code: &[(Op, usize)]) -> Proto {
+    let mut p = main_proto();
+    p.num_locals = locals;
+    p.add_const(Const::Int(1));
+    for &(op, arg) in code {
+        p.emit(op, arg, pos(1, 1));
+    }
+    p
+}
+
+/// What the verifier says is wrong with `p`.
+fn violation(p: &Proto) -> String {
+    match verify(p) {
+        Ok(v) => panic!("verified: {v:?}"),
+        Err(v) => v.to_string(),
+    }
+}
+
+#[test]
+fn the_verifier_passes_good_code_and_reports_the_deepest_stack() {
+    let p = code(
+        1,
+        &[
+            (Op::Const, 0),
+            (Op::StoreLocal, 0),
+            (Op::LoadLocal, 0),
+            (Op::Const, 0),
+            (Op::Lt, 0),
+            (Op::JumpIfFalse, 9),
+            (Op::Const, 0),
+            (Op::MoveLocal, 0),
+            (Op::Return, 0),
+            (Op::Const, 0),
+            (Op::Return, 0),
+        ],
+    );
+    assert_eq!(verify(&p), Ok(Verified { max_stack: 2 }));
+}
+
+#[test]
+fn the_verifier_catches_each_kind_of_broken_promise() {
+    let cases: &[(&str, Proto)] = &[
+        (
+            "CONST 5: consts has 1",
+            code(0, &[(Op::Const, 5), (Op::Return, 0)]),
+        ),
+        (
+            "LOADLOCAL 3: local slots has 1",
+            code(1, &[(Op::LoadLocal, 3), (Op::Return, 0)]),
+        ),
+        (
+            "LOADGLOBAL 0: globals has 0",
+            code(0, &[(Op::LoadGlobal, 0), (Op::Return, 0)]),
+        ),
+        (
+            "CLOSURE 0: protos has 0",
+            code(0, &[(Op::Closure, 0), (Op::Return, 0)]),
+        ),
+        (
+            "JUMP 7: past the end",
+            code(0, &[(Op::Jump, 7), (Op::Const, 0), (Op::Return, 0)]),
+        ),
+        (
+            "JUMP 0: not forward",
+            code(0, &[(Op::Jump, 0), (Op::Const, 0), (Op::Return, 0)]),
+        ),
+        (
+            "falls off its end",
+            code(0, &[(Op::Const, 0), (Op::Pop, 0)]),
+        ),
+        (
+            "ADD takes 2 values from a stack of 1",
+            code(0, &[(Op::Const, 0), (Op::Add, 0), (Op::Return, 0)]),
+        ),
+        (
+            "paths meet with stack heights 2 and 0",
+            code(
+                0,
+                &[
+                    (Op::Const, 0),
+                    (Op::JumpIfFalse, 4),
+                    (Op::Const, 0),
+                    (Op::Const, 0),
+                    (Op::Const, 0),
+                    (Op::Return, 0),
+                ],
+            ),
+        ),
+        (
+            "LOADLOCAL reads slot 0, which may be unassigned",
+            code(1, &[(Op::LoadLocal, 0), (Op::Return, 0)]),
+        ),
+        (
+            // Assigned on one branch only.
+            "MOVELOCAL reads slot 0, which may be unassigned",
+            code(
+                1,
+                &[
+                    (Op::Const, 0),
+                    (Op::JumpIfFalse, 4),
+                    (Op::Const, 0),
+                    (Op::StoreLocal, 0),
+                    (Op::MoveLocal, 0),
+                    (Op::Return, 0),
+                ],
+            ),
+        ),
+        (
+            // Read after its value was let go.
+            "LOADLOCAL reads slot 0, which may be unassigned",
+            code(
+                1,
+                &[
+                    (Op::Const, 0),
+                    (Op::StoreLocal, 0),
+                    (Op::ClearLocal, 0),
+                    (Op::LoadLocal, 0),
+                    (Op::Return, 0),
+                ],
+            ),
+        ),
+        (
+            // The VM reads the tail call a TAILCHECK hands its check to.
+            "TAILCHECK is not followed by a tail call",
+            {
+                let mut p = code(0, &[(Op::Const, 0)]);
+                p.add_type(vec!["int".into()]);
+                p.emit(Op::TailCheck, 0, pos(1, 1));
+                p.emit(Op::Return, 0, pos(1, 1));
+                p
+            },
+        ),
+    ];
+    for (want, p) in cases {
+        let got = violation(p);
+        assert!(got.contains(want), "want {want:?}, got {got:?}");
+    }
+}
+
+/// The slot facts the verifier knows from the code around a read: a
+/// parameter with a default is tested where it may be empty, a MATCH
+/// binds on the path it goes on with, not on its jump (VM29), and a
+/// capture is a read.
+#[test]
+fn the_verifier_follows_defaults_matches_and_captures() {
+    let mut p = code(
+        2,
+        &[
+            (Op::LoadLocal, 0),
+            (Op::JumpIfSet, 4),
+            (Op::Const, 0),
+            (Op::StoreLocal, 0),
+            (Op::CheckType, 0),
+            (Op::Const, 0),
+            (Op::Match, 9),
+            (Op::MoveLocal, 1),
+            (Op::Return, 0),
+            (Op::Const, 0),
+            (Op::Return, 0),
+        ],
+    );
+    p.params.push(Param {
+        name: "a".into(),
+        has_default: true,
+        ty: 0,
+        ..Param::default()
+    });
+    p.add_type(vec!["int".into()]);
+    p.patterns.push(Pattern {
+        index: 1,
+        ..pat(PatKind::Bind)
+    });
+    assert!(verify(&p).is_ok(), "{:?}", verify(&p));
+    // The failing path of the MATCH has not bound slot 1.
+    p.code[8] = Instr::new(Op::Pop, 0);
+    p.code[9] = Instr::new(Op::MoveLocal, 1);
+    assert!(violation(&p).contains("MOVELOCAL reads slot 1"));
+
+    let mut main = code(1, &[(Op::Closure, 0), (Op::Return, 0)]);
+    main.protos.push(Proto {
+        captures: vec![crate::tree::Capture {
+            kind: crate::tree::CaptureKind::Local,
+            index: 0,
+        }],
+        ..code(0, &[(Op::Const, 0), (Op::Return, 0)])
+    });
+    assert!(violation(&main).contains("CLOSURE reads slot 0"));
+    main.protos[0].captures[0].index = 4;
+    assert!(violation(&main).contains("out of range"));
 }

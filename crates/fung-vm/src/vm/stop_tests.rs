@@ -63,7 +63,7 @@ fn signal_probes() -> Vec<Value> {
 
 fn exec_signals(src: &str) -> (String, String, i32) {
     let o = exec(
-        &format!("{UNTIL}{src}"),
+        &crate::testutil::imports_first(&format!("{UNTIL}{src}")),
         Opts {
             extra: signal_probes,
             ..Opts::default()
@@ -79,7 +79,7 @@ fn a_watcher_sees_the_stop_request() {
             "scope(fn(s):\n  stop = stop_signal()\n  t = spawn(s, () => recv(stop))\n  blocked(stop, 1)\n  request_stop()\n  print(await(t))\n;;)\nprint(\"after\")"
         ),
         (
-            "Err({kind: 'closed, message: \"channel closed\"})\nafter\n".into(),
+            "Ok(Err({kind: 'closed, message: \"channel closed\"}))\nafter\n".into(),
             "".into(),
             0
         )
@@ -161,7 +161,7 @@ fn every_watcher_wakes() {
             "scope(fn(s):\n  ts = map(0..3, _ => spawn(s, () => recv(stop_signal())))\n  blocked(stop_signal(), 3)\n  request_stop()\n  print(map(ts, await))\n;;)"
         ),
         (
-            "[Err({kind: 'closed, message: \"channel closed\"}), Err({kind: 'closed, message: \"channel closed\"}), Err({kind: 'closed, message: \"channel closed\"})]\n".into(),
+            "[Ok(Err({kind: 'closed, message: \"channel closed\"})), Ok(Err({kind: 'closed, message: \"channel closed\"})), Ok(Err({kind: 'closed, message: \"channel closed\"}))]\n".into(),
             "".into(),
             0
         )
@@ -233,7 +233,7 @@ fn wait_closed_waits_for_the_stop() {
             "scope(fn(s):\n  stop = stop_signal()\n  t = spawn(s, fn():\n    wait_closed(stop)\n    \"stopped\"\n  ;;)\n  blocked(stop, 1)\n  request_stop()\n  print(await(t), recv_now(stop))\n;;)"
         ),
         (
-            "stopped Err({kind: 'closed, message: \"channel closed\"})\n".into(),
+            "Ok(\"stopped\") Err({kind: 'closed, message: \"channel closed\"})\n".into(),
             "".into(),
             0
         )

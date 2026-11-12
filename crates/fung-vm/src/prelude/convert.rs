@@ -2,14 +2,13 @@
 //! assert ("this must be a number": a runtime error when it is not);
 //! `parse_int`, `parse_float` and `parse_dur` check and return Ok/Err.
 
-use fung_front::consts::quote_bytes;
 use fung_front::diag::Arg;
 use fung_front::lexer::{Kind, Token, lex};
 use fung_front::source::FileId;
 use fung_front::unicode::{is_name_continue, is_name_start, nfc};
 
 use crate::native::nat::{self, def, fail, param};
-use crate::value::{Args, Value, format, intern};
+use crate::value::{Args, Value, intern};
 use crate::vm::{Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -24,7 +23,7 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
 }
 
 fn cannot_convert(v: &Value, to: &str) -> Stop {
-    fail("E0513", vec![Arg::Str(format(v)), nat::s(to)])
+    fail("E0513", vec![Arg::Str(shown(v)), nat::s(to)])
 }
 
 /// A number read from text by the literal rules (SP14, D12): at most
@@ -104,12 +103,10 @@ fn parse_dur(s: &str) -> Result<i64, Option<String>> {
 }
 
 /// The value `x` in a conversion message: a string in quotes, so that
-/// spaces show (`" 1"`), any other value as printed.
+/// spaces show (`" 1"`), any other value as printed, cut as any value in
+/// a message is (VA28).
 fn shown(x: &Value) -> String {
-    match x {
-        Value::Str(s) => quote_bytes(s),
-        v => format(v),
-    }
+    crate::vm::shown_value(x)
 }
 
 /// E0513, with the lexer's help when it had one (`int("007")` is told
@@ -174,7 +171,7 @@ fn float_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
 fn str_fn(_: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
     match a.swap_remove(0) {
         s @ Value::Str(_) => Ok(s),
-        v => Ok(Value::str(&format(&v))),
+        v => Ok(Value::str(&crate::value::format_text(&v)?)),
     }
 }
 

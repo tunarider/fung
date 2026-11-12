@@ -6,3 +6,4 @@ find = _n.find
 find_all = _n.find_all
 replace = _n.replace
 split = _n.split
+escape = _n.escape

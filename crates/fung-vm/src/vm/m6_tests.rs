@@ -109,7 +109,7 @@ fn test_blocks_register_only_when_requested() {
             r => panic!("test two: {r:?}"),
         }
 
-        let Setup { rt, .. } = with_tests("x = 1\ntest \"t\": assert x == 1 ;;\nx = 2");
+        let Setup { rt, .. } = with_tests("x = 1\ntest \"t\": assert x == 1 ;;\ny = [x]\nprint(y)");
         rt.run().expect("the body runs");
         assert!(
             rt.call_test(0).is_ok(),
@@ -129,7 +129,7 @@ fn test_blocks_register_only_when_requested() {
 fn test_blocks_run_one_after_another() {
     on_big_stack(|| {
         let src = "(ch_tx, ch) = channel()\n\
-                   test \"talks\":\n  r = scope(fn(s):\n    w = spawn(s, () => recv(ch)! * 2)\n    send(ch_tx, 21)\n    await(w)\n  ;;)\n  assert r == 42\n;;\n\
+                   test \"talks\":\n  r = scope(fn(s):\n    w = spawn(s, () => recv(ch)! * 2)\n    send(ch_tx, 21)\n    await(w)!\n  ;;)!\n  assert r == 42\n;;\n\
                    test \"stuck\": recv(ch) ;;";
         let Setup { rt, err, .. } = with_tests(src);
         rt.run().expect("the body runs");
@@ -202,13 +202,13 @@ fn parameter_patterns_run() {
         ),
         ("each(pairs({a: 1}), ((k, v)) => print(k, v))", "a 1\n"),
         (
-            "fn h(x, ...rest) = rest\nfn p([a], y = 2) = a + y\nprint(h(1, 2), p([1]))",
+            "fn h(_x, ...rest) = rest\nfn p([a], y = 2) = a + y\nprint(h(1, 2), p([1]))",
             "[2] 3\n",
         ),
     ]);
     check_code(&[
-        ("fn f((a, b)) = a\nf((1, 2, 3))", "E0602"),
-        ("f = ((a, b)) => a\nf(1)", "E0602"),
-        ("fn f((a, b)) = a\nf(x: 1)", "E0406"),
+        ("fn f((a, _b)) = a\nf((1, 2, 3))", "E0602"),
+        ("f = ((a, _b)) => a\nf(1)", "E0602"),
+        ("fn f((a, _b)) = a\nf(x: 1)", "E0406"),
     ]);
 }

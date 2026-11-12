@@ -1,0 +1,8 @@
+# `return` stands as a statement or ends a branch (D50): not an operand.
+fn f(a) = a > 0 then return a else 0
+print(f(2))
+fn g(a):
+  x = 1 + return a
+  x
+;;
+# expect-error: E0132

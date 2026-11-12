@@ -1,13 +1,13 @@
-# A top-level name assigned once is a constant: top-level fns see it
-# when they are called (03).
+# A top-level name is bound once, so it is a constant: top-level fns see
+# it when they are called (03, D53).
 limit = 3
 names = ["a", "b"]
 counter = atom(0)
 fn ok(n) = n <= limit
 fn bump() = swap(counter, x => x + 1)
-fn first() = names[0]
+fn first_name() = names[0]
 fn deep() = map([1, 5], x => ok(x))
-print(ok(2), ok(4), first(), deep())
+print(ok(2), ok(4), first_name(), deep())
 # expect: true false a [true, false]
 bump()
 bump()

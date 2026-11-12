@@ -37,14 +37,30 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    /// A runtime whose standard output and error keep one order between
+    /// them (one writer, `output.rs`).
     pub fn new(
         stdout: Box<dyn Write + Send>,
         stderr: Box<dyn Write + Send>,
         stdin: Box<dyn BufRead + Send>,
         sources: SourceMap,
     ) -> Runtime {
+        Runtime::with_streams(stdout, stderr, stdin, sources, false)
+    }
+
+    /// A runtime whose standard output and error are written apart when
+    /// `apart` (they go to different places, `std_streams_apart`): a
+    /// reader that stops reading one does not hold the other.
+    pub fn with_streams(
+        stdout: Box<dyn Write + Send>,
+        stderr: Box<dyn Write + Send>,
+        stdin: Box<dyn BufRead + Send>,
+        sources: SourceMap,
+        apart: bool,
+    ) -> Runtime {
         crate::native::time::start_clock();
-        let world = World::new(stdout, stderr, stdin, sources);
+        let output = super::output::Output::new(stdout, stderr, apart);
+        let world = World::new(output, stdin, sources);
         Runtime {
             shared: Arc::new(Shared::new(&world)),
             world: RefCell::new(world),
@@ -280,6 +296,12 @@ impl Runtime {
         self.shared.failures.failed()
     }
 
+    /// Whether the program spawned a task: only then did the order the
+    /// scheduler drew matter (`fung test`'s seed line, TL12).
+    pub fn spawned(&self) -> bool {
+        self.world().spawned
+    }
+
     /// Whether a deadlock was reported (it also requested exit(1)).
     pub fn deadlocked(&self) -> bool {
         let mut w = self.world();
@@ -326,6 +348,8 @@ impl Runtime {
     pub fn release(&self) {
         self.world().release_values();
         self.shared.closer.wait();
+        // What the closer reported, written before the command goes on.
+        let _ = self.world().output.drain();
     }
 }
 

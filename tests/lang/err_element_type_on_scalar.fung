@@ -1,4 +1,4 @@
-# Only list and map take an element type (FE17): int[str] means nothing.
+# Element types are gone from annotations (D52), on any type.
 fn f(x: int[str]) = x
 print(f(1))
-# expect-error: E0232
+# expect-error: E0130

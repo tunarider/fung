@@ -113,9 +113,9 @@ fn a_tail_call_into_the_library_keeps_the_callers_place() {
 #[test]
 fn a_callback_after_a_library_tail_call_keeps_the_path() {
     let (_, err, _) = run_src(
-        "import fs\nfn load(p):\n  fs.with_open(p, fn(h): 1 / 0 ;;)\n;;\nr = load(\"Cargo.toml\")\nprint(r)",
+        "import fs\nfn load(p):\n  fs.with_open(p, fn(_h): 1 / 0 ;;)\n;;\nr = load(\"Cargo.toml\")\nprint(r)",
     );
-    assert!(err.contains("\n  --> -e:3:28\n"), "{err}");
+    assert!(err.contains("\n  --> -e:3:29\n"), "{err}");
     assert!(err.contains("   -e:3       <lambda>\n"), "{err}");
     assert!(
         err.contains("   -e:3       load\n   -e:5       <entry>\n"),
@@ -127,7 +127,7 @@ fn a_callback_after_a_library_tail_call_keeps_the_path() {
 #[test]
 fn a_deadlock_in_a_library_tail_call_points_at_the_call() {
     let (_, err, _) = run_src(
-        "fn first_two(rx):\n  take(rx, 2)\n;;\n(tx, rx) = channel()\nr = first_two(rx)\nprint(r, tx)",
+        "fn first_two(ch):\n  take(ch, 2)\n;;\n(tx, rx) = channel()\nr = first_two(rx)\nprint(r, tx)",
     );
     assert!(
         err.starts_with("error[E0702]: deadlock: all tasks are waiting\n  --> -e:2:7\n"),
@@ -168,12 +168,12 @@ fn evaluates_expressions() {
         ("2 ** 10", "1024"),
         ("-2 ** 2", "-4"),
         ("1 == 1.0", "true"),
-        ("1 != true", "true"),
+        ("1 != nil", "true"),
         ("2 >= 3", "false"),
         ("not true", "false"),
         ("true and false", "false"),
         ("false or true", "true"),
-        ("x = 1\n2", "2"),
+        ("_x = 1\n2", "2"),
         ("", "nil"),
     ];
     for (src, want) in cases {
@@ -331,7 +331,7 @@ fn leaner_code_keeps_its_meaning() {
         // A pattern that fails part way after binding the subject's own
         // name: the next arm still sees the subject.
         (
-            "fn f(m) = match m:\n  [m] when m > 5 => \"big\"\n  [m] => \"small ${m}\"\n  _ => \"other\"\n;;\nf([3])",
+            "fn f(m) = match m:\n  [k] when k > 5 => \"big\"\n  [k] => \"small ${k}\"\n  _ => \"other\"\n;;\nf([3])",
             "\"small 3\"",
         ),
         (
@@ -347,7 +347,7 @@ fn leaner_code_keeps_its_meaning() {
             "1",
         ),
         (
-            "x = [1, 2]\nmatch x:\n  [a] => a\n  all => len(all)\n;;",
+            "x = [1, 2]\nmatch x:\n  [a] => a\n  other => len(other)\n;;",
             "2",
         ),
         ("a = 1\nb = 2\na < b and b < 3", "true"),
@@ -377,7 +377,7 @@ fn leaner_code_keeps_its_meaning() {
         ("x = 5\nif x and true: 1 else: 2 ;;", "E0505", "-e:2:4"),
         ("x = 5\nif true and x: 1 else: 2 ;;", "E0505", "-e:2:13"),
         ("x = 5\nif false or x: 1 else: 2 ;;", "E0505", "-e:2:13"),
-        ("x = 5\ny = true and x", "E0505", "-e:2:14"),
+        ("x = 5\n_y = true and x", "E0505", "-e:2:15"),
         ("fn f() = Err(1)\nif true: f() ;;\n1", "E0606", "-e:2:1"),
         (
             "fn f(c) -> int = c then 1 else \"s\"\nf(false)",
@@ -454,7 +454,7 @@ fn rust_panic_becomes_internal_error() {
 #[test]
 fn variables_blocks_and_literals() {
     let cases = [
-        ("x = 1\ny = x + 1\nx = x * 10\nprint(x, y)", "10 2\n"),
+        ("x = 1\ny = x + 1\nz = x * 10\nprint(z, y)", "10 2\n"),
         ("if true: z = 5; print(z) ;;", "5\n"),
         (
             "w = if 7 > 5: \"big\" else: \"small\" ;;\nprint(w)",
@@ -471,7 +471,7 @@ fn variables_blocks_and_literals() {
             "ab true true\n",
         ),
         // A symbol meeting a string is E0517 (02, L10); other types: false.
-        ("print('ok, 'ok == 'ok, 'ok == 1)", "'ok true false\n"),
+        ("print('ok, 'ok == 'ok, 'ok == nil)", "'ok true false\n"),
         (
             "print(1h30m, 500ms + 1.5s, 2 * 30s, 1m / 4, 30s < 1m)",
             "1h30m 2s 1m 15s true\n",
@@ -480,7 +480,7 @@ fn variables_blocks_and_literals() {
         ("print(-9223372036854775808)", "-9223372036854775808\n"),
         ("print(9007199254740993 == 9007199254740992.0)", "false\n"),
         ("print(\"${\"q\"}\", \"${'s}\", \"${1.0}\")", "q 's 1.0\n"),
-        ("x = 1\nx = 2\nprint(x)", "2\n"),
+        ("fn f():\n  x = 1\n  x = 2\n  x\n;;\nprint(f())", "2\n"),
     ];
     for (src, want) in cases {
         let (out, err, code) = run_src(src);
@@ -505,7 +505,7 @@ fn interpolation_past_the_string_limit_is_an_error() {
 
 #[test]
 fn block_value_and_statement_value() {
-    let o = exec("x = 1", Opts::default());
+    let o = exec("_x = 1", Opts::default());
     assert_eq!((o.code.as_str(), o.value.as_deref()), ("", Some("nil")));
     let o = exec("if true: a = 1; a + 1 ;;", Opts::default());
     assert_eq!(o.value.as_deref(), Some("2"));
@@ -515,7 +515,7 @@ fn block_value_and_statement_value() {
 fn fail_raises_e0803_with_position() {
     let o = exec("print(1)\nfail(\"boom\", 2)", Opts::default());
     assert_eq!((o.code.as_str(), o.out.as_str()), ("E0803", "1\n"));
-    let o = exec("x = 1\nfail(\"boom\")", Opts::default());
+    let o = exec("_x = 1\nfail(\"boom\")", Opts::default());
     let e = o.error.expect("an error");
     assert_eq!(
         (e.headline.as_str(), e.line, e.col),
@@ -593,7 +593,10 @@ fn functions_run() {
 fn closures_capture_by_value() {
     outputs(&[
         // copied when f was made, like a local
-        ("x = 1\nf = () => x\nx = 2\nprint(f())", "1\n"),
+        (
+            "fn g():\n  x = 1\n  f = () => x\n  x = 2\n  f()\n;;\nprint(g())",
+            "1\n",
+        ),
         // a local: copied when f was made
         (
             "fn mk():\n  x = 1\n  f = () => x\n  x = 2\n  f()\n;;\nprint(mk())",
@@ -679,7 +682,7 @@ fn non_tail_recursion_hits_the_frame_limit() {
 fn type_annotations_are_checked() {
     outputs(&[
         (
-            "fn f(n: int, s: str = \"x\") -> str = s\nprint(f(1), f(2, \"y\"))",
+            "fn f(_n: int, s: str = \"x\") -> str = s\nprint(f(1), f(2, \"y\"))",
             "x y\n",
         ),
         ("fn f(n: num) = n\nprint(f(1), f(1.5))", "1 1.5\n"),
@@ -689,7 +692,7 @@ fn type_annotations_are_checked() {
     codes(&[
         ("fn f(n: int) = n\nf(\"a\")", "E0403"),
         // default is checked too
-        ("fn f(n: int, s: str = 1) = n\nf(1)", "E0403"),
+        ("fn f(n: int, s: str = 1) = [n, s]\nf(1)", "E0403"),
         ("fn f() -> str = 1\nf()", "E0404"),
         ("fn f(a, b) = a\nf(1, 2, 3)", "E0402"),
         ("fn f(a) = a\nf(1, a: 2)", "E0405"),
@@ -717,7 +720,7 @@ fn calling_convention_messages() {
             "error[E0404]: return value must be str, got int",
         ),
         (
-            "fn f(a, b) = a\nf(1, 2, 3)",
+            "fn f(a, b) = [a, b]\ng = f\ng(1, 2, 3)",
             "error[E0402]: f takes 2 argument(s), got 3",
         ),
         (
@@ -725,14 +728,17 @@ fn calling_convention_messages() {
             "error[E0402]: the function takes 1 argument(s), got 2",
         ),
         (
-            "fn f(a) = a\nf(1, a: 2)",
+            "fn f(a) = a\ng = f\ng(1, a: 2)",
             "error[E0405]: argument `a` given twice",
         ),
         (
-            "fn f(a) = a\nf(b: 1)",
+            "fn f(a) = a\ng = f\ng(b: 1)",
             "error[E0406]: f has no argument named `b`",
         ),
-        ("fn f(a, b) = a\nf(1)", "error[E0407]: missing argument `b`"),
+        (
+            "fn f(a, b) = [a, b]\ng = f\ng(1)",
+            "error[E0407]: missing argument `b`",
+        ),
         (
             "f = 1\nf()",
             "error[E0401]: cannot call a value of type int",
@@ -741,6 +747,19 @@ fn calling_convention_messages() {
     for (src, want) in cases {
         let o = exec(src, Opts::default());
         assert_eq!(o.error.expect(src).headline, want, "{src:?}");
+        // Called by its own name, the fn is known when the file is
+        // compiled: the same error, before anything runs (D43).
+        if src.contains("\ng = f\n") {
+            let direct = src.replace("\ng = f\ng(", "\nf(");
+            let o = exec(&direct, Opts::default());
+            assert!(o.error.is_none(), "{direct:?}");
+            assert_eq!(o.exit, 2, "{direct:?}");
+            assert!(
+                o.err.starts_with(&format!("{want}\n")),
+                "{direct:?}: {}",
+                o.err
+            );
+        }
     }
 }
 
@@ -765,16 +784,16 @@ fn runtime_errors_carry_the_call_path() {
 #[test]
 fn errors_inside_lambdas_called_by_natives_carry_call_paths() {
     let (_, err, code) =
-        run_src("print(fold(0..3, 0, (a, x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))");
+        run_src("print(fold(0..3, 0, (a, _x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))");
     assert_eq!(
         err,
-        "error[E0502]: division by zero\n  --> -e:1:65\n  |\n1 | print(fold(0..3, 0, (a, x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))\n  |                                                                 ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <lambda>\n   -e:1       <entry>\n"
+        "error[E0502]: division by zero\n  --> -e:1:66\n  |\n1 | print(fold(0..3, 0, (a, _x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))\n  |                                                                  ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <lambda>\n   -e:1       <entry>\n"
     );
     assert_eq!(code, 1);
     let (_, err, _) =
-        run_src("fn f(x) = fold([1], 0, (a, b) => g(b))\nfn g(n) = n / 0\nprint(f(1))");
+        run_src("fn f(_x) = fold([1], 0, (_a, b) => g(b))\nfn g(n) = n / 0\nprint(f(1))");
     assert!(
-        err.ends_with(" call path (innermost first):\n   -e:2       g (1 tail calls elided)\n   -e:1       f\n   -e:3       <entry>\n"),
+        err.ends_with(" call path (innermost first):\n   -e:2       g (1 tail call elided)\n   -e:1       f\n   -e:3       <entry>\n"),
         "{err}"
     );
     // A calling-convention error of the lambda points at the native's call.
@@ -784,7 +803,7 @@ fn errors_inside_lambdas_called_by_natives_carry_call_paths() {
         "error[E0402]: the function takes 1 argument(s), got 2\n  --> -e:1:5\n  |\n1 | fold([1], 0, (a) => a)\n  |     ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
     // exit inside a lambda ends the program with its code.
-    let (out, err, code) = run_src("fold([1], 0, (a, b) => exit(3))\nprint(1)");
+    let (out, err, code) = run_src("fold([1], 0, (_a, _b) => exit(3))\nprint(1)");
     assert_eq!((out.as_str(), err.as_str(), code), ("", "", 3));
 }
 
@@ -858,7 +877,7 @@ fn natives_share_the_calling_convention() {
         assert_eq!(with_pad(src).code, want, "{src}");
     }
     assert_eq!(
-        with_pad("len(1, 2)").error.unwrap().headline,
+        with_pad("l = len\nl(1, 2)").error.unwrap().headline,
         "error[E0402]: len takes 1 argument(s), got 2"
     );
 }
@@ -914,7 +933,7 @@ fn call_heavy_loops_run() {
             "fn spin(n, acc) = n == 0 then acc else spin(n - 1, acc + len(\"ab\") - 2)\nprint(spin({n}, 1))"
         );
         assert_eq!(run_src(&src).0, "1\n");
-        let src = format!("print(fold(0..{n}, 0, (a, x) => a))");
+        let src = format!("print(fold(0..{n}, 0, (a, _x) => a))");
         assert_eq!(run_src(&src).0, "0\n");
     }
 }
@@ -1003,9 +1022,14 @@ fn an_all_builtin_path_prints_no_header() {
 
 #[test]
 fn closures_print_and_compare() {
-    let (out, _, _) =
-        run_src("fn add(a) = a\nf = add\nprint(f, x => x, f == add, add == (x => x))");
-    assert_eq!(out, "<fn add> <fn> true false\n");
+    let (out, _, _) = run_src("fn add(a) = a\nf = add\nprint(f, x => x, f != nil)");
+    assert_eq!(out, "<fn add> <fn> true\n");
+    // D62: functions have no equality.
+    let (_, err, _) = run_src("fn add(a) = a\nf = add\nprint(f == add)");
+    assert!(
+        err.starts_with("error[E0501]: cannot compare fn and fn"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -1040,6 +1064,7 @@ fn dropping_a_deep_closure_chain_does_not_overflow() {
             let mut v = Value::Nil;
             for _ in 0..1_000_000 {
                 v = Value::Closure(Rc::new(Closure {
+                    code: proto.code.clone(),
                     proto: proto.clone(),
                     captured: vec![v].into(),
                     globals: globals.clone(),
@@ -1184,9 +1209,9 @@ fn the_public_api_runs_a_program_without_handing_out_values() {
 fn the_last_read_of_a_local_hands_the_value_over() {
     let o = crate::testutil::exec(
         "one = 1\n\
-         fn last(m) = sole(m)\n\
+         fn last_read(m) = sole(m)\n\
          fn not_last(m):\n  s = sole(m)\n  [s, len(m)]\n;;\n\
-         print(last({a: one}), last(map(0..2, i => i)), not_last({a: one}), sole({a: 1}))\n\
+         print(last_read({a: one}), last_read(map(0..2, i => i)), not_last({a: one}), sole({a: 1}))\n\
          print(fold(0..3, {z: one}, (m, i) => put(sole(m), \"k${i}\", i)))\n\
          fn go(acc, n) = n == 0 then acc else go(sole(acc) + [n], n - 1)\n\
          print(go([one], 3))",
@@ -1202,4 +1227,122 @@ fn the_last_read_of_a_local_hands_the_value_over() {
             ""
         )
     );
+}
+
+/// FE61: a task's error says where the task was spawned: its call path
+/// starts in the task.
+#[test]
+fn a_task_error_names_its_spawn() {
+    let (_, err, code) = run_src(
+        "fn boom(n) = 1 / n\nfn main():\n  r = scope(fn(s):\n    t = spawn(s, () => boom(0))\n    await(t)\n  ;;)\n  print(r)\n;;\nmain()",
+    );
+    assert!(
+        err.contains("\n  note: the task was spawned at -e:4\n"),
+        "{err}"
+    );
+    assert_eq!(code, 1);
+}
+
+/// VA39: the runtime's wording of the third review: one family for an
+/// index, `len(xs)` for `xs.len`, `iterate` for a `for` value, and the
+/// help to unwrap a result used as a value.
+#[test]
+fn runtime_wording_of_the_third_review() {
+    let first = |src: &str| {
+        let (_, err, _) = run_src(src);
+        let help = err
+            .lines()
+            .find_map(|l| l.strip_prefix(" help: "))
+            .unwrap_or("")
+            .to_string();
+        (err.lines().next().unwrap_or("").to_string(), help)
+    };
+    for (src, head, help) in [
+        ("print(5[0])", "error[E0509]: cannot index int with int", ""),
+        (
+            "print(nil[0])",
+            "error[E0509]: cannot index nil with int",
+            "",
+        ),
+        (
+            "print([1][\"a\"])",
+            "error[E0509]: cannot index list with str",
+            "",
+        ),
+        (
+            "print((1, 2).a)",
+            "error[E0509]: cannot index tuple with str",
+            "",
+        ),
+        (
+            "print([1].len)",
+            "error[E0509]: cannot index list with str",
+            "a list has no fields; to call `len` on it, write `len(…)`",
+        ),
+        (
+            "print(\"abc\".len)",
+            "error[E0509]: cannot index str with str",
+            "a str has no fields; to call `len` on it, write `len(…)`",
+        ),
+        (
+            "print([1].nope)",
+            "error[E0509]: cannot index list with str",
+            "",
+        ),
+        (
+            "print(for x in 5: x ;;)",
+            "error[E0506]: cannot iterate over int",
+            "",
+        ),
+        (
+            "print(parse_int(\"12\") + 1)",
+            "error[E0501]: cannot add Ok and int",
+            "unwrap it with `!` or `?` first",
+        ),
+        (
+            "print(1 < parse_int(\"12\"))",
+            "error[E0501]: cannot compare int and Ok",
+            "unwrap it with `!` or `?` first",
+        ),
+        (
+            "print(-parse_int(\"1\"))",
+            "error[E0506]: cannot negate Ok",
+            "unwrap it with `!` or `?` first",
+        ),
+        (
+            "print(1 - \"a\")",
+            "error[E0501]: cannot subtract int and str",
+            "",
+        ),
+    ] {
+        assert_eq!(first(src), (head.to_string(), help.to_string()), "{src}");
+    }
+}
+
+/// A function that captures nothing is made once per module and reused
+/// (VM20, D62: a program cannot tell); one that captures is made anew.
+#[test]
+fn closures_that_capture_nothing_are_made_once() {
+    fn same(_: &mut Task, a: crate::value::Args) -> Result<Value, Stop> {
+        let (Value::Closure(f), Value::Closure(g)) = (&a[0], &a[1]) else {
+            panic!("two closures")
+        };
+        Ok(Value::Bool(Rc::ptr_eq(f, g)))
+    }
+    let two = |name: &'static str| NativeParam {
+        name,
+        default: None,
+        rest: false,
+    };
+    let n = Native::leak("same", vec![two("f"), two("g")], same);
+    for (src, want) in [
+        ("fn mk() = x => x + 1\nsame(mk(), mk())", "true"),
+        ("fn mk(y) = x => x + y\nsame(mk(1), mk(1))", "false"),
+        ("fn mk() = fn(x): x ;;\nsame(mk(), mk())", "true"),
+    ] {
+        let mut p = Prelude::default();
+        p.0.insert("same".into(), Value::Native(n));
+        let o = testutil::exec_with_prelude(src, p);
+        assert_eq!(o.value.as_deref(), Some(want), "{src}");
+    }
 }

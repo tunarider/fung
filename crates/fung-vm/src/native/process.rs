@@ -3,8 +3,8 @@
 //!
 //! A command runs with its standard output and error captured and its
 //! standard input `/dev/null` unless `stdin` is given. Before it starts,
-//! `prepare` checks what would keep it from starting and gives the reason
-//! of the `not_found` error.
+//! `prepare` checks what would keep it from starting and gives the kind
+//! (the errno table, D70) and the reason of the `Err`.
 
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, RawFd};
@@ -21,7 +21,7 @@ use fung_front::text::lossy as show;
 
 use super::file::os_path;
 use super::nat::{self, native, opt, param};
-use super::oserr::reason;
+use super::oserr::{kind, reason};
 use crate::value::{Args, Lit, MapBuilder, Module, Native, Text, Value, type_name};
 use crate::vm::poller::{ExitWatch, Interest};
 use crate::vm::{CancelNode, Cont, Flow, IoRegs, Kind, Next, Pool, Stop, Task, Wake};
@@ -84,9 +84,17 @@ fn sh_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 /// bytes (L4).
 fn env_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let name = nat::need_bytes("name", &a[0])?;
-    // No entry can have such a name.
+    // No variable can have such a name: the code is wrong, as for
+    // `exec`'s `env` (D76), not a variable that is unset.
     if name.is_empty() || name.contains(&b'=') || name.contains(&0) {
-        return Ok(Value::Nil);
+        return Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("name"),
+                nat::s("a variable name (not empty, no `=` or NUL)"),
+                Arg::Str(crate::value::format(&a[0])),
+            ],
+        ));
     }
     Ok(match std::env::var_os(os_path(name)) {
         Some(v) => Value::bytes(v.into_vec()),
@@ -108,7 +116,8 @@ fn env_all_fn(_: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
 /// the command, and returns `Ok({out, err, code: 0, signal: nil})`,
 /// `Err({kind: 'exit, code, signal, out, err, message})` for a non-zero
 /// exit (`code: nil` and the signal's number when a signal ended it,
-/// LB28), or `Err({kind: 'not_found, message})` when it cannot start.
+/// LB28), or `Err({kind, message})` when it cannot start (the kind of
+/// the errno table, `oserr::kind`, D70).
 ///
 /// The task parks while the command runs (`CommandWait`, R4b): its end
 /// and its pipes are waited for on the event loop, so other tasks run and
@@ -170,7 +179,7 @@ fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow
     // wait meanwhile. A job that is waited for: a command that started is
     // never lost, and one a stop came for while it started is killed
     // (`Started`).
-    let start = move || -> Result<Started, String> {
+    let start = move || -> Result<Started, Why> {
         let own = own_group();
         let mut cmd = prepare(&argv, cwd.as_deref(), env, own)?;
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -178,7 +187,7 @@ fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow
         // Tests start commands from many threads at once (`testutil::child`).
         #[cfg(test)]
         let _held = crate::testutil::child::starting();
-        let child = cmd.spawn().map_err(|e| reason(&e))?;
+        let child = cmd.spawn().map_err(|e| why(&e))?;
         // Its group is one a second signal ends from now on (CC5), also
         // while it is on its way to its wait.
         if own {
@@ -197,12 +206,26 @@ fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow
             let child = s.child.take().expect("a started command");
             CommandWait::start(t, child, s.own, name, stdin)
         }
-        Err(reason) => Ok(Flow::Done(nat::err_value(
-            "not_found",
+        Err((kind, reason)) => Ok(Flow::Done(nat::err_value(
+            kind,
             &format!("cannot run `{name}`: {reason}"),
             Vec::new(),
         ))),
     })
+}
+
+/// Why a command could not start or be waited for: the `Err`'s kind
+/// and its reason.
+type Why = (&'static str, String);
+
+/// The [`Why`] of an operating-system error, by the errno table (D70).
+fn why(e: &std::io::Error) -> Why {
+    (kind(e), reason(e))
+}
+
+/// A [`Why`] fung finds itself.
+fn found(kind: &'static str, reason: &str) -> Why {
+    (kind, reason.to_string())
 }
 
 /// A command the pool started, on its way to its wait (`CommandWait`).
@@ -591,7 +614,7 @@ impl CommandWait {
                 match c.try_wait() {
                     Ok(Some(st)) => self.status = Some(st),
                     Ok(None) => {}
-                    Err(e) => return self.finish(t, Err(reason(&e))),
+                    Err(e) => return self.finish(t, Err(why(&e))),
                 }
             }
             // A stop came while it ran and it has ended since, but what it
@@ -631,7 +654,7 @@ impl CommandWait {
                                 self.status = Some(st);
                                 true
                             }
-                            Some(Err(e)) => return self.finish(t, Err(reason(&e))),
+                            Some(Err(e)) => return self.finish(t, Err(why(&e))),
                             _ => false,
                         }
                     }
@@ -669,7 +692,7 @@ impl CommandWait {
     /// The command has ended: the task's node comes back (a deadline that
     /// passed meanwhile is enforced), and a stop that came unwinds;
     /// otherwise its value.
-    fn finish(&mut self, t: &mut Task<'_>, r: Result<(), String>) -> Result<Next, Stop> {
+    fn finish(&mut self, t: &mut Task<'_>, r: Result<(), Why>) -> Result<Next, Stop> {
         self.forget_group();
         self.regs.leave_all(t);
         if let Some(node) = self.node.take() {
@@ -679,9 +702,9 @@ impl CommandWait {
         // the output, whether or not it cut the command short.
         t.check_cancelled()?;
         let name = &self.name;
-        if let Err(reason) = r {
+        if let Err((kind, reason)) = r {
             return Ok(Next::Done(nat::err_value(
-                "not_found",
+                kind,
                 &format!("cannot run `{name}`: {reason}"),
                 Vec::new(),
             )));
@@ -874,13 +897,13 @@ fn prepare(
     cwd: Option<&[u8]>,
     env: Option<Vec<(Vec<u8>, Vec<u8>)>>,
     own: bool,
-) -> Result<Command, String> {
+) -> Result<Command, Why> {
     let name = &argv[0];
     if name.is_empty() {
-        return Err("empty command name".into());
+        return Err(found("invalid", "empty command name"));
     }
     if argv.iter().any(|x| x.contains(&0)) {
-        return Err("argument contains a NUL byte".into());
+        return Err(found("invalid", "argument contains a NUL byte"));
     }
     let path = if name.contains(&b'/') {
         name.clone()
@@ -890,18 +913,19 @@ fn prepare(
     if let Some(dir) = cwd {
         let named = |why: &str| format!("working directory `{}`: {why}", show(dir));
         if dir.contains(&0) {
-            return Err("working directory contains a NUL byte".into());
+            return Err(found("invalid", "working directory contains a NUL byte"));
         }
         match std::fs::metadata(os_path(dir)) {
-            Ok(m) if !m.is_dir() => return Err(named("not a directory")),
+            // ENOTDIR's kind
+            Ok(m) if !m.is_dir() => return Err(("not_found", named("not a directory"))),
             Ok(_) => {}
-            Err(e) => return Err(named(&reason(&e))),
+            Err(e) => return Err((kind(&e), named(&reason(&e)))),
         }
     }
     if let Some(vars) = &env
         && vars.iter().any(|(k, v)| k.contains(&0) || v.contains(&0))
     {
-        return Err("environment variable contains a NUL byte".into());
+        return Err(found("invalid", "environment variable contains a NUL byte"));
     }
     // `PWD` follows `cwd` whether or not `env` is given (LB35); a `PWD`
     // in `env` is the caller's own.
@@ -919,7 +943,8 @@ fn prepare(
         _ => path.clone(),
     };
     if !kernel_can_run(&target) {
-        return Err("not an executable file (run scripts with sh)".into());
+        // ENOEXEC's kind
+        return Err(found("io", "not an executable file (run scripts with sh)"));
     }
     let mut cmd = Command::new(os_path(&path));
     cmd.arg0(os_path(name))
@@ -953,7 +978,7 @@ fn prepare(
 /// holding an executable file named `name`. A command found only through
 /// a relative entry is refused: which program runs would then depend on
 /// the working directory.
-fn look_path(name: &[u8]) -> Result<Vec<u8>, String> {
+fn look_path(name: &[u8]) -> Result<Vec<u8>, Why> {
     let path = std::env::var_os("PATH").unwrap_or_default();
     if !path.is_empty() {
         for dir in path.as_bytes().split(|b| *b == b':') {
@@ -961,13 +986,16 @@ fn look_path(name: &[u8]) -> Result<Vec<u8>, String> {
             let candidate = [dir, b"/", name].concat();
             if is_executable(&candidate) {
                 if !candidate.starts_with(b"/") {
-                    return Err("command found only in a relative PATH entry".into());
+                    return Err(found(
+                        "not_found",
+                        "command found only in a relative PATH entry",
+                    ));
                 }
                 return Ok(candidate);
             }
         }
     }
-    Err("command not found in PATH".into())
+    Err(found("not_found", "command not found in PATH"))
 }
 
 /// Whether `execve` would accept an executable file rather than fail with

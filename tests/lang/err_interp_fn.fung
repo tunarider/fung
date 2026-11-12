@@ -1,0 +1,5 @@
+# Nor a handle such as a function (D46); `str(x)` shows anything.
+print(str(print))
+# expect: <fn print>
+print("f=${print}")
+# expect-error: E0519

@@ -12,7 +12,7 @@ use std::rc::Rc;
 
 use crate::value::{List, Range, Value};
 use crate::vm::channel::{self, Received, RecvWait, Try};
-use crate::vm::pieces::{STEP_ITEMS, over};
+use crate::vm::pieces::{Piece, STEP_ITEMS};
 use crate::vm::{Cont, Flow, Next, Receiver, Stop, Task, Wake};
 
 /// Where a walk over a list, a range or a receiving end is.
@@ -213,7 +213,7 @@ struct Walker<P> {
 
 impl<P: PerItem> Walker<P> {
     fn advance(&mut self, t: &mut Task<'_>) -> Result<Next, Stop> {
-        let mut piece = std::time::Instant::now();
+        let mut piece = Piece::new();
         loop {
             let x = match self.pending.take() {
                 Some(x) => x,
@@ -236,7 +236,7 @@ impl<P: PerItem> Walker<P> {
                 self.count += 1;
                 if self.count == STEP_ITEMS {
                     self.count = 0;
-                    if over(&mut piece) && t.piece_done() {
+                    if piece.over() && t.piece_done() {
                         self.pieced = true;
                         return Ok(Next::Park(Wake::soon()));
                     }
@@ -354,7 +354,7 @@ struct Drainer<P> {
 
 impl<P: Collect> Drainer<P> {
     fn advance(&mut self, t: &mut Task<'_>) -> Result<Drained, Stop> {
-        let mut piece = std::time::Instant::now();
+        let mut piece = Piece::new();
         loop {
             match self.cur.next(t)? {
                 Step::Item(x) => {
@@ -364,7 +364,7 @@ impl<P: Collect> Drainer<P> {
                     self.count += 1;
                     if self.count == STEP_ITEMS {
                         self.count = 0;
-                        if over(&mut piece) && t.piece_done() {
+                        if piece.over() && t.piece_done() {
                             self.pieced = true;
                             return Ok(Drained::Wait(Wake::soon()));
                         }

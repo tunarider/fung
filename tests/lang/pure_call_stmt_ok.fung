@@ -1,0 +1,12 @@
+# Calls that may do something stay statements (D39): a function that
+# takes a function, an effect, a user function, and `_ =` on purpose.
+each([1], x => print(x))
+# expect: 1
+map([2], x => print(x))
+# expect: 2
+fn show(x) = print(x)
+show(3)
+# expect: 3
+_ = sort([3, 1])
+print("done")
+# expect: done

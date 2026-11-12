@@ -1,0 +1,5 @@
+# A call to a module's function is checked when the file is compiled (D43).
+import path
+print("never")
+print(path.join("a", "b", sep: "/"))
+# expect-error: E0406

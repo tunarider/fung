@@ -1,0 +1,8 @@
+# The check a tail call takes along runs when the frame returns, and the
+# error points at the return type's function (D44).
+fn label(n) = n > 0 then "pos" else 0
+fn sign(n) -> int = label(n)
+print(sign(-1))
+# expect: 0
+print(sign(1))
+# expect-error: E0404

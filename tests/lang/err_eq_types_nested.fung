@@ -1,0 +1,3 @@
+# The same inside collections, where == compares the pair (D40).
+print([1, "a"] == [1, 2])
+# expect-error: E0517

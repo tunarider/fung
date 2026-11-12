@@ -1,4 +1,4 @@
 # `try_map` takes results as `?` does (SP13): an `f` that answers nil is
 # E0604, as `nil?` is.
-print(try_map(["a"], x => find([1], y => y > 3)))
+print(try_map(["a"], _x => find([1], y => y > 3)))
 # expect-error: E0604

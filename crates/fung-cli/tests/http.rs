@@ -632,16 +632,17 @@ const ARG_ERRORS: &[(&str, &str, &str)] = &[
         "error[E0403]: argument `ready` must be fn | nil, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |           ^\n  |\n",
         "   -e:2       <entry>\n",
     ),
-    // the call itself is wrong: no frame of http.fung yet
+    // the call itself is wrong: caught when the file is compiled (D43),
+    // so there is no call path and the exit code is 2
     (
         "http.get()",
         "error[E0407]: missing argument `url`\n  --> -e:2:9\n  |\n2 | http.get()\n  |         ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "",
     ),
     (
         "http.get(\"x\", nope: 1)",
         "error[E0406]: get has no argument named `nope`\n  --> -e:2:9\n  |\n2 | http.get(\"x\", nope: 1)\n  |         ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "",
     ),
 ];
 
@@ -862,7 +863,11 @@ fn argument_errors_point_at_the_call() {
     let mut failures = Vec::new();
     for (prog, head, frames) in ARG_ERRORS {
         let src = format!("import http\n{prog}");
-        let path = " call path (innermost first):\n";
+        let (path, code) = if frames.is_empty() {
+            ("", 2)
+        } else {
+            (" call path (innermost first):\n", 1)
+        };
         let want = (
             if prog.starts_with("print(1)") {
                 "1\n"
@@ -871,7 +876,7 @@ fn argument_errors_point_at_the_call() {
             }
             .to_string(),
             format!("{head}{path}{frames}"),
-            Some(1),
+            Some(code),
         );
         let r = run(&bin, &src);
         if r != want {
@@ -1168,7 +1173,7 @@ fn bodies_past_the_limit_are_errors() {
         let url = format!("http://127.0.0.1:{}/", fake.port);
         let got = run(&bin, &format!("import http\nprint(http.get(\"{url}\"))"));
         let want = format!(
-            "Err({{kind: 'network, message: \"cannot request `{url}`: response body longer than 67108864 bytes\"}})\n"
+            "Err({{kind: 'io, message: \"cannot request `{url}`: response body longer than 67108864 bytes\"}})\n"
         );
         assert_eq!(got, (want, String::new(), Some(0)));
     }
@@ -1564,6 +1569,15 @@ print(http.request("HEAD", URL + "/headchunks", timeout: 2s))"#,
         vec![chain(11)],
         &[],
     ));
+    // `redirects` sets the limit (D73): 0 follows none and gives the
+    // redirect itself, n follows n and the next is an error
+    v.push(multi(
+        r#"print(http.get(URL + "/r/0", redirects: 0))
+print(http.get(URL + "/r/0", redirects: 2))
+print(http.get(URL + "/r/0", redirects: 1))"#,
+        vec![chain(2)],
+        &[],
+    ));
     v.push(multi(
         r#"print(http.post(URL + "/loop", "x"))"#,
         vec![routes(vec![("*", redirect(307, "/loop"))])],
@@ -1679,7 +1693,7 @@ print(http.request("PUT", "http://example.test/s6", "b", headers: h))"#
     v
 }
 
-const REDIRECT_CASES: usize = 17;
+const REDIRECT_CASES: usize = 18;
 
 #[test]
 fn redirects_match_the_expected_output() {
@@ -2082,7 +2096,7 @@ fn no_proxy_patterns_choose_the_proxy() {
             .map(|(u, _)| format!("{:?}", u.replace("REFUSED", &refused)))
             .collect();
         let src = format!(
-            "import http\nfn probe(u) = match http.get(u, timeout: 3s):\n  Ok(r)  => r.body == \"via-proxy\" then \"proxy\" else \"direct\"\n  Err(e) => \"via-proxy\" in e.message then \"proxy\" else \"direct\"\n;;\nprint(scope(fn(s):\n  ts = map([{}], u => spawn(s, () => probe(u)))\n  join(map(ts, t => await(t)), \" \")\n;;))",
+            "import http\nfn probe(u) = match http.get(u, timeout: 3s):\n  Ok(r)  => r.body == \"via-proxy\" then \"proxy\" else \"direct\"\n  Err(e) => \"via-proxy\" in e.message then \"proxy\" else \"direct\"\n;;\nprint(scope(fn(s):\n  ts = map([{}], u => spawn(s, () => probe(u)))\n  join(map(ts, t => await(t)!), \" \")\n;;)!)",
             list.join(", ")
         );
         let addr = format!("http://127.0.0.1:{}", proxy.port);
@@ -2611,6 +2625,70 @@ fn max_body_bounds_the_answer() {
     );
 }
 
+/// The kind of a failed request tells a mistake from a failure worth
+/// another try (D70): the syntax of a URL, scheme, address or proxy value
+/// is `'invalid`, a transport failure `'network`, an answer past
+/// `max_body` `'io` (as any outside text over its limit, 11-10 D22). The
+/// server's address is checked the same way.
+#[test]
+fn failure_kinds_tell_mistakes_from_failures() {
+    let kind = |call: &str, env: &[(String, String)]| {
+        let src = format!(
+            "import http\nprint(match {call}:\n  Ok(v) => v.status\n  Err(e) => e.kind\n;;)"
+        );
+        let o = run_env(&fung_bin(), &src, env);
+        assert_eq!(o.1, "", "{call}");
+        o.0.trim_end().to_string()
+    };
+    let port = refused_port();
+    let f = Fake::start(ok(
+        "HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\n01234567890123456789",
+    ));
+    let proxy = [("HTTP_PROXY".to_string(), "http:/proxy:3128".to_string())];
+    for (call, env, want) in [
+        (
+            format!("http.get(\"http://127.0.0.1:{port}/\")"),
+            &[][..],
+            "'network",
+        ),
+        ("http.get(\"ftp://x/\")".to_string(), &[][..], "'invalid"),
+        ("http.get(\"http://\")".to_string(), &[][..], "'invalid"),
+        ("http.get(\"x\")".to_string(), &[][..], "'invalid"),
+        (
+            "http.get(\"http://exa mple.com/\")".to_string(),
+            &[][..],
+            "'invalid",
+        ),
+        (
+            "http.get(\"http://127.0.0.1:99999/\")".to_string(),
+            &[][..],
+            "'invalid",
+        ),
+        (
+            "http.get(\"http://example.com/\")".to_string(),
+            &proxy[..],
+            "'invalid",
+        ),
+        (
+            format!("http.get(\"http://127.0.0.1:{}/\", max_body: 3)", f.port),
+            &[][..],
+            "'io",
+        ),
+        (
+            "http.serve(\"a\", _ => \"\")".to_string(),
+            &[][..],
+            "'invalid",
+        ),
+        (
+            "http.serve(\"127.0.0.1:99999\", _ => \"\")".to_string(),
+            &[][..],
+            "'invalid",
+        ),
+    ] {
+        assert_eq!(kind(&call, env), want, "{call}");
+    }
+}
+
 /// A CONNECT answered with any 2xx is the tunnel (L13 H9, RFC 9110
 /// 9.3.6), its framing headers ignored.
 #[test]
@@ -2775,7 +2853,7 @@ fn unsupported_proxies_are_errors() {
         let got = run_env(&bin, &src, &[(var.to_string(), proxy.to_string())]);
         let at = proxy.split("://").nth(1).unwrap();
         let want = format!(
-            "Err({{kind: 'network, message: \"cannot request `{url}`: proxy `{at}`: {why}\"}})\n"
+            "Err({{kind: 'invalid, message: \"cannot request `{url}`: proxy `{at}`: {why}\"}})\n"
         );
         assert_eq!(got, (want, String::new(), Some(0)));
     }
@@ -2823,9 +2901,12 @@ fn handle(req) = match req.path:
   "/switch"    => {status: 101}
   "/odd"       => {status: 299, body: "odd"}
   "/quit"      => exit(3)
-  p when starts_with(p, "/echo") or p == "" or p == "*" => json.stringify(req)
+  p when starts_with(p, "/echo") or p == "" or p == "*" => json.stringify(as_json(req))
   _            => {status: 404, body: "no such page"}
 ;;
+# JSON has no tuples (D80): the pairs go as lists
+fn lists(ps) = map(ps, ((k, v)) => [k, v])
+fn as_json(req) = put(put(req, "query_pairs", lists(req.query_pairs)), "header_lines", lists(req.header_lines))
 print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))
 "#;
 
@@ -3575,17 +3656,25 @@ fn a_panicking_test_leaves_no_server_behind() {
 
 /// The query goes out escaped as the path does (LB1, RFC 3986 3.4,
 /// RFC 9112 3.2): the characters a query may hold and valid `%XX` as
-/// written, any other byte (a space, UTF-8, a stray `%`) as `%XX`.
+/// written, any other byte (a space, UTF-8) as `%XX`. A stray `%` is
+/// refused, as in the path (D75).
 #[test]
 fn the_query_is_escaped_in_the_request_line() {
     let fake = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
     let src = format!(
-        "import http\nu = \"http://127.0.0.1:{}\"\nprint(http.get(u + \"/a b?x=1 HTTP/1.0 2\")!.status)\nprint(http.get(u + \"/p?q=한글&r=%41%zz%&s=a/b?c:d@e!$'()*+,;=-._~[]\")!.status)\nprint(http.get(u + \"/p?\")!.status)",
+        "import http\nu = \"http://127.0.0.1:{}\"\nprint(http.get(u + \"/a b?x=1 HTTP/1.0 2\")!.status)\nprint(http.get(u + \"/p?q=한글&r=%41&s=a/b?c:d@e!$'()*+,;=-._~[]\")!.status)\nprint(http.get(u + \"/p?\")!.status)\nprint(http.get(u + \"/p?r=%zz\"))\nprint(http.get(u + \"/p?r=%\"))",
         fake.port
     );
     assert_eq!(
         run(&fung_bin(), &src),
-        ("200\n200\n200\n".into(), String::new(), Some(0))
+        (
+            format!(
+                "200\n200\n200\nErr({{kind: 'invalid, message: \"cannot request `http://127.0.0.1:{0}/p?r=%zz`: invalid URL: invalid escape `%zz`\"}})\nErr({{kind: 'invalid, message: \"cannot request `http://127.0.0.1:{0}/p?r=%`: invalid URL: invalid escape `%`\"}})\n",
+                fake.port
+            ),
+            String::new(),
+            Some(0)
+        )
     );
     let lines: Vec<String> = fake
         .take()
@@ -3602,7 +3691,7 @@ fn the_query_is_escaped_in_the_request_line() {
         lines,
         [
             "GET /a%20b?x=1%20HTTP/1.0%202 HTTP/1.1",
-            "GET /p?q=%ED%95%9C%EA%B8%80&r=%41%25zz%25&s=a/b?c:d@e!$'()*+,;=-._~%5B%5D HTTP/1.1",
+            "GET /p?q=%ED%95%9C%EA%B8%80&r=%41&s=a/b?c:d@e!$'()*+,;=-._~%5B%5D HTTP/1.1",
             "GET /p? HTTP/1.1",
         ]
     );
@@ -3683,7 +3772,8 @@ fn status_lines_need_three_digits_and_http_1() {
 /// is a 1xx status (LB12); the handler sees `host` (LB4); an HTTP/1.0
 /// request with Transfer-Encoding is 400 (LB13); a body too large is 413
 /// before any `100 Continue`, and HTTP/1.0's Expect is ignored (LB16); a
-/// query of more than 10000 pairs is 400 (LB22).
+/// query of more than 10000 pairs is 400 (LB22). A key of the answer map
+/// other than status, body and headers is a bad answer (D67).
 #[test]
 fn the_server_checks_answers_and_requests() {
     let src = r#"import http
@@ -3693,6 +3783,7 @@ fn handle(req) = match req.path:
   "/badvalue" => {headers: {"X-A": "a\r\nSet-Cookie: evil=1"}}
   "/nul"      => {headers: {"X-N": "n\u{0}ul"}}
   "/early"    => {status: 103, headers: {link: "</a>"}, body: "x"}
+  "/unknown"  => {statu: 404, boddy: "x"}
   "/host"     => json.stringify(req.headers)
   _           => "body ${byte_len(req.body)}"
 ;;
@@ -3702,7 +3793,7 @@ print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))"#;
         let got = String::from_utf8_lossy(&exchange(&srv.addr, req.to_vec(), half)).into_owned();
         got.lines().next().unwrap_or("").to_string()
     };
-    for path in ["/badname", "/badvalue", "/nul", "/early"] {
+    for path in ["/badname", "/badvalue", "/nul", "/early", "/unknown"] {
         assert_eq!(
             status(&get(path), false),
             "HTTP/1.1 500 Internal Server Error",
@@ -3743,6 +3834,7 @@ print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))"#;
         "header `X-A` has a control character in its value",
         "header `X-N` has a control character in its value",
         "`status` must be between 200 and 599, got 103",
+        "unknown key `statu`, expected status, body or headers",
     ] {
         assert!(
             err.contains(&format!("http: bad handler response: {why}\n")),
@@ -3891,7 +3983,8 @@ fn the_method_and_headers_go_as_written() {
 fn the_handler_gets_the_request_as_received() {
     let src = r#"import http
 import json
-fn handle(req) = json.stringify({target: req.target, host: req.host, path: req.path, query: req.query, query_pairs: req.query_pairs, header_lines: req.header_lines, headers: req.headers})
+fn pairs_of(ps) = map(ps, ((k, v)) => [k, v])
+fn handle(req) = json.stringify({target: req.target, host: req.host, path: req.path, query: req.query, query_pairs: pairs_of(req.query_pairs), header_lines: pairs_of(req.header_lines), headers: req.headers})
 print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))"#;
     let srv = serve(&fung_bin(), src);
     let body = |req: &[u8]| {

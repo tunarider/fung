@@ -49,12 +49,12 @@ fung의 시각 값은 순간과 함께 **시간대를 기억**한다. 출력하�
     <tr><td><code>mm</code></td><td>두 자리 분</td><td><code>05</code></td></tr>
     <tr><td><code>ss</code></td><td>두 자리 초</td><td><code>07</code></td></tr>
     <tr><td><code>SSS</code></td><td>밀리초 세 자리</td><td><code>123</code></td></tr>
-    <tr><td><code>Z</code></td><td>오프셋(콜론 있음)</td><td><code>+09:00</code></td></tr>
-    <tr><td><code>ZZ</code></td><td>오프셋(콜론 없음)</td><td><code>+0900</code></td></tr>
+    <tr><td><code>Z</code></td><td>오프셋(콜론 있음). 오프셋 0은 <code>Z</code></td><td><code>+09:00</code>, <code>Z</code></td></tr>
+    <tr><td><code>ZZ</code></td><td>오프셋(콜론 없음). 오프셋 0은 <code>Z</code></td><td><code>+0900</code>, <code>Z</code></td></tr>
   </tbody>
 </table>
 
-읽을 때는 자리 수를 정확히 맞춰야 한다(`9:05`는 `HH:mm`에 맞지 않는다). 12시간제(AM/PM)와 이스케이프는 없다. 형식은 코드가 정하는 것이라, 틀린 형식은 런타임 에러 E0403이다: `time.format`의 형식은 토큰이 하나 이상 있고 `%`가 없어야 하고(`"%Y-%m-%d"`는 strftime의 꼴이다), `time.parse`의 형식은 같은 필드를 두 번 쓰지 않는다(`MM`과 `MMM`, `YYYY`와 `YY`, `Z`와 `ZZ`는 각각 같은 필드다).
+읽을 때는 자리 수를 정확히 맞춰야 한다(`9:05`는 `HH:mm`에 맞지 않는다). 오프셋 토큰은 쓸 때 오프셋 0을 기본 출력처럼 `Z`로 쓰고, 읽을 때도 숫자 오프셋과 함께 `Z`(소문자 `z`도)를 받는다. 그래서 `time.format`으로 쓴 글을 같은 형식의 `time.parse`가 다시 읽는다. 12시간제(AM/PM)와 이스케이프는 없다. 형식은 코드가 정하는 것이라, 틀린 형식은 런타임 에러 E0403이다: `time.format`의 형식은 토큰이 하나 이상 있고 `%`가 없어야 하고(`"%Y-%m-%d"`는 strftime의 꼴이다), `time.parse`의 형식은 같은 필드를 두 번 쓰지 않는다(`MM`과 `MMM`, `YYYY`와 `YY`, `Z`와 `ZZ`는 각각 같은 필드다).
 
 ## 함수 {#functions}
 
@@ -137,7 +137,7 @@ print(elapsed >= 50ms)
 
 `format`이 있으면 [형식 토큰](#tokens)대로 읽는다. 시각은 한 순간이므로 형식에는 연(`YYYY`·`YY`)·월(`MM`·`MMM`)·일(`DD`)이 모두 있어야 한다. 형식에 없는 시각 필드는 0이다. 형식에 시간대 토큰(`Z`·`ZZ`)이 없으면 로컬 시간대의 벽시계로 읽는다. 숫자 오프셋으로 읽은 값은 그 오프셋을 그대로 기억한다.
 
-로컬 시간으로 읽은 벽시계 시각이 서머타임 경계에 걸리면: 시계를 앞당겨 **없는** 시각(빈틈)은 빈틈만큼 뒤로 밀리고(`02:30` → `03:30`), 시계를 되돌려 **두 번 있는** 시각은 이른 쪽이다.
+로컬 시간으로 읽은 벽시계 시각이 서머타임 경계에 걸리면: 시계를 앞당겨 **없는** 시각(빈틈)은 2월 30일처럼 `Err({kind: 'parse})`이고(``no such local time: the clocks skip it (daylight saving)``), 시계를 되돌려 **두 번 있는** 시각은 이른 쪽이다.
 
 #### 매개변수
 
@@ -150,7 +150,7 @@ print(elapsed >= 50ms)
 
 #### 에러
 
-- `Err({kind: 'parse, message})`: 형식에 맞지 않거나 범위를 넘는다(13월, 2월 30일). `message`는 ``cannot parse `2026-13-04T09:05:07Z` as a time: month out of range``처럼 이유를 담는다. `ddd`가 날짜의 요일과 다르면 ``weekday Mon does not match 2026-01-02 (Fri)``다.
+- `Err({kind: 'parse, message})`: 형식에 맞지 않거나 범위를 넘는다(13월, 2월 30일, 서머타임 빈틈의 로컬 시각). `message`는 ``cannot parse `2026-13-04T09:05:07Z` as a time: month out of range``처럼 이유를 담는다. `ddd`가 날짜의 요일과 다르면 ``weekday Mon does not match 2026-01-02 (Fri)``다.
 - `s`가 문자열이 아니거나, `format`에 연·월·일 중 빠진 것이 있거나(`"HH:mm"`), 같은 필드를 두 번 쓰면(`"YYYY-MM-DD MMM"`) 런타임 에러 E0403. 시각만 적힌 글은 날짜를 붙여 읽는다: `time.parse("2026-10-04 " + s, "YYYY-MM-DD HH:mm")`.
 
 #### 예제
@@ -190,7 +190,7 @@ print(t, time.utc(t))
 ```fung run env="TZ=EST5EDT,M3.2.0,M11.1.0"
 import time
 
-print(time.parse("2026-03-08 02:30", "YYYY-MM-DD HH:mm")!)
+print(time.parse("2026-03-08 02:30", "YYYY-MM-DD HH:mm"))
 print(time.parse("2026-11-01 01:30", "YYYY-MM-DD HH:mm")!)
 ```
 
@@ -356,6 +356,8 @@ print(time.unix(time.parse("1969-12-31T23:59:59Z")!))
 정수 `n`초를 로컬 시간대의 시각으로 돌려준다. 밀리초로 된 값은 `n // 1000`으로 나눠서 넘긴다.
 
 받는 수는 로컬 시간대로 본 날짜가 0000~9999년인 것이다. 다른 시간대에서 범위 끝에 있는 시각의 [`time.unix`](#fn-time-unix)는 이 범위 밖일 수 있다(하루 미만): 그 시각은 로컬 시간대로 보일 수 없으므로 되돌리지 못한다.
+
+범위 밖의 수는 `Err`가 아니라 런타임 에러(E0403)다. 파일·JSON·명령 출력에서 읽은 수처럼 바깥에서 온 값이면 넘기기 전에 범위를 확인한다(0000~9999년은 대략 `-62167219200`부터 `253402300799`까지이고, 로컬 시간대에 따라 하루 안쪽으로 달라진다).
 
 #### 매개변수
 

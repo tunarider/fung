@@ -247,7 +247,7 @@ print(shapes |&gt; map(area))
 print(type_of(Rect(2, 5)), Circle(1) == Circle(1))</code></pre><pre class="out plain"><code>[Circle(1), Rect(2, 5), Square(3)]
 [3.14, 10, 9]
 'Rect true</code></pre></div>
-<p>괄호 없이 쓴 태그 <code>Red</code>는 심볼 <code>'Red</code>와 같은 값이다. 몇 가지 중 하나를 고르는 값(열거형, enumeration)에 쓴다. 9장의 <code>Ok</code>와 <code>Err</code>도 특별한 문법이 아니라 이런 태그다.</p>
+<p>괄호 없이 쓴 태그 <code>Red</code>는 심볼이다(대문자로 시작하는 심볼은 따옴표 없이 이렇게만 쓴다). 몇 가지 중 하나를 고르는 값(열거형, enumeration)에 쓴다. 9장의 <code>Ok</code>와 <code>Err</code>도 특별한 문법이 아니라 이런 태그다.</p>
 <div class="run"><pre><code>fn hex(color) = match color:
   Red   =&gt; &quot;#ff0000&quot;
   Green =&gt; &quot;#00ff00&quot;
@@ -255,7 +255,7 @@ print(type_of(Rect(2, 5)), Circle(1) == Circle(1))</code></pre><pre class="out p
 ;;
 
 print(hex(Red), hex(Blue))
-print(Red == 'Red, type_of(Red))</code></pre><pre class="out plain"><code>#ff0000 #0000ff
+print(Red == sym(&quot;Red&quot;), type_of(Red))</code></pre><pre class="out plain"><code>#ff0000 #0000ff
 true 'sym</code></pre></div>
 <div class="exercise"><b>로그 줄 나누기</b>
 <p><code>&quot;ERROR disk full&quot;</code>, <code>&quot;WARN slow&quot;</code>, <code>&quot;INFO started&quot;</code> 같은 로그 줄을 받아, 수준(<code>ERROR</code>·<code>WARN</code>·그 밖)에 따라 다른 문자열을 돌려주는 함수 <code>triage(line)</code>를 써 보자. <code>ERROR</code>면 <code>&quot;page: &lt;나머지&gt;&quot;</code>, <code>WARN</code>이면 <code>&quot;ticket: &lt;나머지&gt;&quot;</code>, 그 밖이면 <code>&quot;skip&quot;</code>이다. 빈 줄도 <code>&quot;skip&quot;</code>이다. 힌트: <code>split(line, &quot; &quot;)</code>의 결과를 리스트 패턴으로 나눈다.</p>
@@ -295,14 +295,21 @@ old: stopped</code></pre></div>
 <p><code>match</code>는 첫 번째로 맞는 절 하나만 실행한다. 그래서 좁은 패턴을 위에, 넓은 패턴을 아래에 둔다. <code>_</code>를 맨 위에 두면 그 아래 절은 영영 실행되지 않는다. 시험 문제의 채점표를 위에서부터 읽어 내려가다 처음 해당하는 줄에서 멈추는 것과 같다.</p>
 </div>
 <div class="box mistake"><b>패턴의 이름은 늘 새 변수다</b>
-<p>패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 <strong>새 이름을 묶는다</strong>. 아래에서 <code>wanted</code> 절은 "값이 <code>wanted</code>와 같으면"이 아니라 "무엇이든 받아서 <code>wanted</code>라고 부른다"는 뜻이라 늘 맞는다. 에러도 나지 않으니 찾기 어려운 버그가 된다.</p>
+<p>패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 <strong>새 이름을 묶는다</strong>. 그래서 아래의 <code>wanted</code> 절은 "값이 <code>wanted</code>와 같으면"이 아니라 "무엇이든 받아서 <code>wanted</code>라고 부른다"는 뜻이 된다. 늘 맞는 절이라 찾기 어려운 버그가 되므로, fung은 보이는 이름을 다시 묶는 것을 에러 E0240으로 막는다.</p>
 <div class="run"><pre><code>wanted = &quot;db&quot;
 
 fn pick(name) = match name:
   wanted =&gt; &quot;matched ${wanted}&quot;
 ;;
 
-print(pick(&quot;web&quot;))</code></pre><pre class="out plain"><code>matched web</code></pre></div>
+print(pick(&quot;web&quot;))</code></pre><pre class="out err plain" data-code="2"><code>error[E0240]: `wanted` hides a top-level name
+  --&gt; example.fung:4:3
+  |
+4 |   wanted =&gt; &quot;matched ${wanted}&quot;
+  |   ^^^^^^
+  |
+  note: `wanted` is a top-level name bound on line 1
+ help: a visible name means one thing: give the new one a name of its own</code></pre></div>
 <p>바깥 값과 비교하려면 가드를 쓴다: <code>n when n == wanted =&gt; …</code>.</p>
 </div>
 <div class="box tip"><b>함수에 받을 종류를 적어 두기</b>
@@ -330,10 +337,10 @@ print(map([200, 301, 404, 403, 503], kind))</code></pre><pre class="out plain"><
 <p><code>[&quot;deploy&quot;, &quot;prod&quot;]</code>, <code>[&quot;rollback&quot;, &quot;prod&quot;, &quot;v12&quot;]</code>, <code>[]</code>, <code>[&quot;oops&quot;]</code>처럼 들어오는 명령어 리스트를 리스트 패턴으로 나눠, 각각 <code>&quot;deploy to prod&quot;</code>, <code>&quot;rollback prod to v12&quot;</code>, <code>&quot;usage: deploy|rollback&quot;</code>, <code>&quot;unknown command oops&quot;</code>를 돌려주는 함수를 써 보자.</p>
 <details><summary>풀이 보기</summary>
 <div class="run"><pre><code>fn describe(cmd) = match cmd:
-  [&quot;deploy&quot;, env]        =&gt; &quot;deploy to ${env}&quot;
-  [&quot;rollback&quot;, env, ver] =&gt; &quot;rollback ${env} to ${ver}&quot;
-  []                     =&gt; &quot;usage: deploy|rollback&quot;
-  [other, ...]           =&gt; &quot;unknown command ${other}&quot;
+  [&quot;deploy&quot;, target]        =&gt; &quot;deploy to ${target}&quot;
+  [&quot;rollback&quot;, target, ver] =&gt; &quot;rollback ${target} to ${ver}&quot;
+  []                        =&gt; &quot;usage: deploy|rollback&quot;
+  [other, ...]              =&gt; &quot;unknown command ${other}&quot;
 ;;
 for cmd in [[&quot;deploy&quot;, &quot;prod&quot;], [&quot;rollback&quot;, &quot;prod&quot;, &quot;v12&quot;], [], [&quot;oops&quot;]]:
   print(describe(cmd))

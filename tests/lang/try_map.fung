@@ -22,9 +22,9 @@ print(total(["4", "5"]), total(["4", "y"]))
 print(try_map([Ok(1), Ok(2)], r => r))
 # expect: Ok([1, 2])
 
-# ? stays fine in a named fn handed to map, and in other lambdas.
+# ? stays fine in a named fn handed to map, and in an anonymous fn (D42).
 fn twice(s) = Ok(parse_int(s)? * 2)
 print(map(["1", "x"], twice))
 # expect: [Ok(2), Err({kind: 'parse, message: "not an integer: \"x\""})]
-print(with(() => "7", s => Ok(parse_int(s)?), _ => nil))
+print(with(() => "7", fn(s): Ok(parse_int(s)?) ;;, _ => nil))
 # expect: Ok(7)

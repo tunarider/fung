@@ -30,9 +30,12 @@ fn pad(n: i64, width: usize) -> String {
 }
 
 /// `+HH:MM` (`colon`) or `+HHMM`, with the seconds when the offset has
-/// them.
+/// them; offset 0 is `Z`, as in the default output (D71).
 fn zone(t: &Time, colon: bool) -> String {
-    crate::value::offset_text(t.zone().1, colon)
+    match t.zone().1 {
+        0 => "Z".to_string(),
+        off => crate::value::offset_text(off, colon),
+    }
 }
 
 /// Renders `t` with the token layout.
@@ -96,9 +99,11 @@ fn digits<'a>(s: &'a [u8], n: usize, what: &str) -> Result<(i64, &'a [u8]), Stri
     Ok((v, &s[n..]))
 }
 
-/// `+HH:MM[:SS]` (`colon`) or `+HHMM`: the offset in seconds and the rest.
+/// `+HH:MM[:SS]` (`colon`) or `+HHMM`, or `Z` (either case, as in RFC
+/// 3339) for offset 0 (D71): the offset in seconds and the rest.
 fn parse_zone(s: &[u8], colon: bool) -> Result<(i32, &[u8]), String> {
     let sign = match s.first() {
+        Some(b'Z' | b'z') => return Ok((0, &s[1..])),
         Some(b'+') => 1,
         Some(b'-') => -1,
         _ => return Err("expected a time zone offset".into()),
@@ -183,7 +188,8 @@ pub(crate) fn formats_something(layout: &str) -> bool {
 
 /// Reads `s` with the token layout. Fields the layout does not mention are
 /// zero (month and day one); without a zone token the time is in `local`.
-/// Out-of-range fields (month 13, Feb 30) are errors.
+/// Out-of-range fields (month 13, Feb 30) are errors, and so is a local
+/// wall time in a daylight saving gap (D81).
 pub(crate) fn parse_time(s: &str, layout: &str, local: &'static Zone) -> Result<Time, String> {
     let (mut year, mut month, mut day) = (0, 1, 1);
     let (mut hour, mut min, mut sec, mut ms) = (0, 0, 0, 0);
@@ -270,6 +276,14 @@ pub(crate) fn parse_time(s: &str, layout: &str, local: &'static Zone) -> Result<
         Some(off) => Loc::Fixed(off),
         None => Loc::Zone(local),
     };
+    // A wall time the local clocks skip names no instant (D81).
+    if fixed.is_none() {
+        let wall =
+            crate::value::days_from_civil(year, month, day) * 86_400 + hour * 3600 + min * 60 + sec;
+        if local.skips(wall) {
+            return Err("no such local time: the clocks skip it (daylight saving)".into());
+        }
+    }
     Time::from_wall(year, month, day, hour, min, sec, ms * 1_000_000, loc)
         .ok_or_else(|| "time out of range".to_string())
 }

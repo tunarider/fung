@@ -60,7 +60,7 @@ lede: fung의 태스크는 태스크 범위 안에서만 태어나고, 범위는
 ```fung run exit=1 error=E0502
 fn slow(name) = with(
   () => name,
-  n => sleep(10s),
+  _n => sleep(10s),
   n => print("release", n),
 )
 
@@ -92,7 +92,7 @@ r = scope(fn(s):
   t = spawn(s, () => sleep(10s))
   cancel(t)
   await(t)
-;;)
+;;)!
 print(r)
 
 r2 = scope(fn(s):
@@ -248,7 +248,7 @@ fn close_conn(c):
   fail("close failed")
 ;;
 
-with(() => "db", c => 1 / 0, close_conn)
+with(() => "db", _c => 1 / 0, close_conn)
 ```
 
 ## 정지 요청과 신호 {#stop}
@@ -315,14 +315,14 @@ scope(fn(s):
     wait_closed(stop)
     print("got the stop request: draining")
   ;;)
-  exec(["sh", "-c", "kill -TERM $PPID"])!
+  exec(["sh", "-c", `kill -TERM $PPID`])!
 ;;)
 print("finished cleanly")
 ```
 
 ```fung run exit=143
 fn work(_):
-  exec(["sh", "-c", "kill -TERM $PPID"])!
+  exec(["sh", "-c", `kill -TERM $PPID`])!
   sleep(10s)
 ;;
 

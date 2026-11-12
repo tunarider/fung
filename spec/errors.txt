@@ -23,6 +23,15 @@ E0123	`_` cannot be a named argument		`_` fills a position; for a named one writ
 E0124	an anonymous function cannot be written with `=`		anonymous functions take a block: `fn(x): … ;;`, or write a lambda `x => …`
 E0125	`%s` binds looser than `..`, so it cannot be an end of a slice		put the end in parentheses: `xs[(a or b)..]`
 E0126	a positional argument cannot follow a named one		put the positional arguments first: `f(1, b: 2)`
+E0127	`??` and `|>` cannot be mixed without parentheses		say which one goes first: `(x |> f) ?? d` or `x |> (f ?? d)`
+E0128	a symbol is not written with an uppercase letter: `'%s`		an uppercase symbol is written as the tag, without the quote: `Red`
+E0129	`$%s` in a string is not interpolation		write `${name}` for the value, or `\$name` for the text
+E0130	a type annotation has no element type		write `list` or `map` alone: the elements are not checked, so they are not written
+E0131	this statement comes after `return`, so it never runs	never runs	remove it, or move the `return` after it
+E0132	`return` used as a value		`return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+E0133	a spread `...` cannot stand %s		`...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
+E0134	`%s` is not a keyword in fung		
+E0135	number %q is out of range		
 E0204	undefined name `%s`	not found in this scope	
 E0205	cannot reassign `%s` here: it was defined outside this block		a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 E0206	`%s` is not visible here: it was defined inside a block		assign the block's value instead: `x = if … ;;`
@@ -31,30 +40,35 @@ E0209	cannot reassign `%s`: it is a function or an imported name
 E0210	function `%s` is defined twice		
 E0211	%s %s		use `exit()` to stop a script early
 E0212	unknown type `%s`		
-E0213	return inside a for body		`for` builds a list; use `find`, `all`/`any`, or `fold` instead
+E0213	return inside a for body		not used: merged into E0237
 E0214	`?` outside a function		use `!` to stop the script on Err
 E0215	`_` can only be a call argument or a pattern		
 E0216	alternatives of a pattern must bind the same names		
 E0217	type `%s` is defined twice		
 E0218	type `%s` refers to itself		
 E0219	type aliases must be at the top level		
-E0220	`?` inside a for body		`for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`
+E0220	`?` inside a for body		not used: merged into E0237
 E0221	name `%s` is bound twice in one pattern		use a guard to compare the two positions: `[a, b] when a == b`
 E0222	`%s` is a built-in type and cannot be a type alias		give the alias another name
 E0223	`if` without `else` used as a value: it is nil when the condition is false	this if has no else	add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 E0224	a block used as a value %s, so the value is nil		end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 E0225	`%s` starts with an uppercase letter, so it is a tag and cannot name a variable	this is a tag	name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
-E0226	`?` inside a lambda given to %s		the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+E0226	`?` inside a lambda given to %s		not used: merged into E0237
 E0227	`_` in a call on the right of `|>`		the piped value is always the first argument; to put it elsewhere, call a parenthesised partial: `x |> (f(1, _))` (or a lambda: `x |> (v => f(1, v))`)
-E0228	the rest parameter `...%s` is always a list		annotate it `list` (or not at all); `list[int]` names the elements without checking them
+E0228	the rest parameter `...%s` is always a list		annotate it `list`, or not at all
 E0229	`%s` on the right of `|>` applies to the call, not to the pipe		put the pipe in parentheses: `(xs |> try_map(f))?`
 E0230	too many %s (limit %d)		
 E0231	a block used as a value %s, so the value is nil		not used: merged into E0224
-E0232	`%s` takes no element type		only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone
+E0232	`%s` takes no element type		not used: element types are gone, see E0130
 E0233	the test name %q %s		give each test in a file its own name: the report names a failed test by it
 E0234	%s is computed and discarded		use the value, or write `_ = …` to discard it on purpose
-E0235	this arm matches everything, so the arms after it never run	matches everything	move it last, or give it a guard: `n when n > 0 =>`
+E0235	this arm %s		move it last, or give it a guard: `n when n > 0 =>`
 E0236	`%s` takes exactly one value, found %d		put several values in a tuple: `Ok((a, b))` or `Err((a, b))`
+E0237	`%s` inside %s		a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+E0238	cannot bind `%s` again: a top-level name is bound once		give the new value a name of its own, or compute it in one expression (`x = if … ;;`, `fold`)
+E0239	unused %s `%s`		remove it, or start its name with `_` if it is kept on purpose
+E0240	`%s` hides %s		a visible name means one thing: give the new one a name of its own
+E0241	this alternative never matches: %s		remove it
 E0301	cannot find module `%s`		standard library modules are imported by name (`import fs`); your own files by path (`import "./lib/x"`)
 E0302	circular import: %s		
 E0303	module `%s` has no member `%s`		
@@ -67,13 +81,14 @@ E0309	name `%s` is already bound to a module
 E0310	`%s` is internal; %s		
 E0311	import must be at the top level		
 E0312	cannot read module `%s`: %s		
+E0313	`import` after another statement		put every import at the top of the file, before the other statements
 E0401	cannot call a value of type %s		
 E0402	%s takes %d argument(s), got %d		
 E0403	argument `%s` must be %s, got %s		
 E0404	return value must be %s, got %s		
 E0405	argument `%s` given twice		
 E0406	%s has no argument named `%s`		
-E0407	missing argument `%s`		
+E0407	missing argument %s		
 E0501	cannot %s %s and %s		
 E0502	division by zero		
 E0503	integer overflow		
@@ -82,19 +97,21 @@ E0505	expected bool, got %s
 E0506	cannot %s %s		
 E0507	%s %d is out of range (length %d)		
 E0508	key `%s` not found		use get(m, key, default) for a default
-E0509	cannot index a value of type %s		
+E0509	cannot index %s with %s		
 E0511	cannot slice a value of type %s		
 E0512	cannot test membership in a value of type %s		
 E0513	cannot convert %s to %s		
 E0514	cannot use a value of type %s as a map key		map keys are strings: convert the key with `str(k)`
 E0515	invalid pattern %s		
 E0516	slice start %d is after its end %d (length %d)		
-E0517	cannot compare a symbol with a string: %s and %s		they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`
+E0517	cannot compare values of different types: %s and %s		they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`
 E0518	%s is not valid UTF-8: %s		a string can hold any bytes, but this needs text; check where the bytes came from, or test them with `is_utf8(s)`
-E0519	an `%s` value in %s: a result is not put into text silently		unwrap it with `!` or `?` first; if the result itself is meant, write `str(x)`
+E0519	%s in %s: it is not put into text silently		unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`
 E0520	file `%s` is not open for %s		open it with the mode the code needs: `fs.open(p, 'read)` to read, `'write` or `'append` to write
 E0521	the replacement names group `%s`, which the pattern does not have		name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`
 E0522	range start %d is after its end %d		the empty ranges are `n..n` and `n..=n-1`; if the end may fall below the start, say so: `a..max(a, b)`
+E0523	the int %d has no exact float value		a float holds every int up to 2^53 exactly; to round on purpose, write `float(n)`
+E0524	`%d ** %d`: an int to a negative int power is not an int		write the exponent as a float: `2 ** -1.0`
 E0601	no pattern matched %s		
 E0602	value %s does not match the pattern		
 E0603	unhandled Err: %s		
@@ -107,7 +124,7 @@ E0702	deadlock: all tasks are waiting
 E0703	atom swapped inside its own swap		not used: atoms became agents, see E0704
 E0704	agent called from inside its own swap		not used: agents became atoms, see E0707
 E0705	channel sent into itself		not used: merged into E0709
-E0706	spawn into a closed scope		
+E0706	`%s` on a closed scope		use a scope's handle only inside the function `scope` or `supervise` runs
 E0707	`%s` has an effect, which a swap's function must not have		
 E0708	an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket		
 E0709	this value would make a cycle through channels or tasks, which could never be freed		send or return the data, not the channel end or task handle that leads back here
@@ -121,7 +138,7 @@ E0807	assertion failed: %s
 E0808	`%s` has no value: the statement that assigned it failed		
 E0809	`%s` is read before its assignment ran		a top-level fn that reads it was called while the file was starting, above the assignment; move the assignment up or the call down
 E0810	a file dropped without `close` failed: %s		close it with `close` (or use `fs.with_open`) to handle the error where it happens
-W0101	unused import `%s`		
-W0102	unused variable `%s`		prefix it with `_` if it is intentional
-W0103	`%s` shadows a prelude function		
+W0101	unused import `%s`		not used: became the error E0239
+W0102	unused variable `%s`		not used: became the error E0239
+W0103	`%s` shadows a prelude function		not used: became the error E0240
 W0104	`%s` is assigned as the last statement of a block used as a value, so the value is nil		not used: became the error E0224

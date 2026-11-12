@@ -285,7 +285,7 @@ fn a_cancel_is_bounded_when_a_grandchild_ignores_term() {
 #[test]
 fn a_fast_command_does_not_starve_other_tasks() {
     let o = crate::testutil::exec_waiting(
-        "n = atom(0)\ndone = atom(false)\nparked = scope(fn(s):\n  spawn(s, fn():\n    fn lp() = if deref(done): nil else: fn(): swap(n, x => x + 1); lp() ;;() ;;\n    lp()\n  ;;)\n  p0 = parks()\n  _ = sh(\"head -c 95000000 /dev/zero\")\n  p1 = parks()\n  reset(done, true)\n  p1 - p0\n;;)\nprint(parked, deref(n))",
+        "n = atom(0)\ndone = atom(false)\nparked = scope(fn(s):\n  spawn(s, fn():\n    fn lp() = if deref(done): nil else: fn(): swap(n, x => x + 1); lp() ;;() ;;\n    lp()\n  ;;)\n  p0 = parks()\n  _ = sh(\"head -c 95000000 /dev/zero\")\n  p1 = parks()\n  reset(done, true)\n  p1 - p0\n;;)!\nprint(parked, deref(n))",
     );
     assert_eq!((o.err.as_str(), o.code.as_str()), ("", ""), "{}", o.out);
     let got: Vec<i64> = o
@@ -305,7 +305,7 @@ fn a_fast_command_does_not_starve_other_tasks() {
 fn a_failed_registration_after_a_cancel_leaves_nothing_registered() {
     own_group();
     let o = crate::testutil::exec(
-        "fn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nsupervise(fn(sc):\n  t = spawn(sc, fn():\n    fail_register_at(5)\n    timeout(() => sh(\"trap '' TERM; sleep 5\"), 100ms)\n  ;;)\n  print(kind(await(t)))\n;;, e => nil)\nprint(waiting_io())",
+        "fn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nsupervise(fn(sc):\n  t = spawn(sc, fn():\n    fail_register_at(5)\n    timeout(() => sh(\"trap '' TERM; sleep 5\"), 100ms)\n  ;;)\n  print(kind(await(t)))\n;;, _e => nil)\nprint(waiting_io())",
         crate::testutil::Opts {
             extra: crate::testutil::jobs::job_natives,
             ..crate::testutil::Opts::default()
@@ -321,7 +321,7 @@ fn a_failed_registration_after_a_cancel_leaves_nothing_registered() {
 fn an_env_name_with_an_equals_sign_is_refused() {
     for key in ["HOME=z", ""] {
         let (out, err, code) = run(&format!(
-            "print(sh(\"echo $HOME\", env: {{\"{key}\": \"x\"}}))"
+            "print(sh(`echo $HOME`, env: {{\"{key}\": \"x\"}}))"
         ));
         assert_eq!((out.as_str(), code), ("", 1), "{key}: {err}");
         assert!(
@@ -329,7 +329,7 @@ fn an_env_name_with_an_equals_sign_is_refused() {
             "{key}: {err}"
         );
     }
-    let (out, err, _) = run("print(sh(\"echo $A_B\", env: {A_B: \"ok\"})!.out)");
+    let (out, err, _) = run("print(sh(`echo $A_B`, env: {A_B: \"ok\"})!.out)");
     assert_eq!(out, "ok\n\n", "{err}");
 }
 
@@ -426,9 +426,10 @@ fn an_output_past_the_string_limit_ends_the_command() {
     c.stdout.take().unwrap().read_to_string(&mut out).unwrap();
     c.stderr.take().unwrap().read_to_string(&mut err).unwrap();
     let mut status = 0;
-    // SAFETY: an all-zero `rusage` is valid; `wait4` reaps the child
-    // `c` started (not waited for elsewhere) and fills the two.
+    // SAFETY: an all-zero `rusage` (plain integers) is valid.
     let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+    // SAFETY: `wait4` reaps the child `c` started (not waited for
+    // elsewhere) and fills the two out-parameters, which outlive the call.
     let pid = unsafe { libc::wait4(c.id() as libc::pid_t, &mut status, 0, &mut usage) };
     assert_eq!(pid, c.id() as libc::pid_t);
     assert!(

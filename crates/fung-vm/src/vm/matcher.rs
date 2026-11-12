@@ -81,7 +81,8 @@ impl Binder<'_> {
     /// Tests `v` against `p`, writing each bound slot as it goes and
     /// holding the globals in `pending` for `commit`. A failed match may
     /// have written some slots already; the compiler never reads a name
-    /// from a failed arm, so those writes are harmless. A global is
+    /// from a failed arm, so those writes are harmless (an invariant of
+    /// the compiler's slot rule, not checked here: VM36). A global is
     /// different: the REPL goes on after a failed destructuring, and must
     /// see every global as it was.
     pub fn matches(&mut self, v: &Value, p: &RtPattern) -> bool {
@@ -95,7 +96,15 @@ impl Binder<'_> {
                 }
                 true
             }
-            RtPattern::Lit(lit) => equal(v, lit),
+            // A scalar of the literal's own type is compared here; the
+            // rest goes to the value layer's `equal` (VM29).
+            RtPattern::Lit(lit) => match (v, lit) {
+                (Value::Int(a), Value::Int(b)) => a == b,
+                (Value::Sym(a), Value::Sym(b)) => a == b,
+                (Value::Bool(a), Value::Bool(b)) => a == b,
+                (Value::Nil, Value::Nil) => true,
+                _ => equal(v, lit),
+            },
             RtPattern::Tag { name, kids } => match v {
                 Value::Tag(t) if t.name == *name => self.all(&t.args, kids),
                 _ => false,

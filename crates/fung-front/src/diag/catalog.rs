@@ -98,6 +98,50 @@ const CATALOG: &[[&str; 4]] = &[
         "put the positional arguments first: `f(1, b: 2)`",
     ],
     [
+        "E0127",
+        "`??` and `|>` cannot be mixed without parentheses",
+        "",
+        "say which one goes first: `(x |> f) ?? d` or `x |> (f ?? d)`",
+    ],
+    [
+        "E0128",
+        "a symbol is not written with an uppercase letter: `'%s`",
+        "",
+        "an uppercase symbol is written as the tag, without the quote: `Red`",
+    ],
+    [
+        "E0129",
+        "`$%s` in a string is not interpolation",
+        "",
+        "write `${name}` for the value, or `\\$name` for the text",
+    ],
+    [
+        "E0130",
+        "a type annotation has no element type",
+        "",
+        "write `list` or `map` alone: the elements are not checked, so they are not written",
+    ],
+    [
+        "E0131",
+        "this statement comes after `return`, so it never runs",
+        "never runs",
+        "remove it, or move the `return` after it",
+    ],
+    [
+        "E0132",
+        "`return` used as a value",
+        "",
+        "`return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it",
+    ],
+    [
+        "E0133",
+        "a spread `...` cannot stand %s",
+        "",
+        "`...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`",
+    ],
+    ["E0134", "`%s` is not a keyword in fung", "", ""],
+    ["E0135", "number %q is out of range", "", ""],
+    [
         "E0204",
         "undefined name `%s`",
         "not found in this scope",
@@ -130,11 +174,12 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0210", "function `%s` is defined twice", "", ""],
     ["E0211", "%s %s", "", "use `exit()` to stop a script early"],
     ["E0212", "unknown type `%s`", "", ""],
+    // not raised since it was merged into E0237 (D42)
     [
         "E0213",
         "return inside a for body",
         "",
-        "`for` builds a list; use `find`, `all`/`any`, or `fold` instead",
+        "not used: merged into E0237",
     ],
     [
         "E0214",
@@ -157,11 +202,12 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0217", "type `%s` is defined twice", "", ""],
     ["E0218", "type `%s` refers to itself", "", ""],
     ["E0219", "type aliases must be at the top level", "", ""],
+    // not raised since it was merged into E0237 (D42)
     [
         "E0220",
         "`?` inside a for body",
         "",
-        "`for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`",
+        "not used: merged into E0237",
     ],
     [
         "E0221",
@@ -193,11 +239,12 @@ const CATALOG: &[[&str; 4]] = &[
         "this is a tag",
         "name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`",
     ],
+    // not raised since it was merged into E0237 (D42)
     [
         "E0226",
         "`?` inside a lambda given to %s",
         "",
-        "the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results",
+        "not used: merged into E0237",
     ],
     [
         "E0227",
@@ -209,7 +256,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0228",
         "the rest parameter `...%s` is always a list",
         "",
-        "annotate it `list` (or not at all); `list[int]` names the elements without checking them",
+        "annotate it `list`, or not at all",
     ],
     [
         "E0229",
@@ -225,11 +272,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "not used: merged into E0224",
     ],
+    // not raised since element types left the language (D52, E0130)
     [
         "E0232",
         "`%s` takes no element type",
         "",
-        "only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone",
+        "not used: element types are gone, see E0130",
     ],
     [
         "E0233",
@@ -245,8 +293,8 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0235",
-        "this arm matches everything, so the arms after it never run",
-        "matches everything",
+        "this arm %s",
+        "",
         "move it last, or give it a guard: `n when n > 0 =>`",
     ],
     [
@@ -254,6 +302,36 @@ const CATALOG: &[[&str; 4]] = &[
         "`%s` takes exactly one value, found %d",
         "",
         "put several values in a tuple: `Ok((a, b))` or `Err((a, b))`",
+    ],
+    [
+        "E0237",
+        "`%s` inside %s",
+        "",
+        "a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`",
+    ],
+    [
+        "E0238",
+        "cannot bind `%s` again: a top-level name is bound once",
+        "",
+        "give the new value a name of its own, or compute it in one expression (`x = if … ;;`, `fold`)",
+    ],
+    [
+        "E0239",
+        "unused %s `%s`",
+        "",
+        "remove it, or start its name with `_` if it is kept on purpose",
+    ],
+    [
+        "E0240",
+        "`%s` hides %s",
+        "",
+        "a visible name means one thing: give the new one a name of its own",
+    ],
+    [
+        "E0241",
+        "this alternative never matches: %s",
+        "",
+        "remove it",
     ],
     [
         "E0301",
@@ -287,13 +365,19 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0310", "`%s` is internal; %s", "", ""],
     ["E0311", "import must be at the top level", "", ""],
     ["E0312", "cannot read module `%s`: %s", "", ""],
+    [
+        "E0313",
+        "`import` after another statement",
+        "",
+        "put every import at the top of the file, before the other statements",
+    ],
     ["E0401", "cannot call a value of type %s", "", ""],
     ["E0402", "%s takes %d argument(s), got %d", "", ""],
     ["E0403", "argument `%s` must be %s, got %s", "", ""],
     ["E0404", "return value must be %s, got %s", "", ""],
     ["E0405", "argument `%s` given twice", "", ""],
     ["E0406", "%s has no argument named `%s`", "", ""],
-    ["E0407", "missing argument `%s`", "", ""],
+    ["E0407", "missing argument %s", "", ""],
     ["E0501", "cannot %s %s and %s", "", ""],
     ["E0502", "division by zero", "", ""],
     ["E0503", "integer overflow", "", ""],
@@ -307,7 +391,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "use get(m, key, default) for a default",
     ],
-    ["E0509", "cannot index a value of type %s", "", ""],
+    ["E0509", "cannot index %s with %s", "", ""],
     ["E0511", "cannot slice a value of type %s", "", ""],
     [
         "E0512",
@@ -331,9 +415,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0517",
-        "cannot compare a symbol with a string: %s and %s",
+        "cannot compare values of different types: %s and %s",
         "",
-        "they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`",
+        "they are never equal; convert one side first (`int(s)`, `str(n)`, `sym(s)`), or test the type with a pattern or `type_of`",
     ],
     [
         "E0518",
@@ -343,9 +427,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0519",
-        "an `%s` value in %s: a result is not put into text silently",
+        "%s in %s: it is not put into text silently",
         "",
-        "unwrap it with `!` or `?` first; if the result itself is meant, write `str(x)`",
+        "unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`",
     ],
     [
         "E0520",
@@ -364,6 +448,18 @@ const CATALOG: &[[&str; 4]] = &[
         "range start %d is after its end %d",
         "",
         "the empty ranges are `n..n` and `n..=n-1`; if the end may fall below the start, say so: `a..max(a, b)`",
+    ],
+    [
+        "E0523",
+        "the int %d has no exact float value",
+        "",
+        "a float holds every int up to 2^53 exactly; to round on purpose, write `float(n)`",
+    ],
+    [
+        "E0524",
+        "`%d ** %d`: an int to a negative int power is not an int",
+        "",
+        "write the exponent as a float: `2 ** -1.0`",
     ],
     ["E0601", "no pattern matched %s", "", ""],
     ["E0602", "value %s does not match the pattern", "", ""],
@@ -410,7 +506,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "not used: merged into E0709",
     ],
-    ["E0706", "spawn into a closed scope", "", ""],
+    [
+        "E0706",
+        "`%s` on a closed scope",
+        "",
+        "use a scope's handle only inside the function `scope` or `supervise` runs",
+    ],
     [
         "E0707",
         "`%s` has an effect, which a swap's function must not have",
@@ -471,14 +572,27 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "close it with `close` (or use `fs.with_open`) to handle the error where it happens",
     ],
-    ["W0101", "unused import `%s`", "", ""],
+    // not raised since unused names became the error E0239 (D38)
+    [
+        "W0101",
+        "unused import `%s`",
+        "",
+        "not used: became the error E0239",
+    ],
+    // not raised since unused names became the error E0239 (D38)
     [
         "W0102",
         "unused variable `%s`",
         "",
-        "prefix it with `_` if it is intentional",
+        "not used: became the error E0239",
     ],
-    ["W0103", "`%s` shadows a prelude function", "", ""],
+    // not raised since hiding a prelude function became the error E0240 (D38)
+    [
+        "W0103",
+        "`%s` shadows a prelude function",
+        "",
+        "not used: became the error E0240",
+    ],
     [
         "W0104",
         "`%s` is assigned as the last statement of a block used as a value, so the value is nil",

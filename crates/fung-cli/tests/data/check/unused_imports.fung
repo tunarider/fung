@@ -1,4 +1,5 @@
-# W0101: imports never read in the file.
+# E0239 (formerly the warning W0101): imports never read in the file
+# (D38).
 import fs
 import path as p
 import json (parse, stringify)

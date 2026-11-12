@@ -146,7 +146,7 @@ fn a_step_native_in_tail_position_returns_to_the_caller() {
     // the native keeps its caller's frame (natives never reuse it), so
     // the path shows `loop` with the elided calls, as for any native.
     let o = run(
-        "fn h(x) = fail(\"x\")\nfn loop(n) = n == 0 then twice(h) else loop(n - 1)\nloop(1000)",
+        "fn h(_x) = fail(\"x\")\nfn loop(n) = n == 0 then twice(h) else loop(n - 1)\nloop(1000)",
     );
     let e = o.error.expect("an error");
     let path: Vec<_> = e
@@ -175,7 +175,7 @@ fn exit_unwinds_through_a_step_native() {
 
 #[test]
 fn a_panic_inside_a_callback_is_e0801() {
-    let o = run("probe_after(() => twice(x => panic_probe()))");
+    let o = run("probe_after(() => twice(_x => panic_probe()))");
     assert_eq!(o.out, "unwound\n");
     let e = o.error.expect("an error");
     assert_eq!(e.code, "E0801");
@@ -191,14 +191,14 @@ fn call_root_refuses_a_nested_loop() {
 #[test]
 fn iterating_natives_call_back_in_one_loop() {
     let cases = [
-        ("map([1, 2], x => loop_depth())", "[1, 1]"),
-        ("filter([1, 2], x => loop_depth() == 1)", "[1, 2]"),
-        ("fold(0..3, 0, (a, x) => a + loop_depth())", "3"),
-        ("each([1], x => print(loop_depth()))", "nil"),
+        ("map([1, 2], _x => loop_depth())", "[1, 1]"),
+        ("filter([1, 2], _x => loop_depth() == 1)", "[1, 2]"),
+        ("fold(0..3, 0, (a, _x) => a + loop_depth())", "3"),
+        ("each([1], _x => print(loop_depth()))", "nil"),
         ("find([1, 2], x => loop_depth() == 1 and x == 2)", "2"),
-        ("any([1], x => loop_depth() == 1)", "true"),
-        ("all([1, 2], x => loop_depth() == 1)", "true"),
-        ("group_by([1], x => str(loop_depth()))", "{\"1\": [1]}"),
+        ("any([1], _x => loop_depth() == 1)", "true"),
+        ("all([1, 2], _x => loop_depth() == 1)", "true"),
+        ("group_by([1], _x => str(loop_depth()))", "{\"1\": [1]}"),
         ("sort_by([2, 1], x => x * loop_depth())", "[1, 2]"),
     ];
     for (src, want) in cases {
@@ -218,20 +218,20 @@ fn callback_errors_report_as_before() {
             "error[E0502]: division by zero\n  --> -e:1:27\n  |\n1 | print(map([1, 0], x => 10 / x))\n  |                           ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
         ),
         (
-            "print(filter([1], x => 1))",
-            "error[E0505]: expected bool, got int\n  --> -e:1:13\n  |\n1 | print(filter([1], x => 1))\n  |             ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n",
+            "print(filter([1], _x => 1))",
+            "error[E0505]: expected bool, got int\n  --> -e:1:13\n  |\n1 | print(filter([1], _x => 1))\n  |             ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n",
         ),
         (
-            "print(fold([1], 0, (a, x) => a.nope))",
-            "error[E0509]: cannot index a value of type int\n  --> -e:1:31\n  |\n1 | print(fold([1], 0, (a, x) => a.nope))\n  |                               ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
+            "print(fold([1], 0, (a, _x) => a.nope))",
+            "error[E0509]: cannot index int with str\n  --> -e:1:32\n  |\n1 | print(fold([1], 0, (a, _x) => a.nope))\n  |                                ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
         ),
         (
             "print(sort_by([2, 1], x => x / 0))",
             "error[E0502]: division by zero\n  --> -e:1:30\n  |\n1 | print(sort_by([2, 1], x => x / 0))\n  |                              ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
         ),
         (
-            "print(group_by([1], x => 1))",
-            "error[E0514]: cannot use a value of type int as a map key\n  --> -e:1:15\n  |\n1 | print(group_by([1], x => 1))\n  |               ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n help: map keys are strings: convert the key with `str(k)`\n",
+            "print(group_by([1], _x => 1))",
+            "error[E0514]: cannot use a value of type int as a map key\n  --> -e:1:15\n  |\n1 | print(group_by([1], _x => 1))\n  |               ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n help: map keys are strings: convert the key with `str(k)`\n",
         ),
     ];
     for (src, want) in cases {
@@ -245,7 +245,7 @@ fn iterating_a_receiver_still_works() {
     let o = run(
         "(tx, rx) = channel()\nprint(scope(fn(s):\n  spawn(s, fn(): each(0..3, i => send(tx, i)); close(tx) ;;)\n  d = loop_depth()\n  fold(rx, 0, (a, x) => a + x + loop_depth() - d)\n;;))",
     );
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("3\n", ""));
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(3)\n", ""));
 }
 
 /// A plain native called back per element (`map(xs, str)`) is called
@@ -270,10 +270,10 @@ fn a_plain_native_callback_runs_in_constant_rust_stack() {
 fn cleanup_natives_call_back_in_one_loop() {
     let cases = [
         (
-            "with(() => loop_depth(), r => r + loop_depth(), r => print(loop_depth()))",
+            "with(() => loop_depth(), r => r + loop_depth(), _r => print(loop_depth()))",
             "1\n2\n",
         ),
-        ("timeout(() => loop_depth(), 1s)", "1\n"),
+        ("timeout(() => loop_depth(), 1s)", "Ok(1)\n"),
         ("swap(atom(0), x => x + loop_depth())", "1\n"),
     ];
     for (src, want) in cases {
@@ -285,18 +285,18 @@ fn cleanup_natives_call_back_in_one_loop() {
 #[test]
 fn a_scope_body_runs_in_the_same_loop() {
     for src in [
-        "print(scope(s => loop_depth()))",
-        "print(supervise(s => loop_depth(), e => nil))",
+        "print(scope(_s => loop_depth()))",
+        "print(supervise(_s => loop_depth(), _e => nil))",
     ] {
         let o = run(src);
-        assert_eq!((o.out.as_str(), o.err.as_str()), ("1\n", ""), "{src}");
+        assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(1)\n", ""), "{src}");
     }
 }
 
 #[test]
 fn a_scope_as_a_direct_callback() {
-    let o = run("print(map([s => 1, s => 2], scope))");
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("[1, 2]\n", ""));
+    let o = run("print(map([_s => 1, _s => 2], scope))");
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("[Ok(1), Ok(2)]\n", ""));
 }
 
 #[test]
@@ -355,8 +355,8 @@ fn plain_native_callbacks_report_as_before() {
             1,
         ),
         (
-            "print(swap(atom(0), x => len(map([1], print))))",
-            "error[E0707]: `print` has an effect, which a swap's function must not have\n  --> -e:1:33\n  |\n1 | print(swap(atom(0), x => len(map([1], print))))\n  |                                 ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
+            "print(swap(atom(0), _x => len(map([1], print))))",
+            "error[E0707]: `print` has an effect, which a swap's function must not have\n  --> -e:1:34\n  |\n1 | print(swap(atom(0), _x => len(map([1], print))))\n  |                                  ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
             1,
         ),
         ("print(map([1, 2], exit))", "", 1),
@@ -379,11 +379,17 @@ fn plain_native_callbacks_report_as_before() {
 /// A step native as the callback of another (`map(fs, twice)`) whose own
 /// calls end at once (a plain native): the next element is still called
 /// from the same Rust frame, not from inside the finished callback's.
+/// (As for a plain native, the spread is a fixed difference, about one
+/// frame of the run loop; four times the elements must not widen it.)
 #[test]
 fn a_step_native_callback_runs_in_constant_rust_stack() {
-    let o = run(
-        "fs = map(0..2000, _ => stack_mark)\nms = map(fs, twice)\nhi = fold(ms, ms[0], (a, x) => a > x then a else x)\nlo = fold(ms, ms[0], (a, x) => a < x then a else x)\nprint(hi - lo)",
-    );
-    let spread: i64 = o.out.trim().parse().expect(&o.err);
-    assert!(spread < 16 * 1024, "{spread} bytes");
+    let spread = |n: usize| -> i64 {
+        let o = run(&format!(
+            "fs = map(0..{n}, _ => stack_mark)\nms = map(fs, twice)\nhi = fold(ms, ms[0], (a, x) => a > x then a else x)\nlo = fold(ms, ms[0], (a, x) => a < x then a else x)\nprint(hi - lo)"
+        ));
+        o.out.trim().parse().expect(&o.err)
+    };
+    let (small, big) = (spread(2000), spread(8000));
+    assert!(big <= small + 1024, "{small} then {big} bytes");
+    assert!(big < 64 * 1024, "{big} bytes");
 }

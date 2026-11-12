@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>문자열 · fung 매뉴얼</title>
-<meta name="description" content="fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, is_utf8.">
+<meta name="description" content="fung prelude 문자열: chars, split, join, lines, trim, trim_left, trim_right, upper, lower, replace, starts_with, index_of, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, is_utf8.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -88,7 +88,7 @@
 <li><strong>글자 단위</strong>다. 문자열은 UTF-8로 저장되지만 <code>len</code>, 인덱스 <code>s[0]</code>, 슬라이스 <code>s[1..3]</code>은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 <code>&quot;참치&quot;[0]</code>은 <code>&quot;참&quot;</code>이고 <code>len(&quot;참치&quot;)</code>는 2다.</li>
 <li><strong>어떤 바이트든 담는다</strong>. 문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. 파일, 명령 출력, 환경 변수, 인자는 UTF-8이 아니어도 바이트 그대로 들어오고 그대로 나간다. UTF-8에 속하지 않는 바이트는 그 바이트 하나가 한 글자다. 값으로 보일 때는 <code>&quot;a\xff&quot;</code>처럼 <code>\xHH</code>로 보이고, 그 모양을 리터럴로 그대로 쓸 수 있다(<a href="#bytes">바이트</a>).</li>
 <li><strong>잇기는 <code>+</code>, 끼워 넣기는 보간</strong>이다. <code>&quot;a&quot; + &quot;b&quot;</code>는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 <code>&quot;${name}: ${count}&quot;</code>처럼 쓴다. 보간은 어떤 값이든 <a href="convert.html#fn-str"><code>str</code></a>과 같은 규칙으로 바꿔 넣는다.</li>
-<li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>도 <code>take(&quot;abc&quot;, 2)</code>·<code>first(&quot;abc&quot;)</code>도 에러다(E0506). 앞뒤를 자르려면 슬라이스(<code>s[..2]</code>, <code>s[1..]</code>, <code>s[-1]</code>)를, 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
+<li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>도 <code>take(&quot;abc&quot;, 2)</code>·<code>first(&quot;abc&quot;)</code>도 에러다(E0506). 앞뒤를 자르려면 슬라이스(<code>s[..2]</code>, <code>s[1..]</code>, <code>s[len(s) - 1]</code>)를, 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
 </ul>
 <div class="run"><pre><code>s = &quot;  ERROR disk full  &quot;
 clean = trim(s)
@@ -133,7 +133,7 @@ print(split(line, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;))</code>
 <p>리스트의 원소를 <code>sep</code>로 이어 문자열 하나로 만든다.</p>
 <div class="sig"><code>join(xs, sep = &quot;&quot;)</code></div>
 <h4>설명</h4>
-<p><a href="#fn-split"><code>split</code></a>의 반대다. 원소 사이에만 <code>sep</code>를 넣고 앞뒤에는 넣지 않는다. 빈 리스트는 <code>&quot;&quot;</code>이다. 문자열이 아닌 원소는 <a href="convert.html#fn-str"><code>str</code></a>로 바꿔 넣으므로 수의 리스트도 바로 잇는다. <code>sep</code>를 주지 않으면 그냥 붙인다.</p>
+<p><a href="#fn-split"><code>split</code></a>의 반대다. 원소 사이에만 <code>sep</code>를 넣고 앞뒤에는 넣지 않는다. 빈 리스트는 <code>&quot;&quot;</code>이다. 문자열이 아닌 원소는 <a href="convert.html#fn-str"><code>str</code></a>처럼 바꿔 넣으므로 수의 리스트도 바로 잇는다. 다만 문자열 보간과 같이 <code>nil</code>, 결과값(<code>Ok</code>·<code>Err</code>), 핸들(함수·모듈·태스크·범위·채널 끝·atom·파일)은 원소 안 어느 깊이에 있어도 넣지 않는다. <code>sep</code>를 주지 않으면 그냥 붙인다.</p>
 <p>문자열을 하나씩 <code>+</code>로 쌓는 것보다 리스트에 모아 한 번에 <code>join</code>하는 것이 빠르다. 여러 줄 출력을 만들 때는 <code>join(rows, &quot;\n&quot;)</code>.</p>
 <h4>매개변수</h4>
 <ul>
@@ -146,7 +146,7 @@ print(split(line, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;))</code>
 <ul>
 <li><code>xs</code>가 리스트 등이 아니면 런타임 에러 E0506(<code>cannot join str</code>).</li>
 <li><code>sep</code>가 문자열이 아니면 E0403.</li>
-<li>원소가 <code>Ok</code>·<code>Err</code>이면 E0519(결과값은 글에 말없이 넣지 않는다, 보간과 같다). 결과를 보이려면 <code>map(xs, str)</code>로 먼저 바꾼다.</li>
+<li>원소(또는 원소 안)에 <code>nil</code>·<code>Ok</code>·<code>Err</code>·핸들이 있으면 E0519(글에 말없이 넣지 않는다, 보간과 같다). 그대로 보이려면 <code>map(xs, str)</code>로 먼저 바꾼다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>잇기</strong></p>
@@ -231,7 +231,7 @@ print(chars(&quot;a1b2c3&quot;) |&gt; filter(c =&gt; c &gt;= &quot;0&quot; and c
 <h4>돌려주는 값</h4>
 <p>문자열.</p>
 <h4>에러</h4>
-<p>인자가 문자열이 아니면 런타임 에러 E0403.</p>
+<p>인자가 문자열이 아니거나 <code>cut</code>이 <code>&quot;&quot;</code>이면(지울 글자가 없다) 런타임 에러 E0403.</p>
 <h4>예제</h4>
 <p><strong>공백과 줄바꿈</strong></p>
 <div class="run"><pre><code>print(&quot;[&quot; + trim(&quot;  x &quot;) + &quot;]&quot;, &quot;[&quot; + trim(&quot;\t\n v1.2.3 \r\n&quot;) + &quot;]&quot;)</code></pre><pre class="out plain"><code>[x] [v1.2.3]</code></pre></div>
@@ -242,6 +242,48 @@ print(chars(&quot;a1b2c3&quot;) |&gt; filter(c =&gt; c &gt;= &quot;0&quot; and c
 print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-replace"><code>replace</code></a>, <a href="#fn-starts_with"><code>starts_with</code></a>, <a href="#fn-lines"><code>lines</code></a></p>
+</section>
+<section class="entry" id="fn-trim_left">
+<h3>trim_left</h3>
+<p>앞(왼쪽) 끝만 <a href="#fn-trim"><code>trim</code></a>한다.</p>
+<div class="sig"><code>trim_left(s, cut = nil)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-trim"><code>trim</code></a>과 같은 규칙으로 앞 끝의 공백이나 <code>cut</code>의 글자를 지우고, 뒤 끝은 그대로 둔다. 이름은 <a href="#fn-pad_left"><code>pad_left</code></a>와 짝이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>cut</code>: 지울 글자들을 모은 문자열, 또는 <code>nil</code>(공백).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p>인자가 문자열이 아니거나 <code>cut</code>이 <code>&quot;&quot;</code>이면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>앞의 들여쓰기와 0 지우기</strong></p>
+<div class="run"><pre><code>print(&quot;[&quot; + trim_left(&quot;   item  &quot;) + &quot;]&quot;, trim_left(&quot;000420&quot;, &quot;0&quot;))</code></pre><pre class="out plain"><code>[item  ] 420</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-trim"><code>trim</code></a>, <a href="#fn-trim_right"><code>trim_right</code></a>, <a href="#fn-pad_left"><code>pad_left</code></a></p>
+</section>
+<section class="entry" id="fn-trim_right">
+<h3>trim_right</h3>
+<p>뒤(오른쪽) 끝만 <a href="#fn-trim"><code>trim</code></a>한다.</p>
+<div class="sig"><code>trim_right(s, cut = nil)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-trim"><code>trim</code></a>과 같은 규칙으로 뒤 끝의 공백이나 <code>cut</code>의 글자를 지우고, 앞 끝은 그대로 둔다. 줄 끝의 <code>\r</code>이나 뒤에 붙은 공백만 떼고 들여쓰기는 남길 때 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>cut</code>: 지울 글자들을 모은 문자열, 또는 <code>nil</code>(공백).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p>인자가 문자열이 아니거나 <code>cut</code>이 <code>&quot;&quot;</code>이면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>들여쓰기는 남기고 끝만 다듬기</strong></p>
+<div class="run"><pre><code>print(&quot;[&quot; + trim_right(&quot;  key: value \r\n&quot;) + &quot;]&quot;, trim_right(&quot;path///&quot;, &quot;/&quot;))</code></pre><pre class="out plain"><code>[  key: value] path</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-trim"><code>trim</code></a>, <a href="#fn-trim_left"><code>trim_left</code></a>, <a href="#fn-pad_right"><code>pad_right</code></a></p>
 </section>
 <section class="entry" id="fn-upper">
 <h3>upper</h3>
@@ -291,7 +333,7 @@ true</code></pre></div>
 <p><code>s</code> 안의 모든 <code>old</code>를 <code>new</code>로 바꾼 문자열을 돌려준다.</p>
 <div class="sig"><code>replace(s, old, new)</code></div>
 <h4>설명</h4>
-<p>왼쪽부터 겹치지 않게 찾아 모두 바꾼다(<code>replace(&quot;aaa&quot;, &quot;aa&quot;, &quot;b&quot;)</code>는 <code>&quot;ba&quot;</code>). <code>new</code>가 <code>&quot;&quot;</code>면 지우는 것이다. <code>old</code>가 <code>&quot;&quot;</code>면 글자 사이사이와 양 끝에 <code>new</code>를 넣는다. 첫 번째 것만 바꾸거나 패턴으로 바꾸려면 <a href="../modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>를 쓴다.</p>
+<p>왼쪽부터 겹치지 않게 찾아 모두 바꾼다(<code>replace(&quot;aaa&quot;, &quot;aa&quot;, &quot;b&quot;)</code>는 <code>&quot;ba&quot;</code>). <code>new</code>가 <code>&quot;&quot;</code>면 지우는 것이다. <code>old</code>는 <code>&quot;&quot;</code>일 수 없다(<code>split</code>의 빈 구분자와 같다). 첫 번째 것만 바꾸거나 패턴으로 바꾸려면 <a href="../modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>를 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
@@ -302,7 +344,7 @@ true</code></pre></div>
 <p>문자열.</p>
 <h4>에러</h4>
 <ul>
-<li>인자가 문자열이 아니면 런타임 에러 E0403.</li>
+<li>인자가 문자열이 아니거나 <code>old</code>가 <code>&quot;&quot;</code>이면 런타임 에러 E0403.</li>
 <li>결과가 1억 글자를 넘으면 만들기 전에 E0806.</li>
 </ul>
 <h4>예제</h4>
@@ -342,6 +384,31 @@ print(filter(log, l =&gt; l != &quot;&quot; and not starts_with(l, &quot;#&quot;
 print(starts_with(tag, &quot;v&quot;) then tag[1..] else tag)</code></pre><pre class="out plain"><code>1.4.2</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-ends_with"><code>ends_with</code></a>, <a href="collections.html#fn-contains"><code>contains</code></a></p>
+</section>
+<section class="entry" id="fn-index_of">
+<h3>index_of</h3>
+<p><code>s</code>에서 <code>sub</code>가 처음 나오는 글자 위치. 없으면 <code>nil</code>.</p>
+<div class="sig"><code>index_of(s, sub)</code></div>
+<h4>설명</h4>
+<p>위치는 바이트가 아니라 <strong>글자</strong> 단위다. 인덱스 <code>s[i]</code>·슬라이스·<code>len</code>과 같은 단위라서 <code>s[i..i + len(sub)]</code>이 찾은 부분이다. 있는지만 알면 될 때는 <code>sub in s</code>, 패턴으로 찾을 때는 <a href="../modules/regex.html#fn-regex-find"><code>regex.find</code></a>를 쓴다. 빈 <code>sub</code>는 어디에나 있으므로 에러다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>sub</code>: 찾을 문자열. 비어 있으면 안 된다.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>int</code>, 또는 <code>nil</code>.</p>
+<h4>에러</h4>
+<p>인자가 문자열이 아니거나 <code>sub</code>가 <code>&quot;&quot;</code>이면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>구분자 앞뒤로 나누기</strong></p>
+<div class="run"><pre><code>line = &quot;level=warn: 디스크 90%: 확인 필요&quot;
+i = index_of(line, &quot;: &quot;)
+print(i, line[..i], line[i + 2..])
+print(index_of(line, &quot;error&quot;))</code></pre><pre class="out plain"><code>10 level=warn 디스크 90%: 확인 필요
+nil</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-starts_with"><code>starts_with</code></a>, <a href="#fn-split"><code>split</code></a>, <a href="../modules/regex.html#fn-regex-find"><code>regex.find</code></a></p>
 </section>
 <section class="entry" id="fn-ends_with">
 <h3>ends_with</h3>

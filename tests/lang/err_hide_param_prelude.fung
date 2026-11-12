@@ -1,0 +1,4 @@
+# A parameter cannot hide a prelude function (D38).
+fn f(len) = len + 1
+print(f(1))
+# expect-error: E0240

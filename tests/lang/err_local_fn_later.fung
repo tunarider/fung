@@ -1,6 +1,6 @@
 fn outer():
   fn a() = b()
   fn b() = 1
-  a()
+  a() + b()
 ;;
 # expect-error: E0208

@@ -1,7 +1,5 @@
 //! Calls and function bodies (09. 호출 규약).
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-
 use super::{Compiler, lit_str};
 use crate::bytecode::{Op, Param, Proto, encode_call};
 use crate::consts::Const;
@@ -22,13 +20,14 @@ fn too_many(n: &Node, what: &str) -> Diag {
 impl Compiler<'_> {
     /// Compiles `(call f pos… (named k e)…)`: callee, positional arguments,
     /// then each named argument as its symbol followed by its value, then
-    /// CALL — or TAILCALL in tail position.
+    /// CALL — or TAILCALL in tail position. A spread `...xs` (the last
+    /// positional) is its list, which CALLSPREAD lays out (D45).
     pub(super) fn call(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
         if self.is_dbg_call(n) {
             return self.dbg_args(n);
         }
         self.expr(&n.kids[0], false)?;
-        let (mut positional, mut named) = (0, 0);
+        let (mut positional, mut named, mut spread) = (0, 0, false);
         for k in &n.kids[1..] {
             if k.head == Head::Named {
                 named += 1;
@@ -37,16 +36,30 @@ impl Compiler<'_> {
                 continue;
             }
             positional += 1;
+            if k.head == Head::Spread {
+                spread = true;
+                self.expr(&k.kids[0], false)?;
+                continue;
+            }
             self.expr(k, false)?;
         }
         if positional > MAX_ARGS || named > MAX_ARGS {
             return Err(too_many(n, "arguments"));
         }
-        // A function with a return type keeps its frame to check the value,
-        // except for a tail call to itself: the same check runs where its
-        // self calls end (03, T4).
-        let tail = tail && (!self.has_ret || n.kids[0].head == Head::SelfFn);
-        let op = if tail { Op::TailCall } else { Op::Call };
+        // A function with a return type reuses its frame for every tail
+        // call too: the frame takes the check along, to run when it
+        // returns (D44). A call to itself needs none: its own check runs
+        // where its self calls end (03).
+        if tail && self.has_ret && n.kids[0].head != Head::SelfFn {
+            let rt = self.proto.return_type as usize;
+            self.proto.emit(Op::TailCheck, rt, self.ret_pos);
+        }
+        let op = match (tail, spread) {
+            (false, false) => Op::Call,
+            (true, false) => Op::TailCall,
+            (false, true) => Op::CallSpread,
+            (true, true) => Op::TailCallSpread,
+        };
         self.proto.emit(op, encode_call(positional, named), n.pos);
         Ok(())
     }
@@ -104,16 +117,14 @@ impl Compiler<'_> {
             opts: self.opts,
             lines: self.lines,
             folds: self.folds,
-            moves: HashSet::new(),
-            after: HashMap::new(),
-            stored_live: HashMap::new(),
-            held: BTreeSet::new(),
+            lives: super::moves::lives(
+                n.kids.last().expect("fn has a body"),
+                self.opts.tests,
+                true,
+            ),
             stubs: Vec::new(),
             ret_pos: n.kids.last().expect("fn has a body").pos,
         };
-        cc.take_lives(super::moves::last_reads(
-            n.kids.last().expect("fn has a body"),
-        ));
 
         // Prologue: defaults, then type checks.
         let mut di = 0;
@@ -128,6 +139,7 @@ impl Compiler<'_> {
             cc.proto.emit(Op::StoreLocal, i, n.pos);
             cc.proto.patch(skip, cc.proto.code.len());
         }
+        cc.proto.body = cc.proto.code.len();
         for i in 0..cc.proto.params.len() {
             let ty = cc.proto.params[i].ty;
             if ty >= 0 {
@@ -140,6 +152,7 @@ impl Compiler<'_> {
         cc.block(body, true)?;
         cc.end_tail(body.pos);
         cc.emit_stubs();
+        cc.proto.thread_jumps();
         cc.proto.check_operands()?;
         self.proto.protos.push(cc.proto);
         Ok(self.proto.protos.len() - 1)

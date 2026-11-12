@@ -44,6 +44,57 @@ fn format_pads_to_fixed_width() {
     assert_eq!(format_time(&t, "Z ZZ"), "-04:56:02 -045602");
 }
 
+/// `Z` and `ZZ` write offset 0 as `Z`, as the default output does, and
+/// read it back (D71): `time.format` and `time.parse` go both ways.
+#[test]
+fn zone_tokens_write_and_read_z_for_offset_zero() {
+    let local = utc_zone();
+    for loc in [Loc::Utc, Loc::Fixed(0)] {
+        let t = Time::from_unix(1_791_072_307, 0, loc).unwrap();
+        assert_eq!(format_time(&t, "HH:mm Z ZZ"), "00:05 Z Z");
+    }
+    for layout in ["YYYY-MM-DDTHH:mm:ssZ", "YYYY-MM-DDTHH:mm:ssZZ"] {
+        for s in ["2026-10-04T09:05:07Z", "2026-10-04T09:05:07z"] {
+            let got = parse_time(s, layout, local).unwrap_or_else(|e| panic!("{s} {layout}: {e}"));
+            assert_eq!(got.iso(), "2026-10-04T09:05:07Z", "{s} {layout}");
+        }
+    }
+    let t = parse_time("09:05 +00:00", "HH:mm Z", local).unwrap();
+    assert_eq!(format_time(&t, "HH:mm Z"), "09:05 Z");
+    assert_eq!(
+        parse_time("09:05 Zulu", "HH:mm Z", local).map(|t| t.iso()),
+        Err("unexpected text after the time".to_string())
+    );
+}
+
+/// A local wall time the clocks skip (a daylight saving gap) is no time:
+/// an error, as Feb 30 is (D81). A time they repeat is the earlier
+/// instant, as before; a fixed offset has no gap.
+#[test]
+fn a_wall_time_in_a_gap_is_refused() {
+    let ny: &'static Zone = Box::leak(Box::new(tz::resolve_local(
+        Some(std::ffi::OsStr::new("EST5EDT,M3.2.0,M11.1.0")),
+        None,
+    )));
+    let f = "YYYY-MM-DD HH:mm";
+    for s in ["2026-03-08 02:00", "2026-03-08 02:30", "2026-03-08 02:59"] {
+        assert_eq!(
+            parse_time(s, f, ny).map(|t| t.iso()),
+            Err("no such local time: the clocks skip it (daylight saving)".to_string()),
+            "{s}"
+        );
+    }
+    for (s, want) in [
+        ("2026-03-08 01:59", "2026-03-08T01:59:00-05:00"),
+        ("2026-03-08 03:00", "2026-03-08T03:00:00-04:00"),
+        ("2026-11-01 01:30", "2026-11-01T01:30:00-04:00"),
+    ] {
+        assert_eq!(parse_time(s, f, ny).unwrap().iso(), want, "{s}");
+    }
+    let t = parse_time("2026-03-08 02:30 -05:00", "YYYY-MM-DD HH:mm Z", ny).unwrap();
+    assert_eq!(t.iso(), "2026-03-08T02:30:00-05:00");
+}
+
 /// RFC 3339 with nanoseconds, shown with the offset only when it has one.
 fn show(t: &Time, with_zone: bool) -> String {
     let iso = t.iso();
@@ -247,8 +298,8 @@ fn parse_rfc3339_keeps_the_offset() {
     assert_eq!(t.add(hours).unwrap().iso(), "2026-12-15T04:00:00-04:00");
 }
 
-/// Wall times in New York: a skipped wall time reads with the offset
-/// before the change, a repeated one takes the first (daylight) occurrence.
+/// Wall times in New York: a skipped wall time is refused (D81), a
+/// repeated one takes the first (daylight) occurrence.
 #[test]
 fn parse_time_across_new_york_changes() {
     let Some(ny) = tz::load("America/New_York") else {
@@ -258,14 +309,15 @@ fn parse_time_across_new_york_changes() {
     let ny: &'static Zone = Box::leak(Box::new(ny));
     for (s, want) in [
         ("2026-03-08 01:59", "2026-03-08T01:59:00-05:00"),
-        ("2026-03-08 02:00", "2026-03-08T03:00:00-04:00"),
-        ("2026-03-08 02:30", "2026-03-08T03:30:00-04:00"),
         ("2026-03-08 03:00", "2026-03-08T03:00:00-04:00"),
         ("2026-11-01 01:30", "2026-11-01T01:30:00-04:00"),
         ("2026-11-01 02:00", "2026-11-01T02:00:00-05:00"),
     ] {
         let t = parse_time(s, "YYYY-MM-DD HH:mm", ny).unwrap();
         assert_eq!(t.iso(), want, "{s}");
+    }
+    for s in ["2026-03-08 02:00", "2026-03-08 02:30"] {
+        assert!(parse_time(s, "YYYY-MM-DD HH:mm", ny).is_err(), "{s}");
     }
     // year 0 local is LMT, an offset with seconds
     assert_eq!(

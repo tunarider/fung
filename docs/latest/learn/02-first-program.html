@@ -154,17 +154,18 @@ nil
 <pre class="plain"><code>$ fung check hello.fung
 $ echo $?
 0</code></pre>
-<p><code>check</code>는 에러가 아닌 <strong>경고(warning)</strong>도 보여 준다. 예를 들어 가져오고 쓰지 않은 모듈이 있으면 이렇게 알린다. 경고는 실행을 막지 않는다.</p>
+<p>fung에는 경고가 없다. 실수일 가능성이 큰 코드도 에러다. 예를 들어 가져오고 쓰지 않은 모듈이 있으면 <code>run</code>도 <code>check</code>도 이렇게 멈춘다. 일부러 쥐기만 하는 이름은 <code>_</code>로 시작하면 된다.</p>
 <pre><code>import fs
 
 print(&quot;hi&quot;)</code></pre>
 <p class="checked"><code>fung check</code>의 출력이다(페이지를 만들 때 확인했다).</p>
-<pre class="plain"><code>warning[W0101]: unused import `fs`
+<pre class="plain"><code>error[E0239]: unused import `fs`
   --&gt; example.fung:1:8
   |
 1 | import fs
   |        ^^
-  |</code></pre>
+  |
+ help: remove it, or start its name with `_` if it is kept on purpose</code></pre>
 <h2 id="errors">에러 메시지 읽기</h2>
 <p>에러 메시지는 적이 아니라 안내문이다. fung의 에러는 모두 같은 모양이라, 한 번 읽는 법을 익히면 된다. 아래 스크립트는 둘째 줄에 오타가 있다.</p>
 <div class="run"><pre><code>print(&quot;start&quot;)
@@ -266,7 +267,7 @@ print(&quot;servers:&quot;, total)</code></pre><pre class="out plain"><code>serv
 <li>설치는 <code>install.sh</code> 한 줄, 확인은 <code>fung version</code>.</li>
 <li>실행은 <code>fung -e '코드'</code>, <code>fung 파일.fung [인자…]</code>, 그리고 인자 없는 <code>fung</code>(REPL).</li>
 <li>스크립트는 위에서 아래로 실행되고, <code>#</code>는 주석, 명령줄 인자는 <code>args</code>.</li>
-<li><code>fung check</code>는 실행하지 않고 검사만 한다. 경고도 보여 준다.</li>
+<li><code>fung check</code>는 실행하지 않고 검사만 한다. 쓰지 않는 이름 같은 실수도 에러다(경고는 없다).</li>
 <li>에러는 번호, 내용, 위치, 발췌, 도움말 순서다. 컴파일 에러(종료 코드 2)면 아무것도 실행되지 않고, 런타임 에러(종료 코드 1)는 호출 경로를 보여 준다.</li>
 </ul>
 <p>레퍼런스: <a href="../reference/cli.html">명령줄 도구</a>, <a href="../reference/cli.html#errors">에러와 종료 코드</a>, <a href="../reference/errors.html">에러 카탈로그</a>, <a href="../reference/prelude/io.html#fn-print"><code>print</code></a>, <a href="../reference/prelude/program.html#fn-args"><code>args</code></a>. REPL의 내부는 <a href="../vm/16-repl.html">REPL</a>에서 다룬다.</p>

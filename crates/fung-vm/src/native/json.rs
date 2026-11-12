@@ -482,10 +482,18 @@ fn read(
 
 /// `json.stringify(v, indent)`, written a piece at a time (L6).
 fn stringify_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    // `indent` is at least 1 (D80): 0 would be one line, as nil is.
     let indent = match &a[1] {
         Value::Nil => 0,
-        Value::Int(n) if *n < 0 => {
-            return Err(nat::not_count("indent", &a[1]));
+        Value::Int(n) if *n < 1 => {
+            return Err(nat::fail(
+                "E0403",
+                vec![
+                    nat::s("indent"),
+                    nat::s("a positive int or nil"),
+                    Arg::Str(format(&a[1])),
+                ],
+            ));
         }
         Value::Int(n) => *n,
         v => return Err(nat::wrong_arg("indent", "int | nil", v)),
@@ -556,7 +564,6 @@ struct Level {
 fn item_from(v: &Value, at: usize) -> Option<(Option<Rc<Text>>, Value, usize)> {
     match v {
         Value::List(l) => l.at(at).map(|x| (None, x.clone(), at + 1)),
-        Value::Tuple(t) => t.get(at).map(|x| (None, x.clone(), at + 1)),
         Value::Map(m) => m
             .entry_from(at)
             .map(|(i, k, x)| (Some(k.clone()), x.clone(), i + 1)),
@@ -605,33 +612,31 @@ impl Encoder {
                         quote_json(out, json_text(s)?);
                         None
                     }
-                    Value::Sym(s) => {
-                        quote_json(out, s.name());
-                        None
-                    }
-                    Value::Time(t) => {
-                        quote_json(out, &t.iso());
-                        None
-                    }
                     Value::List(l) if l.is_empty() => {
                         out.push_str("[]");
                         None
                     }
-                    Value::Tuple(t) if t.is_empty() => {
-                        out.push_str("[]");
-                        None
-                    }
-                    Value::List(_) | Value::Tuple(_) => Some('['),
+                    Value::List(_) => Some('['),
                     Value::Map(m) if m.is_empty() => {
                         out.push_str("{}");
                         None
                     }
                     Value::Map(_) => Some('{'),
+                    // The JSON types only (D80): another value is no JSON
+                    // value, and the way to write one is the caller's.
                     _ => {
-                        return Err(nat::fail(
-                            "E0513",
-                            vec![Arg::Str(type_name(&v)), nat::s("JSON")],
-                        ));
+                        let stop =
+                            nat::fail("E0513", vec![Arg::Str(type_name(&v)), nat::s("JSON")]);
+                        let help = match &v {
+                            Value::Sym(_) => Some("write the symbol's name: `sym_name(s)`"),
+                            Value::Tuple(_) => Some("write a list: `[a, b]`"),
+                            Value::Time(_) => Some("write the time as text: `time.format(t)`"),
+                            _ => None,
+                        };
+                        return Err(match (stop, help) {
+                            (Stop::Error(d), Some(h)) => Stop::Error(Box::new(d.with_help(h))),
+                            (stop, _) => stop,
+                        });
                     }
                 };
                 if let Some(open) = open {

@@ -1,0 +1,6 @@
+# An int that a float cannot hold exactly is an error in arithmetic
+# with a float (D48); `float(n)` rounds on purpose.
+print(9007199254740992 + 0.5, float(9007199254740993))
+# expect: 9007199254740992.0 9007199254740992.0
+print(9007199254740993 + 0.0)
+# expect-error: E0523

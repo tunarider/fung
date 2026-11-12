@@ -5,7 +5,7 @@ import regex
 s = "a\xffb\xe2\x82c"
 print(len(s), byte_len(s), is_utf8(s), is_utf8("é"))
 # expect: 6 6 false true
-print([s, s[1], s[3..5], s[-1]])
+print([s, s[1], s[3..5], s[5]])
 # expect: ["a\xffb\xe2\x82c", "\xff", "\xe2\x82", "c"]
 print(chars("a\xff\u{e9}"))
 # expect: ["a", "\xff", "é"]

@@ -2,5 +2,5 @@
 # an enum value read from outside becomes the tag it names.
 type color = Red | Green
 fn paint(c: color) = c == Red then "warm" else "cool"
-print(paint(sym("Red")), sym("Green") == Green, sym("Ok") == 'Ok)
+print(paint(sym("Red")), sym("Green") == Green, sym("Ok") == type_of(Ok(1)))
 # expect: warm true true

@@ -54,7 +54,7 @@ import conc
 print(conc.pmap([1, 2], x => x * 2))
 ```
 
-prelude의 이름은 예약어가 아니라서 같은 이름의 변수나 함수를 만들 수 있다. 그러면 그 파일 안에서는 prelude의 것이 가려진다. 실수일 때가 많으므로 `fung check`가 경고 W0103으로 알려 준다. 전체 목록은 [함수 목록](../reference/functions.html)에 있다.
+prelude의 이름은 어디서나 보이므로 같은 이름의 변수나 함수를 만들 수 없다(E0240). `len`이 어디서나 prelude의 `len`이라 읽기 쉽다. 이름이 겹치면 `count`·`size`처럼 다른 이름을 짓는다. 전체 목록은 [함수 목록](../reference/functions.html)에 있다.
 
 ## 내 파일 가져오기 {#local}
 
@@ -193,7 +193,7 @@ print(logstat.count_levels(rows))
 ## 짚고 넘어가기 {#notes}
 
 :::box tip 쓰지 않는 import
-가져오기만 하고 쓰지 않은 모듈은 `fung check`가 경고 W0101로 알려 준다(14장). 지우거나, 쓰는 코드를 마저 쓴다. 경고는 프로그램을 멈추지 않는다.
+가져오기만 하고 쓰지 않은 모듈은 에러 E0239다. 지우거나, 쓰는 코드를 마저 쓴다. `regex.split`처럼 prelude 함수와 같은 이름의 멤버는 `import regex (split)`로 가져오지 못하고(E0240) 모듈 이름을 붙여 읽는다.
 :::
 
 :::box mistake 파일 이름에 -를 쓰면
@@ -275,7 +275,7 @@ print(p.base("/var/log/app.log"), p.ext("/var/log/app.log"))
 
 - 파일 하나가 모듈 하나이고, 모듈 이름은 파일 이름이다.
 - 표준 모듈은 `import fs`처럼 이름으로, 내 파일은 `import "./textutil"`처럼 그 파일 기준의 경로로 가져온다. `as`로 별칭을, `(이름)`으로 이름만 가져온다.
-- prelude의 함수는 import 없이 쓴다. 가리면 W0103 경고다.
+- prelude의 함수는 import 없이 쓴다. 같은 이름을 다시 묶으면 E0240이다.
 - `_`로 시작하는 최상위 이름은 비공개다(E0304). 나머지는 공개다.
 - 라이브러리 파일의 최상위에는 `import`·`fn`·`type`·`test`·`이름 = 식`만 온다(E0306). 처음 import될 때 한 번 실행된다.
 - 순환 import(E0302), 모듈 이름 가리기(E0308)는 컴파일 에러다.

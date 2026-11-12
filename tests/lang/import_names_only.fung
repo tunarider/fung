@@ -1,0 +1,4 @@
+# A name list binds only its names: the file name need not be one (FE54).
+import "./_lib/my-lib" (twice)
+print(twice(21))
+# expect: 42

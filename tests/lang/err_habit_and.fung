@@ -1,0 +1,3 @@
+# `&&` of other languages: fung writes `and` (FE43).
+print(true && false)
+# expect-error: E0101

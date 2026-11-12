@@ -7,10 +7,14 @@ mod op;
 mod pattern;
 #[cfg(test)]
 mod tests;
+mod verify;
 
 pub use disasm::disassemble;
-pub use op::{Instr, MAX_OPERAND, Op, decode_call, encode_call};
+pub use op::{
+    Effect, Flow, Info, Instr, MAX_OPERAND, Op, Operand, decode_call, decode_slot_type, encode_call,
+};
 pub use pattern::{PatKind, Pattern};
+pub use verify::{Verified, Violation, verify};
 
 use std::collections::HashMap;
 
@@ -69,12 +73,19 @@ pub struct Proto {
     pub asserts: Vec<Assert>,
     /// Compiled from an embedded extras file: errors point at the caller (06).
     pub builtin: bool,
+    /// The first instruction after the prologue that fills defaults: a
+    /// call that passes every parameter by position starts there (VM21).
+    /// 0 when no parameter has a default.
+    pub body: usize,
     /// Where each constant with a hashable key sits in `consts`, so that
     /// `add_const` finds an equal one without comparing with all of them.
     pub(crate) const_index: HashMap<ConstKey, usize>,
     /// The first instruction whose operand did not fit in 24 bits
     /// (`check_operands`).
-    pub(crate) overflow: Option<(Op, Pos)>,
+    pub(crate) overflow: Option<(Op, Operand, Pos)>,
+    /// The furthest place a jump was pointed at so far (`patch`): a jump
+    /// to the end of the code means the next instruction is reached.
+    pub(crate) last_target: usize,
 }
 
 /// A constant as a hash key, under the pool's equality (`Const`'s
@@ -155,8 +166,10 @@ impl Default for Proto {
             exports: Vec::new(),
             asserts: Vec::new(),
             builtin: false,
+            body: 0,
             const_index: HashMap::new(),
             overflow: None,
+            last_target: 0,
         }
     }
 }
@@ -171,44 +184,91 @@ impl Proto {
     /// Appends an instruction and returns its index (for `patch`). An
     /// operand past 24 bits is remembered for `check_operands`.
     pub fn emit(&mut self, op: Op, arg: usize, pos: Pos) -> usize {
+        self.emit_with(op, arg, 0, pos)
+    }
+
+    /// `emit` with a second operand (`Op::second`, VM32).
+    pub fn emit_with(&mut self, op: Op, arg: usize, b: usize, pos: Pos) -> usize {
         if arg > MAX_OPERAND {
-            self.overflow.get_or_insert((op, pos));
+            self.overflow.get_or_insert((op, op.info().operand, pos));
         }
-        self.code.push(Instr::new(op, arg));
+        if b > MAX_OPERAND {
+            self.overflow.get_or_insert((op, op.second(), pos));
+        }
+        self.code.push(Instr::with(op, arg, b));
         self.pos.push(pos);
         self.code.len() - 1
     }
 
     /// Rewrites the operand of an earlier instruction (jump targets).
     pub fn patch(&mut self, at: usize, arg: usize) {
-        let op = self.code[at].op();
+        let (op, b) = (self.code[at].op(), self.code[at].b());
         if arg > MAX_OPERAND {
-            self.overflow.get_or_insert((op, self.pos[at]));
+            self.overflow
+                .get_or_insert((op, op.info().operand, self.pos[at]));
         }
-        self.code[at] = Instr::new(op, arg);
+        self.code[at] = Instr::with(op, arg, b);
+        if op.jumps() {
+            self.last_target = self.last_target.max(arg);
+        }
+    }
+
+    /// Whether the code ends in an instruction that ends the frame and no
+    /// jump goes past it: what would come next cannot be reached (VM28).
+    pub fn ends_closed(&self) -> bool {
+        self.code.last().is_some_and(|i| {
+            matches!(
+                i.op(),
+                Op::Return | Op::TailCall | Op::TailCallSpread | Op::NoMatch
+            )
+        }) && self.last_target < self.code.len()
+    }
+
+    /// Points each jump that lands on an unconditional JUMP at that
+    /// JUMP's target, and turns a JUMP to a RETURN into the RETURN
+    /// (VM28). Targets only move forward, so jumps stay forward.
+    pub fn thread_jumps(&mut self) {
+        for at in 0..self.code.len() {
+            let op = self.code[at].op();
+            if !op.jumps() {
+                continue;
+            }
+            let mut to = self.code[at].arg();
+            while let Some(next) = self.code.get(to)
+                && next.op() == Op::Jump
+                && next.arg() > to
+            {
+                to = next.arg();
+            }
+            if op == Op::Jump && self.code.get(to).is_some_and(|i| i.op() == Op::Return) {
+                self.code[at] = Instr::new(Op::Return, 0);
+            } else if to != self.code[at].arg() {
+                self.code[at] = Instr::with(op, to, self.code[at].b());
+            }
+        }
     }
 
     /// E0230 when an instruction's operand did not fit in its 24 bits
     /// (VM11: a constant, jump or slot number cut short would run the
     /// wrong code), at the first one, naming what there were too many of.
     pub fn check_operands(&self) -> Result<(), crate::diag::Diag> {
-        let Some((op, pos)) = self.overflow else {
+        let Some((op, operand, pos)) = self.overflow else {
             return Ok(());
         };
-        let what = match op {
-            Op::Const | Op::Field | Op::Import | Op::Test => "constants in a function",
-            Op::List | Op::Tuple | Op::Map | Op::Tag => "items in one literal",
-            Op::Concat => "parts in one string",
-            Op::LoadLocal | Op::StoreLocal | Op::ClearLocal | Op::MoveLocal => {
-                "local variables in a function"
+        let what = match operand {
+            _ if op == Op::Concat => "parts in one string",
+            Operand::Const => "constants in a function",
+            Operand::Count => "items in one literal",
+            Operand::Local => "local variables in a function",
+            Operand::Global => "names in a file",
+            Operand::Proto => "functions in a function",
+            Operand::Captured => "captured values in a function",
+            Operand::Pattern => "patterns in a function",
+            Operand::Type | Operand::SlotType => "type annotations in a function",
+            Operand::Assert => "asserts in a function",
+            Operand::None | Operand::Target | Operand::Call | Operand::Flags => {
+                "instructions in a function"
             }
-            Op::LoadGlobal | Op::StoreGlobal => "names in a file",
-            Op::Closure => "functions in a function",
-            Op::LoadCaptured => "captured values in a function",
-            Op::Match | Op::MatchOrFail => "patterns in a function",
-            Op::CheckReturn | Op::CheckType => "type annotations in a function",
-            Op::Assert => "asserts in a function",
-            _ => "instructions in a function",
         };
         Err(crate::diag::error(
             "E0230",

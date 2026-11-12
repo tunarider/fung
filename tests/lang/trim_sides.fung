@@ -1,0 +1,5 @@
+# trim_left and trim_right (D73): one end of trim, the same cut rule.
+print(trim_left("  a b  ") + "|", "|" + trim_right("  a b  "), trim_left("xxaxx", "x"), trim_right("xxaxx", "x"))
+# expect: a b  | |  a b axx xxa
+print(trim_left("   ") + "|", trim_right("") + "|", trim_left("가나다가", "가"), trim_right("가나다가", "가"))
+# expect: | | 나다가 가나다

@@ -15,4 +15,4 @@ r = supervise(fn(s):
 print(r)
 # expect: dropping 'task
 # expect: on_fail said E0607
-# expect: done
+# expect: Ok("done")

@@ -116,10 +116,10 @@ for svc in services:
 DOWN worker
 up   cron x1</code></pre></div>
 <h2 id="stringify">JSON 쓰기</h2>
-<p><code>json.stringify(값)</code>은 fung 값을 JSON 문자열로 바꾼다. <code>indent:</code>에 칸 수를 주면 사람이 읽기 좋게 줄을 나눈다. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. JSON에 없는 값(기간, 함수, 태그 등)은 런타임 에러 E0513이므로 <code>str(d)</code>처럼 먼저 바꿔 둔다.</p>
+<p><code>json.stringify(값)</code>은 fung 값을 JSON 문자열로 바꾼다. <code>indent:</code>에 칸 수를 주면 사람이 읽기 좋게 줄을 나눈다. 받는 것은 JSON에 있는 타입(맵·리스트·문자열·수·불·<code>nil</code>)뿐이다. 그 밖의 값(심볼, 튜플, 시각, 기간, 함수, 태그 등)은 런타임 에러 E0513이므로 먼저 바꿔 둔다: 심볼은 <code>sym_name(s)</code>, 튜플은 리스트, 기간은 <code>str(d)</code>.</p>
 <div class="run"><pre><code>import json
 
-report = {host: &quot;web1&quot;, status: 'ok, load: (0.5, 0.7), checked_in: str(1m30s)}
+report = {host: &quot;web1&quot;, status: sym_name('ok), load: [0.5, 0.7], checked_in: str(1m30s)}
 print(json.stringify(report))
 print(json.stringify({services: [&quot;api&quot;, &quot;cron&quot;], healthy: true}, indent: 2))</code></pre><pre class="out plain"><code>{&quot;host&quot;:&quot;web1&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;load&quot;:[0.5,0.7],&quot;checked_in&quot;:&quot;1m30s&quot;}
 {
@@ -147,7 +147,7 @@ print(fs.read(&quot;deploy.json&quot;)!)</code></pre><pre class="out plain"><cod
 }</code></pre></div>
 <h2 id="http">HTTP: 요청과 응답</h2>
 <p><strong>HTTP</strong>는 웹에서 쓰는 주고받기 규칙이다. 한쪽(<strong>클라이언트</strong>)이 <strong>요청</strong>(request)을 보내면 다른 쪽(<strong>서버</strong>)이 <strong>응답</strong>(response)을 돌려준다. 요청에는 <strong>메서드</strong>(무엇을 할지: <code>GET</code>은 가져오기, <code>POST</code>는 보내기), <strong>URL</strong>(어디에), <strong>헤더</strong>(덧붙이는 정보), <strong>본문</strong>(보내는 내용)이 있다. 응답에는 <strong>상태 코드</strong>(200 성공, 404 없음, 500 서버 오류 …), 헤더, 본문이 있다.</p>
-<p><code>http</code> 모듈의 <code>http.get(url)</code>은 GET 요청을 보내고 <code>Ok({status, headers, header_lines, body})</code>를 준다. 응답을 받기만 했으면 상태 코드가 404여도 <code>Ok</code>다. 상태 코드를 보는 것은 내 코드의 몫이다. 연결이 안 되거나 이름을 못 찾으면 <code>Err({kind: 'network, …})</code>, 시간 안에 끝나지 않으면 <code>Err({kind: 'timeout})</code>이다. 시간 한도는 <code>timeout:</code>으로 주고 기본은 30초다. <code>headers</code> 맵의 이름은 소문자다(같은 이름이 여럿이면 <code>&quot;, &quot;</code>로 이음). 받은 헤더 줄을 순서대로 하나씩 보려면 <code>header_lines</code>(<code>(이름, 값)</code> 리스트)를 쓴다.</p>
+<p><code>http</code> 모듈의 <code>http.get(url)</code>은 GET 요청을 보내고 <code>Ok({status, headers, header_lines, body})</code>를 준다. 응답을 받기만 했으면 상태 코드가 404여도 <code>Ok</code>다. 상태 코드를 보는 것은 내 코드의 몫이다. 연결이 안 되거나 이름을 못 찾으면 <code>Err({kind: 'network, …})</code>, URL이 틀렸으면(다시 해도 같은 실패) <code>Err({kind: 'invalid, …})</code>, 시간 안에 끝나지 않으면 <code>Err({kind: 'timeout})</code>이다. 시간 한도는 <code>timeout:</code>으로 주고 기본은 30초다. <code>headers</code> 맵의 이름은 소문자다(같은 이름이 여럿이면 <code>&quot;, &quot;</code>로 이음). 받은 헤더 줄을 순서대로 하나씩 보려면 <code>header_lines</code>(<code>(이름, 값)</code> 리스트)를 쓴다.</p>
 <p>네트워크 예제는 이 매뉴얼을 만들 때 실행하지 않는다. 아래 출력은 실제로 돌렸을 때의 모양이고, 날짜처럼 바뀌는 값은 다를 수 있다.</p>
 <pre><code>import http
 
@@ -287,7 +287,7 @@ print(json.stringify(summarize([(&quot;web1&quot;, 120ms), (&quot;web2&quot;, 2s
 <div class="run"><pre><code>import json
 
 svc = json.parse(`{&quot;status&quot;: &quot;down&quot;}`)!
-print(svc.status == 'down)</code></pre><pre class="out err plain" data-code="1"><code>error[E0517]: cannot compare a symbol with a string: &quot;down&quot; and 'down
+print(svc.status == 'down)</code></pre><pre class="out err plain" data-code="1"><code>error[E0517]: cannot compare values of different types: &quot;down&quot; (str) and 'down (sym)
   --&gt; example.fung:4:18
   |
 4 | print(svc.status == 'down)
@@ -295,7 +295,7 @@ print(svc.status == 'down)</code></pre><pre class="out err plain" data-code="1">
   |
  call path (innermost first):
    example.fung:4 &lt;entry&gt;
- help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
+ help: a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
 </div>
 <div class="box other"><b>다른 언어는</b>
 <p>쉘에서는 <code>curl</code>로 받고 <code>jq</code>로 JSON을 다루고 <code>date</code>로 시각을 계산하며, 세 도구의 문법이 저마다 다르다. fung에서는 셋이 같은 값(맵·리스트·시각) 위에서 이어진다. Python의 <code>json</code>·<code>urllib</code>·<code>datetime</code>이나 JavaScript의 <code>JSON.parse</code>·<code>fetch</code>·<code>Date</code>와 하는 일이 같다.</p>
@@ -327,7 +327,7 @@ print(json.stringify({name: &quot;web-1&quot;, up: true, ms: 12}, indent: 2))</c
 <div class="run"><pre><code>import http
 (addr_tx, addr_rx) = channel(1)
 scope(fn(s):
-  server = spawn(s, () =&gt; http.serve(&quot;127.0.0.1:0&quot;, req =&gt; &quot;ok&quot;, ready: a =&gt; send(addr_tx, a)!))
+  server = spawn(s, () =&gt; http.serve(&quot;127.0.0.1:0&quot;, _req =&gt; &quot;ok&quot;, ready: a =&gt; send(addr_tx, a)!))
   addr = recv(addr_rx)!
   r = http.get(&quot;http://${addr}/health&quot;)!
   print(r.status, r.body)
@@ -339,7 +339,7 @@ scope(fn(s):
 <ul>
 <li><code>json.parse</code>는 JSON 문자열을 맵·리스트·문자열·숫자·<code>nil</code>로 바꿔 <code>Ok</code>를 주고, <code>json.stringify</code>는 그 반대다(<code>indent:</code>로 보기 좋게).</li>
 <li>JSON에서 온 값은 문자열이다. 심볼과 비교하면 E0517이므로 문자열과 비교하거나 <code>sym</code>으로 바꾼다.</li>
-<li><code>http.get</code>·<code>http.post</code>는 응답을 받으면 상태 코드와 상관없이 <code>Ok({status, headers, header_lines, body})</code>, 전송 실패는 <code>Err('network)</code>, 시간 초과는 <code>Err('timeout)</code>.</li>
+<li><code>http.get</code>·<code>http.post</code>는 응답을 받으면 상태 코드와 상관없이 <code>Ok({status, headers, header_lines, body})</code>, 전송 실패는 <code>Err('network)</code>, 틀린 URL은 <code>Err('invalid)</code>, 시간 초과는 <code>Err('timeout)</code>.</li>
 <li><code>http.serve(주소, 처리기)</code>는 요청마다 태스크에서 처리기를 부른다. 처리기는 문자열이나 <code>{status, headers, body}</code>를 돌려준다.</li>
 <li>기간은 <code>90s</code>·<code>1h30m</code>처럼 쓰고, 시각은 <code>time.now</code>·<code>time.parse</code>·<code>time.format</code>으로 다룬다. 시각 ± 기간은 시각, 시각 − 시각은 기간이다.</li>
 </ul>

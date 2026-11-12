@@ -1,0 +1,8 @@
+# Writing a variable again is not reading it (D38).
+fn f():
+  x = 1
+  x = 2
+  3
+;;
+print(f())
+# expect-error: E0239

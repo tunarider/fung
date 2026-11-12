@@ -116,16 +116,16 @@ print(cyc_a.a())
 
 ```dump bytecode
 import fs
-import path (join)
+import path (base)
 
 fn double(x) = x * 2
 
-print(fs.exists(join(".", "nothing-here")))
+print(fs.exists(base("/tmp/nothing-here")))
 print(double(21))
 ```
 
 - `import fs`는 `IMPORT 0` 하나와 전역 저장이다. 상수 0번은 모듈의 열쇠(`fs`, 사용자 파일이면 절대 경로)다.
-- `import path (join)`은 "가져와서 `FIELD`로 꺼내 전역에 저장"일 뿐이다. 이름을 골라 가져오는 문법이 따로 있는 것이 아니다.
+- `import path (base)`는 "가져와서 `FIELD`로 꺼내 전역에 저장"일 뿐이다. 이름을 골라 가져오는 문법이 따로 있는 것이 아니다.
 - `fs.exists`는 맵의 `m.name`과 같은 `FIELD`다. 모듈이 값이기 때문이다. 그래서 모듈을 변수에 담거나 인자로 넘겨도 된다.
 - `import`는 끌어올린 `fn`보다도 앞에 온다(0000~0004번 뒤에 0005번 `CLOSURE`). 함수가 만들어질 때 모듈 이름이 이미 채워져 있다.
 
@@ -181,7 +181,7 @@ print(1)
 :::box choice fung의 선택: 핵심은 작게, 나머지는 fung으로
 - 원칙 5는 "언어 핵심은 최소한, 나머지는 fung으로 직접"이다(`background.md`). 런타임은 파일·프로세스·소켓·TLS·시간·정규식 같은 원시 기능만 주고, HTTP 프로토콜·`cli` 등은 fung 라이브러리로 쓴다(open-questions).
 - 공개 API의 이름·인자·기본값·에러 모양은 fung 쪽에서 정하고, Rust 쪽은 되도록 작은 원시 기능만 둔다. 그래서 공개 이름은 바꾸지 않고 다리 쪽을 고칠 수 있다(노트 M5).
-- prelude에는 확실한 것만 둔다. 나중에 prelude에 더하는 것은 사용자 코드에 경고(W0103) 하나를 낼 뿐이지만, 빼는 것은 호환성을 깨기 때문이다(open-questions).
+- prelude에는 확실한 것만 둔다. 더하는 것도 그 이름을 쓰던 사용자 코드를 E0240으로 깨고, 빼는 것은 부르던 코드를 깬다(open-questions).
 - fung 소스는 `include_str!`로 실행 파일 안에 들어간다(`crates/fung-front/src/extras.rs`). 배포는 여전히 `fung` 파일 하나다. 내장 모듈은 `import`될 때 컴파일하고, prelude만 시작할 때 컴파일한다. 스크립트 시작 시간을 지키기 위해서다(부록 [내부 구조](internals.html#modules)).
 :::
 
@@ -237,7 +237,7 @@ import "./units"
 each([512, 1536, 5242880], b => print(units.human(b)))
 ```
 
-`units._scale(10, 0)`을 쓰면 실행 전에 E0304로 멈춘다(종료 코드 2). 이름 해석이 `units`의 공개 이름 목록을 들고 진입 파일을 보기 때문이다. `human`은 같은 모듈 안이라 `_scale`과 `_names`를 쓸 수 있다. `_names`는 한 번만 대입되므로 최상위 `fn`이 읽을 수 있다(9장). 크기는 정수로만 계산했다. 10을 곱해 소수 첫째 자리까지 들고 다니다가 마지막에 `//`와 `%`로 나눈다.
+`units._scale(10, 0)`을 쓰면 실행 전에 E0304로 멈춘다(종료 코드 2). 이름 해석이 `units`의 공개 이름 목록을 들고 진입 파일을 보기 때문이다. `human`은 같은 모듈 안이라 `_scale`과 `_names`를 쓸 수 있다. `_names`는 최상위 이름이라 한 번만 묶이는 상수이므로 최상위 `fn`이 읽을 수 있다(9장). 크기는 정수로만 계산했다. 10을 곱해 소수 첫째 자리까지 들고 다니다가 마지막에 `//`와 `%`로 나눈다.
 :::
 :::
 

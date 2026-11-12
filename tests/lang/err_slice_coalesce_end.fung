@@ -1,0 +1,7 @@
+# A slice's end is the operand layer of `..` (D36): `??` and `|>` bind
+# looser than `..` elsewhere, so they need parentheses there too.
+xs = [1, 2, 3, 4]
+a = nil
+print(xs[(a ?? 0)..3])
+print(xs[a ?? 0..3])
+# expect-error: E0125

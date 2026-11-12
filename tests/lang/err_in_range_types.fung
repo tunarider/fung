@@ -1,0 +1,5 @@
+# A range holds ints: a value of another type is an error (D40), nil is not.
+print(nil in 0..3)
+# expect: false
+print("a" in 0..3)
+# expect-error: E0517

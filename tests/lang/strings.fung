@@ -7,5 +7,5 @@ print(`raw \n ${x}`)
 # expect: raw \n ${x}
 print("a" + "b" == "ab", "abc" < "abd", "가" < "나")
 # expect: true true true
-print("${'sym} ${1.5} ${nil} ${true}")
+print("${'sym} ${1.5} ${str(nil)} ${true}")
 # expect: 'sym 1.5 nil true

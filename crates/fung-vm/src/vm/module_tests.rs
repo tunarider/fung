@@ -82,7 +82,7 @@ fn module_value_and_errors() {
     let (_, code) = run_program(&[m, main], "/p/main.fung");
     assert_eq!(code, "E0303", "dynamic missing member");
     let boom = ("/p/boom.fung", "x = 1 / 0");
-    let main = ("/p/main.fung", "import \"./boom\"");
+    let main = ("/p/main.fung", "import \"./boom\" as _boom");
     let (_, code) = run_program(&[m, boom, main], "/p/main.fung");
     assert_eq!(code, "E0502", "error during module init");
 }
@@ -217,7 +217,7 @@ fn member_error_reports() {
         (
             "import \"./init\"\nm = init\nprint(m[1])\n",
             format!(
-                "error[E0501]: cannot index module and int
+                "error[E0509]: cannot index module with int
   --> {d}/main.fung:3:8
   |
 3 | print(m[1])

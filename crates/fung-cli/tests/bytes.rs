@@ -88,7 +88,7 @@ fn a_file_read_and_written_back_is_the_same() {
 #[test]
 fn a_command_output_and_its_environment_keep_their_bytes() {
     let o = run(
-        "r = exec([\"/bin/sh\", \"-c\", \"printf 'o\\\\377'; printf \\\"$Y\\\" >&2\"], env: {Y: \"e\\xfe\"})!\nprint([r.out, r.err])",
+        "r = exec([\"/bin/sh\", \"-c\", \"printf 'o\\\\377'; printf \\\"\\$Y\\\" >&2\"], env: {Y: \"e\\xfe\"})!\nprint([r.out, r.err])",
         b"",
         b"",
         b"",

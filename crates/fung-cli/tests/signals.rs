@@ -340,7 +340,7 @@ fn fung_test_blocks_get_a_fresh_stop() {
 fn a_server_drains_on_sigterm() {
     use std::net::TcpStream;
     let mut l = run_e(
-        "import http\nfn h(req) = fn(): print(\"in\"); sleep(300ms); \"slow\" ;;()\nprint(http.serve(\"127.0.0.1:0\", h, ready: a => print(a)))\nprint(\"served\")",
+        "import http\nfn h(_req) = fn(): print(\"in\"); sleep(300ms); \"slow\" ;;()\nprint(http.serve(\"127.0.0.1:0\", h, ready: a => print(a)))\nprint(\"served\")",
     );
     let mut addr = String::new();
     l.out.read_line(&mut addr).unwrap();
@@ -432,7 +432,7 @@ fn a_second_signal_does_not_wait_for_the_run_token() {
 /// it ends the process at once.
 #[test]
 fn a_signal_after_request_stop_ends_at_once() {
-    let mut l = run_e("stop = stop_signal()\nrequest_stop()\nprint(\"ready\")\nsleep(60s)");
+    let mut l = run_e("_stop = stop_signal()\nrequest_stop()\nprint(\"ready\")\nsleep(60s)");
     l.wait_for("ready");
     let start = Instant::now();
     l.signal("INT");
@@ -543,7 +543,7 @@ fn an_abandoned_tasks_handle_in_a_later_input_is_cancelled() {
     l.wait_for("releasing");
     l.signal("INT");
     input
-        .write_all(b"print(\"got\", timeout(() => await(recv(hrx)!), 5s))\n")
+        .write_all(b"print(\"got\", timeout(() => await(recv(hrx)!), 5s)!)\n")
         .unwrap();
     drop(input);
     let (out, err, code) = l.finish();
@@ -674,7 +674,7 @@ fn without_pidfd_sigchld_ends_the_command_waits() {
             .env("FUNG_NO_PIDFD", "1")
             .args([
                 "-e",
-                "codes = scope(s => map(1..=70, _ => spawn(s, () => sh(\"sleep 0.2\")!.code)) |> map(await))\nprint(sum(codes), len(codes))",
+                "codes = scope(s => map(1..=70, _ => spawn(s, () => sh(\"sleep 0.2\")!.code)) |> map(t => await(t)!))!\nprint(sum(codes), len(codes))",
             ])
             .stdin(Stdio::null()),
     )
@@ -692,4 +692,132 @@ fn without_pidfd_sigchld_ends_the_command_waits() {
         "{:?}",
         start.elapsed()
     );
+}
+
+/// CC18: a Ctrl-C while the release of an input that deadlocked runs
+/// cuts that input short; the session goes on to the next input.
+#[test]
+fn repl_ctrl_c_after_a_deadlock_goes_on() {
+    let mut l = Live::start(&[], Stdio::piped());
+    let mut input = l.child.stdin.take().unwrap();
+    input
+        .write_all(b"(tx, rx) = channel()\nscope(s => spawn(s, () => with(() => 1, _x => recv(rx), fn(_x): print(\"releasing\"); sleep(1s) ;;)))\n")
+        .unwrap();
+    input.flush().unwrap();
+    l.wait_for("releasing");
+    l.signal("INT");
+    input.write_all(b"print(\"next\", 1 + 1)\n").unwrap();
+    drop(input);
+    let (out, err, code) = l.finish();
+    assert!(out.contains("next 2\n"), "{out}\n{err}");
+    assert!(err.contains("E0702"), "{err}");
+    assert_eq!(code, Some(0), "{err}");
+}
+
+/// A `fung -e src` whose standard output nobody reads until `read_out`,
+/// and whose standard error is read line by line (CC15).
+struct Unread {
+    child: Reaped,
+    err: BufReader<std::process::ChildStderr>,
+    seen: String,
+}
+
+impl Unread {
+    fn start(src: &str) -> Unread {
+        let mut child = Reaped::new(
+            common::spawn(
+                Command::new(fung_bin())
+                    .args(["-e", src])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped()),
+            )
+            .unwrap(),
+        );
+        let err = BufReader::new(child.stderr.take().unwrap());
+        // A watchdog, as `Live` has: a child stuck in a write is killed
+        // after 20 s, so the test fails instead of hanging.
+        let pid = child.id();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(20));
+            let _ = common::status(Command::new("kill").args(["-KILL", &pid.to_string()]));
+        });
+        Unread {
+            child,
+            err,
+            seen: String::new(),
+        }
+    }
+
+    /// Reads standard error until a line equal to `line`.
+    fn wait_for(&mut self, line: &str) {
+        loop {
+            let mut l = String::new();
+            let n = self.err.read_line(&mut l).unwrap();
+            assert!(n > 0, "no line `{line}`; got {:?}", self.seen);
+            self.seen.push_str(&l);
+            if l.trim_end() == line {
+                return;
+            }
+        }
+    }
+
+    fn signal(&self, sig: &str) {
+        let st = common::status(
+            Command::new("kill").args([format!("-{sig}"), self.child.id().to_string()]),
+        )
+        .unwrap();
+        assert!(st.success());
+    }
+
+    /// Reads standard output at last: its length, the rest of standard
+    /// error and the exit code.
+    fn finish(mut self) -> (usize, String, Option<i32>) {
+        let mut out = Vec::new();
+        self.child
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_end(&mut out)
+            .unwrap();
+        let mut rest = String::new();
+        self.err.read_to_string(&mut rest).unwrap();
+        let st = self.child.wait().unwrap();
+        (out.len(), rest, st.code())
+    }
+}
+
+/// 200 lines of 1000 bytes: more than a pipe holds.
+const MANY_LINES: &str = "line = repeat(\"x\", 999)\nfn spew() = each(0..200, _ => print(line))\n";
+
+/// CC15 (D64): a `print` that waits for a reader that does not read
+/// holds no deadline: the `timeout` ends at its time, and standard error
+/// (another pipe) is written meanwhile. The lines queued before it are
+/// written once the reader reads.
+#[test]
+fn a_deadline_ends_a_print_to_a_full_pipe() {
+    let mut u = Unread::start(&format!(
+        "{MANY_LINES}eprint(timeout(fn(): spew(); \"done\" ;;, 200ms))"
+    ));
+    u.wait_for("Err({kind: 'timeout, message: \"timed out after 200ms\"})");
+    let (n, rest, code) = u.finish();
+    assert!(n > 0 && n < 200_000 && n.is_multiple_of(1000), "{n}");
+    assert_eq!((rest.as_str(), code), ("", Some(0)));
+}
+
+/// CC15 (D64): the first SIGINT stops a task that waits in a `print` to
+/// a pipe nobody reads: its `with` runs the release, whose `eprint` goes
+/// out on standard error at once. The command ends 130 once the reader
+/// takes what was printed.
+#[test]
+fn the_first_signal_stops_a_print_to_a_full_pipe() {
+    let mut u = Unread::start(&format!(
+        "{MANY_LINES}eprint(\"ready\")\nwith(() => 1, _x => spew(), _x => eprint(\"released\"))"
+    ));
+    u.wait_for("ready");
+    u.signal("INT");
+    u.wait_for("released");
+    let (n, rest, code) = u.finish();
+    assert!(n < 200_000 && n.is_multiple_of(1000), "{n}");
+    assert_eq!((rest.as_str(), code), ("", Some(130)));
 }

@@ -84,7 +84,7 @@ enum Value {
 - 채널에 **그 채널의 끝**을 보내면 E0709다. 버퍼가 자기 보내는 끝을 쥐면 채널은 영원히 닫히지 않는다. `send`가 보내는 값을 훑어 막는다.
 
 ```fung run exit=1 error=E0709
-(tx, rx) = channel(1)
+(tx, _rx) = channel(1)
 print(send(tx, [tx]))
 ```
 
@@ -92,7 +92,7 @@ print(send(tx, [tx]))
 
 ```fung run exit=1 error=E0708
 cache = atom({})
-(tx, rx) = channel()
+(tx, _rx) = channel()
 reset(cache, {inbox: tx})
 ```
 
@@ -206,15 +206,17 @@ print(len(items), items[19999])
 
 참조 계수는 해제 시점이 정확하다. 그러면 "언제 마지막 손잡이가 사라지는가"가 곧 의미가 된다. 특히 채널은 보내는 끝의 마지막 사본이 사라질 때 **닫힌다**(14장). 그런데 지역 변수가 함수가 끝날 때까지 값을 쥐고 있으면, 그 함수 안에서 그 채널을 끝까지 읽는 코드는 영원히 기다린다.
 
-그래서 컴파일러는 문장마다 "이 지역 변수가 뒤에서 다시 읽히는가"를 보고, 아니면 그 문장 뒤에 칸을 비우는 명령 `CLEARLOCAL`을 넣는다(설계 03 "값의 수명", 2026-10-20 검토 L7). 함수 본문의 문장이든 `if`·`match` 가지 안의 문장이든, 진입 파일의 블록 안이든 같다(2026-11-08 점검 VM1·VM2).
-반복문이 없는 언어(반복은 재귀, `for` 본문은 함수)라서 한 프레임의 코드는 가지만 있는 한 방향 길이고, 뒤에서 앞으로 한 번 걸으면 모든 문장 뒤의 "살아 있는 칸"이 나온다(생존 분석). 클로저가 붙잡는 것도 읽기다.
+그래서 컴파일러는 "이 지역 변수가 뒤에서 다시 읽히는가"를 보고, 아니면 칸을 비우는 명령 `CLEARLOCAL`을 넣는다(설계 03 "값의 수명", 2026-10-20 검토 L7). 넣는 곳은 셋이다. 문장이 끝난 뒤, 가지가 시작할 때(다른 가지에서만 읽히는 변수, `match`의 주제와 가드만 읽은 변수), 클로저가 붙잡은 것이 마지막 읽기면 그 `CLOSURE` 바로 뒤(2026-11-11 점검 VM19). 함수 본문이든 가지 안이든, 진입 파일의 블록 안이든 같다(2026-11-08 점검 VM1·VM2).
+반복문이 없는 언어(반복은 재귀, `for` 본문은 함수)라서 한 프레임의 코드는 가지만 있는 한 방향 길이고, 뒤에서 앞으로 한 번 걸으면 곳곳의 "살아 있는 칸"이 나온다(생존 분석). 가지는 같은 자리에서 따로 걸어, "가지 앞에서는 살아 있는데 이 가지의 시작에서는 죽은 칸"이 그 가지가 시작할 때 놓을 칸이다. 클로저가 붙잡는 것도 읽기다.
+살아 있는 칸의 집합은 하나만 두고 제자리에서 고치며, 가지를 다 걸으면 바꾼 것을 기록에서 되돌린다. 문장마다 집합을 복사하던 전 방식은 동시에 살아 있는 지역 4만 개에서 30초가 걸렸다(VM24, 지금은 0.1초).
+분석 결과는 노드 번호(`Node::id`)를 키로 한 표다. 컴파일러는 명령을 내다가 표를 찾아 `MOVELOCAL`·`CLEARLOCAL`을 낼 뿐이다(VM23). 함수를 부르지 않고 그대로 돌아가는 가지는 놓는 명령을 내지 않는다. 돌아가며 놓이고, 그 사이에 값을 볼 수 있는 것(함수 호출)이 없기 때문이다.
 대입은 그 칸에 쓰므로, 쓰기 앞의 읽기는 뒤에서 읽히지 않는 것으로 친다. 옆 블록이 같은 칸 번호를 다시 써도 두 이름이 섞이지 않는 것은 이 덕분이다.
 대입한 값이 뒤에서 한 번도 읽히지 않으면 그 칸은 비우지 않는다(아래의 "한 번도 읽지 않는 변수"). 마지막 읽기가 값을 넘긴 칸(`MOVELOCAL`, 아래 절)은 이미 비었으므로 다시 비우지 않는다.
 
 ```dump bytecode
 fn total(path):
-  lines = ["a", "bb", "ccc"]
-  sizes = () => map(lines, len)
+  names = ["a", "bb", "ccc"]
+  sizes = () => map(names, len)
   print(path)
   sum(sizes())
 ;;
@@ -222,7 +224,7 @@ fn total(path):
 print(total("x.log"))
 ```
 
-`total`의 0004번이 `lines`(슬롯 1)를 비운다. 람다가 `lines`를 붙잡은 것은 복사라 칸에 값이 남는데, 뒤에서 다시 읽히지 않으므로 그 문장 뒤에 놓는다.
+`total`의 0003번이 `names`(슬롯 1)를 비운다. 람다가 `names`를 붙잡은 것은 복사라 칸에 값이 남는데, 그것이 마지막 읽기이므로 `CLOSURE` 바로 뒤에 놓는다.
 `path`(슬롯 0)와 `sizes`(슬롯 2)는 마지막 읽기가 `MOVELOCAL`(아래 절)이라 칸이 이미 비었으므로, 따로 비우지 않는다. 채널 쪽에서 보면 이렇다.
 
 ```fung run
@@ -230,12 +232,26 @@ fn numbers(n) = scope(fn(s):
   (tx, rx) = channel()
   spawn(s, () => each(0..n, i => send(tx, i)!))
   fold(rx, 0, (acc, x) => acc + x)
-;;)
+;;)!
 
 print(numbers(5))
 ```
 
-`spawn` 문장 뒤에 `tx`의 칸이 비워지므로, 보내는 끝을 쥔 것은 생산 태스크의 클로저뿐이다. 그 태스크가 끝나면 마지막 사본이 사라지고 채널이 닫혀 `fold`가 끝난다.
+`spawn`에 넘길 클로저를 만든 바로 뒤에 `tx`의 칸이 비워지므로, 보내는 끝을 쥔 것은 생산 태스크의 클로저뿐이다. 그 태스크가 끝나면 마지막 사본이 사라지고 채널이 닫혀 `fold`가 끝난다.
+
+가지도 같다. 아래 `drain`의 `else`는 `tx`를 읽지 않으므로, 가지가 시작하자마자 칸을 비운다(0011번). 가지 안의 문장이 하나뿐이어도, 그 `if`가 함수의 마지막 식이어도 같다. 전에는 "문장이 없는 자리의 읽기는 그 자리를 품은 문장 뒤에 놓는다"였는데, 품은 문장이 함수의 마지막 식이면 "문장 뒤"가 없어 이 코드가 교착했다(VM19).
+
+```dump bytecode fn=drain
+fn drain(flag):
+  (tx, rx) = channel(1)
+  if flag:
+    send(tx, 1)
+  else:
+    for x in rx: x ;;
+  ;;
+;;
+print(drain(false))
+```
 
 규칙의 나머지 둘도 알아 두자. **한 번도 읽지 않는 변수는 함수가 돌아올 때까지 산다.** `_watch = stop_signal()`처럼 쥐고 있는 것 자체가 뜻인 값을 위해서다(Rust의 `let _guard`와 같은 관용구). **최상위 변수는 프로그램 끝까지 산다.** 최상위 `fn`이 언제든 읽을 수 있기 때문이다(9장).
 
@@ -257,10 +273,10 @@ print(m)
 ```fung run
 fn drop_it(_x) = nil
 
-fn closes_early() = scope(fn(s):
+fn closes_early() = scope(fn(_s):
   (tx, rx) = channel()
   [drop_it(tx), recv(rx)]
-;;)
+;;)!
 
 print(closes_early())
 ```
@@ -276,8 +292,8 @@ print(closes_early())
 - `crates/fung-vm/src/value/list.rs`: `List`(평평한 `Flat`과 보기 `Big`), `SMALL_MAX`, 빌더 `ListBuilder`.
 - `crates/fung-vm/src/value/map.rs`, `omap.rs`, `hamt.rs`: `Map`(`SMALL_MAP_MAX`), 항목 벡터와 색인을 짝지은 `Omap`, `Hamt`.
 - `crates/fung-vm/src/value/sym.rs`: 심볼 인턴 표 `intern`.
-- `crates/fung-front/src/compiler.rs`: 블록의 문장마다 `CLEARLOCAL`을 넣는 `block`·`let_go`, 가지마다 쥔 칸을 따로 드는 `branches`. 문장 뒤의 살아 있는 칸은 `compiler/moves.rs`의 `last_reads`가 센다.
-- `crates/fung-front/src/compiler/moves.rs`: 마지막 읽기를 찾는 `last_reads`(뒤에서 앞으로의 생존 분석, `MOVELOCAL`).
+- `crates/fung-front/src/compiler.rs`: 표를 찾아 `CLEARLOCAL`을 내는 `block`·`let_go`(문장 뒤), `enter`(가지 시작), `captured`(`CLOSURE` 뒤).
+- `crates/fung-front/src/compiler/moves.rs`: 표를 만드는 `lives`. 뒤에서 앞으로의 생존 분석 `Back`(마지막 읽기는 `MOVELOCAL`, 가지마다 시작할 때 죽은 칸, 바꾼 것을 되돌리는 기록 `log`)과, 코드가 없는 길에서 죽은 칸을 다음 놓는 곳으로 들고 가는 앞 걷기 `Fwd`.
 
 :::exercise 로그 수준 세기
 수준이 `INFO`·`WARN`·`ERROR`인 로그 3만 줄을 흉내 낸 리스트를 만들고, `fold`와 `put`으로 수준별 개수를 세 보자. 그리고 0부터 29999까지를 "최근 것이 먼저" 순서로 담은 리스트를 앞에 붙이기(`[i] + acc`)로 만들고, 뒤에 붙인 뒤 `reverse`한 것과 같은지 견주어 보자. 왜 둘 다 빠른가?
@@ -304,6 +320,6 @@ print(take(newest_first, 3), newest_first == reverse(fold(0..30000, [], (acc, i)
 - 메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0709·E0708이 막는다.
 - 깊은 값은 그릇마다의 `Drop`이 자식을 명시적 스택으로 옮겨 재귀 없이 지운다. 출력·비교·해시도 명시적 스택으로 훑으므로 값이 아무리 깊어도 프로세스가 죽지 않고, 출력은 깊이에 선형이다.
 - 리스트는 영속 벡터와 보기, 맵은 항목 벡터와 HAMT 색인이다. 바꿀 때 길의 노드만 새로 만들고, 혼자 쥔 노드는 `Rc::make_mut`로 제자리에서 고친다. 작은 컬렉션은 평평한 배열이다.
-- 지역 변수의 마지막 읽기는 `MOVELOCAL`로 값을 넘기고, 읽힌 문장 뒤에는 `CLEARLOCAL`로 놓인다. 그래서 `fold`로 쌓는 맵이 제자리에서 바뀌고, 채널의 끝이 제때 닫힌다.
+- 지역 변수의 마지막 읽기는 `MOVELOCAL`로 값을 넘기고, 넘기지 않았으면 더 읽힐 수 없게 된 곳(문장 뒤, 가지 시작, 붙잡은 `CLOSURE` 뒤)에서 `CLEARLOCAL`로 놓인다. 그래서 `fold`로 쌓는 맵이 제자리에서 바뀌고, 채널의 끝이 제때 닫힌다.
 
 레퍼런스: [값과 타입](../reference/language/values.html), [컬렉션 함수](../reference/prelude/collections.html). 부록의 [컬렉션의 내부](internals.html#collections)에 연산 비용 표가 있다. 다음 장은 값 중에서도 특별한 값, 모듈이 어떻게 찾아지고 실행되는지를 본다.

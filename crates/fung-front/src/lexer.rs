@@ -10,6 +10,8 @@ use crate::unicode;
 mod number;
 mod string;
 
+pub(crate) use number::INT_RANGE;
+
 /// Classifies a token.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Kind {
@@ -113,7 +115,8 @@ impl Kind {
     /// Reports a reserved word. Where only a name can appear (after `.`, as a
     /// map key) the parser accepts keywords as plain names.
     pub fn is_keyword(self) -> bool {
-        (Kind::KwFn as u8..=Kind::KwNil as u8).contains(&(self as u8))
+        // the table, not the order of the enum's variants (FE62)
+        KEYWORDS.iter().any(|&(_, k)| k == self)
     }
 
     /// The reserved words and their kinds.
@@ -422,6 +425,19 @@ fn is_hex_digit(c: Option<char>) -> bool {
     c.is_some_and(|c| c.is_ascii_hexdigit())
 }
 
+/// A digit of a hexadecimal number: lowercase, like the prefix (D56).
+/// Escapes in strings (`\xFF`, `\u{1F600}`) take either case.
+fn is_lower_hex_digit(c: Option<char>) -> bool {
+    matches!(c, Some('0'..='9' | 'a'..='f'))
+}
+
+/// The bidirectional embedding, override and isolate controls (U+202A–
+/// U+202E, U+2066–U+2069): in a comment or a string they make text show
+/// in another order than it reads ("Trojan Source", D59).
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+}
+
 impl<'a> Lexer<'a> {
     fn pos(&self) -> Pos {
         Pos {
@@ -540,6 +556,7 @@ impl<'a> Lexer<'a> {
                 None | Some('\n') => break,
                 Some('\r') if self.peek_at(1) == Some('\n') => break,
                 Some('\r') => return Err(self.err("E0101", self.pos(), "\r")),
+                Some(c) if is_bidi_control(c) => return Err(self.bidi_error()),
                 Some(_) => {
                     self.advance();
                 }
@@ -590,7 +607,12 @@ impl<'a> Lexer<'a> {
             (k, 1)
         } else {
             let one: String = rest.chars().take(1).collect();
-            return Err(self.err("E0101", p, &one));
+            let d = self.err("E0101", p, &one);
+            // `&&` of another language (FE43)
+            if let Some(h) = prefix(2).and_then(crate::habits::operator) {
+                return Err(d.span(2).with_help(h));
+            }
+            return Err(d);
         };
         for _ in 0..len {
             self.advance();

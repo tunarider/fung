@@ -1,16 +1,16 @@
-//! Input and output natives: `exit`, `dbg`, `eprint`, `read_line`,
-//! `read_lines`. `file` is nil (standard input) or a file handle from
+//! Input and output natives: `exit`, `dbg`, `eprint`, `write`,
+//! `ewrite`, `read_line`, `read_lines`. `file` is nil (standard input) or a file handle from
 //! `fs.open`, read on a pool thread.
 
 use std::sync::Arc;
 
-use crate::native::file::{Fault, File};
+use crate::native::file::{Fault, File, PipeTurn};
 use crate::native::fs::fault_value;
 use crate::native::nat::{self, param};
 use crate::native::oserr;
 use crate::native::pipe::{self, Step};
-use crate::value::{Args, Native, Value, format};
-use crate::vm::{Flow, Input, IoStep, Stop, Task, Wake, park_io, park_until_then};
+use crate::value::{Args, Native, Value, format_text};
+use crate::vm::{Flow, Input, IoStep, Std, Stop, Task, Wake, park_io, park_until_then, write_std};
 
 /// `exit(code = 0)` raises the exit signal (06): the VM unwinds through
 /// every `with`'s release, then the process ends with the code.
@@ -34,7 +34,7 @@ pub(super) fn exit_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
 /// `d = dbg`): it writes `dbg = value` to standard error and returns `x`.
 pub fn dbg() -> &'static Native {
     static DBG: std::sync::OnceLock<&'static Native> = std::sync::OnceLock::new();
-    DBG.get_or_init(|| Native::leak("dbg", vec![param("x")], dbg_fn))
+    DBG.get_or_init(|| Native::leak_step("dbg", vec![param("x")], dbg_fn))
 }
 
 /// The `dbg` a direct `dbg(e)` calls (`Const::Dbg`): the compiler passes
@@ -43,7 +43,7 @@ pub fn dbg() -> &'static Native {
 pub fn dbg_at() -> &'static Native {
     static DBG: std::sync::OnceLock<&'static Native> = std::sync::OnceLock::new();
     DBG.get_or_init(|| {
-        Native::leak(
+        Native::leak_step(
             "dbg",
             vec![param("x"), param("text"), param("where")],
             dbg_at_fn,
@@ -51,15 +51,13 @@ pub fn dbg_at() -> &'static Native {
     })
 }
 
-fn dbg_fn(t: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
-    let line = format!("dbg = {}\n", format(&a[0]));
-    t.stderr()
-        .write_all(line.as_bytes())
-        .map_err(nat::write_err)?;
-    Ok(a.swap_remove(0))
+fn dbg_fn(t: &mut Task<'_>, mut a: Args) -> Result<Flow, Stop> {
+    let line = format!("dbg = {}\n", format_text(&a[0])?);
+    let x = a.swap_remove(0);
+    write_std(t, Std::Err, line.into_bytes(), x)
 }
 
-fn dbg_at_fn(t: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
+fn dbg_at_fn(t: &mut Task<'_>, mut a: Args) -> Result<Flow, Stop> {
     let (Value::Str(text), Value::Str(at)) = (&a[1], &a[2]) else {
         unreachable!("the compiler passes dbg's text and place as strings")
     };
@@ -68,17 +66,30 @@ fn dbg_at_fn(t: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
     line.extend_from_slice(at);
     line.extend_from_slice(b"] ");
     line.extend_from_slice(text);
-    line.extend_from_slice(format!(" = {}\n", format(&a[0])).as_bytes());
-    t.stderr().write_all(&line).map_err(nat::write_err)?;
-    Ok(a.swap_remove(0))
+    line.extend_from_slice(format!(" = {}\n", format_text(&a[0])?).as_bytes());
+    let x = a.swap_remove(0);
+    write_std(t, Std::Err, line, x)
 }
 
 /// `eprint(...)` is print to standard error.
-pub(super) fn eprint_fn(t: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
-    let mut line = nat::join_for_print(super::rest_items(&a[0]).iter());
+pub(super) fn eprint_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    let mut line = nat::join_for_print(super::rest_items(&a[0]).iter())?;
     line.push(b'\n');
-    t.stderr().write_all(&line).map_err(nat::write_err)?;
-    Ok(Value::Nil)
+    write_std(t, Std::Err, line, Value::Nil)
+}
+
+/// `write(s)`: the string as it is, no newline added (D73), through the
+/// output thread as `print` (so in order with it). A string only: `print`
+/// is the one that shows values.
+pub(super) fn write_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    let s = nat::need_bytes("s", &a[0])?.to_vec();
+    write_std(t, Std::Out, s, Value::Nil)
+}
+
+/// `ewrite(s)` is write to standard error.
+pub(super) fn ewrite_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    let s = nat::need_bytes("s", &a[0])?.to_vec();
+    write_std(t, Std::Err, s, Value::Nil)
 }
 
 fn trim_line(line: &[u8]) -> &[u8] {
@@ -125,30 +136,47 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 /// `read_line` (`one`) or `read_lines` on a FIFO handle: read on the run
 /// thread, parking in the event loop when nothing is there (`pipe.rs`,
 /// L11). The lines read so far stay in the closure: a stop loses none of
-/// the bytes, which stay in the handle's buffer.
+/// the bytes, which stay in the handle's buffer. One task at a time reads
+/// the handle (its read turn, CC14); the others wait in line.
 fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
     let mut got: Vec<Vec<u8>> = Vec::new();
+    let turn = PipeTurn::new(h.clone(), false);
+    let stopped = turn.clone();
     park_io(
         t,
-        move |_, _| loop {
-            match h.pipe_read_line() {
-                Ok(Step::Ready(Some(l))) if one => {
-                    return IoStep::Done(Ok(line_value(&named(&h), Some(l))));
-                }
-                Ok(Step::Ready(Some(l))) => got.push(l),
-                Ok(Step::Ready(None)) if one => return IoStep::Done(Ok(line_value("", None))),
-                Ok(Step::Ready(None)) => {
-                    return IoStep::Done(Ok(lines_value(&named(&h), std::mem::take(&mut got))));
-                }
-                Ok(Step::Wait(fd, interest, at)) => return pipe::io_step(fd, interest, at),
-                Ok(Step::Fail(e)) => {
-                    return IoStep::Done(fault_value(&h, "read", Fault::Io(e)));
-                }
-                Err(e) => return IoStep::Done(fault_value(&h, "read", e)),
+        move |_, me| {
+            if !turn.take(me) {
+                return IoStep::Park;
             }
+            let step = pipe_lines_step(&h, one, &mut got);
+            if let IoStep::Done(_) = step {
+                turn.end();
+            }
+            step
         },
-        |_| {},
+        move |_| stopped.end(),
     )
+}
+
+/// One look of `pipe_lines`, holding the read turn.
+fn pipe_lines_step(h: &File, one: bool, got: &mut Vec<Vec<u8>>) -> IoStep {
+    loop {
+        match h.pipe_read_line() {
+            Ok(Step::Ready(Some(l))) if one => {
+                return IoStep::Done(Ok(line_value(&named(h), Some(l))));
+            }
+            Ok(Step::Ready(Some(l))) => got.push(l),
+            Ok(Step::Ready(None)) if one => return IoStep::Done(Ok(line_value("", None))),
+            Ok(Step::Ready(None)) => {
+                return IoStep::Done(Ok(lines_value(&named(h), std::mem::take(got))));
+            }
+            Ok(Step::Wait(fd, interest, at)) => return pipe::io_step(fd, interest, at),
+            Ok(Step::Fail(e)) => {
+                return IoStep::Done(fault_value(h, "read", Fault::Io(e)));
+            }
+            Err(e) => return IoStep::Done(fault_value(h, "read", e)),
+        }
+    }
 }
 
 /// `Ok([...])` of the lines `read_lines` read from `who`, each without
@@ -156,6 +184,17 @@ fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
 fn lines_value(who: &str, ls: Vec<Vec<u8>>) -> Value {
     if ls.iter().any(|l| !nat::fits_limit(trim_line(l))) {
         return line_too_long(who);
+    }
+    // More lines than a list holds: the read's Err too (D63, as D22).
+    if ls.len() as u64 > nat::MAX_ELEMENTS {
+        return nat::err_value(
+            "io",
+            &format!(
+                "cannot read {who}: more lines than the list limit ({} elements)",
+                nat::MAX_ELEMENTS
+            ),
+            Vec::new(),
+        );
     }
     nat::ok(nat::list(
         ls.iter()

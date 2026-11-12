@@ -4,13 +4,14 @@
 ==== check -e "import fs"
 -- stdout
 -- stderr
-| warning[W0101]: unused import `fs`
+| error[E0239]: unused import `fs`
 |   --> -e:1:8
 |   |
 | 1 | import fs
 |   |        ^^
 |   |
--- exit: 0
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
 ==== check -e "import fs as f\nprint(f.read)"
 -- stdout
 -- stderr
@@ -18,30 +19,32 @@
 ==== check -e "fn f():\n  x = 1\n  2\n;;"
 -- stdout
 -- stderr
-| warning[W0102]: unused variable `x`
+| error[E0239]: unused variable `x`
 |   --> -e:2:3
 |   |
 | 2 |   x = 1
 |   |   ^
 |   |
-|  help: prefix it with `_` if it is intentional
--- exit: 0
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
 ==== check -e "fn map(xs) = xs\nlen = 1"
 -- stdout
 -- stderr
-| warning[W0103]: `map` shadows a prelude function
-|   --> -e:1:1
+| error[E0240]: `map` hides a prelude function
+|   --> -e:1:4
 |   |
 | 1 | fn map(xs) = xs
-|   | ^^^
+|   |    ^^^
 |   |
-| warning[W0103]: `len` shadows a prelude function
+|  help: a visible name means one thing: give the new one a name of its own
+| error[E0240]: `len` hides a prelude function
 |   --> -e:2:1
 |   |
 | 2 | len = 1
 |   | ^^^
 |   |
--- exit: 0
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
 ==== check -e "print(if true: _y = 1 ;;)"
 -- stdout
 -- stderr
@@ -63,31 +66,25 @@
 ==== check -e "fn f():\n  x = 1\n  len = 2\n  x\n;;"
 -- stdout
 -- stderr
-| warning[W0103]: `len` shadows a prelude function
+| error[E0240]: `len` hides a prelude function
 |   --> -e:3:3
 |   |
 | 3 |   len = 2
 |   |   ^^^
 |   |
-| warning[W0102]: unused variable `len`
-|   --> -e:3:3
-|   |
-| 3 |   len = 2
-|   |   ^^^
-|   |
-|  help: prefix it with `_` if it is intentional
--- exit: 0
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
 ==== check -e "fn f():\n  이름 = 1\n  2\n;;"
 -- stdout
 -- stderr
-| warning[W0102]: unused variable `이름`
+| error[E0239]: unused variable `이름`
 |   --> -e:2:3
 |   |
 | 2 |   이름 = 1
 |   |   ^^^^
 |   |
-|  help: prefix it with `_` if it is intentional
--- exit: 0
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
 ==== check -e "x = )"
 -- stdout
 -- stderr
@@ -322,14 +319,14 @@
 ==== check wide name
 -- stdout
 -- stderr
-| warning[W0102]: unused variable `x`
+| error[E0239]: unused variable `x`
 |   --> $DIR/넓은.fung:2:3
 |   |
 | 2 |   x = 1
 |   |   ^
 |   |
-|  help: prefix it with `_` if it is intentional
--- exit: 0
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
 ==== check not UTF-8 source
 -- stdout
 -- stderr

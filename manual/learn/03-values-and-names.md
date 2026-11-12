@@ -52,8 +52,8 @@ print(2 ** 10, 1_000_000, 1 + 2.0)
 fung은 숫자가 틀어지는 것을 그냥 두지 않는다. 0으로 나누면 에러로 멈추고, 정수가 담을 수 있는 범위(약 ±922경)를 넘어도 에러다. 많은 언어에서 넘친 정수는 조용히 음수로 돌아가 버리는데, fung에서는 그런 일이 없다.
 
 ```fung run exit=1 error=E0503
-max = 9_223_372_036_854_775_807
-print(max + 1)
+biggest = 9_223_372_036_854_775_807
+print(biggest + 1)
 ```
 
 실수는 컴퓨터 안에서 2진수로 저장되어서 10진수 소수를 정확히 나타내지 못할 때가 있다. 이것은 fung만이 아니라 거의 모든 언어가 같다.
@@ -118,8 +118,8 @@ print(status, status == 'ok, status == 'degraded)
 **기간**(`dur`)은 시간의 길이다. 숫자 바로 뒤에 단위 `ms`(밀리초), `s`(초), `m`(분), `h`(시간)를 붙인다. 시간 제한이나 재시도 간격처럼 SRE 스크립트에 자주 나온다. 기간끼리 더하고 빼고, 숫자를 곱할 수 있다. 몇 분인지 숫자로 얻으려면 그 단위로 나눈다.
 
 ```fung run
-timeout = 30s
-print(timeout, timeout * 4, 1h30m, 90s)
+wait = 30s
+print(wait, wait * 4, 1h30m, 90s)
 print(1h30m // 1m, 2m > 90s)
 ```
 
@@ -164,17 +164,17 @@ print("free:", free, "GB")
 - `if`, `for`, `fn` 같은 **예약어(keyword)**는 이름으로 쓸 수 없다. 목록은 [레퍼런스](../reference/language/lexical.html)에 있다.
 - 이름은 **쓰기 전에** 대입해야 한다. 아래 줄에서 대입할 이름을 위에서 읽으면 E0204다.
 
-같은 이름에 다시 대입할 수도 있다. 그러면 그 이름은 새 값을 가리킨다.
+파일의 맨 바깥(**최상위**)에서는 한 이름을 **한 번만** 붙인다. 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙인다. (함수 본문 같은 블록 안에서는 같은 이름에 다시 대입할 수 있다. 5장에서 본다.)
 
 ```fung run
 retries = 3
-retries = retries + 1
-print(retries)
+max_tries = retries + 1
+print(retries, max_tries)
 ```
 
 ## 값은 바뀌지 않는다 {#immutable}
 
-fung에서 **값 자체는 절대 바뀌지 않는다**. 위의 `retries = retries + 1`도 `3`이라는 값을 `4`로 고친 것이 아니다. `retries + 1`로 새 값 `4`를 만들고, `retries`라는 이름표를 그 새 값에 옮겨 붙였을 뿐이다.
+fung에서 **값 자체는 절대 바뀌지 않는다**. 위의 `retries + 1`도 `3`이라는 값을 `4`로 고친 것이 아니다. 새 값 `4`를 만들고 `max_tries`라는 이름표를 그 값에 붙였을 뿐이다. `retries`는 여전히 `3`을 가리킨다.
 
 이 차이는 이름 두 개가 같은 값을 가리킬 때 드러난다. 문자열을 대문자로 바꾸는 `upper`는 원래 문자열을 고치지 않고 새 문자열을 돌려준다. 리스트에 원소를 더해도 새 리스트가 생긴다.
 
@@ -193,7 +193,7 @@ print(all_hosts)
 
 ## 상수 {#constants}
 
-프로그램에서 한 번 정하고 바꾸지 않는 값을 **상수(constant)**라고 한다. fung에는 상수를 선언하는 따로 된 문법이 없다. 파일 최상위에서 **한 번만 대입한 이름**이 곧 상수다. 이름은 다른 변수와 똑같이 소문자로 쓴다.
+프로그램에서 한 번 정하고 바꾸지 않는 값을 **상수(constant)**라고 한다. fung에는 상수를 선언하는 따로 된 문법이 없다. 최상위의 이름은 한 번만 붙으므로 **최상위의 이름이 곧 상수**다. 이름은 다른 변수와 똑같이 소문자로 쓴다.
 
 ```fung run
 max_retries = 3
@@ -201,7 +201,7 @@ log_dir = "/var/log/app"
 print(max_retries, log_dir)
 ```
 
-상수와 두 번 이상 대입한 변수는 함수 안에서 볼 수 있는지가 다르다. 5장에서 다룬다.
+최상위 함수는 이 상수들을 모두 볼 수 있다. 5장에서 다룬다.
 
 ## 블록은 바깥 변수를 바꿀 수 없다 {#blocks}
 
@@ -290,14 +290,14 @@ print("free:", total_gb - used_gb, "GB")
 ```fung run
 a = [1, 2]
 b = a
-b = b + [3]
-a = a + [9]
-print(a, b)
+c = b + [3]
+d = a + [9]
+print(a, b, c, d)
 ```
 
 :::solution
 
-`b = a`는 같은 리스트에 이름표를 하나 더 붙인다. `b + [3]`과 `a + [9]`는 각각 **새** 리스트를 만들어 이름표를 옮긴다. 원래의 `[1, 2]`는 한 번도 바뀌지 않았으므로 `a`는 `[1, 2, 9]`, `b`는 `[1, 2, 3]`이다.
+`b = a`는 같은 리스트에 이름표를 하나 더 붙인다. `b + [3]`과 `a + [9]`는 각각 **새** 리스트를 만들어 새 이름표 `c`·`d`를 붙인다. 원래의 `[1, 2]`는 한 번도 바뀌지 않았으므로 `a`와 `b`는 `[1, 2]`, `c`는 `[1, 2, 3]`, `d`는 `[1, 2, 9]`이다.
 
 :::
 
@@ -309,8 +309,8 @@ print(a, b)
 - `/`는 실수, `//`는 정수 나눗셈, `%`는 나머지. 0 나누기와 정수 넘침은 에러다.
 - fung은 타입을 저절로 바꾸지 않는다. `int`, `float`, `str`로 직접 바꾼다.
 - `nil`은 "없음"이고, `??`로 기본값을 준다.
-- 이름은 소문자로 시작하고, 쓰기 전에 대입한다. 최상위에서 한 번만 대입한 이름이 상수다.
+- 이름은 소문자로 시작하고, 쓰기 전에 대입한다. 최상위의 이름은 한 번만 붙고(E0238) 모두 상수다.
 - 값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.
 - 블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.
 
-레퍼런스: [값과 타입](../reference/language/values.html), [연산자](../reference/language/operators.html), [변수와 스코프](../reference/language/scope.html), [변환 함수](../reference/prelude/convert.html), [E0205](../reference/errors.html#E0205), [E0517](../reference/errors.html#E0517). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.
+레퍼런스: [값과 타입](../reference/language/values.html), [연산자](../reference/language/operators.html), [변수와 스코프](../reference/language/scope.html), [변환 함수](../reference/prelude/convert.html), [E0205](../reference/errors.html#E0205), [E0238](../reference/errors.html#E0238), [E0517](../reference/errors.html#E0517). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.

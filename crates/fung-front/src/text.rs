@@ -156,25 +156,6 @@ pub fn utf8_offset(v: &[u8], n: usize) -> Result<usize, usize> {
     Err(n - left)
 }
 
-/// Where the `k`th character from the end of `b` starts (`k` ≥ 1), or
-/// `None` when `b` has fewer: `s[-k]` without counting the whole string.
-pub fn back(b: &[u8], k: usize) -> Option<usize> {
-    let mut end = b.len();
-    for _ in 0..k {
-        end -= last(&b[..end])?.byte_len();
-    }
-    Some(end)
-}
-
-/// [`back`] in valid UTF-8: steps back over continuation bytes.
-pub fn utf8_back(v: &[u8], k: usize) -> Option<usize> {
-    let mut end = v.len();
-    for _ in 0..k {
-        end = v[..end].iter().rposition(|&b| starts_char(b))?;
-    }
-    Some(end)
-}
-
 /// `b` as text for a message: each byte outside valid UTF-8 becomes
 /// U+FFFD. Never for a value (L4).
 pub fn lossy(b: &[u8]) -> std::borrow::Cow<'_, str> {
@@ -265,8 +246,8 @@ mod tests {
         all
     }
 
-    /// Where each character starts, found forward and from the end, is
-    /// where cutting into characters puts it (VA12).
+    /// Where each character starts, found forward, is where cutting into
+    /// characters puts it (VA12).
     #[test]
     fn offsets_agree_with_the_units() {
         for b in samples() {
@@ -279,13 +260,6 @@ mod tests {
                     "{b:?} {i}"
                 );
             }
-            for k in 1..=n + 1 {
-                assert_eq!(
-                    back(&b, k),
-                    n.checked_sub(k).map(|i| starts[i]),
-                    "{b:?} -{k}"
-                );
-            }
             if let Ok(s) = std::str::from_utf8(&b) {
                 for i in 0..=n + 1 {
                     assert_eq!(
@@ -293,9 +267,6 @@ mod tests {
                         starts.get(i).copied().ok_or(n),
                         "{b:?} {i}"
                     );
-                }
-                for k in 1..=n + 1 {
-                    assert_eq!(utf8_back(s.as_bytes(), k), back(&b, k), "{b:?} -{k}");
                 }
             }
         }

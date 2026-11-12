@@ -19,8 +19,3 @@ fn sum_to(n):
 ;;
 print(sum_to(100))
 # expect: 5050
-g = 1
-read_g = () => g
-g = 2
-print(read_g())
-# expect: 1

@@ -22,7 +22,8 @@ pub struct Map {
 #[derive(Clone)]
 enum Repr {
     Flat(Vec<(Rc<Text>, Value)>),
-    Big(Omap),
+    // Boxed so that a small map's head is the size of a `Vec` (VA37).
+    Big(Box<Omap>),
 }
 
 impl Default for Map {
@@ -48,10 +49,13 @@ impl Map {
         }
     }
 
-    pub(crate) fn holds_mutable(&self) -> bool {
+    /// Whether an entry's value answers `p` (`Probed::has`); a big map
+    /// answers from its memo.
+    pub(crate) fn holds(&self, p: super::Probe) -> bool {
+        use super::Probed;
         match &self.repr {
-            Repr::Flat(v) => v.iter().any(|(_, x)| x.holds_mutable()),
-            Repr::Big(o) => o.holds_mutable(),
+            Repr::Flat(v) => v.iter().any(|(_, x)| x.has(p)),
+            Repr::Big(o) => o.holds(p),
         }
     }
 
@@ -116,7 +120,7 @@ impl Map {
                 es.push((k, v));
                 if es.len() > SMALL_MAP_MAX {
                     let es = std::mem::take(es);
-                    self.repr = Repr::Big(Omap::of(es));
+                    self.repr = Repr::Big(Box::new(Omap::of(es)));
                 }
             }
             Repr::Big(o) => o.put(k, v),

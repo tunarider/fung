@@ -114,6 +114,14 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   큰 것: 버려지는 효과 없는 식 E0234, 모두 맞는 절 뒤의 절 E0235, `Ok`·`Err`는 값 하나(E0236), `nil?`은 E0604, 괄호가 트리에 남아 파이프·슬라이스를 정함(E0125), 거꾸로 된 범위 값 E0522, 개수·기간 인자는 음수 E0403,
   `parse_*`는 리터럴 규칙, `fs.exists`는 `Ok(bool)`, `cli.parse`는 `Ok`/`Err`, 신호로 끝난 명령은 `signal`, 한도를 넘는 바깥 글은 `Err`, HTTP는 받은 그대로(`header_lines`·`target`·`query_pairs`)·자동 `Referer` 없음,
   CLI 종료 코드 2/3과 옵션 파서 하나, E0231·E0705 은퇴, 이름 `is_utf8`·`env_all`·`sym_name`(`range()` 삭제), 성능 VM15·VM16(`fib` −21%). 측정 `docs/notes/bench-languages.md` 4.5~4.8절.
+- 세 번째 전체 점검 (2026-11-11, 기준 `276b0a0f`): 기조(일관성·예외 최소화, 엄격함 우선)와 바이트코드 VM의 문제·비효율을 기준으로 고칠 항목 115개를 `docs/plans/2026-11-11-full-review.md`에 모았다(같은 형식, 번호는 SP28~·FE40~·VM19~·VA28~·CC14~·LB41~·TL9~).
+- 세 번째 전체 점검 고침 (2026-11-11~12, 작업 브랜치 `claude/language-bytecode-vm-review-4cf7c7`의 W1~W12 커밋, **main에 스쿼시 전, 미릴리스**): 115개 모두 처리. 결정 D35~D84(사용자 "모두 제안대로")와 묶음 W1~W12는 `docs/plans/2026-11-11-full-review-fixes.md`, 항목마다 `처리:` 줄.
+  큰 것: 쓰지 않는 이름 E0239·보이는 이름의 다시 묶기 E0240(경고 W0101~W0103 은퇴, D38), 최상위 다시 대입 E0238(최상위 이름은 모두 상수, D53), `??`와 `|>` 섞기 E0127, 람다·`for`의 `return`·`?` E0237(E0213·E0220·E0226 은퇴),
+  맨 `Ok`·`Err` E0236과 대문자 심볼 리터럴 E0128, `"$name"` E0129, 원소 타입 E0130(E0232 은퇴), `return` 뒤 문장 E0131·값 자리 `return` E0132, 펼침 `f(...xs)` E0133, `import`는 맨 앞 E0313, 16진 숫자 소문자,
+  호출의 인자 개수·이름을 컴파일 때 검사(D43), 음수 인덱스 없음(D37), 다른 타입의 `==`·`in` E0517(D40)·함수의 같음 없음, 순수 함수 문장 E0234, 정수·실수 섞기 E0523·정수의 음수 거듭제곱 E0524,
+  깊은 곳의 버려지는 `Err` E0606, 통과 함수(`await`·`timeout`·`scope`·`supervise`·`fs.with_open`·`fs.with_temp_dir`)는 `f`의 값을 `Ok`로(D65), 닫힌 집합의 `cli.parse`(D69), errno → `kind` 표 하나(D70),
+  `json.stringify`는 JSON 타입만(D80), 두 번 `close`는 `Err('closed)`(D72), 출력은 쓰기 스레드(D64), 수명 분석 표·바이트코드 검증기(VM22·VM23), 진단 E0134·E0135·E0241, 성능(`docs/notes/bench-languages.md` 4.10~4.12절), 퍼징 시험(TL9)·CI(TL10).
+  남은 것(대문자 심볼의 출력, `type_of`와 태그 타입, `http.serve` `req`의 튜플, 리눅스 미검증 등)은 open-questions "남은 일".
 - 다른 언어와의 성능 비교 (2026-10-21): Python·Lua·Ruby·Node와 13개 작업, 프로그램 `bench/compare/`(`python3 -I bench/compare/run.py target/release/fung`), 기록 `docs/notes/bench-languages.md`.
   약점은 파일·텍스트 처리량. **다음 성능 작업**: P8~P11·P13은 2026-10-25에 끝(기록 `docs/notes/bench-languages.md` 4.1절). L15에서 P14·P12b·레지스터 VM을 닫았다(`docs/notes/bench-languages.md` 4.3·4.4절).
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).

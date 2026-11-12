@@ -1,5 +1,5 @@
-[first, ...rest] = [1, 2, 3]
+[head, ...rest] = [1, 2, 3]
 {name: n} = {name: "a", x: 1}
 Ok(text) = Ok("hi")
-print(first, rest, n, text)
+print(head, rest, n, text)
 # expect: 1 [2, 3] a hi

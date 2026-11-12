@@ -28,14 +28,14 @@ fn with_gives_the_use_value_and_releases() {
 #[test]
 fn release_runs_after_an_err_value() {
     assert_eq!(
-        run("print(with(() => 1, r => Err('x), r => print(\"released\")))"),
+        run("print(with(() => 1, _r => Err('x), _r => print(\"released\")))"),
         ("released\nErr('x)\n".into(), "".into(), 0)
     );
 }
 
 #[test]
 fn release_runs_after_a_runtime_error() {
-    let (out, err, code) = run("with(() => 1, r => 1 / 0, r => print(\"released\"))");
+    let (out, err, code) = run("with(() => 1, _r => 1 / 0, _r => print(\"released\"))");
     assert_eq!(out, "released\n");
     assert!(err.contains("E0502"), "{err}");
     assert_eq!(code, 1);
@@ -44,7 +44,7 @@ fn release_runs_after_a_runtime_error() {
 #[test]
 fn release_runs_after_a_cancel() {
     let o = exec_waiting(
-        "(_gate_tx, gate) = channel()\nscope(fn(s):\n  t = spawn(s, () => with(() => 1, r => recv(gate), r => print(\"released\")))\n  blocked(gate, 1)\n  cancel(t)\n  print(await(t))\n;;)",
+        "(_gate_tx, gate) = channel()\nscope(fn(s):\n  t = spawn(s, () => with(() => 1, _r => recv(gate), _r => print(\"released\")))\n  blocked(gate, 1)\n  cancel(t)\n  print(await(t))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -61,7 +61,7 @@ fn release_runs_after_a_cancel() {
 #[test]
 fn exit_runs_every_release() {
     let o = exec_waiting(
-        "(_gate_tx, gate) = channel()\nwith(() => 0, _ => scope(fn(s):\n  spawn(s, () => with(() => 1, r => recv(gate), r => print(\"released\", r)))\n  spawn(s, () => with(() => 2, r => recv(gate), r => print(\"released\", r)))\n  blocked(gate, 2)\n  spawn(s, () => exit(3))\n;;), r => print(\"released\", r))",
+        "(_gate_tx, gate) = channel()\nwith(() => 0, _ => scope(fn(s):\n  spawn(s, () => with(() => 1, _r => recv(gate), r => print(\"released\", r)))\n  spawn(s, () => with(() => 2, _r => recv(gate), r => print(\"released\", r)))\n  blocked(gate, 2)\n  spawn(s, () => exit(3))\n;;), r => print(\"released\", r))",
     );
     for r in ["released 0", "released 1", "released 2"] {
         assert!(o.out.contains(r), "{r}: {}", o.out);
@@ -72,7 +72,7 @@ fn exit_runs_every_release() {
 #[test]
 fn a_failing_sibling_still_lets_release_run() {
     let o = exec_waiting(
-        "(_gate_tx, gate) = channel()\nscope(fn(s):\n  spawn(s, () => with(() => 1, r => recv(gate), r => print(\"released\")))\n  spawn(s, fn(): blocked(gate, 1); fail(\"boom\") ;;)\n;;)",
+        "(_gate_tx, gate) = channel()\nscope(fn(s):\n  spawn(s, () => with(() => 1, _r => recv(gate), _r => print(\"released\")))\n  spawn(s, fn(): blocked(gate, 1); fail(\"boom\") ;;)\n;;)",
     );
     assert_eq!(o.out, "released\n");
     assert!(o.err.contains("boom"), "{}", o.err);
@@ -83,7 +83,7 @@ fn a_failing_sibling_still_lets_release_run() {
 fn a_deadline_does_not_cut_release() {
     assert_eq!(
         run(
-            "(_tx, never) = channel()\nprint(timeout(() => with(() => 1, r => recv(never), fn(r): sleep(50ms); print(\"released\") ;;), 20ms))"
+            "(_tx, never) = channel()\nprint(timeout(() => with(() => 1, _r => recv(never), fn(_r): sleep(50ms); print(\"released\") ;;), 20ms))"
         ),
         (
             "released\nErr({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
@@ -95,21 +95,21 @@ fn a_deadline_does_not_cut_release() {
 
 #[test]
 fn acquire_failing_skips_release() {
-    let (out, err, _) = run("with(() => 1 / 0, r => 1, r => print(\"released\"))");
+    let (out, err, _) = run("with(() => 1 / 0, _r => 1, _r => print(\"released\"))");
     assert_eq!(out, "");
     assert!(err.contains("E0502"), "{err}");
 }
 
 #[test]
 fn a_release_error_replaces_a_value() {
-    let (_, err, code) = run("with(() => 1, r => 2, r => fail(\"rel\"))");
+    let (_, err, code) = run("with(() => 1, _r => 2, _r => fail(\"rel\"))");
     assert!(err.contains("error[E0803]: rel"), "{err}");
     assert_eq!(code, 1);
 }
 
 #[test]
 fn a_use_error_keeps_the_release_error_as_a_note() {
-    let (_, err, code) = run("with(() => 1, r => fail(\"use\"), r => fail(\"rel\"))");
+    let (_, err, code) = run("with(() => 1, _r => fail(\"use\"), _r => fail(\"rel\"))");
     assert!(err.contains("error[E0803]: use"), "{err}");
     assert!(
         err.contains("note: also failed in release: error[E0803]: rel"),
@@ -122,7 +122,7 @@ fn a_use_error_keeps_the_release_error_as_a_note() {
 fn a_release_stuck_after_exit_is_cut_by_the_deadlock_check() {
     let start = Instant::now();
     let (_, err, code) =
-        run("(_tx, never) = channel()\nwith(() => 1, r => exit(3), r => recv(never))");
+        run("(_tx, never) = channel()\nwith(() => 1, _r => exit(3), _r => recv(never))");
     assert!(err.contains("E0702"), "{err}");
     assert_eq!(code, 3);
     assert!(start.elapsed() < Duration::from_secs(2));
@@ -130,7 +130,7 @@ fn a_release_stuck_after_exit_is_cut_by_the_deadlock_check() {
 
 #[test]
 fn a_release_stuck_without_exit_is_a_deadlock() {
-    let (_, err, code) = run("(_tx, never) = channel()\nwith(() => 1, r => 2, r => recv(never))");
+    let (_, err, code) = run("(_tx, never) = channel()\nwith(() => 1, _r => 2, _r => recv(never))");
     assert!(err.contains("E0702"), "{err}");
     assert_eq!(code, 1);
 }
@@ -140,11 +140,12 @@ fn a_release_stuck_without_exit_is_a_deadlock() {
 /// as a second E0702.
 #[test]
 fn a_release_stuck_after_a_deadlock_is_a_note() {
-    let (_, err, code) = run("(tx, rx) = channel()\nwith(() => 1, x => recv(rx), x => recv(rx))");
+    let (_, err, code) =
+        run("(_tx, rx) = channel()\nwith(() => 1, _x => recv(rx), _x => recv(rx))");
     assert_eq!(err.matches("error[E0702]").count(), 1, "{err}");
     assert!(
         err.ends_with(
-            " note: a release waited too after the deadlock and was cut short: recv at -e:2:39\n"
+            " note: a release waited too after the deadlock and was cut short: recv at -e:2:41\n"
         ),
         "{err}"
     );
@@ -164,7 +165,7 @@ fn with_checks_its_arguments() {
 #[test]
 fn an_exit_in_release_ends_the_program() {
     assert_eq!(
-        run("print(with(() => 1, r => 2, r => exit(5)))\nprint(\"not here\")"),
+        run("print(with(() => 1, _r => 2, _r => exit(5)))\nprint(\"not here\")"),
         ("".into(), "".into(), 5)
     );
 }
@@ -242,7 +243,7 @@ fn a_release_runs_tasks_after_an_exit() {
         run_within(
             "with(() => nil, _ => exit(2), _ => print(scope(s => await(spawn(s, () => \"h\")))))"
         ),
-        ("h\n".into(), "".into(), 2)
+        ("Ok(Ok(\"h\"))\n".into(), "".into(), 2)
     );
 }
 
@@ -329,7 +330,7 @@ fn a_use_error_beside_an_exit_in_release_is_reported() {
 #[test]
 fn a_cancel_before_use_still_releases() {
     let o = exec_waiting(
-        "(tx, rx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    Ok(me) = recv(rx)\n    with(() => cancel(me), r => print(\"used\"), r => print(\"released\"))\n  ;;)\n  send(tx, t)\n  print(await(t))\n;;)",
+        "(tx, rx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    Ok(me) = recv(rx)\n    with(() => cancel(me), _r => print(\"used\"), _r => print(\"released\"))\n  ;;)\n  send(tx, t)\n  print(await(t))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
@@ -343,7 +344,7 @@ fn a_cancel_before_use_still_releases() {
 #[test]
 fn exit_inside_a_callback_releases() {
     assert_eq!(
-        run("with(() => 1, r => each([1], x => exit(3)), r => print(\"released\"))"),
+        run("with(() => 1, _r => each([1], _x => exit(3)), _r => print(\"released\"))"),
         ("released\n".into(), "".into(), 3)
     );
 }

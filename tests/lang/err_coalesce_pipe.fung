@@ -1,0 +1,6 @@
+# The other order is the same rule (D35): `??` before `|>`.
+import json
+
+print((Err("none") ?? "{}") |> json.parse)
+print(Err("none") ?? "{}" |> json.parse)
+# expect-error: E0127

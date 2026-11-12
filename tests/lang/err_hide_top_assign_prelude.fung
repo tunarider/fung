@@ -1,0 +1,4 @@
+# At the top level too (D38).
+max = 3
+print(max)
+# expect-error: E0240

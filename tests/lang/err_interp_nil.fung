@@ -1,0 +1,4 @@
+# nil is not put into text silently (D46): `"http://${env("HOST")}/"`
+# would be `http://nil/`.
+print("p=${nil}")
+# expect-error: E0519

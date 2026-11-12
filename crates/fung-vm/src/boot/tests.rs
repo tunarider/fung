@@ -190,7 +190,7 @@ fn native_modules_match_the_spec() {
 fn conc_module_matches_the_spec_and_the_prelude_lacks_it() {
     on_big_stack(|| {
         let spec = builtins();
-        let s = crate::testutil::setup("import conc\nprint(1)", Opts::default())
+        let s = crate::testutil::setup("import conc\nprint(type_of(conc))", Opts::default())
             .unwrap_or_else(|(e, _)| panic!("{e}"));
         let m = s.rt.import_module("conc").expect("conc");
         let mut names: Vec<&str> = m.names();
@@ -240,12 +240,13 @@ fn conc_module_matches_the_spec_and_the_prelude_lacks_it() {
 
 /// The `http` module (stage 4d, `extras/http.fung`) is written in
 /// fung: its public functions are the spec's, with the spec's parameter
-/// tables.
+/// tables. `url_encode` and `url_decode` are `_native.net`'s, under the
+/// module's names (D73).
 #[test]
 fn http_module_matches_the_spec() {
     on_big_stack(|| {
         let spec = builtins();
-        let s = crate::testutil::setup("import http\nprint(1)", Opts::default())
+        let s = crate::testutil::setup("import http\nprint(type_of(http))", Opts::default())
             .unwrap_or_else(|(e, _)| panic!("{e}"));
         let m = s.rt.import_module("http").expect("http");
         let mut names: Vec<&str> = m.names();
@@ -253,8 +254,19 @@ fn http_module_matches_the_spec() {
         let want: Vec<&str> = spec.modules["http"].iter().map(String::as_str).collect();
         assert_eq!(names, want);
         for name in names {
-            let Some(Value::Closure(c)) = m.get(name) else {
-                panic!("http.{name} is not a fung function")
+            let c = match m.get(name) {
+                Some(Value::Closure(c)) => c,
+                Some(Value::Native(n)) if name.starts_with("url_") => {
+                    let got = n
+                        .params
+                        .iter()
+                        .map(|p| p.name)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    assert_eq!(got, spec.module_signature("http", name).expect(name));
+                    continue;
+                }
+                _ => panic!("http.{name} is not a fung function"),
             };
             let got = c
                 .proto
@@ -307,7 +319,7 @@ fn process_functions() {
         ),
         ("print(exec([\"cat\"], stdin: \"x\")!.out)", "x\n"),
         (
-            "print(exec([\"sh\", \"-c\", \"echo $FOO\"], env: {\"FOO\": \"bar\"})!.out)",
+            "print(exec([\"sh\", \"-c\", `echo $FOO`], env: {\"FOO\": \"bar\"})!.out)",
             "bar\n\n",
         ),
         ("print(exec([\"pwd\"], cwd: \"/\")!.out)", "/\n\n"),
@@ -335,9 +347,10 @@ fn process_functions() {
     }
 }
 
-/// Failures to start a command and their reasons (06: 명령 실행).
+/// Failures to start a command, their kinds (the errno table of D70)
+/// and reasons (06: 명령 실행).
 #[test]
-fn commands_that_cannot_run_are_not_found() {
+fn commands_that_cannot_run_are_errs() {
     let cases: &[(&str, &str)] = &[
         (
             "print(exec([\"definitely-not-a-command-xyz\"]))",
@@ -349,11 +362,11 @@ fn commands_that_cannot_run_are_not_found() {
         ),
         (
             "print(exec([\"/etc\"]))",
-            "Err({kind: 'not_found, message: \"cannot run `/etc`: permission denied\"})\n",
+            "Err({kind: 'permission, message: \"cannot run `/etc`: permission denied\"})\n",
         ),
         (
             "print(exec([\"\"]))",
-            "Err({kind: 'not_found, message: \"cannot run ``: empty command name\"})\n",
+            "Err({kind: 'invalid, message: \"cannot run ``: empty command name\"})\n",
         ),
         (
             "print(exec([\"ls\"], cwd: \"/nonexistent\"))",
@@ -369,19 +382,19 @@ fn commands_that_cannot_run_are_not_found() {
         ),
         (
             "print(exec([\"sh\", \"-c\", \"echo\\u{0}\"]))",
-            "Err({kind: 'not_found, message: \"cannot run `sh`: argument contains a NUL byte\"})\n",
+            "Err({kind: 'invalid, message: \"cannot run `sh`: argument contains a NUL byte\"})\n",
         ),
         (
             "print(exec([\"sh\"], env: {\"A\": \"x\\u{0}\"}))",
-            "Err({kind: 'not_found, message: \"cannot run `sh`: environment variable contains a NUL byte\"})\n",
+            "Err({kind: 'invalid, message: \"cannot run `sh`: environment variable contains a NUL byte\"})\n",
         ),
         (
             "print(exec([\"ls\"], cwd: \"/\\u{0}\"))",
-            "Err({kind: 'not_found, message: \"cannot run `ls`: working directory contains a NUL byte\"})\n",
+            "Err({kind: 'invalid, message: \"cannot run `ls`: working directory contains a NUL byte\"})\n",
         ),
         (
             "print(exec([\"ls\"], cwd: \"no\\u{0}\", env: {\"A\": \"\\u{0}\"}))",
-            "Err({kind: 'not_found, message: \"cannot run `ls`: working directory contains a NUL byte\"})\n",
+            "Err({kind: 'invalid, message: \"cannot run `ls`: working directory contains a NUL byte\"})\n",
         ),
     ];
     for (src, want) in cases {
@@ -408,8 +421,8 @@ fn fung_prelude_functions() {
             "[1, 2] [1, 2, 3] [] [2, 3] [] [1, 2, 3] [1, 2, 3]\n",
         ),
         (
-            "print(unique([1, 1.0, \"a\", \"a\"]), flatten([[1], 2, []]))",
-            "[1, \"a\"] [1, 2]\n",
+            "print(unique([\"a\", \"b\", \"a\"]), flatten([[1], [2], []]))",
+            "[\"a\", \"b\"] [1, 2]\n",
         ),
         (
             "print(pad_left(\"7\", 3, \"0\"), pad_right(\"참\", 3, \" \"), pad_left(\"long\", 2, \" \"), pad_left(\"ab\", 5, \"xy\"))",
@@ -547,13 +560,13 @@ fn errors_inside_the_fung_prelude_show_only_user_frames() {
     );
     assert_eq!(code, 1);
 
-    let (_, err, _) = run_booted("until(1, x => x + \"a\", x => false)");
+    let (_, err, _) = run_booted("until(1, x => x + \"a\", _x => false)");
     assert_eq!(
         err,
         "error[E0501]: cannot add int and str
   --> -e:1:17
   |
-1 | until(1, x => x + \"a\", x => false)
+1 | until(1, x => x + \"a\", _x => false)
   |                 ^
   |
  call path (innermost first):
@@ -598,7 +611,8 @@ fn imported_files_keep_their_names_past_the_prelude() {
 }
 
 /// A file with the execute bit that is not a program: `execve` fails
-/// with ENOEXEC (no `/bin/sh` fallback, unlike `execvp`).
+/// with ENOEXEC (no `/bin/sh` fallback, unlike `execvp`), an `'io` by
+/// the errno table (D70).
 #[test]
 fn files_that_are_not_programs_are_refused() {
     use std::os::unix::fs::PermissionsExt;
@@ -615,7 +629,7 @@ fn files_that_are_not_programs_are_refused() {
         assert_eq!(
             out,
             format!(
-                "Err({{kind: 'not_found, message: \"cannot run `{}`: not an executable file (run scripts with sh)\"}})\n",
+                "Err({{kind: 'io, message: \"cannot run `{}`: not an executable file (run scripts with sh)\"}})\n",
                 p.display()
             )
         );
@@ -631,7 +645,7 @@ fn fan_in_merges_its_channels() {
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("[1, 2, 3] []\n", "", 0)
+        ("Ok([1, 2, 3]) Ok([])\n", "", 0)
     );
 }
 
@@ -640,7 +654,7 @@ fn fan_in_merges_its_channels() {
 #[test]
 fn pmap_runs_its_tasks() {
     let (out, err, code) = crate::testutil::run(
-        "import conc\nprint(conc.pmap([1, 2, 3], x => x * x, limit: 2))\nconc.pmap([1], x => 1 / 0)",
+        "import conc\nprint(conc.pmap([1, 2, 3], x => x * x, limit: 2))\nconc.pmap([1], _x => 1 / 0)",
     );
     assert_eq!(out, "[1, 4, 9]\n");
     assert!(err.contains("error[E0502]: division by zero"), "{err}");

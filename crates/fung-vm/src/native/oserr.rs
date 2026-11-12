@@ -28,14 +28,18 @@ pub(crate) fn reason(e: &io::Error) -> String {
     fung_front::oserr::reason(e)
 }
 
-/// The kind of the `Err` a file native gives for an error: `not_found`,
-/// `exists`, `permission` or `io`.
+/// The kind of the `Err` a native gives for an operating-system error,
+/// one table for `fs`, `exec` and `sh` (D70): `ENOENT` and `ENOTDIR` are
+/// `not_found`, `EACCES` and `EPERM` `permission`, `EEXIST` and
+/// `ENOTEMPTY` `exists`, an invalid argument (`EINVAL`, a NUL byte the
+/// standard library refuses) `invalid`, and anything else `io`.
 pub(crate) fn kind(e: &io::Error) -> &'static str {
     use io::ErrorKind as K;
     match e.kind() {
-        K::NotFound => "not_found",
+        K::NotFound | K::NotADirectory => "not_found",
         K::AlreadyExists | K::DirectoryNotEmpty => "exists",
         K::PermissionDenied => "permission",
+        K::InvalidInput => "invalid",
         _ => "io",
     }
 }

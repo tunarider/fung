@@ -1,11 +1,15 @@
-# cli.parse: flags, values, and rest (06).
+# cli.parse: flags, values, and rest (06). The flags are a closed set
+# (D69): each is listed in `bools` (a switch) or `values` (takes a value).
 import cli
-print(cli.parse(["a", "--trash", "dir", "b"])!)
+print(cli.parse(["a", "--trash", "dir", "b"], values: ["trash"])!)
 # expect: {flags: {trash: "dir"}, rest: ["a", "b"]}
-print(cli.parse(["--n=3", "--", "--not-a-flag", "-"])!)
-# expect: {flags: {n: "3"}, rest: ["--not-a-flag", "-"]}
-print(cli.parse(["--v"])!, cli.parse(["--a", "--b", "1"])!, cli.parse([])!)
+print(cli.parse(["--n=3", "--", "--not-a-flag", "-v", "-"], values: ["n"])!)
+# expect: {flags: {n: "3"}, rest: ["--not-a-flag", "-v", "-"]}
+print(cli.parse(["--v"], bools: ["v"])!, cli.parse(["--a", "--b", "1"], ["a"], ["b"])!, cli.parse([])!)
 # expect: {flags: {v: true}, rest: []} {flags: {a: true, b: "1"}, rest: []} {flags: {}, rest: []}
+# A lone `-` is an ordinary argument; a value may start with `-`.
+print(cli.parse(["-", "--n", "-5", "--m=--x"], values: ["n", "m"])!)
+# expect: {flags: {n: "-5", m: "--x"}, rest: ["-"]}
 # bools takes a flag's name either way (LB11): as written on the command
 # line (`dry-run`) or as its key (`dry_run`), so a switch never eats the
 # next argument as its value.
@@ -19,7 +23,18 @@ print(cli.parse(["--dry-run=false", "x"], bools: ["dry-run"])!)
 # The command line is outside input (LB38): a mistake in it is an Err.
 print(cli.parse(["--dry-run=no"], bools: ["dry-run"]))
 # expect: Err({kind: 'invalid, message: "the switch `--dry-run` takes true or false, got `no`"})
-print(cli.parse(["--x", "1", "--x", "2"]))
+print(cli.parse(["--x", "1", "--x", "2"], values: ["x"]))
 # expect: Err({kind: 'invalid, message: "the flag `--x` is given twice"})
-print(cli.parse(["--a-b", "1", "--a_b=2"]))
+print(cli.parse(["--a-b", "1", "--a_b=2"], values: ["a-b"]))
 # expect: Err({kind: 'invalid, message: "the flag `--a_b` is given twice"})
+# A flag not listed is a mistake (D69): a typo never runs for real.
+print(cli.parse(["--dry-rnu", "prod"], bools: ["dry-run"]))
+# expect: Err({kind: 'invalid, message: "unknown flag `--dry-rnu`"})
+print(cli.parse(["---x"]), cli.parse(["--a b", "c"]), cli.parse(["--n=1"]))
+# expect: Err({kind: 'invalid, message: "unknown flag `---x`"}) Err({kind: 'invalid, message: "unknown flag `--a b`"}) Err({kind: 'invalid, message: "unknown flag `--n`"})
+# Single-dash flags are not read (D69): `--` before such an argument.
+print(cli.parse(["-v", "x"]))
+# expect: Err({kind: 'invalid, message: "the flag `-v` is not supported: flags start with `--` (put `--` before an argument that starts with `-`)"})
+# A value flag needs its value.
+print(cli.parse(["--env"], values: ["env"]), cli.parse(["--env", "--n"], bools: ["n"], values: ["env"]))
+# expect: Err({kind: 'invalid, message: "the flag `--env` needs a value"}) Err({kind: 'invalid, message: "the flag `--env` needs a value"})

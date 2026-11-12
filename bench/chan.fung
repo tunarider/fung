@@ -3,4 +3,4 @@
 print(scope(fn(sc):
   spawn(sc, fn(): each(0..100000, i => send(tx, i)); close(tx) ;;)
   fold(rx, 0, (s, x) => s + x)
-;;))
+;;)!)

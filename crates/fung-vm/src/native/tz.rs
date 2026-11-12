@@ -143,18 +143,29 @@ impl Zone {
     /// (clocks set forward) moves forward by the gap, read with the offset
     /// in effect before it (06: 시간 형식).
     pub(crate) fn date(&self, wall: i64) -> i64 {
+        wall - i64::from(self.wall_offset(wall).0)
+    }
+
+    /// Whether the clocks skip the wall time `wall` (a gap: no instant
+    /// reads it, D81).
+    pub(crate) fn skips(&self, wall: i64) -> bool {
+        self.wall_offset(wall).1
+    }
+
+    /// The offset [`date`](Self::date) reads `wall` with, and whether no
+    /// offset around it fits (a gap).
+    fn wall_offset(&self, wall: i64) -> (i32, bool) {
         // The offsets a day before and after: those around any change near
         // `wall` (changes are further apart than that).
         let before = self.lookup(wall.saturating_sub(86_400)).1;
         let after = self.lookup(wall.saturating_add(86_400)).1;
         let fits = |o: i32| self.lookup(wall - i64::from(o)).1 == o;
-        let offset = match (fits(before), fits(after)) {
-            (true, true) => before.max(after),
-            (true, false) => before,
-            (false, true) => after,
-            (false, false) => before,
-        };
-        wall - i64::from(offset)
+        match (fits(before), fits(after)) {
+            (true, true) => (before.max(after), false),
+            (true, false) => (before, false),
+            (false, true) => (after, false),
+            (false, false) => (before, true),
+        }
     }
 }
 

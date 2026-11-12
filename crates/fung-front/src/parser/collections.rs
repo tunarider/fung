@@ -1,9 +1,10 @@
 //! Collection literals: lists, maps, tuples and tags.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use super::{PResult, Parser, describe, err, s, tag_as_name};
 use crate::lexer::Kind;
+use crate::source::Pos;
 use crate::tree::{Head, Lit, Node};
 
 impl Parser<'_> {
@@ -18,6 +19,11 @@ impl Parser<'_> {
 
     fn list_items(&mut self, mut n: Node) -> PResult<Node> {
         while !self.at(Kind::RBracket) {
+            if self.at(Kind::Ellipsis) {
+                // `[a, ...xs]` would be a second way to write `[a] + xs`
+                // (D45).
+                return Err(err("E0133", self.peek().pos, vec![s("in a list literal")]));
+            }
             let e = self.expr(0)?;
             n.kids.push(e);
             if self.at(Kind::Comma) {
@@ -40,7 +46,7 @@ impl Parser<'_> {
     }
 
     fn map_entries(&mut self, mut n: Node) -> PResult<Node> {
-        let mut seen: HashSet<Vec<u8>> = HashSet::new();
+        let mut seen: HashMap<Vec<u8>, Pos> = HashMap::new();
         while !self.at(Kind::RBrace) {
             let t = self.peek();
             let key = if self.at_name_like() {
@@ -60,9 +66,14 @@ impl Parser<'_> {
                 Ok(k) => k.as_bytes(),
                 Err(b) => b,
             };
-            if !seen.insert(bytes.to_vec()) {
-                return Err(err("E0113", t.pos, vec![s(crate::text::lossy(bytes))]));
+            if let Some(&first) = seen.get(bytes) {
+                return Err(super::duplicate_key(
+                    t,
+                    crate::text::lossy(bytes).into_owned(),
+                    first,
+                ));
             }
+            seen.insert(bytes.to_vec(), t.pos);
             self.next();
             let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
             if t.kind == Kind::Tag && shorthand {
@@ -148,6 +159,9 @@ impl Parser<'_> {
         ))?;
         if let Some(k) = n.kids.iter().find(|k| k.head == Head::Named) {
             return Err(err("E0121", k.pos, Vec::new()));
+        }
+        if let Some(k) = n.kids.iter().find(|k| k.head == Head::Spread) {
+            return Err(err("E0133", k.pos, vec![s("in a tag's values")]));
         }
         Ok(n)
     }

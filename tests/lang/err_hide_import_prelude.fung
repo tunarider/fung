@@ -1,0 +1,4 @@
+# An imported name cannot hide a prelude function (D38).
+import regex (split)
+print(split("a", "b"))
+# expect-error: E0240

@@ -1,0 +1,11 @@
+# write (D73): a string as it is, no newline, through the same writer
+# as print (so in order with it). ewrite is the same for stderr.
+write("a")
+write("b\n")
+print("c")
+write("")
+write("d")
+print()
+# expect: ab
+# expect: c
+# expect: d

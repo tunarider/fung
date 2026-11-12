@@ -1,3 +1,4 @@
 import fs
 import fs
+print(type_of(fs))
 # expect-error: E0309

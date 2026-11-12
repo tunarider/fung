@@ -36,28 +36,28 @@ headers = token == nil then {accept: "application/json"}
 
 # One page as a map. A 429 (too many requests) waits as the server asks
 # and tries the same page again.
-fn page(url, tries = 1):
-  res = http.get(url, headers: headers, timeout: 30s)?
+fn page(at, tries = 1):
+  res = http.get(at, headers: headers, timeout: 30s)?
   match res.status:
     200                => json.parse(res.body)
     429 when tries < 5 =>
       wait = parse_int(get(res.headers, "retry-after", "1")) ?? 1
       eprint("rate limited, waiting ${wait}s")
       sleep(wait * 1s)
-      page(url, tries + 1)
-    code               => Err({kind: 'http, message: "${url}: HTTP ${code}"})
+      page(at, tries + 1)
+    code               => Err({kind: 'http, message: "${at}: HTTP ${code}"})
   ;;
 ;;
 
 # All the items from url on: pages are fetched one after another, each
 # naming the next. Returns Ok(items) or the first Err.
-fn all_items(url, acc, n):
+fn all_items(from, acc, n):
   if n > max_pages: return Err({kind: 'limit, message: "more than ${max_pages} pages"}) ;;
-  p = page(url)?
-  items = acc + get(p, "items", [])
+  p = page(from)?
+  got = acc + get(p, "items", [])
   match get(p, "next"):
-    nil  => Ok(items)
-    next => all_items(next, items, n + 1)
+    nil  => Ok(got)
+    next => all_items(next, got, n + 1)
   ;;
 ;;
 
@@ -83,7 +83,7 @@ rate limited, waiting 1s
 
 ## 줄별 설명 {#how}
 
-- `token`·`headers`: 토큰은 스크립트에 적지 않고 환경 변수에서 읽는다. 없으면(`nil`) `authorization` 헤더 없이 보낸다. 최상위에서 한 번만 대입한 이름이라 아래 함수들이 그대로 읽는다.
+- `token`·`headers`: 토큰은 스크립트에 적지 않고 환경 변수에서 읽는다. 없으면(`nil`) `authorization` 헤더 없이 보낸다. 최상위 이름은 한 번만 묶이는 상수라 아래 함수들이 그대로 읽는다.
 - `page`: 페이지 하나를 받아 JSON을 맵으로 바꾼다. `http.get(…)?`의 `?`는 네트워크 실패면 그 `Err`를 곧바로 돌려보낸다. 상태 코드는 `match`로 가른다. `200`이면 `json.parse`의 결과(`Ok(맵)`이나 `Err`)가 곧 반환값이다.
 - `429 when tries < 5`: 리터럴 패턴 `429`에 guard를 붙여 다섯 번까지만 기다린다. `Retry-After` 헤더(응답 헤더 키는 늘 소문자다)의 초를 읽고, 숫자가 아니면 1초로 친다. `sleep(wait * 1s)`처럼 숫자에 `1s`를 곱하면 기간이 된다. 기다린 뒤 같은 URL로 자기 자신을 다시 부른다.
 - `code =>`: 나머지 상태 코드는 이름 `code`에 묶어 에러 메시지에 넣는다. 패턴의 이름은 늘 새로 묶는 변수다.

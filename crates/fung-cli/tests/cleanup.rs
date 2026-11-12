@@ -58,7 +58,7 @@ fn with_temp_dir_leaves_nothing_when_cut_right_after_acquiring() {
     let (out, err, code) = fung(
         &[
             "-e",
-            "import fs\nprint(timeout(fn(): s = repeat(\"x\", 100000000); fs.with_temp_dir(d => 1) ;;, 1ms))",
+            "import fs\nprint(timeout(fn(): _s = repeat(\"x\", 100000000); fs.with_temp_dir(_d => 1) ;;, 1ms))",
         ],
         &tmp.0,
     );

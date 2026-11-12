@@ -2,8 +2,8 @@
 //! (`cli`, `conc`, `http`) that a type annotation cannot say and fung
 //! code cannot raise itself: a count, a positive count, a duration that
 //! is not negative, a list of one type, a map of strings (SP18), a token
-//! and a map of header lines (LB34). Each
-//! gives `nil` (`count` its count), or E0403 naming the argument it is
+//! and a map of header lines (LB34), a result (`result`, D65). Each
+//! gives `nil` (`count` its count, `result` its value), or E0403 naming the argument it is
 //! told, as a native's own check would (06: the error names the user's
 //! argument). The prelude's counts use `count` too. `header_problem` and
 //! `is_token` give the same rules to `http`'s server, which answers a bad
@@ -16,7 +16,7 @@ use fung_front::diag::Arg;
 
 use super::nat::{self, native, param};
 use crate::value::{Args, Module, Native, Value, type_name};
-use crate::vm::{Stop, Task};
+use crate::vm::{ResultKind, Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -65,6 +65,14 @@ pub fn module() -> Rc<Module> {
                 "is_token",
                 native("is_token", is_token_fn, vec![param("s")]),
             ),
+            (
+                "result",
+                native("result", result_fn, vec![param("name"), param("v")]),
+            ),
+            (
+                "options",
+                native("options", options_fn, vec![param("bools"), param("values")]),
+            ),
         ]
     });
     let mut m = Module::new("arg", "_native.arg");
@@ -108,6 +116,22 @@ fn dur_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     nat::need_dur(name, &a[1]).map(|_| Value::Nil)
 }
 
+/// `result(name, v)`: `v` when it is a result (`conc.retry`'s `f` gives
+/// one, D65); otherwise E0604 for `nil` and E0605 for another value,
+/// naming the function, as `try_map` judges `f`'s values.
+fn result_fn(_: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
+    let v = a.pop().expect("v");
+    let name = nat::need_str("name", &a[0])?;
+    match crate::vm::result_kind(&v) {
+        ResultKind::Ok(_) | ResultKind::Err => Ok(v),
+        ResultKind::Nil => Err(nat::fail("E0604", vec![nat::s(name)])),
+        ResultKind::Other => Err(nat::fail(
+            "E0605",
+            vec![nat::s(name), Arg::Str(crate::vm::not_result(&v))],
+        )),
+    }
+}
+
 /// `list_of(name, xs, kind)`: a list whose elements are all of the type
 /// named `kind` (`cli.parse`'s `argv` and `bools` hold strs,
 /// `conc.fan_in`'s `rxs` receiving ends); the error names the first
@@ -122,6 +146,63 @@ fn list_of_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
         Some(v) => Err(holding(name, &format!("a list of {kind}"), "list", v)),
         None => Ok(Value::Nil),
     }
+}
+
+/// Whether `s` is an option name (D69): ASCII letters, digits, `_` and
+/// `-`, starting with a letter or `_`, so that its key (`-` as `_`) is
+/// an identifier and `flags.dry_run` reads it.
+fn is_option_name(s: &[u8]) -> bool {
+    matches!(s.first(), Some(c) if c.is_ascii_alphabetic() || *c == b'_')
+        && s.iter()
+            .all(|c| c.is_ascii_alphanumeric() || *c == b'_' || *c == b'-')
+}
+
+/// `options(bools, values)`: `cli.parse`'s two lists of option names
+/// (D69), each a list of strs of option names, no name in both (in
+/// either spelling, `-` or `_`).
+fn options_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
+    let mut keys = Vec::new();
+    for (name, list) in [("bools", &a[0]), ("values", &a[1])] {
+        let Value::List(xs) = list else {
+            return Err(nat::wrong_arg(name, "list", list));
+        };
+        for v in xs.iter() {
+            let Value::Str(t) = &v else {
+                return Err(holding(name, "a list of str", "list", v));
+            };
+            if !is_option_name(t.as_bytes()) {
+                return Err(nat::fail(
+                    "E0403",
+                    vec![
+                        nat::s(name),
+                        nat::s(
+                            "a list of option names (letters, digits, `_` and `-`, from a letter or `_`)",
+                        ),
+                        Arg::Str(crate::value::format(v)),
+                    ],
+                ));
+            }
+            let key: Vec<u8> = t
+                .as_bytes()
+                .iter()
+                .map(|&c| if c == b'-' { b'_' } else { c })
+                .collect();
+            keys.push((name, key, v));
+        }
+    }
+    for (name, key, v) in &keys {
+        if *name == "values" && keys.iter().any(|(n, k, _)| *n == "bools" && k == key) {
+            return Err(nat::fail(
+                "E0403",
+                vec![
+                    nat::s("values"),
+                    nat::s("a list of names not in `bools`"),
+                    Arg::Str(crate::value::format(v)),
+                ],
+            ));
+        }
+    }
+    Ok(Value::Nil)
 }
 
 /// `str_map(name, m)`: a map whose values are all strs (`http`'s

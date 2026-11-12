@@ -83,12 +83,12 @@ for svc in services:
 
 ## JSON 쓰기 {#stringify}
 
-`json.stringify(값)`은 fung 값을 JSON 문자열로 바꾼다. `indent:`에 칸 수를 주면 사람이 읽기 좋게 줄을 나눈다. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. JSON에 없는 값(기간, 함수, 태그 등)은 런타임 에러 E0513이므로 `str(d)`처럼 먼저 바꿔 둔다.
+`json.stringify(값)`은 fung 값을 JSON 문자열로 바꾼다. `indent:`에 칸 수를 주면 사람이 읽기 좋게 줄을 나눈다. 받는 것은 JSON에 있는 타입(맵·리스트·문자열·수·불·`nil`)뿐이다. 그 밖의 값(심볼, 튜플, 시각, 기간, 함수, 태그 등)은 런타임 에러 E0513이므로 먼저 바꿔 둔다: 심볼은 `sym_name(s)`, 튜플은 리스트, 기간은 `str(d)`.
 
 ```fung run
 import json
 
-report = {host: "web1", status: 'ok, load: (0.5, 0.7), checked_in: str(1m30s)}
+report = {host: "web1", status: sym_name('ok), load: [0.5, 0.7], checked_in: str(1m30s)}
 print(json.stringify(report))
 print(json.stringify({services: ["api", "cron"], healthy: true}, indent: 2))
 ```
@@ -113,7 +113,7 @@ print(fs.read("deploy.json")!)
 
 **HTTP**는 웹에서 쓰는 주고받기 규칙이다. 한쪽(**클라이언트**)이 **요청**(request)을 보내면 다른 쪽(**서버**)이 **응답**(response)을 돌려준다. 요청에는 **메서드**(무엇을 할지: `GET`은 가져오기, `POST`는 보내기), **URL**(어디에), **헤더**(덧붙이는 정보), **본문**(보내는 내용)이 있다. 응답에는 **상태 코드**(200 성공, 404 없음, 500 서버 오류 …), 헤더, 본문이 있다.
 
-`http` 모듈의 `http.get(url)`은 GET 요청을 보내고 `Ok({status, headers, header_lines, body})`를 준다. 응답을 받기만 했으면 상태 코드가 404여도 `Ok`다. 상태 코드를 보는 것은 내 코드의 몫이다. 연결이 안 되거나 이름을 못 찾으면 `Err({kind: 'network, …})`, 시간 안에 끝나지 않으면 `Err({kind: 'timeout})`이다. 시간 한도는 `timeout:`으로 주고 기본은 30초다. `headers` 맵의 이름은 소문자다(같은 이름이 여럿이면 `", "`로 이음). 받은 헤더 줄을 순서대로 하나씩 보려면 `header_lines`(`(이름, 값)` 리스트)를 쓴다.
+`http` 모듈의 `http.get(url)`은 GET 요청을 보내고 `Ok({status, headers, header_lines, body})`를 준다. 응답을 받기만 했으면 상태 코드가 404여도 `Ok`다. 상태 코드를 보는 것은 내 코드의 몫이다. 연결이 안 되거나 이름을 못 찾으면 `Err({kind: 'network, …})`, URL이 틀렸으면(다시 해도 같은 실패) `Err({kind: 'invalid, …})`, 시간 안에 끝나지 않으면 `Err({kind: 'timeout})`이다. 시간 한도는 `timeout:`으로 주고 기본은 30초다. `headers` 맵의 이름은 소문자다(같은 이름이 여럿이면 `", "`로 이음). 받은 헤더 줄을 순서대로 하나씩 보려면 `header_lines`(`(이름, 값)` 리스트)를 쓴다.
 
 네트워크 예제는 이 매뉴얼을 만들 때 실행하지 않는다. 아래 출력은 실제로 돌렸을 때의 모양이고, 날짜처럼 바뀌는 값은 다를 수 있다.
 
@@ -362,7 +362,7 @@ print(json.stringify({name: "web-1", up: true, ms: 12}, indent: 2))
 import http
 (addr_tx, addr_rx) = channel(1)
 scope(fn(s):
-  server = spawn(s, () => http.serve("127.0.0.1:0", req => "ok", ready: a => send(addr_tx, a)!))
+  server = spawn(s, () => http.serve("127.0.0.1:0", _req => "ok", ready: a => send(addr_tx, a)!))
   addr = recv(addr_rx)!
   r = http.get("http://${addr}/health")!
   print(r.status, r.body)
@@ -378,7 +378,7 @@ scope(fn(s):
 
 - `json.parse`는 JSON 문자열을 맵·리스트·문자열·숫자·`nil`로 바꿔 `Ok`를 주고, `json.stringify`는 그 반대다(`indent:`로 보기 좋게).
 - JSON에서 온 값은 문자열이다. 심볼과 비교하면 E0517이므로 문자열과 비교하거나 `sym`으로 바꾼다.
-- `http.get`·`http.post`는 응답을 받으면 상태 코드와 상관없이 `Ok({status, headers, header_lines, body})`, 전송 실패는 `Err('network)`, 시간 초과는 `Err('timeout)`.
+- `http.get`·`http.post`는 응답을 받으면 상태 코드와 상관없이 `Ok({status, headers, header_lines, body})`, 전송 실패는 `Err('network)`, 틀린 URL은 `Err('invalid)`, 시간 초과는 `Err('timeout)`.
 - `http.serve(주소, 처리기)`는 요청마다 태스크에서 처리기를 부른다. 처리기는 문자열이나 `{status, headers, body}`를 돌려준다.
 - 기간은 `90s`·`1h30m`처럼 쓰고, 시각은 `time.now`·`time.parse`·`time.format`으로 다룬다. 시각 ± 기간은 시각, 시각 − 시각은 기간이다.
 

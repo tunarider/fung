@@ -222,7 +222,7 @@ print(shapes |> map(area))
 print(type_of(Rect(2, 5)), Circle(1) == Circle(1))
 ```
 
-괄호 없이 쓴 태그 `Red`는 심볼 `'Red`와 같은 값이다. 몇 가지 중 하나를 고르는 값(열거형, enumeration)에 쓴다. 9장의 `Ok`와 `Err`도 특별한 문법이 아니라 이런 태그다.
+괄호 없이 쓴 태그 `Red`는 심볼이다(대문자로 시작하는 심볼은 따옴표 없이 이렇게만 쓴다). 몇 가지 중 하나를 고르는 값(열거형, enumeration)에 쓴다. 9장의 `Ok`와 `Err`도 특별한 문법이 아니라 이런 태그다.
 
 ```fung run
 fn hex(color) = match color:
@@ -232,7 +232,7 @@ fn hex(color) = match color:
 ;;
 
 print(hex(Red), hex(Blue))
-print(Red == 'Red, type_of(Red))
+print(Red == sym("Red"), type_of(Red))
 ```
 
 :::exercise 로그 줄 나누기
@@ -282,9 +282,9 @@ print(replicas_text({name: "old", replicas: 0}))
 :::
 
 :::box mistake 패턴의 이름은 늘 새 변수다
-패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 **새 이름을 묶는다**. 아래에서 `wanted` 절은 "값이 `wanted`와 같으면"이 아니라 "무엇이든 받아서 `wanted`라고 부른다"는 뜻이라 늘 맞는다. 에러도 나지 않으니 찾기 어려운 버그가 된다.
+패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 **새 이름을 묶는다**. 그래서 아래의 `wanted` 절은 "값이 `wanted`와 같으면"이 아니라 "무엇이든 받아서 `wanted`라고 부른다"는 뜻이 된다. 늘 맞는 절이라 찾기 어려운 버그가 되므로, fung은 보이는 이름을 다시 묶는 것을 에러 E0240으로 막는다.
 
-```fung run
+```fung run exit=2 error=E0240
 wanted = "db"
 
 fn pick(name) = match name:
@@ -338,10 +338,10 @@ print(map([200, 301, 404, 403, 503], kind))
 
 ```fung run
 fn describe(cmd) = match cmd:
-  ["deploy", env]        => "deploy to ${env}"
-  ["rollback", env, ver] => "rollback ${env} to ${ver}"
-  []                     => "usage: deploy|rollback"
-  [other, ...]           => "unknown command ${other}"
+  ["deploy", target]        => "deploy to ${target}"
+  ["rollback", target, ver] => "rollback ${target} to ${ver}"
+  []                        => "usage: deploy|rollback"
+  [other, ...]              => "unknown command ${other}"
 ;;
 for cmd in [["deploy", "prod"], ["rollback", "prod", "v12"], [], ["oops"]]:
   print(describe(cmd))

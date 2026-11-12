@@ -5,7 +5,7 @@ fn tens() = scope(fn(s):
   (tx, rx) = channel()
   spawn(s, () => each(0..3, i => send(tx, i)))
   for x in rx: x * 10 ;;
-;;)
+;;)!
 print(tens())
 # expect: [0, 10, 20]
 
@@ -18,7 +18,7 @@ fn pick(flag) = scope(fn(s):
     spawn(s, () => send(tx, 2))
   ;;
   for x in rx: x ;;
-;;)
+;;)!
 print(pick(true), pick(false))
 # expect: [1] [2]
 
@@ -26,10 +26,10 @@ print(pick(true), pick(false))
 # end moves into `drop_it`, which lets it go, so the channel is closed
 # before `recv` waits.
 fn drop_it(_x) = nil
-fn closes_early() = scope(fn(s):
+fn closes_early() = scope(fn(_s):
   (tx, rx) = channel()
   [drop_it(tx), recv(rx)]
-;;)
+;;)!
 print(closes_early())
 # expect: [nil, Err({kind: 'closed, message: "channel closed"})]
 
@@ -167,3 +167,64 @@ fn alternative_fails(k):
 alternative_fails(1)
 # expect: other
 # expect: done
+
+# A branch lets go, as it starts, of what only the other branches read
+# (VM19, D61): the `else` here needs no statement for `tx` to go.
+fn go(flag):
+  (tx, rx) = channel(1)
+  if flag:
+    send(tx, 1)
+  else:
+    for x in rx: x ;;
+  ;;
+;;
+print(go(false))
+# expect: []
+
+# A capture that is the last read lets go right after the function value
+# is made, inside the statement (VM19).
+fn captured_last() = scope(fn(s):
+  (tx, rx) = channel(1)
+  [spawn(s, () => send(tx, 1)) == nil, for x in rx: x ;;]
+;;)!
+print(captured_last())
+# expect: [false, [1]]
+
+# An arm's body lets go of what only its guard read (VM19).
+fn ready(tx) = send(tx, 1) == Ok(nil)
+fn guarded():
+  (tx, rx) = channel(1)
+  match 1:
+    n when ready(tx) => for x in rx: x + n ;;
+    _                => []
+  ;;
+;;
+print(guarded())
+# expect: [2]
+
+# The paths of `??`, `and` and `or` let go, as they start, of what only
+# the other path reads, in a value and in a condition (VM19).
+fn coalesced(m):
+  (tx, rx) = channel(1)
+  [m ?? send(tx, 1), for x in rx: x ;;]
+;;
+print(coalesced(5), coalesced(nil))
+# expect: [5, []] [Ok(nil), [1]]
+fn either(flag):
+  (tx, rx) = channel(1)
+  [flag or send(tx, 1) == Ok(nil), for x in rx: x ;;]
+;;
+print(either(true), either(false))
+# expect: [true, []] [true, [1]]
+fn either_if(flag):
+  (tx, rx) = channel(1)
+  if flag or send(tx, 1) == Ok(nil): for x in rx: x ;; else: [] ;;
+;;
+print(either_if(true), either_if(false))
+# expect: [] [1]
+fn both_if(flag):
+  (tx, rx) = channel(1)
+  if flag and send(tx, 1) == Ok(nil): for x in rx: x ;; else: for x in rx: -x ;; ;;
+;;
+print(both_if(true), both_if(false))
+# expect: [1] []

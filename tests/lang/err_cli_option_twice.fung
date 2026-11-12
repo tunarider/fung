@@ -1,0 +1,4 @@
+# A name is a switch or takes a value, not both (D69), in either spelling.
+import cli
+print(cli.parse([], bools: ["dry-run"], values: ["dry_run"]))
+# expect-error: E0403

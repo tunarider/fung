@@ -44,7 +44,33 @@ match port_of("70000"):
 
 결과값을 쓰지 않고 버리면(문장으로 쓴 호출이 `Err`를 돌려주면) E0606으로 멈춘다. 실패를 조용히 넘기지 않기 위한 규칙이다. 일부러 버릴 때는 `_ = 식`으로 쓴다.
 
-결과값과 다른 실패도 하나 있다. **런타임 에러**는 코드가 틀린 경우(없는 키 읽기, 0으로 나누기, 타입이 틀린 인자)에 프로그램을 멈추는 것으로, 값으로 받을 수 없다. 에러 번호와 뜻은 [에러 목록](../errors.html)에 있다.
+## 실패의 종류 {#kinds}
+
+표준 라이브러리가 쓰는 `kind`는 아래가 전부다. 같은 원인은 어느 함수에서나 같은 `kind`다.
+
+<table>
+  <thead><tr><th><code>kind</code></th><th>뜻</th><th>주로 내는 곳</th></tr></thead>
+  <tbody>
+    <tr><td><code>'not_found</code></td><td>경로나 명령이 없다. 경로 중간이 디렉터리가 아닌 것도(<code>ENOENT</code>·<code>ENOTDIR</code>)</td><td><code>fs</code>, <code>exec</code>·<code>sh</code></td></tr>
+    <tr><td><code>'permission</code></td><td>권한이 없다(<code>EACCES</code>·<code>EPERM</code>)</td><td><code>fs</code>, <code>exec</code>·<code>sh</code></td></tr>
+    <tr><td><code>'exists</code></td><td>이미 있다. 비지 않은 디렉터리도(<code>EEXIST</code>·<code>ENOTEMPTY</code>)</td><td><code>fs</code></td></tr>
+    <tr><td><code>'invalid</code></td><td>받은 값의 모양이 틀렸다: NUL이 든 경로·인자, 운영체제가 거절한 인자(<code>EINVAL</code>), URL·스킴·주소·프록시 값의 문법, 잘못된 명령줄</td><td><code>fs</code>, <code>exec</code>·<code>sh</code>, <code>http</code>, <code>cli</code></td></tr>
+    <tr><td><code>'io</code></td><td>그 밖의 입출력 실패(디스크가 참 등), 한도를 넘는 바깥 글(<code>max_body</code>를 넘는 응답, 너무 긴 출력)</td><td><code>fs</code>, <code>exec</code>·<code>sh</code>, <code>http</code>, 표준 입력</td></tr>
+    <tr><td><code>'network</code></td><td>전송 실패: 연결 거부, 이름 조회 실패, 끊긴 연결, 잘못된 응답</td><td><code>http</code></td></tr>
+    <tr><td><code>'closed</code></td><td>닫힌 핸들을 썼거나 다시 닫았다. 채널에서는 정상적인 끝(닫혔고 남은 값이 없음)</td><td>파일 핸들, 채널</td></tr>
+    <tr><td><code>'timeout</code>·<code>'cancelled</code></td><td>기한이 지났다, 취소됐다</td><td><code>timeout</code>, <code>scope</code>, <code>await</code>, <code>http</code></td></tr>
+    <tr><td><code>'parse</code></td><td>글을 값으로 읽지 못했다</td><td><code>parse_*</code>, <code>json.parse</code>, <code>time.parse</code></td></tr>
+    <tr><td><code>'exit</code></td><td>명령이 0이 아닌 코드나 신호로 끝났다</td><td><code>exec</code>·<code>sh</code></td></tr>
+    <tr><td><code>'error</code></td><td>태스크가 런타임 에러로 죽었다</td><td><code>await</code>, <code>supervise</code></td></tr>
+    <tr><td><code>'empty</code>·<code>'full</code></td><td>기다리지 않는 채널 연산이 기다려야 했다</td><td><code>recv_now</code>, <code>send_now</code></td></tr>
+  </tbody>
+</table>
+
+운영체제의 에러 번호(errno)는 표의 앞 다섯 줄로 옮긴다: `ENOENT`·`ENOTDIR` → `'not_found`, `EACCES`·`EPERM` → `'permission`, `EEXIST`·`ENOTEMPTY` → `'exists`, NUL·`EINVAL` → `'invalid`, 나머지 → `'io`. `fs`·`exec`·`sh`가 이 한 표를 쓴다. `'invalid`처럼 다시 해도 같은 실패와 `'network`처럼 다시 해 볼 만한 실패를 `kind`로 가를 수 있다.
+
+`'closed`는 두 뜻이다. 파일·소켓 핸들에서는 "이미 닫은 핸들을 썼다"(버그)이고, 채널에서는 "보내는 쪽이 모두 끝났고 남은 값이 없다"(정상적인 끝)이다. 흐름의 끝도 두 모양이다: 파일과 표준 입력의 `read_line`은 끝에서 `Ok(nil)`이고, 채널의 `recv`는 `Err({kind: 'closed})`다. 채널은 `nil`을 값으로 보낼 수 있어 `Ok(nil)`이 끝을 뜻할 수 없기 때문이다. 채널을 끝까지 받을 때는 `for x in rx:`가 닫힘에서 멈추므로 `'closed`를 직접 볼 일이 드물다.
+
+결과값과 다른 실패도 하나 있다. **런타임 에러**는 코드가 틀린 경우(없는 키 읽기, 0으로 나누기, 타입이 틀린 인자)에 프로그램을 멈추는 것으로, 값으로 받을 수 없다(태스크 경계의 [`supervise`](concurrency.html#fn-supervise)만 예외로 그 태스크의 에러를 `Err({kind: 'error, …})`로 준다). 에러 번호와 뜻은 [에러 목록](../errors.html)에 있다.
 
 ## 함수 {#functions}
 
@@ -54,7 +80,7 @@ match port_of("70000"):
 
 #### 설명
 
-`type_of(x) == 'Ok`와 같다. 결과값이 아닌 값(`nil`, 수 등)에도 에러 없이 `false`를 돌려준다. 하나의 결과값을 다룰 때는 `match`나 `!`·`?`·`??`가 낫다. `is_ok`는 결과값의 **리스트**를 거를 때 빛난다: `rs |> filter(is_ok)`.
+`match x: Ok(_) => true; _ => false ;;`와 같다. 결과값이 아닌 값(`nil`, 수 등)에도 에러 없이 `false`를 돌려준다. 하나의 결과값을 다룰 때는 `match`나 `!`·`?`·`??`가 낫다. `is_ok`는 결과값의 **리스트**를 거를 때 빛난다: `rs |> filter(is_ok)`.
 
 #### 매개변수
 
@@ -97,7 +123,7 @@ print(filter(rs, is_ok) |> map(r => r!))
 
 #### 설명
 
-`type_of(x) == 'Err`와 같다. 결과값이 아닌 값에는 `false`다. 실패한 것만 모아 보고할 때 쓴다.
+`match x: Err(_) => true; _ => false ;;`와 같다. 결과값이 아닌 값에는 `false`다. 실패한 것만 모아 보고할 때 쓴다.
 
 #### 매개변수
 

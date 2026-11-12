@@ -59,7 +59,7 @@ fn match_runs() {
             "big\n",
         ),
         (
-            "fn f(v) = match v: Ok => 1; Ok(_) => 2 ;;\nprint(f('Ok), f(Ok(0)))",
+            "fn f(v) = match v: Red => 1; Red(_) => 2 ;;\nprint(f(Red), f(Red(0)))",
             "1 2\n",
         ),
     ]);
@@ -70,10 +70,10 @@ fn failed_arm_does_not_leak_bindings() {
     // Arm 0 binds a and b then fails on the guard; arm 1 binds c into the
     // slot a used. c must see its own value.
     let (out, _, code) =
-        run("fn f(v) = match v: (a, b) when a > 100 => a; (c, _) => c ;;\nprint(f((1, 2)))");
+        run("fn f(v) = match v: (a, _b) when a > 100 => a; (c, _) => c ;;\nprint(f((1, 2)))");
     assert_eq!((out.as_str(), code), ("1\n", 0));
     let (out, _, _) = run(
-        "fn f(xs) = match xs: [first, ...rest] => rest; [...rest] => rest ;;\nprint(f([]), f([1]))",
+        "fn f(xs) = match xs: [_head, ...rest] => rest; [...rest] => rest ;;\nprint(f([]), f([1]))",
     );
     assert_eq!(out, "[] []\n", "rest on empty");
     let (out, _, _) = run(
@@ -87,7 +87,7 @@ fn destructuring_assignment() {
     check_out(&[
         ("(q, r) = (7, 2)\nprint(q, r)", "7 2\n"),
         (
-            "[first, ...rest] = [1, 2, 3]\nprint(first, rest)",
+            "[head, ...rest] = [1, 2, 3]\nprint(head, rest)",
             "1 [2, 3]\n",
         ),
         (

@@ -1,0 +1,5 @@
+# A list literal has no spread: lists are joined with `+` (D45).
+xs = [2, 3]
+print([1] + xs)
+print([1, ...xs])
+# expect-error: E0133

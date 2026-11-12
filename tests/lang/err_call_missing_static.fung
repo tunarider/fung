@@ -1,0 +1,6 @@
+# A call to a top-level fn is checked when the file is compiled: nothing
+# runs (D43).
+fn add(a, b) = a + b
+print("never")
+print(add(1))
+# expect-error: E0407

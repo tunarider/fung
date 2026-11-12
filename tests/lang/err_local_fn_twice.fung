@@ -1,0 +1,8 @@
+# A block defines a fn once, as the file does (FE61).
+fn g():
+  fn a() = 1
+  fn a() = 2
+  a()
+;;
+print(g())
+# expect-error: E0210

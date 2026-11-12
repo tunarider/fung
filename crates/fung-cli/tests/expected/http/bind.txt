@@ -10,24 +10,24 @@
 ==== bind 1
 -- program: print(http.serve("127.0.0.1:99999", r => r, ready: a => print("ready", a)))
 -- stdout
-| Err({kind: 'network, message: "cannot listen on `127.0.0.1:99999`: invalid port `99999`"})
+| Err({kind: 'invalid, message: "cannot listen on `127.0.0.1:99999`: invalid port `99999`"})
 -- stderr
 -- exit: 0
 ==== bind 2
 -- program: print(http.serve("nope", r => r, ready: a => print("ready", a)))
 -- stdout
-| Err({kind: 'network, message: "cannot listen on `nope`: invalid address `nope` (missing port)"})
+| Err({kind: 'invalid, message: "cannot listen on `nope`: invalid address `nope` (missing port)"})
 -- stderr
 -- exit: 0
 ==== bind 3
 -- program: print(http.serve("127.0.0.1:x", r => r, ready: a => print("ready", a)))
 -- stdout
-| Err({kind: 'network, message: "cannot listen on `127.0.0.1:x`: invalid port `x` (a port is a number)"})
+| Err({kind: 'invalid, message: "cannot listen on `127.0.0.1:x`: invalid port `x` (a port is a number)"})
 -- stderr
 -- exit: 0
 ==== bind 4
 -- program: print(http.serve("a:b:c", r => r, ready: a => print("ready", a)))
 -- stdout
-| Err({kind: 'network, message: "cannot listen on `a:b:c`: invalid address `a:b:c` (too many colons)"})
+| Err({kind: 'invalid, message: "cannot listen on `a:b:c`: invalid address `a:b:c` (too many colons)"})
 -- stderr
 -- exit: 0

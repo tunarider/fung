@@ -86,10 +86,11 @@ import cli
 
 # &quot;10K&quot; → 10240. A plain number is bytes.
 fn parse_size(s):
-  (num, unit) = match upper(s[-1..]):
-    &quot;K&quot; =&gt; (s[..-1], 1024)
-    &quot;M&quot; =&gt; (s[..-1], 1024 * 1024)
-    &quot;G&quot; =&gt; (s[..-1], 1024 * 1024 * 1024)
+  n = len(s) - 1
+  (num, unit) = match upper(s[n..]):
+    &quot;K&quot; =&gt; (s[..n], 1024)
+    &quot;M&quot; =&gt; (s[..n], 1024 * 1024)
+    &quot;G&quot; =&gt; (s[..n], 1024 * 1024 * 1024)
     _   =&gt; (s, 1)
   ;;
   (parse_int(num) ?? fail(&quot;not a size: ${s}&quot;)) * unit
@@ -108,7 +109,7 @@ fn size_of(p) = match fs.stat(p):
   Err(_) =&gt; 0
 ;;
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: [&quot;top&quot;, &quot;min&quot;])!
 dir = first(opts.rest) ?? &quot;.&quot;
 top = parse_int(get(opts.flags, &quot;top&quot;, &quot;10&quot;)) ?? fail(&quot;--top must be a number&quot;)
 min_size = parse_size(get(opts.flags, &quot;min&quot;, &quot;0&quot;))
@@ -128,7 +129,7 @@ print(pad_left(human(found |&gt; map(f =&gt; f.size) |&gt; sum), 7), &quot;total
 <p>맨 위의 <code>example.fung</code>은 이 스크립트 자신이다. 50바이트보다 작은 <code>app.conf</code>는 빠졌다.</p>
 <h2 id="how">줄별 설명</h2>
 <ul>
-<li><code>parse_size</code>: 마지막 글자(<code>s[-1..]</code>)를 보고 단위를 정한다. <code>s[..-1]</code>은 마지막 글자를 뺀 앞부분이다. <code>match</code>가 <code>(숫자 부분, 곱할 수)</code> 튜플을 돌려주고, 대입의 왼쪽 <code>(num, unit)</code>이 그것을 둘로 나눠 받는다. 숫자가 아니면 <code>parse_int</code>가 <code>Err</code>를 주고, <code>?? fail(…)</code>이 알아보기 쉬운 메시지로 멈춘다.</li>
+<li><code>parse_size</code>: 마지막 글자(<code>s[n..]</code>, <code>n</code>은 <code>len(s) - 1</code>)를 보고 단위를 정한다. <code>s[..n]</code>은 마지막 글자를 뺀 앞부분이다. 인덱스는 0부터만 세므로(음수는 범위 밖) 뒤에서의 자리는 <code>len</code>으로 계산한다. <code>match</code>가 <code>(숫자 부분, 곱할 수)</code> 튜플을 돌려주고, 대입의 왼쪽 <code>(num, unit)</code>이 그것을 둘로 나눠 받는다. 숫자가 아니면 <code>parse_int</code>가 <code>Err</code>를 주고, <code>?? fail(…)</code>이 알아보기 쉬운 메시지로 멈춘다.</li>
 <li><code>human</code>: <code>then … else</code>를 사슬로 이어 세 경우를 고른다. <code>n * 10 // 1024</code>로 소수 첫째 자리까지 남긴 정수를 만든 뒤 <code>/ 10</code>으로 나누면 실수가 되어 <code>1.2</code>처럼 찍힌다(<code>/</code>는 늘 실수, <code>//</code>는 내림 나눗셈).</li>
 <li><code>size_of</code>: <code>fs.walk</code>로 목록을 받은 뒤 <code>fs.stat</code>을 부르기 전에 파일이 지워질 수 있다. 그런 파일 하나 때문에 전체가 멈추지 않도록 <code>Err</code>면 0으로 친다.</li>
 <li><code>fs.walk(dir)!</code>: 아래의 모든 파일 경로(디렉터리는 빼고)를 리스트로 준다. 디렉터리를 읽지 못하면 <code>!</code>가 멈춘다.</li>

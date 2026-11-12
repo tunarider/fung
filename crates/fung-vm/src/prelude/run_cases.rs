@@ -19,9 +19,9 @@ pub(super) const RUN_CASES: &[(&str, &str)] = &[
 print(map([1], f))"#,
         "",
     ),
-    (r#"print(map([1, 2], (a, b) => a))"#, ""),
+    (r#"print(map([1, 2], (a, b) => a + b))"#, ""),
     (
-        r#"print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, x) => a), fold(5..5, 0, (a, x) => a + 1))"#,
+        r#"print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, _x) => a), fold(5..5, 0, (a, _x) => a + 1))"#,
         "",
     ),
     (r#"print(fold(1, 0, 1))"#, ""),
@@ -36,15 +36,15 @@ print(fold([1, 2, 3], 0, g))"#,
         "",
     ),
     (
-        r#"print(filter([1, 2, 3, 4], x => x > 2), filter(0..10, x => x % 3 == 0), filter([], x => 1))"#,
+        r#"print(filter([1, 2, 3, 4], x => x > 2), filter(0..10, x => x % 3 == 0), filter([], _x => 1))"#,
         "",
     ),
-    (r#"print(filter([1], x => 1))"#, ""),
-    (r#"print(filter("ab", x => true))"#, ""),
+    (r#"print(filter([1], _x => 1))"#, ""),
+    (r#"print(filter("ab", _x => true))"#, ""),
     (r#"print(filter("ab", 1))"#, ""),
     (r#"print(filter([1], 1))"#, ""),
     (
-        r#"print(each([1, 2], x => print(x)), each(0..0, x => fail("no")))"#,
+        r#"print(each([1, 2], x => print(x)), each(0..0, _x => fail("no")))"#,
         "",
     ),
     (r#"print(each({a: 1}, x => x))"#, ""),
@@ -69,30 +69,29 @@ print(fold([1, 2, 3], 0, g))"#,
     (r#"print(sort_by([1, 2], x => x == 1 then "a" else 1))"#, ""),
     (r#"print(sort_by([1, 2], x => x / 0))"#, ""),
     (
-        r#"print(find([1, 2, 3], x => x > 1), find([], x => true), find(0..10, x => x * x > 10))"#,
+        r#"print(find([1, 2, 3], x => x > 1), find([], _x => true), find(0..10, x => x * x > 10))"#,
         "",
     ),
-    (r#"print(find([1], x => 1))"#, ""),
+    (r#"print(find([1], _x => 1))"#, ""),
     (r#"print(find(1, 1))"#, ""),
     (r#"print(find([1], 1))"#, ""),
     (
-        r#"print(any([1, 2], x => x > 1), any([], x => true), all([], x => false), all([1, 2], x => x > 0), all([1, 2], x => x > 1))"#,
+        r#"print(any([1, 2], x => x > 1), any([], _x => true), all([], _x => false), all([1, 2], x => x > 0), all([1, 2], x => x > 1))"#,
         "",
     ),
     (r#"print(any(1, x => x))"#, ""),
-    (r#"print(all([1], x => nil))"#, ""),
+    (r#"print(all([1], _x => nil))"#, ""),
     (r#"print(any([1], "f"))"#, ""),
-    (
-        r#"print(flatten([[1], 2, [], [[3]]]), flatten(0..3), flatten([]))"#,
-        "",
-    ),
+    (r#"print(flatten([[1], 0..2, [], [[3]]]), flatten([]))"#, ""),
+    (r#"print(flatten([[1], 2]))"#, ""),
+    (r#"print(flatten(0..3))"#, ""),
     (r#"print(flatten(1))"#, ""),
     (
         r#"print(group_by(["ab", "c", "ad", "ce"], s => s[..1]))"#,
         "",
     ),
     (r#"print(group_by([1], x => x))"#, ""),
-    (r#"print(group_by([1], x => nil))"#, ""),
+    (r#"print(group_by([1], _x => nil))"#, ""),
     (r#"print(group_by(1, 1))"#, ""),
     (r#"print(group_by([1], 1))"#, ""),
     (r#"print(pairs({b: 1, a: 2}), pairs({}))"#, ""),
@@ -123,16 +122,19 @@ print(put(m, "b", 2), put(m, "a", 3), m)"#,
     (r#"print(split(1, ","))"#, ""),
     (r#"print(split("a", 1))"#, ""),
     (
-        r#"print(join(["a", 1, 2.0, nil, 'x, [1, "b"]], "-"), join([]), join(0..3), join(["a", "b"]))"#,
+        r#"print(join(["a", 1, 2.0, 'x, [1, "b"]], "-"), join([]), join(0..3), join(["a", "b"]))"#,
         "",
     ),
+    (r#"print(join([1, nil]))"#, ""),
+    (r#"print(join([[1, Ok(2)]]))"#, ""),
     (r#"print(join(1, 2))"#, ""),
     (r#"print(join(["a"], 1))"#, ""),
     (r#"print(join(["a"], sep: "+"))"#, ""),
     (
-        r#"print(trim("  a \t"), trim("xxaxx", "x"), trim("abcba", "ab"), trim(" a　"), trim("aa", ""))"#,
+        r#"print(trim("  a \t"), trim("xxaxx", "x"), trim("abcba", "ab"), trim(" a　"))"#,
         "",
     ),
+    (r#"print(trim("aa", ""))"#, ""),
     (r#"print(trim(1))"#, ""),
     (r#"print(trim("a", 1))"#, ""),
     (
@@ -142,9 +144,10 @@ print(put(m, "b", 2), put(m, "a", 3), m)"#,
     (r#"print(upper(1), lower(1))"#, ""),
     (r#"print(lower(nil))"#, ""),
     (
-        r#"print(replace("a-b-c", "-", "+"), replace("ab", "", "-"), replace("", "", "x"), replace("aaa", "aa", "b"))"#,
+        r#"print(replace("a-b-c", "-", "+"), replace("", "a", "x"), replace("aaa", "aa", "b"))"#,
         "",
     ),
+    (r#"print(replace("ab", "", "-"))"#, ""),
     (r#"print(replace("a", "b", 1))"#, ""),
     (r#"print(replace(1, 2, 3))"#, ""),
     (
@@ -293,7 +296,7 @@ print(bad([1, 2]))"#,
         "",
     ),
     (
-        r#"print(map(0..=2, x => x), filter(0..=2, x => true), fold(-2..=2, 0, (a, x) => a + x))"#,
+        r#"print(map(0..=2, x => x), filter(0..=2, _x => true), fold(-2..=2, 0, (a, x) => a + x))"#,
         "",
     ),
     (
@@ -378,17 +381,17 @@ print(map([200000], d))"#,
         "",
     ),
     (
-        r#"fn r(n) = n == 0 then 0 else fold([n], 0, (a, x) => r(x - 1))
+        r#"fn r(n) = n == 0 then 0 else fold([n], 0, (_a, x) => r(x - 1))
 print(r(60000))"#,
         "",
     ),
     (
-        r#"fn r(n) = n == 0 then 0 else fold([n], 0, (a, x) => r(x - 1))
+        r#"fn r(n) = n == 0 then 0 else fold([n], 0, (_a, x) => r(x - 1))
 print(r(30000))"#,
         "",
     ),
     (
-        r#"print(group_by(0..6, x => x % 2 == 0 then "even" else "odd"), pairs(group_by([], x => "a")))"#,
+        r#"print(group_by(0..6, x => x % 2 == 0 then "even" else "odd"), pairs(group_by([], _x => "a")))"#,
         "",
     ),
     (
@@ -418,7 +421,7 @@ f([1])"#,
     (r#"map([[1, "a"]], sum)"#, ""),
     (r#"pad_left("a", 3, "")"#, ""),
     (r#"pad_left("a", 200000000, " ")"#, ""),
-    (r#"until(1, x => x + "a", x => false)"#, ""),
+    (r#"until(1, x => x + "a", _x => false)"#, ""),
     (
         r#"fn r(n) = iterate(n, x => x / 0, 1)
 r(1)"#,
@@ -434,7 +437,7 @@ r(1)"#,
     (r#"print(min([[nil]]))"#, ""),
     (r#"print(max([(nil,)]))"#, ""),
     (r#"print(sort([nil]))"#, ""),
-    (r#"print(sort_by([1], x => nil))"#, ""),
+    (r#"print(sort_by([1], _x => nil))"#, ""),
     // VA25: a range's sum is computed, not folded; past an int is E0503.
     (
         r#"print(sum(0..2_000_000_000), sum(-5..=5), sum(5..=4), sum(0..=0))"#,
@@ -534,7 +537,12 @@ print(recv(rx))"#,
     (r#"print(take([1]))"#, ""),
     (
         r#"import conc
-print(conc.retry(() => Ok(1)), conc.retry(() => 2, times: 1), until(1, x => x * 2, x => x > 50), iterate(1, x => x + 1, 3))"#,
+print(conc.retry(() => Ok(1)), conc.retry(() => Ok(2), times: 1), until(1, x => x * 2, x => x > 50), iterate(1, x => x + 1, 3))"#,
+        "",
+    ),
+    (
+        r#"import conc
+print(conc.retry(() => 2, times: 1))"#,
         "",
     ),
     (
@@ -556,7 +564,7 @@ print(conc.retry(() => Ok(1)), conc.retry(() => 2, times: 1), until(1, x => x * 
     (r#"await(1)"#, ""),
     (r#"cancel(1)"#, ""),
     (
-        r#"t = scope(s => spawn(s, () => 1))
+        r#"t = scope(s => spawn(s, () => 1))!
 print(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"#,
         "",
     ),
@@ -565,7 +573,7 @@ print(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"#,
         "",
     ),
     (
-        r#"supervise(s => print(await(spawn(s, () => 1 / 0)), await(spawn(s, () => [1][5]))), e => nil)"#,
+        r#"supervise(s => print(await(spawn(s, () => 1 / 0)), await(spawn(s, () => [1][5]))), _e => nil)"#,
         "",
     ),
     (
@@ -577,7 +585,7 @@ print(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"#,
         "",
     ),
     (
-        r#"t = scope(s => spawn(s, () => 1))
+        r#"t = scope(s => spawn(s, () => 1))!
 t < t"#,
         "",
     ),
@@ -598,11 +606,11 @@ print(conc.retry(() => Err(1), times: 2, delay: 1ms))"#,
 print(conc.retry(() => Err("x"), times: 3, delay: 0s))"#,
         "",
     ),
-    (r#"print(spawn, type_of(await), channel == channel)"#, ""),
+    (r#"print(spawn, type_of(await), channel != nil)"#, ""),
     (
         r#"(t, c) = channel()
 (_t2, c2) = channel()
-print(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != 1)"#,
+print(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != nil)"#,
         "",
     ),
     ("(_a, ra) = channel()\n(_b, rb) = channel()\nra < rb", ""),
@@ -656,7 +664,7 @@ scope(fn(s):
     (
         r#"(t, c) = channel()
 close(t)
-print(any(c, x => true), all(c, x => false), group_by(c, x => "a"), sort_by(c, x => x), filter(c, x => true), fold(c, 1, (a, b) => a), each(c, x => x), first(c), last(c), take(c, 1), join(c), flatten(c), find(c, x => true), sort(c))"#,
+print(any(c, _x => true), all(c, _x => false), group_by(c, _x => "a"), sort_by(c, x => x), filter(c, _x => true), fold(c, 1, (a, _b) => a), each(c, x => x), first(c), last(c), take(c, 1), join(c), flatten(c), find(c, _x => true), sort(c))"#,
         "",
     ),
     (
@@ -680,11 +688,11 @@ map(c, 3)"#,
     ),
     (r#"print(sh("cat"), sh("true", stdin: "abc"))"#, ""),
     (
-        r#"print(exec(["sh", "-c", "echo $A$B"], env: {"B": "2", "A": "1"}))"#,
+        r#"print(exec(["sh", "-c", `echo $A$B`], env: {"B": "2", "A": "1"}))"#,
         "",
     ),
     (
-        r#"print(exec(["sh", "-c", "echo \"$fung_x\""], env: {"fung_x": "lo"}))"#,
+        r#"print(exec(["sh", "-c", `echo "$fung_x"`], env: {"fung_x": "lo"}))"#,
         "",
     ),
     (
@@ -692,15 +700,15 @@ map(c, 3)"#,
         "",
     ),
     (
-        r#"print(sh("echo $PWD", cwd: "/tmp"), sh("echo $PWD", cwd: "/usr/../tmp/"))"#,
+        r#"print(sh(`echo $PWD`, cwd: "/tmp"), sh(`echo $PWD`, cwd: "/usr/../tmp/"))"#,
         "",
     ),
     (
-        r#"print(sh("echo $PWD", cwd: "/tmp", env: {"X": "1"}))"#,
+        r#"print(sh(`echo $PWD`, cwd: "/tmp", env: {"X": "1"}))"#,
         "",
     ),
-    (r#"print(sh("echo $PWD", cwd: ""))"#, ""),
-    (r#"print(sh("echo \"$X\"", env: {"X": "a b=c"}))"#, ""),
+    (r#"print(sh(`echo $PWD`, cwd: ""))"#, ""),
+    (r#"print(sh(`echo "$X"`, env: {"X": "a b=c"}))"#, ""),
     (r#"print(exec(["definitely-not-a-command-xyz"]))"#, ""),
     (
         r#"print(exec(["/nonexistent/x"]), exec(["/etc"]), exec([""]))"#,
@@ -724,7 +732,7 @@ map(c, 3)"#,
         "",
     ),
     (
-        r#"print(exec(["sh", "-c", "echo $FOO"], env: {"FOO": 1}))"#,
+        r#"print(exec(["sh", "-c", `echo $FOO`], env: {"FOO": 1}))"#,
         "",
     ),
     (r#"print(exec(["sh"], env: 1))"#, ""),
@@ -739,9 +747,13 @@ map(c, 3)"#,
     (r#"print(exec(["true"], shell: 1))"#, ""),
     (r#"print(env(1))"#, ""),
     (
-        r#"print(env("FUNG_TEST_UNSET_VAR"), env(""), env("A=B"), type_of(env_all()), env("HOME") == env_all()["HOME"])"#,
+        r#"print(env("FUNG_TEST_UNSET_VAR"), type_of(env_all()), env("HOME") == env_all()["HOME"])"#,
         "",
     ),
+    // no variable has such a name: E0403, as exec's env (D76)
+    (r#"print(env(""))"#, ""),
+    (r#"print(env("A=B"))"#, ""),
+    (r#"print(env("A\u{0}"))"#, ""),
     (
         r#"print(sh("printf 'a\\nb\\n'")!.out |> lines, sh("printf ok")!.out |> len)"#,
         "",
@@ -833,7 +845,7 @@ print(fs.write_line(w, "x"), close(w), fs.write_line(w, "y"))"#,
     ),
     (
         r#"import fs
-print(fs.open("/nonexistent-fung-test/x"), fs.with_open("/nonexistent-fung-test/x", h => 1), fs.read_lines("/nonexistent-fung-test/x"))
+print(fs.open("/nonexistent-fung-test/x"), fs.with_open("/nonexistent-fung-test/x", _h => 1), fs.read_lines("/nonexistent-fung-test/x"))
 print(fs.with_open("Cargo.toml", h => read_line(h)), fs.with_open("/dev/null", h => fs.write_line(h, "z"), 'write))"#,
         "",
     ),
@@ -917,11 +929,7 @@ print(fs.open("/dev/null", 'read, 1))"#,
 print(fs.open("/dev/null", 'read, nil, 1))"#,
         "",
     ),
-    (
-        r#"import fs
-print(close(1))"#,
-        "",
-    ),
+    (r#"print(close(1))"#, ""),
     (
         r#"import fs
 print(close())"#,
@@ -1013,7 +1021,7 @@ print(http.serve("127.0.0.1:0", r => r, drain: -1s))"#,
     (r#"print(get({a: 1}, 'a))"#, ""),
     (r#"print('a in {a: 1})"#, ""),
     (r#"print(1 in {a: 1})"#, ""),
-    (r#"print(group_by([1], x => 'odd))"#, ""),
+    (r#"print(group_by([1], _x => 'odd))"#, ""),
     (
         r#"m = {a: 1}
 k = 1

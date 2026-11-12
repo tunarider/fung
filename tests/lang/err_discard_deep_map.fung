@@ -1,0 +1,4 @@
+# A discarded value with an Err anywhere in it is E0606 (D54).
+fn f() = {a: [1, Err("lost")]}
+f()
+# expect-error: E0606

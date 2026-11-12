@@ -19,8 +19,8 @@ print(len(split(long, "ha")), len(split(long + ",", ",")), len(split("a,b,,c", "
 csv = repeat("x,", 50000)
 print(len(split(csv, ",")), len(replace(csv, ",", ";;")), len(lines(repeat("l\r\n", 20000))))
 # expect: 50001 150000 20000
-print(lines(repeat("a\r\n", 3))[2], len(chars(repeat("é", 20000))), len(replace(repeat("é", 20000), "", "-")))
-# expect: a 20000 40001
+print(lines(repeat("a\r\n", 3))[2], len(chars(repeat("é", 20000))), len(replace(repeat("é", 20000), "é", "-é")))
+# expect: a 20000 40000
 print(len(repeat("ab", 1000000)), repeat("", 1000000000) == "")
 # expect: 2000000 true
 print(len(join(map(0..100000, i => i), ",")))

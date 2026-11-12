@@ -229,23 +229,23 @@ pub fn list(items: Vec<Value>) -> Value {
 }
 
 /// Renders values the way print shows them, space-separated: bytes,
-/// since a string's are written as they are (L4).
-pub fn join_for_print<'a>(items: impl Iterator<Item = &'a Value>) -> Vec<u8> {
+/// since a string's are written as they are (L4). A value whose text
+/// passes the string limit is E0806 (VA28).
+pub fn join_for_print<'a>(items: impl Iterator<Item = &'a Value>) -> Result<Vec<u8>, Stop> {
     let mut out = Vec::new();
     for (i, v) in items.enumerate() {
         if i > 0 {
             out.push(b' ');
         }
-        write_for_print(v, &mut out);
+        write_for_print(v, &mut out)?;
     }
-    out
+    Ok(out)
 }
 
 /// The E0506 a collection function reports for what it cannot iterate.
-/// A sending end gets a help line, the same whatever the verb (a `for`
-/// over `tx` reads as "cannot map over sender": `for` is `map`
-/// underneath): the fix is the other end.
-fn not_iterable(verb: &str, v: &Value) -> Stop {
+/// A sending end gets a help line, the same whatever the verb: the fix
+/// is the other end. `map` and `for` both "iterate over" (VA39).
+pub(crate) fn not_iterable(verb: &str, v: &Value) -> Stop {
     let d = error("E0506", no_pos(), vec![s(verb), Arg::Str(type_name(v))]);
     let d = match v {
         Value::Sender(_) => {
@@ -263,6 +263,16 @@ pub const MAX_ELEMENTS: u64 = 100_000_000;
 /// E0806 for a result past [`MAX_ELEMENTS`].
 pub fn too_many_elements() -> Stop {
     fail("E0806", vec![s("elements"), Arg::Int(MAX_ELEMENTS as i64)])
+}
+
+/// E0806 when a list of `n` elements would pass [`MAX_ELEMENTS`] (D63):
+/// every path that builds a list checks the length it is about to have.
+pub fn check_len(n: u64) -> Result<(), Stop> {
+    if n > MAX_ELEMENTS {
+        Err(too_many_elements())
+    } else {
+        Ok(())
+    }
 }
 
 /// For a function whose result holds every element (`map`, `sort`,
@@ -546,5 +556,8 @@ mod tests {
         assert!(limit_elements(&range(MAX_ELEMENTS as i64)).is_ok());
         assert!(limit_elements(&range(MAX_ELEMENTS as i64 + 1)).is_err());
         assert!(limit_elements(&list(vec![Value::Int(1)])).is_ok());
+        // D63: the one length check every path that builds a list makes.
+        assert!(check_len(MAX_ELEMENTS).is_ok());
+        assert!(check_len(MAX_ELEMENTS + 1).is_err());
     }
 }

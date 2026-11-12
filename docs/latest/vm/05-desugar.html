@@ -166,7 +166,7 @@ print(xs)</code></pre><pre class="out dump plain"><code>$ fung dump core example
   print(x)
 ;;</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
 (do (call (prelude each) (list 1 2) (fn (x) (do (call (prelude print) (local 0))))))</code></pre></div>
-<p>두 가지를 눈여겨볼 만하다. 첫째, 코어에는 <code>(prelude map)</code>이 직접 박혀 있다. 사용자가 <code>map</code>이라는 이름을 자기 함수로 덮어써도 <code>for</code>는 내장 <code>map</code>을 부른다. 둘째, 본문이 람다가 되었으므로 <code>for</code> 안에서 <code>return</code>을 쓰면 람다에서 돌아올 뿐 바깥 함수는 끝나지 않는다. 그 함정을 막으려고 desugar는 이 람다에 "for의 본문"이라는 표시를 해 두고, 다음 장의 이름 해석이 그 안의 <code>return</code>을 <code>E0213</code>으로 거절한다.</p>
+<p>두 가지를 눈여겨볼 만하다. 첫째, 코어에는 <code>(prelude map)</code>이 직접 박혀 있다. 사용자가 <code>map</code>이라는 이름을 자기 함수로 덮어써도 <code>for</code>는 내장 <code>map</code>을 부른다. 둘째, 본문이 람다가 되었으므로 <code>for</code> 안에서 <code>return</code>을 쓰면 람다에서 돌아올 뿐 바깥 함수는 끝나지 않는다. 그 함정을 막으려고 desugar는 이 람다에 "for의 본문"이라는 표시를 해 두고, 다음 장의 이름 해석이 그 안의 <code>return</code>을 <code>E0237</code>로 거절한다. 사용자가 쓴 람다 <code>=&gt;</code>도 파서가 표시를 해 두어 같은 번호로 거절한다(람다도 일찍 돌아가지 못한다).</p>
 <h3 id="interp">보간과 <code>then</code>: 조각 잇기와 <code>if</code></h3>
 <div class="run"><pre><code>name = &quot;fung&quot;
 n = 3
@@ -180,12 +180,12 @@ print(&quot;hi ${name}&quot;, n &gt; 2 then &quot;big&quot; else &quot;small&quo
 <h3 id="partial"><code>_</code> 부분 적용: 숨은 변수와 람다</h3>
 <p><code>add(1, _)</code>는 "인자 하나를 받아 <code>add(1, 그것)</code>을 부르는 함수"다. 그런데 단순히 <code>h0 =&gt; add(1, h0)</code>으로 풀면 문제가 있다. <code>add(expensive(), _)</code>라고 썼을 때 <code>expensive()</code>가 함수를 부를 때마다 다시 계산된다. desugar는 그래서 함수와 다른 인자를 먼저 <strong>한 번만</strong> 계산해 숨은 변수에 담고, 그 변수를 쓰는 람다를 만든다.</p>
 <pre class="plain"><code>f(a, _, b)  →  (do (let $p0 f) (let $p1 a) (let $p2 b)
-                   (fn (h0) (do (call $p0 $p1 h0 $p2))))</code></pre>
-<p><code>$p0</code> 같은 이름은 <code>$</code>로 시작해서 사용자가 쓸 수 있는 어떤 이름과도 겹치지 않는다. 실제 출력에서는 이름 해석을 거쳐 슬롯 번호가 되어 보인다.</p>
+                   (fn ($h0) (do (call $p0 $p1 $h0 $p2))))</code></pre>
+<p><code>$p0</code>·<code>$h0</code> 같은 이름은 <code>$</code>로 시작해서 사용자가 쓸 수 있는 어떤 이름과도 겹치지 않는다. 빈자리의 매개변수도 그래서 이름 인자로 부를 수 없고, 빠지면 E0407이 이름 대신 자리(<code>missing argument 1</code>)로 부른다. 실제 출력에서는 이름 해석을 거쳐 슬롯 번호가 되어 보인다.</p>
 <div class="run"><pre><code>add = (a, b) =&gt; a + b
 inc = add(1, _)
 print(inc(41))</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
-(do (let (global 0) (fn (a, b) (do (op + (local 0) (local 1))))) (let (global 1) (do (let (local 0) (global 0)) (let (local 1) 1) (fn (h0) (do (call (captured 0) (captured 1) (local 0)))))) (call (prelude print) (call (global 1) 41)))</code></pre></div>
+(do (let (global 0) (fn (a, b) (do (op + (local 0) (local 1))))) (let (global 1) (do (let (local 0) (global 0)) (let (local 1) 1) (fn ($h0) (do (call (captured 0) (captured 1) (local 0)))))) (call (prelude print) (call (global 1) 41)))</code></pre></div>
 <p><code>(let (local 0) (global 0))</code>이 <code>add</code>를, <code>(let (local 1) 1)</code>이 인자 <code>1</code>을 미리 담는다. 람다 안에서는 그 둘이 <code>(captured 0)</code>, <code>(captured 1)</code>, 곧 람다가 붙잡은 값으로 보인다(9장).</p>
 <h3 id="match"><code>match</code>: 대상을 한 번만 계산</h3>
 <p><code>match</code>도 대상을 숨은 변수에 한 번 담은 뒤 절마다 그 변수를 비교한다. 절이 몇 개든 대상 식은 한 번만 실행된다.</p>

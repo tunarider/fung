@@ -77,7 +77,14 @@ pub fn execute(file: &str, src: &str, args: Vec<Vec<u8>>) -> i64 {
     let entry = b.proto.expect("a compiled entry");
     // The runtime holds the program's files first and boot appends the
     // prelude's after them (see `fung_vm::boot`).
-    let rt = Runtime::new(stdout, Box::new(ProcessOut::stderr()), stdin, b.sources);
+    // Written apart when they go to different places (CC15).
+    let rt = Runtime::with_streams(
+        stdout,
+        Box::new(ProcessOut::stderr()),
+        stdin,
+        b.sources,
+        fung_vm::vm::std_streams_apart(),
+    );
     if let Err(errs) = rt.boot(args) {
         rt.with_sources(|s| report(stderr, &errs, s));
         return EXIT_COMPILE.into();

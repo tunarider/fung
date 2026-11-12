@@ -103,11 +103,11 @@ test &quot;sees one server&quot;:
   assert len(servers) == 1
 ;;
 
-servers = servers + [&quot;web2&quot;]
-print(&quot;top level ran with&quot;, len(servers), &quot;servers&quot;)
+more = servers + [&quot;web2&quot;]
+print(&quot;top level ran with&quot;, len(more), &quot;servers&quot;)
 
 test &quot;sees two servers&quot;:
-  assert len(servers) == 2
+  assert len(more) == 2
   assert double(21) == 42
 ;;</code></pre><pre class="out plain"><code>top level ran with 2 servers</code></pre></div>
 <p><code>fung test</code>는 <code>tests</code>를 켜고 컴파일한다. 그러면 블록마다 두 가지가 생긴다.</p>
@@ -115,7 +115,7 @@ test &quot;sees two servers&quot;:
 <li>블록의 본문이 <strong>자식 원형 하나</strong>로 컴파일된다. 람다와 똑같다.</li>
 <li>블록이 있던 자리에 <code>CLOSURE</code>(함수 값 만들기)와 <strong><code>TEST</code> 명령</strong>이 들어간다. <code>TEST</code>는 만든 함수를 이름과 함께 런타임의 테스트 목록(<code>World::tests</code>)에 <strong>등록</strong>만 한다(<code>crates/fung-vm/src/vm/m6.rs</code>의 <code>exec_m6</code>, <code>TestCase</code>). 실행하지는 않는다.</li>
 </ol>
-<p>그래서 최상위가 끝까지 돌고 나면 블록들이 순서대로 등록되어 있다. 각 블록은 <strong>자기 자리에서</strong> 만들어졌으므로, 첫 블록은 <code>servers</code>가 하나일 때의 값을, 둘째 블록은 둘일 때의 값을 복사해 쥐고 있다.</p>
+<p>그래서 최상위가 끝까지 돌고 나면 블록들이 순서대로 등록되어 있다. 각 블록은 <strong>자기 자리에서</strong> 만들어졌으므로, 그때까지 대입된 이름의 값을 복사해 쥐고 있다. 첫 블록이 만들어질 때는 <code>more</code>가 아직 없어서, 첫 블록에서 <code>more</code>를 쓰면 컴파일 에러다.</p>
 <pre class="plain"><code>$ fung test order_test.fung
 top level ran with 2 servers
 ok   order_test.fung: sees one server

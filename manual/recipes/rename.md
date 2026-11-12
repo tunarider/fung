@@ -57,15 +57,15 @@ fn target(file):
   stem == "" then file else stem + lower(path.ext(file))
 ;;
 
-fn rename(dir, file, dry):
+fn rename(folder, file, dry_run):
   to = target(file)
   if to == file: return 'same ;;
-  if fs.exists(path.join(dir, to))!:
+  if fs.exists(path.join(folder, to))!:
     eprint("skip:", file, "->", to, "(already exists)")
     return 'skipped
   ;;
   print(file, "->", to)
-  if not dry: fs.move(path.join(dir, file), path.join(dir, to))! ;;
+  if not dry_run: fs.move(path.join(folder, file), path.join(folder, to))! ;;
   'renamed
 ;;
 

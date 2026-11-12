@@ -1,0 +1,4 @@
+# A parameter nobody reads is an error (D38).
+fn f(x) = 1
+print(f(2))
+# expect-error: E0239

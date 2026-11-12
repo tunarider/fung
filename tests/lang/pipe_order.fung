@@ -1,0 +1,22 @@
+# A pipe evaluates its left value first, as every binary operator does
+# (D57), whatever the right side is.
+fn a():
+  print("a")
+  1
+;;
+fn mk():
+  print("mk")
+  (x, y) => x + y
+;;
+fn mk1():
+  print("mk1")
+  x => x
+;;
+print(a() |> mk()(2))
+print(a() |> (mk1()))
+# expect: a
+# expect: mk
+# expect: 3
+# expect: a
+# expect: mk1
+# expect: 1

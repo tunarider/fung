@@ -89,12 +89,12 @@ print(2 ** 10, 1_000_000, 1 + 2.0)</code></pre><pre class="out plain"><code>3 7 
 </ul>
 <p><code>**</code>는 거듭제곱이다. 정수와 실수를 섞어 계산하면 결과는 실수다.</p>
 <p>fung은 숫자가 틀어지는 것을 그냥 두지 않는다. 0으로 나누면 에러로 멈추고, 정수가 담을 수 있는 범위(약 ±922경)를 넘어도 에러다. 많은 언어에서 넘친 정수는 조용히 음수로 돌아가 버리는데, fung에서는 그런 일이 없다.</p>
-<div class="run"><pre><code>max = 9_223_372_036_854_775_807
-print(max + 1)</code></pre><pre class="out err plain" data-code="1"><code>error[E0503]: integer overflow
-  --&gt; example.fung:2:11
+<div class="run"><pre><code>biggest = 9_223_372_036_854_775_807
+print(biggest + 1)</code></pre><pre class="out err plain" data-code="1"><code>error[E0503]: integer overflow
+  --&gt; example.fung:2:15
   |
-2 | print(max + 1)
-  |           ^
+2 | print(biggest + 1)
+  |               ^
   |
  call path (innermost first):
    example.fung:2 &lt;entry&gt;</code></pre></div>
@@ -129,8 +129,8 @@ print(status, status == 'ok, status == 'degraded)</code></pre><pre class="out pl
 <p>같은 일을 문자열 <code>&quot;degraded&quot;</code>로도 할 수 있지만, 심볼은 "프로그램 안에서 정한 이름"이고 문자열은 "바깥에서 온 글자"라는 차이가 있다. 그래서 fung은 둘을 섞어 비교하면 에러를 낸다(아래 "자주 하는 실수"). 9장에서 실패의 종류를 <code>'not_found</code> 같은 심볼로 구별하는 것을 보게 된다.</p>
 <h2 id="durations">기간</h2>
 <p><strong>기간</strong>(<code>dur</code>)은 시간의 길이다. 숫자 바로 뒤에 단위 <code>ms</code>(밀리초), <code>s</code>(초), <code>m</code>(분), <code>h</code>(시간)를 붙인다. 시간 제한이나 재시도 간격처럼 SRE 스크립트에 자주 나온다. 기간끼리 더하고 빼고, 숫자를 곱할 수 있다. 몇 분인지 숫자로 얻으려면 그 단위로 나눈다.</p>
-<div class="run"><pre><code>timeout = 30s
-print(timeout, timeout * 4, 1h30m, 90s)
+<div class="run"><pre><code>wait = 30s
+print(wait, wait * 4, 1h30m, 90s)
 print(1h30m // 1m, 2m &gt; 90s)</code></pre><pre class="out plain"><code>30s 2m 1h30m 1m30s
 90 true</code></pre></div>
 <h2 id="convert">타입 바꾸기</h2>
@@ -169,12 +169,12 @@ print(&quot;free:&quot;, free, &quot;GB&quot;)</code></pre><pre class="out plain
 <li><code>if</code>, <code>for</code>, <code>fn</code> 같은 <strong>예약어(keyword)</strong>는 이름으로 쓸 수 없다. 목록은 <a href="../reference/language/lexical.html">레퍼런스</a>에 있다.</li>
 <li>이름은 <strong>쓰기 전에</strong> 대입해야 한다. 아래 줄에서 대입할 이름을 위에서 읽으면 E0204다.</li>
 </ul>
-<p>같은 이름에 다시 대입할 수도 있다. 그러면 그 이름은 새 값을 가리킨다.</p>
+<p>파일의 맨 바깥(<strong>최상위</strong>)에서는 한 이름을 <strong>한 번만</strong> 붙인다. 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙인다. (함수 본문 같은 블록 안에서는 같은 이름에 다시 대입할 수 있다. 5장에서 본다.)</p>
 <div class="run"><pre><code>retries = 3
-retries = retries + 1
-print(retries)</code></pre><pre class="out plain"><code>4</code></pre></div>
+max_tries = retries + 1
+print(retries, max_tries)</code></pre><pre class="out plain"><code>3 4</code></pre></div>
 <h2 id="immutable">값은 바뀌지 않는다</h2>
-<p>fung에서 <strong>값 자체는 절대 바뀌지 않는다</strong>. 위의 <code>retries = retries + 1</code>도 <code>3</code>이라는 값을 <code>4</code>로 고친 것이 아니다. <code>retries + 1</code>로 새 값 <code>4</code>를 만들고, <code>retries</code>라는 이름표를 그 새 값에 옮겨 붙였을 뿐이다.</p>
+<p>fung에서 <strong>값 자체는 절대 바뀌지 않는다</strong>. 위의 <code>retries + 1</code>도 <code>3</code>이라는 값을 <code>4</code>로 고친 것이 아니다. 새 값 <code>4</code>를 만들고 <code>max_tries</code>라는 이름표를 그 값에 붙였을 뿐이다. <code>retries</code>는 여전히 <code>3</code>을 가리킨다.</p>
 <p>이 차이는 이름 두 개가 같은 값을 가리킬 때 드러난다. 문자열을 대문자로 바꾸는 <code>upper</code>는 원래 문자열을 고치지 않고 새 문자열을 돌려준다. 리스트에 원소를 더해도 새 리스트가 생긴다.</p>
 <div class="run"><pre><code>name = &quot;web-1&quot;
 loud = upper(name)
@@ -188,11 +188,11 @@ print(all_hosts)</code></pre><pre class="out plain"><code>web-1 WEB-1
 [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]</code></pre></div>
 <p><code>hosts</code>는 여전히 원소가 둘이다. 그래서 어떤 값을 다른 사람이 만든 함수에 넘겨도, 그 함수가 내 값을 몰래 바꿔 놓을 걱정이 없다. 12장에서 여러 일을 동시에 할 때도 이 성질 덕분에 값을 마음 놓고 나눠 쓴다.</p>
 <h2 id="constants">상수</h2>
-<p>프로그램에서 한 번 정하고 바꾸지 않는 값을 <strong>상수(constant)</strong>라고 한다. fung에는 상수를 선언하는 따로 된 문법이 없다. 파일 최상위에서 <strong>한 번만 대입한 이름</strong>이 곧 상수다. 이름은 다른 변수와 똑같이 소문자로 쓴다.</p>
+<p>프로그램에서 한 번 정하고 바꾸지 않는 값을 <strong>상수(constant)</strong>라고 한다. fung에는 상수를 선언하는 따로 된 문법이 없다. 최상위의 이름은 한 번만 붙으므로 <strong>최상위의 이름이 곧 상수</strong>다. 이름은 다른 변수와 똑같이 소문자로 쓴다.</p>
 <div class="run"><pre><code>max_retries = 3
 log_dir = &quot;/var/log/app&quot;
 print(max_retries, log_dir)</code></pre><pre class="out plain"><code>3 /var/log/app</code></pre></div>
-<p>상수와 두 번 이상 대입한 변수는 함수 안에서 볼 수 있는지가 다르다. 5장에서 다룬다.</p>
+<p>최상위 함수는 이 상수들을 모두 볼 수 있다. 5장에서 다룬다.</p>
 <h2 id="blocks">블록은 바깥 변수를 바꿀 수 없다</h2>
 <p><code>:</code>로 열고 <code>;;</code>로 닫는 부분을 <strong>블록(block)</strong>이라고 한다. <code>if</code>(4장), <code>for</code>(4장), 함수 본문(5장)이 블록을 쓴다. 블록에는 규칙이 하나 있다.</p>
 <p><strong>블록 안에서는 바깥 이름을 읽을 수 있지만, 바깥 이름에 다시 대입할 수는 없다.</strong> 다른 언어에서 흔히 쓰는 아래 코드는 fung에서 컴파일 에러다.</p>
@@ -206,6 +206,7 @@ for f in files:
 4 |   count = count + 1
   |   ^^^^^
   |
+  note: `count` is a top-level name bound on line 2
  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
 <p>블록 안에서 새로 만든 이름도 블록 밖으로 나오지 않는다(E0206). 대신 fung의 블록은 <strong>값을 낸다</strong>. 블록의 마지막 식이 그 블록의 값이다. 그래서 "블록 안에서 변수를 고친다" 대신 "블록이 낸 값을 대입한다"라고 쓴다. 위의 개수는 그냥 <code>len(files)</code>이고, 더 복잡한 계산은 4장의 <code>if</code> 식과 <code>fold</code>로 쓴다.</p>
 <div class="run"><pre><code>files = [&quot;a.log&quot;, &quot;b.log&quot;]
@@ -246,11 +247,11 @@ free: 63 GB</code></pre></div>
 <p>아래 프로그램이 무엇을 찍을지 먼저 생각한 뒤 실행해 보자.</p>
 <div class="run"><pre><code>a = [1, 2]
 b = a
-b = b + [3]
-a = a + [9]
-print(a, b)</code></pre><pre class="out plain"><code>[1, 2, 9] [1, 2, 3]</code></pre></div>
+c = b + [3]
+d = a + [9]
+print(a, b, c, d)</code></pre><pre class="out plain"><code>[1, 2] [1, 2] [1, 2, 3] [1, 2, 9]</code></pre></div>
 <details><summary>풀이 보기</summary>
-<p><code>b = a</code>는 같은 리스트에 이름표를 하나 더 붙인다. <code>b + [3]</code>과 <code>a + [9]</code>는 각각 <strong>새</strong> 리스트를 만들어 이름표를 옮긴다. 원래의 <code>[1, 2]</code>는 한 번도 바뀌지 않았으므로 <code>a</code>는 <code>[1, 2, 9]</code>, <code>b</code>는 <code>[1, 2, 3]</code>이다.</p>
+<p><code>b = a</code>는 같은 리스트에 이름표를 하나 더 붙인다. <code>b + [3]</code>과 <code>a + [9]</code>는 각각 <strong>새</strong> 리스트를 만들어 새 이름표 <code>c</code>·<code>d</code>를 붙인다. 원래의 <code>[1, 2]</code>는 한 번도 바뀌지 않았으므로 <code>a</code>와 <code>b</code>는 <code>[1, 2]</code>, <code>c</code>는 <code>[1, 2, 3]</code>, <code>d</code>는 <code>[1, 2, 9]</code>이다.</p>
 </details>
 </div>
 <h2 id="summary">정리</h2>
@@ -259,11 +260,11 @@ print(a, b)</code></pre><pre class="out plain"><code>[1, 2, 9] [1, 2, 3]</code><
 <li><code>/</code>는 실수, <code>//</code>는 정수 나눗셈, <code>%</code>는 나머지. 0 나누기와 정수 넘침은 에러다.</li>
 <li>fung은 타입을 저절로 바꾸지 않는다. <code>int</code>, <code>float</code>, <code>str</code>로 직접 바꾼다.</li>
 <li><code>nil</code>은 "없음"이고, <code>??</code>로 기본값을 준다.</li>
-<li>이름은 소문자로 시작하고, 쓰기 전에 대입한다. 최상위에서 한 번만 대입한 이름이 상수다.</li>
+<li>이름은 소문자로 시작하고, 쓰기 전에 대입한다. 최상위의 이름은 한 번만 붙고(E0238) 모두 상수다.</li>
 <li>값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.</li>
 <li>블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.</li>
 </ul>
-<p>레퍼런스: <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/operators.html">연산자</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0205">E0205</a>, <a href="../reference/errors.html#E0517">E0517</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
+<p>레퍼런스: <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/operators.html">연산자</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0205">E0205</a>, <a href="../reference/errors.html#E0238">E0238</a>, <a href="../reference/errors.html#E0517">E0517</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/02-first-program.html"><small>이전 장</small>2. 설치와 첫 프로그램</a><a class="next" href="../learn/04-conditions-and-loops.html"><small>다음 장</small>4. 조건과 반복</a></nav>
 </div></main>
 </div>

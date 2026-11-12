@@ -7,7 +7,7 @@ lede: 토큰의 규칙: 이름, 숫자, 문자열, 기간, 주석, 예약어.
 <h3>주석</h3>
 <p><code>#</code>부터 줄 끝까지. 다른 주석 형식은 없다(<code>//</code>는 정수 나눗셈이다). 파일 첫 줄의 <code>#!/usr/bin/env fung</code>도 그냥 주석이다.</p>
 <p>파일 맨 앞의 BOM(U+FEFF) 하나는 건너뛴다. 그 밖의 BOM은 문자열(원시 문자열 포함)과 주석 안에서는 다른 글자처럼 그대로 받고, 토큰 사이(둘째 BOM 포함)에 오면 E0101이다.</p>
-<p>줄 끝은 <code>\n</code>이나 <code>\r\n</code>이다. 홀로 선 CR(<code>\r</code>)은 문자열 안이 아니면 주석 안에서도 E0101이다. 터미널과 편집기가 CR을 서로 다르게 그려서, 주석처럼 보이는 코드가 실행되는 일을 막는다.</p>
+<p>줄 끝은 <code>\n</code>이나 <code>\r\n</code>이다. 홀로 선 CR(<code>\r</code>)은 문자열 안이 아니면 주석 안에서도 E0101이다. 터미널과 편집기가 CR을 서로 다르게 그려서, 주석처럼 보이는 코드가 실행되는 일을 막는다. 같은 까닭으로 양방향 제어 문자(U+202A~U+202E, U+2066~U+2069)는 주석과 문자열(원시 문자열 포함) 안에서도 E0101이다. 글자가 읽히는 순서와 다르게 보이게 하기 때문이다. 문자열에 그 글자가 필요하면 <code>"\u{202E}"</code>처럼 이스케이프로 쓴다.</p>
 <h3>이름과 태그</h3>
 <ul>
   <li>대문자로 시작하지 않으면 <strong>이름</strong>이다. 소문자, <code>_</code>, 한글처럼 대소문자가 없는 글자, 제목 문자 <code>ǅ</code>(Lt), 글자 숫자 <code>Ⅷ</code>(Nl)이 모두 그렇다: <code>file_list</code>, <code>_cache</code>, <code>파일목록</code>.</li>
@@ -29,14 +29,15 @@ print(event.type, event.match)
   <thead><tr><th>형태</th><th>예</th><th>비고</th></tr></thead>
   <tbody>
     <tr><td>정수</td><td><code>42</code> <code>1_000_000</code></td><td>64비트. <code>_</code>는 숫자 사이에만. 두 자리 이상이면 <code>0</code>으로 시작하지 않는다(<code>0755</code>는 E0102, 8진수는 <code>0o755</code>).</td></tr>
-    <tr><td>진법</td><td><code>0xff</code> <code>0o17</code> <code>0b1010</code></td><td>정수. 범위는 10진 정수와 같은 64비트다(<code>-0x8000000000000000</code>까지). 접두사는 소문자만(<code>0XFF</code>는 E0102).</td></tr>
+    <tr><td>진법</td><td><code>0xff</code> <code>0o17</code> <code>0b1010</code></td><td>정수. 범위는 10진 정수와 같은 64비트다(<code>-0x8000000000000000</code>까지). 접두사와 16진 숫자는 소문자만(<code>0XFF</code>, <code>0xFF</code>는 E0102).</td></tr>
     <tr><td>실수</td><td><code>3.14</code> <code>2.5e-3</code> <code>1e9</code></td><td>소수점 양쪽에 숫자가 필요하다(<code>.5</code>, <code>1.</code>은 안 됨, E0102). 정수 바로 뒤의 <code>.</code>는 소수부나 범위 <code>..</code>만 될 수 있다(<code>1.foo</code>도 E0102). 지수가 있으면 실수이고 지수는 소문자 <code>e</code>만(<code>1E5</code>는 E0102). 0이 아닌 수가 0.0으로 아래 넘치면 E0102(<code>1e-400</code>).</td></tr>
   </tbody>
 </table>
 <h3>문자열</h3>
 <ul>
   <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code> <code>\xHH</code>뿐이고, 모르는 이스케이프(<code>"C:\data"</code>)는 컴파일 에러다. <code>\xHH</code>는 바이트 하나다(<code>"\xe9"</code>는 글자 <code>é</code>가 아니라 바이트 0xE9, 글자는 <code>"\u{e9}"</code>). 실제 줄바꿈은 넣을 수 없다.</li>
-  <li><code>`…`</code>: 원시 문자열. 이스케이프도 보간도 없고, 여러 줄이 된다. 정규식과 Windows 경로에 쓴다.</li>
+  <li><code>$</code> 바로 뒤에 이름의 첫 글자가 오면 컴파일 에러 E0129다: <code>"$name"</code>은 보간처럼 보이지만 보간이 아니다. 값은 <code>"${name}"</code>, 글자 그대로는 <code>"\$name"</code>으로 쓴다. 그 밖의 <code>$</code>(<code>"$5"</code>, 끝의 <code>$</code>)는 글자다. 셸 명령처럼 <code>$</code>가 많은 글은 원시 문자열로 쓴다.</li>
+  <li><code>`…`</code>: 원시 문자열. 이스케이프도 보간도 없고, 여러 줄이 된다. 정규식과 Windows 경로에 쓴다. 안의 줄 끝은 파일이 <code>\r\n</code>으로 끝나도 값에서는 <code>\n</code>이다.</li>
   <li>보간 안에는 어떤 식이든 온다: <code>"${m["k"]}"</code>.</li>
   <li>길이와 인덱스는 글자(유니코드 코드 포인트) 단위다. <code>len("참치") == 2</code>, <code>"참치"[0] == "참"</code>. 따로 문자 타입은 없다.</li>
   <li>문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. UTF-8에 속하지 않는 바이트는 그 하나가 한 글자이고, 값으로 보일 때는 <code>"\xff"</code>처럼 보인다(<a href="../prelude/strings.html#bytes">바이트</a>). 소스 파일은 UTF-8이어야 한다(<a href="../errors.html#E0312">E0312</a>).</li>
@@ -46,10 +47,11 @@ print(event.type, event.match)
 name = "fung"
 print("hello, ${name}! ${1 + 2}")
 pattern = `^\d{4}-\d{2}$`
+print(pattern)
 ```
 
 <h3>심볼</h3>
-<p><code>'ok</code>, <code>'not_found</code>, <code>'Red</code>. <code>'</code> 뒤에 식별자가 온다(대문자로 시작해도 된다). 이름만 있는 값으로, 선언 없이 쓰는 열거형이다. 문자열과는 다른 타입이라 <code>'ok == "ok"</code>처럼 심볼과 문자열을 비교하면 런타임 에러 E0517이다(<code>sym(s)</code>로 바꿔 비교한다).</p>
+<p><code>'ok</code>, <code>'not_found</code>. <code>'</code> 뒤에 이름이 온다. 이름만 있는 값으로, 선언 없이 쓰는 열거형이다. 대문자로 시작하는 심볼은 인자 없는 태그로 쓴다: <code>Red</code>가 그 심볼이고, <code>'Red</code>는 같은 값의 둘째 표기라 컴파일 에러 E0128이다. 맨 <code>Ok</code>·<code>Err</code>는 결과값의 이름이라 심볼로 쓸 수 없다(E0236). 문자열과는 다른 타입이라 <code>'ok == "ok"</code>처럼 심볼과 문자열을 비교하면 런타임 에러 E0517이다(<code>sym(s)</code>로 바꿔 비교한다).</p>
 <h3>기간</h3>
 <p><code>500ms</code> <code>30s</code> <code>1.5s</code> <code>1h30m</code>. 단위는 <code>ms</code> <code>s</code> <code>m</code> <code>h</code>이고 큰 단위부터 쓴다. 숫자 바로 뒤에 붙여야 한다(<code>30 s</code>는 숫자와 이름 <code>s</code>).</p>
 <p>성분마다 숫자는 10진 정수처럼 <code>0</code>으로 시작하지 않고(<code>1h05m</code>은 E0105), 소수점은 마지막 성분에만 온다(<code>1h30.5m</code>은 되고 <code>1.5h30m</code>은 E0105). 기간은 나노초 단위라, 0이 아닌 성분이 0 ns로 반올림되면 E0105다(<code>0.0000004ms</code>).</p>
@@ -84,11 +86,11 @@ print(1h30m, 90s)
 print(30m1h)
 ```
 
-진법의 접두사와 지수는 소문자로 쓴다. 대문자는 도움말이 소문자 모양을 보인다.
+진법의 접두사, 16진 숫자, 지수는 소문자로 쓴다. 대문자는 도움말이 소문자 모양을 보인다.
 
 ```fung run exit=2 error=E0102
-print(0xFF, 1e5)
-print(0XFF)
+print(0xff, 1e5)
+print(0xFF)
 ```
 
 기간의 소수점은 마지막 성분에만 온다.
@@ -96,6 +98,21 @@ print(0XFF)
 ```fung run exit=2 error=E0105
 print(1h30.5m)
 print(1.5h30m)
+```
+
+`$` 뒤에 이름이 오면 보간이 아니라 에러다. 값은 `${…}`로, 글자는 `\$`로 쓴다.
+
+```fung run exit=2 error=E0129
+user = "ann"
+print("${user} paid \$5, $5 and \$user")
+print("hello $user")
+```
+
+대문자로 시작하는 심볼은 태그로 쓴다.
+
+```fung run exit=2 error=E0128
+print(Red == sym("Red"), 'red)
+print('Red)
 ```
 
 문자열의 이스케이프는 정해진 것뿐이다(`\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\u{…}`, `\xHH`).

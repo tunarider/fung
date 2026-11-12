@@ -5,7 +5,7 @@ use crate::testutil::{Opts, Outcome, exec};
 
 fn run(src: &str) -> Outcome {
     exec(
-        &format!("import _native.arg as arg\n{src}"),
+        &crate::testutil::imports_first(&format!("import _native.arg as arg\n{src}")),
         Opts {
             internal: true,
             ..Opts::default()

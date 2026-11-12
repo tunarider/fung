@@ -264,7 +264,6 @@
 ==== fmt ro.fung locked.fung lone.fung
 -- stdout
 | lone.fung
-| ro.fung
 -- stderr
 | error: cannot read `locked.fung`: permission denied
 | error: cannot write `ro.fung`: permission denied
@@ -284,7 +283,6 @@
 -- exit: 2
 ==== fmt .
 -- stdout
-| ro.fung
 -- stderr
 | error: cannot read `latin.fung`: not valid UTF-8 at line 1, column 4
 | error: cannot read `locked.fung`: permission denied

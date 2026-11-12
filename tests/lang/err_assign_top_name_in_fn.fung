@@ -1,0 +1,9 @@
+# A top-level fn cannot assign a top-level name, even in its outermost
+# block (D38 reverses 11-10 D4).
+limit = 10
+fn f():
+  limit = 5
+  limit
+;;
+print(f() + limit)
+# expect-error: E0205

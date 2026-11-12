@@ -340,6 +340,19 @@ impl TaskEnd {
 
     /// The function came to `r`.
     fn body_ended(&mut self, t: &mut Task<'_>, mut r: Result<Value, Stop>) -> Result<Next, Stop> {
+        // The task's call path starts in the task: the note says where it
+        // was spawned (FE61).
+        if let Err(Stop::Error(d)) = &mut r
+            && !is_cancel(d)
+            && !self.state.at.is_zero()
+        {
+            let at = self.state.at;
+            d.notes.push(format!(
+                "note: the task was spawned at {}:{}",
+                t.world.file_name(at.file),
+                at.line
+            ));
+        }
         // A result that leads back to this task's own handle (through
         // channels or other tasks) would keep it alive forever (L7): the
         // task fails instead, at its spawn, and the value is not kept.
@@ -516,7 +529,7 @@ fn nothing() -> &'static crate::value::Native {
 /// - a cancellation from outside, unwinding further (E0701, or E0702
 ///   after a deadlock report), even if the body had returned;
 /// - `cancel(s)`: `Err({kind: 'cancelled, …})`;
-/// - the body's value.
+/// - `Ok` of the body's value (D65).
 ///
 /// The run loop calls the body (`cont.rs`); the rest happens when it
 /// returns or unwinds (`Scope::close`).
@@ -705,7 +718,8 @@ impl Cont for Scope {
             self.draining = Some(d);
             return Ok(Next::Park(Wake::default()));
         }
-        t.fiber.cancel = d.own;
+        // A deadline that passed during the wait is enforced (CC16).
+        t.restore_cancel_node(d.own);
         self.closed(t, d.r)
     }
 
@@ -748,6 +762,8 @@ pub(crate) fn settle(
         Err(_) if outer.is_some() => r,
         _ if outer.is_some() => Err(outer.expect("checked")),
         _ if state.self_cancelled.get() => Ok(err_kind("cancelled", "cancelled")),
+        // `scope` can give a runtime Err, so its value is a result (D65).
+        Ok(v) => Ok(crate::native::nat::ok(v)),
         _ => r,
     }
 }

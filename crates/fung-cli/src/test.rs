@@ -39,6 +39,9 @@ struct Tally {
     passed: usize,
     failed: usize,
     compile_failed: bool,
+    /// A test failed in a file that spawned tasks: the order the seed
+    /// drew may matter (TL12).
+    seeded: bool,
 }
 
 /// `args` are the arguments after `test`, as bytes. The output goes to
@@ -92,6 +95,7 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
         total.passed += t.passed;
         total.failed += t.failed;
         total.compile_failed |= t.compile_failed;
+        total.seeded |= t.seeded;
         if first.load(std::sync::atomic::Ordering::SeqCst) != 0 {
             break;
         }
@@ -105,8 +109,9 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
         total.failed
     );
     // The tasks ran in an order drawn from the seed (L14): a failure that
-    // depends on it comes back with the same seed. One given is known.
-    if total.failed > 0 && chosen {
+    // depends on it comes back with the same seed. One given is known; a
+    // failure in a file that spawned no task does not depend on it (TL12).
+    if total.seeded && chosen {
         let _ = writeln!(
             ProcessOut::stderr(),
             "scheduler seed {seed}: FUNG_SCHED_SEED={seed} runs the tasks in the same order again"
@@ -187,14 +192,9 @@ fn test_file(
         Err(fail) => {
             // a file that cannot be read fails like one that cannot load
             let _ = stdout.write_all(&[b"FAIL ", path, b": <load>\n"].concat());
-            let _ = stderr.write_all(
-                &[
-                    b"error: ",
-                    &crate::cannot_read(path, &fail.reason)[..],
-                    b"\n",
-                ]
-                .concat(),
-            );
+            let _ = stderr.write_all(&indent(
+                &[b"error: ", &crate::cannot_read(path, &fail.reason)[..]].concat(),
+            ));
             t.compile_failed = true;
             t.failed += 1;
             return t;
@@ -226,7 +226,10 @@ fn test_file(
                 seen.insert(format!("{file}:{}:{}:{}", e.pos.line, e.pos.col, e.code))
             })
             .collect();
-        let _ = stderr.write_all(&shown(&fresh, &b.sources));
+        if !fresh.is_empty() {
+            // indented under its FAIL line, as a test's failure is (TL12)
+            let _ = stderr.write_all(&indent(&shown(&fresh, &b.sources)));
+        }
         t.compile_failed = true;
         t.failed += 1;
         return t;
@@ -235,16 +238,16 @@ fn test_file(
     if !has_tests(&entry) {
         return t; // a plain script: not run, not listed (08)
     }
-    let _ = stderr.write_all(&shown(&b.warnings, &b.sources));
-    let rt = Runtime::new(
+    let rt = Runtime::with_streams(
         Box::new(ProcessOut::stdout()),
         Box::new(ProcessOut::stderr()),
         Box::new(std::io::BufReader::new(std::io::empty())),
         b.sources,
+        fung_vm::vm::std_streams_apart(),
     );
     if let Err(errs) = rt.boot(Vec::new()) {
         let _ = stdout.write_all(&[b"FAIL ", path, b": <load>\n"].concat());
-        let _ = stderr.write_all(&rt.with_sources(|s| shown(&errs, s)));
+        let _ = stderr.write_all(&indent(&rt.with_sources(|s| shown(&errs, s))));
         t.compile_failed = true;
         t.failed += 1;
         return t;
@@ -373,6 +376,7 @@ fn test_file(
         );
         t.failed += 1;
     }
+    t.seeded = t.failed > 0 && rt.spawned();
     t
 }
 

@@ -7,12 +7,12 @@ import path
 import cli
 import "./kebab" (target)
 
-fn rename_all(dir, dry):
-  for file in fs.list(dir)!:
+fn rename_all(folder, dry):
+  for file in fs.list(folder)!:
     to = target(file)
     if to != file:
       print(file, "->", to)
-      if not dry: fs.move(path.join(dir, file), path.join(dir, to))! ;;
+      if not dry: fs.move(path.join(folder, file), path.join(folder, to))! ;;
     ;;
   ;;
   nil

@@ -1,6 +1,6 @@
 ---
 lede: 글자를 나누고, 잇고, 다듬고, 바꾼다. 문자열은 불변인 바이트 열이고, 인덱스와 길이는 바이트가 아니라 글자 단위다.
-description: fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, is_utf8.
+description: fung prelude 문자열: chars, split, join, lines, trim, trim_left, trim_right, upper, lower, replace, starts_with, index_of, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, is_utf8.
 ---
 # 문자열
 
@@ -14,7 +14,7 @@ fung의 문자열에 대해 알아 둘 것은 다섯이다.
 - **글자 단위**다. 문자열은 UTF-8로 저장되지만 `len`, 인덱스 `s[0]`, 슬라이스 `s[1..3]`은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 `"참치"[0]`은 `"참"`이고 `len("참치")`는 2다.
 - **어떤 바이트든 담는다**. 문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. 파일, 명령 출력, 환경 변수, 인자는 UTF-8이 아니어도 바이트 그대로 들어오고 그대로 나간다. UTF-8에 속하지 않는 바이트는 그 바이트 하나가 한 글자다. 값으로 보일 때는 `"a\xff"`처럼 `\xHH`로 보이고, 그 모양을 리터럴로 그대로 쓸 수 있다([바이트](#bytes)).
 - **잇기는 `+`, 끼워 넣기는 보간**이다. `"a" + "b"`는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 `"${name}: ${count}"`처럼 쓴다. 보간은 어떤 값이든 [`str`](convert.html#fn-str)과 같은 규칙으로 바꿔 넣는다.
-- **문자열은 컬렉션 함수에 넣지 않는다.** `map("abc", f)`도 `take("abc", 2)`·`first("abc")`도 에러다(E0506). 앞뒤를 자르려면 슬라이스(`s[..2]`, `s[1..]`, `s[-1]`)를, 글자 하나하나를 다루려면 [`chars`](#fn-chars)로 글자 리스트를 만든다.
+- **문자열은 컬렉션 함수에 넣지 않는다.** `map("abc", f)`도 `take("abc", 2)`·`first("abc")`도 에러다(E0506). 앞뒤를 자르려면 슬라이스(`s[..2]`, `s[1..]`, `s[len(s) - 1]`)를, 글자 하나하나를 다루려면 [`chars`](#fn-chars)로 글자 리스트를 만든다.
 
 ```fung run
 s = "  ERROR disk full  "
@@ -91,7 +91,7 @@ print(split(line, " ") |> filter(w => w != ""))
 
 #### 설명
 
-[`split`](#fn-split)의 반대다. 원소 사이에만 `sep`를 넣고 앞뒤에는 넣지 않는다. 빈 리스트는 `""`이다. 문자열이 아닌 원소는 [`str`](convert.html#fn-str)로 바꿔 넣으므로 수의 리스트도 바로 잇는다. `sep`를 주지 않으면 그냥 붙인다.
+[`split`](#fn-split)의 반대다. 원소 사이에만 `sep`를 넣고 앞뒤에는 넣지 않는다. 빈 리스트는 `""`이다. 문자열이 아닌 원소는 [`str`](convert.html#fn-str)처럼 바꿔 넣으므로 수의 리스트도 바로 잇는다. 다만 문자열 보간과 같이 `nil`, 결과값(`Ok`·`Err`), 핸들(함수·모듈·태스크·범위·채널 끝·atom·파일)은 원소 안 어느 깊이에 있어도 넣지 않는다. `sep`를 주지 않으면 그냥 붙인다.
 
 문자열을 하나씩 `+`로 쌓는 것보다 리스트에 모아 한 번에 `join`하는 것이 빠르다. 여러 줄 출력을 만들 때는 `join(rows, "\n")`.
 
@@ -108,7 +108,7 @@ print(split(line, " ") |> filter(w => w != ""))
 
 - `xs`가 리스트 등이 아니면 런타임 에러 E0506(`cannot join str`).
 - `sep`가 문자열이 아니면 E0403.
-- 원소가 `Ok`·`Err`이면 E0519(결과값은 글에 말없이 넣지 않는다, 보간과 같다). 결과를 보이려면 `map(xs, str)`로 먼저 바꾼다.
+- 원소(또는 원소 안)에 `nil`·`Ok`·`Err`·핸들이 있으면 E0519(글에 말없이 넣지 않는다, 보간과 같다). 그대로 보이려면 `map(xs, str)`로 먼저 바꾼다.
 
 #### 예제
 
@@ -249,7 +249,7 @@ print(chars("a1b2c3") |> filter(c => c >= "0" and c <= "9") |> join)
 
 #### 에러
 
-인자가 문자열이 아니면 런타임 에러 E0403.
+인자가 문자열이 아니거나 `cut`이 `""`이면(지울 글자가 없다) 런타임 에러 E0403.
 
 #### 예제
 
@@ -275,6 +275,76 @@ print(count + 1)
 #### 같이 보기
 
 [`replace`](#fn-replace), [`starts_with`](#fn-starts_with), [`lines`](#fn-lines)
+
+:::
+
+:::fn trim_left(s, cut = nil)
+
+앞(왼쪽) 끝만 [`trim`](#fn-trim)한다.
+
+#### 설명
+
+[`trim`](#fn-trim)과 같은 규칙으로 앞 끝의 공백이나 `cut`의 글자를 지우고, 뒤 끝은 그대로 둔다. 이름은 [`pad_left`](#fn-pad_left)와 짝이다.
+
+#### 매개변수
+
+- `s`: 문자열.
+- `cut`: 지울 글자들을 모은 문자열, 또는 `nil`(공백).
+
+#### 돌려주는 값
+
+문자열.
+
+#### 에러
+
+인자가 문자열이 아니거나 `cut`이 `""`이면 런타임 에러 E0403.
+
+#### 예제
+
+**앞의 들여쓰기와 0 지우기**
+
+```fung run
+print("[" + trim_left("   item  ") + "]", trim_left("000420", "0"))
+```
+
+#### 같이 보기
+
+[`trim`](#fn-trim), [`trim_right`](#fn-trim_right), [`pad_left`](#fn-pad_left)
+
+:::
+
+:::fn trim_right(s, cut = nil)
+
+뒤(오른쪽) 끝만 [`trim`](#fn-trim)한다.
+
+#### 설명
+
+[`trim`](#fn-trim)과 같은 규칙으로 뒤 끝의 공백이나 `cut`의 글자를 지우고, 앞 끝은 그대로 둔다. 줄 끝의 `\r`이나 뒤에 붙은 공백만 떼고 들여쓰기는 남길 때 쓴다.
+
+#### 매개변수
+
+- `s`: 문자열.
+- `cut`: 지울 글자들을 모은 문자열, 또는 `nil`(공백).
+
+#### 돌려주는 값
+
+문자열.
+
+#### 에러
+
+인자가 문자열이 아니거나 `cut`이 `""`이면 런타임 에러 E0403.
+
+#### 예제
+
+**들여쓰기는 남기고 끝만 다듬기**
+
+```fung run
+print("[" + trim_right("  key: value \r\n") + "]", trim_right("path///", "/"))
+```
+
+#### 같이 보기
+
+[`trim`](#fn-trim), [`trim_left`](#fn-trim_left), [`pad_right`](#fn-pad_right)
 
 :::
 
@@ -354,7 +424,7 @@ print(lower(answer) == "yes")
 
 #### 설명
 
-왼쪽부터 겹치지 않게 찾아 모두 바꾼다(`replace("aaa", "aa", "b")`는 `"ba"`). `new`가 `""`면 지우는 것이다. `old`가 `""`면 글자 사이사이와 양 끝에 `new`를 넣는다. 첫 번째 것만 바꾸거나 패턴으로 바꾸려면 [`regex.replace`](../modules/regex.html#fn-regex-replace)를 쓴다.
+왼쪽부터 겹치지 않게 찾아 모두 바꾼다(`replace("aaa", "aa", "b")`는 `"ba"`). `new`가 `""`면 지우는 것이다. `old`는 `""`일 수 없다(`split`의 빈 구분자와 같다). 첫 번째 것만 바꾸거나 패턴으로 바꾸려면 [`regex.replace`](../modules/regex.html#fn-regex-replace)를 쓴다.
 
 #### 매개변수
 
@@ -368,7 +438,7 @@ print(lower(answer) == "yes")
 
 #### 에러
 
-- 인자가 문자열이 아니면 런타임 에러 E0403.
+- 인자가 문자열이 아니거나 `old`가 `""`이면 런타임 에러 E0403.
 - 결과가 1억 글자를 넘으면 만들기 전에 E0806.
 
 #### 예제
@@ -436,6 +506,44 @@ print(starts_with(tag, "v") then tag[1..] else tag)
 #### 같이 보기
 
 [`ends_with`](#fn-ends_with), [`contains`](collections.html#fn-contains)
+
+:::
+
+:::fn index_of(s, sub)
+
+`s`에서 `sub`가 처음 나오는 글자 위치. 없으면 `nil`.
+
+#### 설명
+
+위치는 바이트가 아니라 **글자** 단위다. 인덱스 `s[i]`·슬라이스·`len`과 같은 단위라서 `s[i..i + len(sub)]`이 찾은 부분이다. 있는지만 알면 될 때는 `sub in s`, 패턴으로 찾을 때는 [`regex.find`](../modules/regex.html#fn-regex-find)를 쓴다. 빈 `sub`는 어디에나 있으므로 에러다.
+
+#### 매개변수
+
+- `s`: 문자열.
+- `sub`: 찾을 문자열. 비어 있으면 안 된다.
+
+#### 돌려주는 값
+
+`int`, 또는 `nil`.
+
+#### 에러
+
+인자가 문자열이 아니거나 `sub`가 `""`이면 런타임 에러 E0403.
+
+#### 예제
+
+**구분자 앞뒤로 나누기**
+
+```fung run
+line = "level=warn: 디스크 90%: 확인 필요"
+i = index_of(line, ": ")
+print(i, line[..i], line[i + 2..])
+print(index_of(line, "error"))
+```
+
+#### 같이 보기
+
+[`starts_with`](#fn-starts_with), [`split`](#fn-split), [`regex.find`](../modules/regex.html#fn-regex-find)
 
 :::
 

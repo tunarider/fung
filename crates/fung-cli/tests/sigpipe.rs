@@ -142,13 +142,23 @@ fn a_report_to_a_closed_stderr_dies_by_sigpipe() {
 
 #[test]
 fn print_from_a_release_dies_by_sigpipe() {
-    // Releases run innermost first: the inner one dies, the outer one
-    // never runs.
-    dies_by_sigpipe(
-        "with(() => nil, _ => with(() => nil, _ => eprint(\"main\"), _ => print(\"inner release\")), _ => eprint(\"outer release ran\"))",
-        false,
-        "main\n",
-    );
+    // Releases run innermost first: the inner one's print dies. It was
+    // queued for the output thread (CC15, D64), which meets the closed
+    // pipe a moment later: the outer release may run in between.
+    let _serial = serial();
+    for ignored in [false, true] {
+        let (status, got) = into_closed_pipe(
+            &fung_bin(),
+            "with(() => nil, _ => with(() => nil, _ => eprint(\"main\"), _ => print(\"inner release\")), _ => eprint(\"outer release ran\"))",
+            false,
+            ignored,
+        );
+        assert_eq!(status.signal(), Some(13), "{ignored}: {status:?}");
+        assert!(
+            got == "main\n" || got == "main\nouter release ran\n",
+            "{ignored}: {got:?}"
+        );
+    }
 }
 
 /// A fresh directory with a fifo `f` in it.
@@ -251,7 +261,7 @@ fn fifo_case(name: &str, code: &str, want: &str) {
 fn fs_write_to_a_closed_fifo_is_an_error_value() {
     fifo_case(
         "write",
-        "import fs\nbig = join(map(0..100000, (i) => \"abcdefghij\"), \"\")\nprint(\"opened\")\nprint(fs.write(args[0], big))\nprint(\"alive\")",
+        "import fs\nbig = join(map(0..100000, (_i) => \"abcdefghij\"), \"\")\nprint(\"opened\")\nprint(fs.write(args[0], big))\nprint(\"alive\")",
         "opened\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nalive\n",
     );
 }
@@ -260,7 +270,7 @@ fn fs_write_to_a_closed_fifo_is_an_error_value() {
 fn a_file_handle_on_a_closed_fifo_gives_error_values() {
     fifo_case(
         "handle",
-        "import fs\nbig = join(map(0..100000, (i) => \"abcdefghij\"), \"\")\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, big))\nprint(fs.write_line(h, big))\nprint(close(h))\nprint(\"alive\")",
+        "import fs\nbig = join(map(0..100000, (_i) => \"abcdefghij\"), \"\")\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, big))\nprint(fs.write_line(h, big))\nprint(close(h))\nprint(\"alive\")",
         // Each failed write reports its error; close has nothing left to
         // flush.
         "opened\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nOk(nil)\nalive\n",
@@ -298,7 +308,7 @@ fn a_closed_child_stdin_is_still_an_error_value() {
     // `true` exits without reading, so the write to its stdin fails;
     // the error is ignored, and fung does not die.
     runs_with(
-        "r = exec([\"true\"], stdin: join(map(0..200000, (i) => \"abcdefghij\"), \"\"))\nprint(r)",
+        "r = exec([\"true\"], stdin: join(map(0..200000, (_i) => \"abcdefghij\"), \"\"))\nprint(r)",
         "Ok({out: \"\", err: \"\", code: 0, signal: nil})\n",
     );
 }

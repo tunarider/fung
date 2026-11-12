@@ -1,0 +1,5 @@
+# JSON text must be UTF-8: a string of other bytes is refused (E0518, TL15).
+import json
+
+print(json.stringify({name: "caf\xe9"}))
+# expect-error: E0518

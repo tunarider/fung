@@ -1,0 +1,4 @@
+# A reserved word cannot be a name (FE43).
+match = 1
+print(match)
+# expect-error: E0110

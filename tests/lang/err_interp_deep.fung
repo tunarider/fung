@@ -1,0 +1,5 @@
+# A result inside a list is refused too, at any depth (D46).
+print("${[1, [2]]}")
+# expect: [1, [2]]
+print("${[1, [Ok(2)]]}")
+# expect-error: E0519

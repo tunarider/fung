@@ -1,0 +1,6 @@
+# `$` before a name in a string is not interpolation (D47): write
+# `${name}` for the value or `\$name` for the text. Other `$` stay text.
+x = 5
+print("${x} \$x $5 $")
+print("$x")
+# expect-error: E0129

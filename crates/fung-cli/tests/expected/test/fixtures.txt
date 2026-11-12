@@ -6,12 +6,12 @@
 | FAIL crates/fung-cli/tests/data/test/_lib/broken.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0204]: undefined name `missing`
-|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `missing`
+|     --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test crates/fung-cli/tests/data/test/_lib/good.fung
 -- stdout
@@ -69,34 +69,26 @@
 |    call path (innermost first):
 |      crates/fung-cli/tests/data/test/asserts.fung:10 test: an error
 | ok   crates/fung-cli/tests/data/test/asserts.fung: return and ?
-| ok   crates/fung-cli/tests/data/test/asserts.fung: unused warning
 | FAIL crates/fung-cli/tests/data/test/asserts.fung: an Err at the end is discarded
 |   error[E0606]: discarded Err: channel closed
-|     --> crates/fung-cli/tests/data/test/asserts.fung:21:1
+|     --> crates/fung-cli/tests/data/test/asserts.fung:20:3
 |      |
-|   21 | test "an Err at the end is discarded":
-|      | ^ this value is discarded
+|   20 |   send(tx, 1)
+|      |   ^ this value is discarded
 |      |
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 | FAIL crates/fung-cli/tests/data/test/asserts.fung: a list of Errs at the end
 |   error[E0606]: discarded Err: "in a list"
-|     --> crates/fung-cli/tests/data/test/asserts.fung:26:1
+|     --> crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   26 | test "a list of Errs at the end":
-|      | ^ this value is discarded
+|   23 |   for _x in [1]: fails("in a list") ;;
+|      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 | ok   crates/fung-cli/tests/data/test/asserts.fung: an if at the end
-| 3 passed, 7 failed
+| 2 passed, 7 failed
 -- stderr
-| warning[W0102]: unused variable `y`
-|   --> crates/fung-cli/tests/data/test/asserts.fung:18:3
-|    |
-| 18 |   y = 1
-|    |   ^
-|    |
-|  help: prefix it with `_` if it is intentional
 -- exit: 1
 ==== test crates/fung-cli/tests/data/test/deadlock.fung
 -- stdout
@@ -158,12 +150,12 @@
 | FAIL crates/fung-cli/tests/data/test/own_error.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0204]: undefined name `nope`
-|   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
-|   |
-| 1 | test "t": assert nope == 1 ;;
-|   |                  ^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `nope`
+|     --> crates/fung-cli/tests/data/test/own_error.fung:1:18
+|     |
+|   1 | test "t": assert nope == 1 ;;
+|     |                  ^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test crates/fung-cli/tests/data/test/top_error.fung
 -- stdout
@@ -198,24 +190,24 @@
 | FAIL crates/fung-cli/tests/data/test/uses_lib.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0204]: undefined name `missing`
-|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `missing`
+|     --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test crates/fung-cli/tests/data/test/uses_lib_too.fung
 -- stdout
 | FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0204]: undefined name `missing`
-|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `missing`
+|     --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test crates/fung-cli/tests/data/test/z_clean.fung
 -- stdout
@@ -274,21 +266,20 @@
 |    call path (innermost first):
 |      crates/fung-cli/tests/data/test/asserts.fung:10 test: an error
 | ok   crates/fung-cli/tests/data/test/asserts.fung: return and ?
-| ok   crates/fung-cli/tests/data/test/asserts.fung: unused warning
 | FAIL crates/fung-cli/tests/data/test/asserts.fung: an Err at the end is discarded
 |   error[E0606]: discarded Err: channel closed
-|     --> crates/fung-cli/tests/data/test/asserts.fung:21:1
+|     --> crates/fung-cli/tests/data/test/asserts.fung:20:3
 |      |
-|   21 | test "an Err at the end is discarded":
-|      | ^ this value is discarded
+|   20 |   send(tx, 1)
+|      |   ^ this value is discarded
 |      |
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 | FAIL crates/fung-cli/tests/data/test/asserts.fung: a list of Errs at the end
 |   error[E0606]: discarded Err: "in a list"
-|     --> crates/fung-cli/tests/data/test/asserts.fung:26:1
+|     --> crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   26 | test "a list of Errs at the end":
-|      | ^ this value is discarded
+|   23 |   for _x in [1]: fails("in a list") ;;
+|      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
@@ -336,15 +327,8 @@
 | FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
 | top level runs first
 | ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
-| 8 passed, 15 failed
+| 7 passed, 15 failed
 -- stderr
-| warning[W0102]: unused variable `y`
-|   --> crates/fung-cli/tests/data/test/asserts.fung:18:3
-|    |
-| 18 |   y = 1
-|    |   ^
-|    |
-|  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
 |   --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
 |   |
@@ -354,18 +338,18 @@
 |  call path (innermost first):
 |    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
 |  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
-| error[E0204]: undefined name `nope`
-|   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
-|   |
-| 1 | test "t": assert nope == 1 ;;
-|   |                  ^^^^ not found in this scope
-|   |
-| error[E0204]: undefined name `missing`
-|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `nope`
+|     --> crates/fung-cli/tests/data/test/own_error.fung:1:18
+|     |
+|   1 | test "t": assert nope == 1 ;;
+|     |                  ^^^^ not found in this scope
+|     |
+|   error[E0204]: undefined name `missing`
+|     --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test crates/fung-cli/tests/data/test/
 -- stdout
@@ -417,21 +401,20 @@
 |    call path (innermost first):
 |      crates/fung-cli/tests/data/test/asserts.fung:10 test: an error
 | ok   crates/fung-cli/tests/data/test/asserts.fung: return and ?
-| ok   crates/fung-cli/tests/data/test/asserts.fung: unused warning
 | FAIL crates/fung-cli/tests/data/test/asserts.fung: an Err at the end is discarded
 |   error[E0606]: discarded Err: channel closed
-|     --> crates/fung-cli/tests/data/test/asserts.fung:21:1
+|     --> crates/fung-cli/tests/data/test/asserts.fung:20:3
 |      |
-|   21 | test "an Err at the end is discarded":
-|      | ^ this value is discarded
+|   20 |   send(tx, 1)
+|      |   ^ this value is discarded
 |      |
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 | FAIL crates/fung-cli/tests/data/test/asserts.fung: a list of Errs at the end
 |   error[E0606]: discarded Err: "in a list"
-|     --> crates/fung-cli/tests/data/test/asserts.fung:26:1
+|     --> crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   26 | test "a list of Errs at the end":
-|      | ^ this value is discarded
+|   23 |   for _x in [1]: fails("in a list") ;;
+|      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
@@ -479,15 +462,8 @@
 | FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
 | top level runs first
 | ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
-| 8 passed, 15 failed
+| 7 passed, 15 failed
 -- stderr
-| warning[W0102]: unused variable `y`
-|   --> crates/fung-cli/tests/data/test/asserts.fung:18:3
-|    |
-| 18 |   y = 1
-|    |   ^
-|    |
-|  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
 |   --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
 |   |
@@ -497,18 +473,18 @@
 |  call path (innermost first):
 |    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
 |  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
-| error[E0204]: undefined name `nope`
-|   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
-|   |
-| 1 | test "t": assert nope == 1 ;;
-|   |                  ^^^^ not found in this scope
-|   |
-| error[E0204]: undefined name `missing`
-|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `nope`
+|     --> crates/fung-cli/tests/data/test/own_error.fung:1:18
+|     |
+|   1 | test "t": assert nope == 1 ;;
+|     |                  ^^^^ not found in this scope
+|     |
+|   error[E0204]: undefined name `missing`
+|     --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test crates/fung-cli/tests/data/test/_lib
 -- stdout
@@ -516,12 +492,12 @@
 | ok   crates/fung-cli/tests/data/test/_lib/good.fung: only when it is the entry
 | 1 passed, 1 failed
 -- stderr
-| error[E0204]: undefined name `missing`
-|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `missing`
+|     --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test ./crates/fung-cli/tests/data/test/../test/z_clean.fung
 -- stdout
@@ -580,21 +556,20 @@
 |    call path (innermost first):
 |      $REPO/crates/fung-cli/tests/data/test/asserts.fung:10 test: an error
 | ok   $REPO/crates/fung-cli/tests/data/test/asserts.fung: return and ?
-| ok   $REPO/crates/fung-cli/tests/data/test/asserts.fung: unused warning
 | FAIL $REPO/crates/fung-cli/tests/data/test/asserts.fung: an Err at the end is discarded
 |   error[E0606]: discarded Err: channel closed
-|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:21:1
+|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:20:3
 |      |
-|   21 | test "an Err at the end is discarded":
-|      | ^ this value is discarded
+|   20 |   send(tx, 1)
+|      |   ^ this value is discarded
 |      |
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 | FAIL $REPO/crates/fung-cli/tests/data/test/asserts.fung: a list of Errs at the end
 |   error[E0606]: discarded Err: "in a list"
-|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:26:1
+|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   26 | test "a list of Errs at the end":
-|      | ^ this value is discarded
+|   23 |   for _x in [1]: fails("in a list") ;;
+|      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)
 |    help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
@@ -642,15 +617,8 @@
 | FAIL $REPO/crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
 | top level runs first
 | ok   $REPO/crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
-| 8 passed, 15 failed
+| 7 passed, 15 failed
 -- stderr
-| warning[W0102]: unused variable `y`
-|   --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:18:3
-|    |
-| 18 |   y = 1
-|    |   ^
-|    |
-|  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
 |   --> $REPO/crates/fung-cli/tests/data/test/deadlock.fung:4:7
 |   |
@@ -660,18 +628,18 @@
 |  call path (innermost first):
 |    $REPO/crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
 |  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
-| error[E0204]: undefined name `nope`
-|   --> $REPO/crates/fung-cli/tests/data/test/own_error.fung:1:18
-|   |
-| 1 | test "t": assert nope == 1 ;;
-|   |                  ^^^^ not found in this scope
-|   |
-| error[E0204]: undefined name `missing`
-|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `nope`
+|     --> $REPO/crates/fung-cli/tests/data/test/own_error.fung:1:18
+|     |
+|   1 | test "t": assert nope == 1 ;;
+|     |                  ^^^^ not found in this scope
+|     |
+|   error[E0204]: undefined name `missing`
+|     --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2
 ==== test a.fung b.fung
 -- stdout

@@ -1,4 +1,5 @@
-# W0103: new names that hide a prelude function.
+# E0240 (formerly the warning W0103): new names that hide a prelude
+# function (D38).
 fn map(xs) = xs
 len = 1
 fn uses(filter, keys = 1) = filter

@@ -1,0 +1,6 @@
+# A name a `match` arm binds and never reads is an error (D38).
+print(match Ok(1):
+  Ok(n)   => 0
+  Err(_e) => 1
+;;)
+# expect-error: E0239

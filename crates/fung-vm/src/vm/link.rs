@@ -24,11 +24,22 @@ use crate::value::{
 pub struct Prelude(pub BTreeMap<String, Value>);
 
 /// An instruction decoded once, at link time: the run loop reads its
-/// opcode and operand as fields (VM16).
+/// opcode and operand as fields (VM16). The second operand (VM32) lies in
+/// the bytes after the opcode, so an instruction stays 8 bytes.
 #[derive(Clone, Copy, Debug)]
 pub struct Code {
     pub op: Op,
+    second: [u8; 3],
     pub arg: u32,
+}
+
+impl Code {
+    /// The second operand (`Op::second`).
+    #[inline(always)]
+    pub fn b(self) -> usize {
+        let [x, y, z] = self.second;
+        usize::from(x) | usize::from(y) << 8 | usize::from(z) << 16
+    }
 }
 
 /// A compiled function ready to run: the front end's proto with its
@@ -37,7 +48,7 @@ pub struct Code {
 pub struct RtProto {
     /// "" for lambdas and anonymous functions, `<main>` for a file body.
     pub name: String,
-    pub code: Vec<Code>,
+    pub code: Rc<[Code]>,
     pub pos: Vec<Pos>,
     pub consts: Vec<Value>,
     pub num_locals: usize,
@@ -54,6 +65,15 @@ pub struct RtProto {
     pub asserts: Vec<Assert>,
     /// Compiled from an embedded extras file: errors point at the caller (06).
     pub builtin: bool,
+    /// For each child that captures nothing, the closure CLOSURE made of
+    /// it last (VM20): such a closure is the same value every time it is
+    /// made in the same module, and functions have no identity a program
+    /// can see (D62), so it is made once. Kept here, in the parent, so the
+    /// child's proto does not hold itself.
+    pub made: Vec<std::cell::OnceCell<Rc<crate::value::Closure>>>,
+    /// Where the code starts when every parameter is passed by position:
+    /// past the prologue that fills defaults (VM21).
+    pub body: usize,
 }
 
 /// Links a proto and its children against the prelude.
@@ -63,11 +83,16 @@ pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
         code: p
             .code
             .iter()
-            .map(|i| Code {
-                op: i.op(),
-                arg: i.arg() as u32,
+            .map(|i| {
+                let b = i.b();
+                Code {
+                    op: i.op(),
+                    second: [b as u8, (b >> 8) as u8, (b >> 16) as u8],
+                    arg: i.arg() as u32,
+                }
             })
-            .collect(),
+            .collect::<Vec<_>>()
+            .into(),
         pos: p.pos.clone(),
         consts: p.consts.iter().map(|c| constant(c, prelude)).collect(),
         num_locals: p.num_locals,
@@ -85,6 +110,12 @@ pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
         exports: p.exports.clone(),
         asserts: p.asserts.clone(),
         builtin: p.builtin,
+        made: p
+            .protos
+            .iter()
+            .map(|_| std::cell::OnceCell::new())
+            .collect(),
+        body: p.body,
     })
 }
 
@@ -160,16 +191,25 @@ fn missing_fn(t: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
 mod tests {
     use fung_front::bytecode::{Instr, Op};
 
-    /// A decoded instruction is as small as the word it came from, plus
-    /// the opcode's byte rounded up: 8 bytes (VM16).
+    /// A decoded instruction is 8 bytes, its second operand in the bytes
+    /// after the opcode (VM16, VM32).
     #[test]
     fn a_decoded_instruction_is_8_bytes() {
         assert_eq!(std::mem::size_of::<super::Code>(), 8);
-        let i = Instr::new(Op::Call, 4097);
-        let c = super::Code {
-            op: i.op(),
-            arg: i.arg() as u32,
-        };
-        assert_eq!((c.op, c.arg), (Op::Call, 4097));
+        let mut p = fung_front::bytecode::Proto::default();
+        p.code = vec![
+            Instr::new(Op::Call, 4097),
+            Instr::with(Op::Match, 9, 0xAB_CDEF),
+        ];
+        p.pos = vec![crate::vm::no_pos(); 2];
+        let p = super::link(&p, &super::Prelude::default());
+        assert_eq!(
+            (p.code[0].op, p.code[0].arg, p.code[0].b()),
+            (Op::Call, 4097, 0)
+        );
+        assert_eq!(
+            (p.code[1].op, p.code[1].arg, p.code[1].b()),
+            (Op::Match, 9, 0xAB_CDEF)
+        );
     }
 }

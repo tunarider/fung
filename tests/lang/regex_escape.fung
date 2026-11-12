@@ -1,0 +1,9 @@
+# regex.escape (D73): a string as a pattern that matches exactly it,
+# also a byte outside UTF-8.
+import regex
+print(regex.escape("a.b*(c)"), regex.escape("가[나]"), regex.escape("") == "")
+# expect: a\.b\*\(c\) 가\[나\] true
+print(regex.is_match("a.b*(c)", "^" + regex.escape("a.b*(c)") + "$"), regex.is_match("axbb(c)", regex.escape("a.b*(c)")))
+# expect: true false
+print(regex.escape("x\xffy"), regex.is_match("x\xffy", regex.escape("x\xffy")), regex.is_match("xÿy", regex.escape("x\xffy")))
+# expect: x(?-u:\xff)y true false

@@ -29,7 +29,7 @@ pub(super) fn serial() -> MutexGuard<'static, ()> {
 /// table and in its fd index), `net_waiting()` (tasks inside a socket
 /// wait now), `read_waits()` / `write_waits()` (waits for reading or
 /// writing so far), `sockets()` (live sockets), `lookups()` (name
-/// lookups running on the pool), `budget()` (the calling
+/// lookups running on the pool), `turn_budget()` (the calling
 /// task's ticks left before its next turn handoff).
 pub(super) fn net_probes() -> Vec<Value> {
     type F = fn(&mut Task<'_>, crate::value::Args) -> Result<Value, Stop>;
@@ -54,7 +54,7 @@ pub(super) fn net_probes() -> Vec<Value> {
             Ok(Value::Int(probe::write_waits() as i64))
         }),
         ("sockets", |_, _| Ok(Value::Int(probe::sockets() as i64))),
-        ("budget", |t, _| Ok(Value::Int(t.budget_left() as i64))),
+        ("turn_budget", |t, _| Ok(Value::Int(t.budget_left() as i64))),
     ];
     let mut v = probes();
     for (name, f) in natives {
@@ -65,7 +65,7 @@ pub(super) fn net_probes() -> Vec<Value> {
 
 /// fung helpers: `msg(r)` is the message of an `Err` (anything else as
 /// it is), `host(addr)` an address without its port.
-pub(super) const HELPERS: &str = "fn msg(r) = match r:\n  Err(e) => e.message\n  v => v\n;;\nfn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nfn host(a) = join(reverse(drop(reverse(split(a, \":\")), 1)), \":\")\n";
+pub(super) const HELPERS: &str = "fn msg(msg_of) = match msg_of:\n  Err(msg_e) => msg_e.message\n  msg_v => msg_v\n;;\nfn kind(kind_of) = match kind_of:\n  Err(kind_e) => kind_e.kind\n  kind_v => kind_v\n;;\nfn host(host_of) = join(reverse(drop(reverse(split(host_of, \":\")), 1)), \":\")\n";
 
 /// Runs `src` with `_native.net` imported as `net`, the probes and
 /// `until`; then checks that nothing is left open: no socket, no
@@ -73,7 +73,9 @@ pub(super) const HELPERS: &str = "fn msg(r) = match r:\n  Err(e) => e.message\n 
 /// by state, with a generous bound).
 pub(super) fn run(src: &str) -> Outcome {
     let o = exec(
-        &format!("import _native.net as net\n{UNTIL}{HELPERS}{src}"),
+        &crate::testutil::imports_first(&format!(
+            "import _native.net as net\n_keep_net = net\n{UNTIL}{HELPERS}{src}"
+        )),
         Opts {
             internal: true,
             extra: net_probes,
@@ -149,7 +151,7 @@ fn a_line_goes_there_and_back() {
     );
     assert_eq!(
         out(&o),
-        ("Ok(nil)\nOk(\"got héllo\")\nOk(nil)\nnil\n", "", 0)
+        ("Ok(nil)\nOk(\"got héllo\")\nOk(nil)\nOk(nil)\n", "", 0)
     );
 }
 
@@ -172,12 +174,12 @@ fn net_natives_park_on_the_loop() {
 fn a_second_reader_can_be_cancelled_while_it_waits() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  print(timeout(() => net.read_line(s, 10), 20ms))\n  net.write(c, \"a\\n\")!\n  print(await(r1))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+        "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  wait_for(() => net_waiting() == 1)\n  print(timeout(() => net.read_line(s, 10), 20ms))\n  net.write(c, \"a\\n\")!\n  print(await(r1))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\nOk(\"a\")\n",
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\nOk(Ok(\"a\"))\n",
             "",
             0
         )
@@ -364,7 +366,7 @@ fn errors_give_short_reasons() {
         ),
         (
             "net.connect(\"127.0.0.1\", 65536)".into(),
-            "Err({kind: 'network, message: \"invalid port `65536`\"})".into(),
+            "Err({kind: 'invalid, message: \"invalid port `65536`\"})".into(),
         ),
         // with TLS, the TCP error comes first
         (
@@ -377,27 +379,27 @@ fn errors_give_short_reasons() {
         ),
         (
             "net.listen(\"a:b:c\")".into(),
-            "Err({kind: 'network, message: \"invalid address `a:b:c` (too many colons)\"})".into(),
+            "Err({kind: 'invalid, message: \"invalid address `a:b:c` (too many colons)\"})".into(),
         ),
         (
             "net.listen(\"::1:0\")".into(),
-            "Err({kind: 'network, message: \"invalid address `::1:0` (too many colons)\"})".into(),
+            "Err({kind: 'invalid, message: \"invalid address `::1:0` (too many colons)\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1\")".into(),
-            "Err({kind: 'network, message: \"invalid address `127.0.0.1` (missing port)\"})".into(),
+            "Err({kind: 'invalid, message: \"invalid address `127.0.0.1` (missing port)\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1:99999\")".into(),
-            "Err({kind: 'network, message: \"invalid port `99999`\"})".into(),
+            "Err({kind: 'invalid, message: \"invalid port `99999`\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1:-1\")".into(),
-            "Err({kind: 'network, message: \"invalid port `-1`\"})".into(),
+            "Err({kind: 'invalid, message: \"invalid port `-1`\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1:abc\")".into(),
-            "Err({kind: 'network, message: \"invalid port `abc` (a port is a number)\"})".into(),
+            "Err({kind: 'invalid, message: \"invalid port `abc` (a port is a number)\"})".into(),
         ),
     ];
     let src: String = cases.iter().map(|(e, _)| format!("print({e})\n")).collect();
@@ -620,7 +622,9 @@ fn the_last_copy_closes_the_connection() {
     assert_eq!(out(&o), ("0\n", "", 0));
     // fung on both ends: the server reads to the end once the client's
     // last copy is gone
-    let o = run(&format!("{PAIR}c = nil\nprint(net.read_all(s, 10))"));
+    let o = run(
+        "l = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nfn accept(lis, at):\n  _c = net.connect(\"127.0.0.1\", at)!\n  net.accept(lis)!\n;;\ns = accept(l, port)\nprint(net.read_all(s, 10))",
+    );
     assert_eq!(out(&o), ("Ok(\"\")\n", "", 0));
 }
 
@@ -630,7 +634,7 @@ fn the_last_copy_closes_the_connection() {
 fn close_wakes_a_task_blocked_on_the_same_handle() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}name = net.local_addr(s) + \"->\" + net.local_addr(c)\nscope(fn(sc):\n  lname = net.local_addr(l)\n  r = spawn(sc, () => net.read_line(s, 10))\n  a = spawn(sc, () => net.accept(l))\n  until(() => net_waiting() == 2)\n  net.close(s)!\n  net.close(l)!\n  print(replace(msg(await(r)), name, \"A->B\"))\n  print(replace(msg(await(a)), lname, \"A\"))\n  print(replace(msg(net.close(l)), lname, \"A\"))\n  print(kind(net.accept(l)), kind(net.read_line(s, 1)))\n;;)"
+        "{PAIR}name = net.local_addr(s) + \"->\" + net.local_addr(c)\nscope(fn(sc):\n  lname = net.local_addr(l)\n  r = spawn(sc, () => net.read_line(s, 10))\n  a = spawn(sc, () => net.accept(l))\n  wait_for(() => net_waiting() == 2)\n  net.close(s)!\n  net.close(l)!\n  print(replace(msg(await(r)!), name, \"A->B\"))\n  print(replace(msg(await(a)!), lname, \"A\"))\n  print(replace(msg(net.close(l)), lname, \"A\"))\n  print(kind(net.accept(l)), kind(net.read_line(s, 1)))\n;;)"
     ));
     assert_eq!(
         out(&o),
@@ -650,7 +654,7 @@ fn cancel_ends_a_blocked_accept() {
     let _g = serial();
     let start = Instant::now();
     let o = run(
-        "scope(fn(s):\n  l = net.listen(\"127.0.0.1:0\")!\n  t = spawn(s, () => net.accept(l))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  print(net_waiting())\n;;)",
+        "scope(fn(s):\n  l = net.listen(\"127.0.0.1:0\")!\n  t = spawn(s, () => net.accept(l))\n  wait_for(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  print(net_waiting())\n;;)",
     );
     assert_eq!(
         out(&o),
@@ -667,7 +671,7 @@ fn cancel_ends_a_blocked_accept() {
 fn cancel_ends_a_blocked_read() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}scope(fn(sc):\n  t = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  net.write(c, \"still\\n\")!\n  print(net.read_line(s, 10))\n;;)"
+        "{PAIR}scope(fn(sc):\n  t = spawn(sc, () => net.read_line(s, 10))\n  wait_for(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  net.write(c, \"still\\n\")!\n  print(net.read_line(s, 10))\n;;)"
     ));
     assert_eq!(
         out(&o),
@@ -683,7 +687,7 @@ fn cancel_ends_a_blocked_read() {
 fn cancel_ends_a_blocked_write() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}scope(fn(sc):\n  t = spawn(sc, () => net.write(c, repeat(\"x\", 50000000)))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n;;)"
+        "{PAIR}_keep_s = s\nscope(fn(sc):\n  t = spawn(sc, () => net.write(c, repeat(\"x\", 50000000)))\n  wait_for(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n;;)"
     ));
     assert_eq!(
         out(&o),
@@ -700,7 +704,7 @@ fn cancel_ends_a_blocked_connect() {
     let _g = serial();
     let gate = probe::hold_lookups();
     let o = run_then(
-        "scope(fn(s):\n  t = spawn(s, () => net.connect(\"gate.invalid\", 80))\n  until(() => lookups() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
+        "scope(fn(s):\n  t = spawn(s, () => net.connect(\"gate.invalid\", 80))\n  wait_for(() => lookups() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
         move || drop(gate),
     );
     assert_eq!(
@@ -719,11 +723,11 @@ fn held_lookups_leave_the_file_jobs_their_pool() {
     let file = env!("CARGO_MANIFEST_PATH");
     let o = run_then(
         &format!(
-            "import fs\nscope(fn(s):\n  ts = map(0..70, _ => spawn(s, () => net.connect(\"gate.invalid\", 80)))\n  until(() => lookups() >= 8)\n  r = timeout(() => len(fs.read(\"{file}\")!) > 0, 5s)\n  print(lookups(), r)\n  each(ts, cancel)\n;;)"
+            "import fs\nscope(fn(s):\n  ts = map(0..70, _ => spawn(s, () => net.connect(\"gate.invalid\", 80)))\n  wait_for(() => lookups() >= 8)\n  r = timeout(() => len(fs.read(\"{file}\")!) > 0, 5s)\n  print(lookups(), r)\n  each(ts, cancel)\n;;)"
         ),
         move || drop(gate),
     );
-    assert_eq!(out(&o), ("8 true\n", "", 0));
+    assert_eq!(out(&o), ("8 Ok(true)\n", "", 0));
 }
 
 /// A lookup that outlives the deadline is a timeout: the `timeout`
@@ -750,7 +754,9 @@ fn a_connect_timeout_covers_the_lookup() {
 /// opened before the leak check, so the held thread can finish).
 pub(super) fn run_then(src: &str, release: impl FnOnce()) -> Outcome {
     let o = exec(
-        &format!("import _native.net as net\n{UNTIL}{HELPERS}{src}"),
+        &crate::testutil::imports_first(&format!(
+            "import _native.net as net\n_keep_net = net\n{UNTIL}{HELPERS}{src}"
+        )),
         Opts {
             internal: true,
             extra: net_probes,
@@ -767,7 +773,7 @@ pub(super) fn run_then(src: &str, release: impl FnOnce()) -> Outcome {
 fn exit_from_another_task_ends_a_blocked_accept() {
     let _g = serial();
     let o = run(
-        "scope(fn(s):\n  l = net.listen(\"127.0.0.1:0\")!\n  t = spawn(s, () => net.accept(l))\n  spawn(s, fn(): until(() => net_waiting() == 1); exit(3) ;;)\n  print(await(t))\n;;)",
+        "scope(fn(s):\n  l = net.listen(\"127.0.0.1:0\")!\n  t = spawn(s, () => net.accept(l))\n  spawn(s, fn(): wait_for(() => net_waiting() == 1); exit(3) ;;)\n  print(await(t))\n;;)",
     );
     assert_eq!((o.out.as_str(), o.exit), ("", 3));
 }
@@ -789,7 +795,7 @@ fn awaiting_a_task_in_accept_is_no_deadlock() {
         "scope(fn(s):\n  l = net.listen(\"127.0.0.1:{port}\")!\n  t = spawn(s, () => net.read_line(net.accept(l)!, 10))\n  print(await(t))\n;;)"
     ));
     client.join().unwrap();
-    assert_eq!(out(&o), ("Ok(\"ok\")\n", "", 0));
+    assert_eq!(out(&o), ("Ok(Ok(\"ok\"))\n", "", 0));
 }
 
 /// One reader at a time per connection: a second reader waits for the
@@ -799,9 +805,9 @@ fn awaiting_a_task_in_accept_is_no_deadlock() {
 fn a_second_reader_waits_for_the_first() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  r2 = spawn(sc, () => net.read_line(s, 10))\n  net.write(c, \"one\\ntwo\\n\")!\n  print(await(r1), await(r2))\n;;)"
+        "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  wait_for(() => net_waiting() == 1)\n  r2 = spawn(sc, () => net.read_line(s, 10))\n  net.write(c, \"one\\ntwo\\n\")!\n  print(await(r1), await(r2))\n;;)"
     ));
-    assert_eq!(out(&o), ("Ok(\"one\") Ok(\"two\")\n", "", 0));
+    assert_eq!(out(&o), ("Ok(Ok(\"one\")) Ok(Ok(\"two\"))\n", "", 0));
 }
 
 /// `set_deadline` reaches a read that is blocked already (L12 A): another
@@ -812,11 +818,11 @@ fn set_deadline_reaches_a_blocked_read() {
     let _g = serial();
     for first in ["1h", "nil"] {
         let o = run(&format!(
-            "{PAIR}net.set_deadline(s, {first})!\nscope(fn(sc):\n  r = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  net.set_deadline(s, 20ms)!\n  print(await(r))\n;;)"
+            "{PAIR}_keep_c = c\nnet.set_deadline(s, {first})!\nscope(fn(sc):\n  r = spawn(sc, () => net.read_line(s, 10))\n  wait_for(() => net_waiting() == 1)\n  net.set_deadline(s, 20ms)!\n  print(await(r))\n;;)"
         ));
         assert_eq!(
             out(&o),
-            ("Err({kind: 'timeout, message: \"timed out\"})\n", "", 0),
+            ("Ok(Err({kind: 'timeout, message: \"timed out\"}))\n", "", 0),
             "first deadline {first}"
         );
     }
@@ -832,7 +838,7 @@ fn a_silent_first_address_does_not_hold_the_connect() {
     let o = run(
         "import time\nl = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nt0 = time.monotonic()\nr = timeout(() => net.connect(\"eyeballs.invalid\", port), 10s)\nprint(r, time.monotonic() - t0 < 3s)",
     );
-    assert_eq!(out(&o), ("Ok(<conn>) true\n", "", 0));
+    assert_eq!(out(&o), ("Ok(Ok(<conn>)) true\n", "", 0));
 }
 
 #[test]
@@ -938,7 +944,7 @@ fn wrong_arguments_are_e0403() {
             o.err
         );
     }
-    let o = run(&format!("{PAIR}net.read_bytes(c, -1)"));
+    let o = run(&format!("{PAIR}_keep_s = s\nnet.read_bytes(c, -1)"));
     assert!(
         o.err
             .starts_with("error[E0403]: argument `n` must be a non-negative int, got -1"),
@@ -1004,7 +1010,7 @@ fn listen_checks_its_arguments() {
 /// (so `await(s)` gives the server's failure as an `Err`), which
 /// `SERVE_END` closes.
 const SERVE: &str = "supervise(fn(sc):\n(port_tx, port) = channel(1)\ns = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\naddr = recv(port)!\nbase = \"http://\" + addr\n";
-const SERVE_END: &str = "\n;;, e => nil)";
+const SERVE_END: &str = "\n;;, _e => nil)";
 /// `SERVE` with a drain of 100 ms.
 const SERVE_DRAIN: &str = "supervise(fn(sc):\n(port_tx, port) = channel(1)\ns = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a), drain: 100ms))\naddr = recv(port)!\nbase = \"http://\" + addr\n";
 
@@ -1014,12 +1020,12 @@ const SERVE_DRAIN: &str = "supervise(fn(sc):\n(port_tx, port) = channel(1)\ns = 
 fn a_slow_handler_does_not_hold_up_the_others() {
     let _g = serial();
     let o = run(&format!(
-        "import http\n(gate_tx, gate) = channel()\nh = fn(req):\n  if req.path == \"/slow\":\n    recv(gate)!\n  ;;\n  req.path == \"/slow\" then \"slow\" else \"fast\"\n;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nprint(http.get(base + \"/fast\")!.body)\nprint(http.get(base + \"/fast\")!.body)\nsend(gate_tx, 1)\nprint(await(t))\ncancel(s)\nprint(await(s))\nuntil(() => sockets() == 0)\nprint(\"no task left\"){SERVE_END}"
+        "import http\n(gate_tx, gate) = channel()\nh = fn(req):\n  if req.path == \"/slow\":\n    recv(gate)!\n  ;;\n  req.path == \"/slow\" then \"slow\" else \"fast\"\n;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nprint(http.get(base + \"/fast\")!.body)\nprint(http.get(base + \"/fast\")!.body)\nsend(gate_tx, 1)\nprint(await(t))\ncancel(s)\nprint(await(s))\nwait_for(() => sockets() == 0)\nprint(\"no task left\"){SERVE_END}"
     ));
     assert_eq!(
         out(&o),
         (
-            "fast\nfast\nslow\nErr({kind: 'cancelled, message: \"cancelled\"})\nno task left\n",
+            "fast\nfast\nOk(\"slow\")\nErr({kind: 'cancelled, message: \"cancelled\"})\nno task left\n",
             "",
             0
         )
@@ -1034,7 +1040,7 @@ fn cancelling_the_server_answers_running_requests_503() {
     let _g = serial();
     let start = Instant::now();
     let o = run(&format!(
-        "import http\n(_gate_tx, gate) = channel()\nh = fn(req): recv(gate); \"never\" ;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\"))\nblocked(gate, 1)\ncancel(s)\nprint(await(s))\nr = await(t)!\nprint(r.status, r.body)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
+        "import http\n(_gate_tx, gate) = channel()\nh = fn(_req): recv(gate); \"never\" ;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\"))\nblocked(gate, 1)\ncancel(s)\nprint(await(s))\nr = await(t)!!\nprint(r.status, r.body)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
     ));
     assert_eq!(
         out(&o),
@@ -1057,7 +1063,7 @@ fn cancelling_the_server_answers_running_requests_503() {
 fn a_cancel_does_not_wait_for_an_idle_connection() {
     let _g = serial();
     let o = run(&format!(
-        "import http\nimport time\nfn h(req) = \"x\"\n{SERVE}until(() => net_waiting() == 1)\nc = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)!\nuntil(() => net_waiting() == 2)\nt0 = time.now()\ncancel(s)\nprint(await(s))\nprint(time.now() - t0 < 1s){SERVE_END}"
+        "import http\nimport time\nfn h(_req) = \"x\"\n{SERVE}_ = base\nwait_for(() => net_waiting() == 1)\n_c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)!\nwait_for(() => net_waiting() == 2)\nt0 = time.now()\ncancel(s)\nprint(await(s))\nprint(time.now() - t0 < 1s){SERVE_END}"
     ));
     assert_eq!(
         out(&o),
@@ -1075,9 +1081,9 @@ fn a_cancel_does_not_wait_for_an_idle_connection() {
 fn a_stop_request_lets_the_request_in_flight_finish() {
     let _g = serial();
     let o = run(&format!(
-        "import http\n(gate_tx, gate) = channel()\nh = fn(req): recv(gate); \"slow\" ;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nrequest_stop()\nuntil(() => kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)) == 'network)\nsend(gate_tx, 1)\nprint(await(t))\nprint(await(s)){SERVE_END}"
+        "import http\n(gate_tx, gate) = channel()\nh = fn(_req): recv(gate); \"slow\" ;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nrequest_stop()\nwait_for(() => kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)) == 'network)\nsend(gate_tx, 1)\nprint(await(t))\nprint(await(s)){SERVE_END}"
     ));
-    assert_eq!(out(&o), ("slow\nOk(nil)\n", "", 0));
+    assert_eq!(out(&o), ("Ok(\"slow\")\nOk(Ok(nil))\n", "", 0));
 }
 
 /// Past `drain`, what still runs is cancelled and answered 503.
@@ -1085,9 +1091,12 @@ fn a_stop_request_lets_the_request_in_flight_finish() {
 fn drain_cuts_what_is_still_running() {
     let _g = serial();
     let o = run(&format!(
-        "import http\n(_gate_tx, gate) = channel()\nh = fn(req): recv(gate); \"never\" ;;\n{SERVE_DRAIN}t = spawn(sc, () => http.get(base + \"/slow\")!)\nblocked(gate, 1)\nrequest_stop()\nr = await(t)\nprint(r.status, r.body)\nprint(await(s)){SERVE_END}"
+        "import http\n(_gate_tx, gate) = channel()\nh = fn(_req): recv(gate); \"never\" ;;\n{SERVE_DRAIN}t = spawn(sc, () => http.get(base + \"/slow\")!)\nblocked(gate, 1)\nrequest_stop()\nr = await(t)!\nprint(r.status, r.body)\nprint(await(s)){SERVE_END}"
     ));
-    assert_eq!(out(&o), ("503 503 Service Unavailable\n\nOk(nil)\n", "", 0));
+    assert_eq!(
+        out(&o),
+        ("503 503 Service Unavailable\n\nOk(Ok(nil))\n", "", 0)
+    );
 }
 
 /// `reuse_port`: two listeners on one port.
@@ -1106,7 +1115,7 @@ fn reuse_port_lets_two_listeners_share_a_port() {
 /// the server task yields its turn (an older server kept the listener
 /// open when the yield fell one tick after its accept task started). The
 /// debug sweep places the yield at each of the first `SETTLE` ticks after
-/// `ready`, reading the task's budget (`budget()`), so a change in how
+/// `ready`, reading the task's budget (`turn_budget()`), so a change in how
 /// many ticks `serve` spends before `ready` cannot move the window out of
 /// it; it checks that every one of those offsets was reached, so the
 /// sweep does cross the yield point. (The release build also sweeps a
@@ -1172,7 +1181,7 @@ fn cancel_sweep(from: i64, to: i64) -> String {
     // server that should be closed. (Another process could still bind
     // the port, but would hardly answer HTTP within the 2 s deadline.)
     format!(
-        "import http\nfn burn(n) = n == 0 then nil else burn(n - 1)\nfn answers(c) = match c:\n  Ok(c) => fn():\n    net.set_deadline(c, 2s)\n    net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")\n    match net.read_line(c, 100):\n      Ok(line) when line != nil => starts_with(line, \"HTTP/\")\n      _                         => false\n    ;;\n  ;;()\n  _ => false\n;;\nfn attempt(k):\n  scope(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", r => \"x\", ready: fn(a): send(port_tx, a); burn(k) ;;))\n  addr = recv(port)!\n  cancel(s)\n  r = await(s)\n  c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)\n  if r != Err({{kind: 'cancelled, message: \"cancelled\"}}) or answers(c):\n    print(\"k=${{k}}\", r, c)\n  else: nil ;;\n  ;;)\n;;\n
+        "import http\nfn burn(n) = n == 0 then nil else burn(n - 1)\nfn answers(c) = match c:\n  Ok(conn) => fn():\n    net.set_deadline(conn, 2s)\n    net.write(conn, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")\n    match net.read_line(conn, 100):\n      Ok(line) when line != nil => starts_with(line, \"HTTP/\")\n      _                         => false\n    ;;\n  ;;()\n  _ => false\n;;\nfn attempt(k):\n  scope(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", _r => \"x\", ready: fn(a): send(port_tx, a); burn(k) ;;))\n  addr = recv(port)!\n  cancel(s)\n  r = await(s)\n  c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)\n  if r != Err({{kind: 'cancelled, message: \"cancelled\"}}) or answers(c):\n    print(\"k=${{k}}\", r, c)\n  else: nil ;;\n  ;;)\n;;\n
 each({from}..{to}, attempt)\nprint(\"done\")"
     )
 }
@@ -1192,11 +1201,11 @@ fn settled_cancel_sweep(width: i64) -> String {
     let sweep = cancel_sweep(1, width + 1)
         .replace(
             "fn attempt(k):\n",
-            "fn settle(k) = burn(budget() - k - 2)\nfn drain(left, acc) = match recv(left):\n  Ok(v) => drain(left, acc + [v])\n  _ => acc\n;;\nfn attempt(k, left_tx):\n",
+            "fn settle(k) = burn(turn_budget() - k - 2)\nfn drain(rest, acc) = match recv(rest):\n  Ok(v) => drain(rest, acc + [v])\n  _ => acc\n;;\nfn attempt(k, out_tx):\n",
         )
         .replace(
             "ready: fn(a): send(port_tx, a); burn(k) ;;",
-            "ready: fn(a):\n    burn(budget())\n    settle(k)\n    send(left_tx, budget())\n    send(port_tx, a)\n  ;;",
+            "ready: fn(a):\n    burn(turn_budget())\n    settle(k)\n    send(out_tx, turn_budget())\n    send(port_tx, a)\n  ;;",
         )
         .replace(
             ", attempt)\nprint(\"done\")",
@@ -1238,7 +1247,7 @@ fn a_failure_answering_a_connection_is_reported() {
     let _g = serial();
     let o = exec_prepared(
         &format!(
-            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}p = parse_int(split(addr, \":\")[1])!\nask = fn():\n  c = net.connect(\"127.0.0.1\", p)!\n  net.read_line(c, 100)\n;;\nprint(ask(), ask())\ncancel(s)\nprint(await(s)){SERVE_END}"
+            "import _native.net as net\nimport http\n_keep_net = net\n{UNTIL}{HELPERS}fn h(_req) = \"x\"\n{SERVE}_ = base\np = parse_int(split(addr, \":\")[1])!\nask = fn():\n  c = net.connect(\"127.0.0.1\", p)!\n  net.read_line(c, 100)\n;;\nprint(ask(), ask())\ncancel(s)\nprint(await(s)){SERVE_END}"
         ),
         Opts {
             internal: true,
@@ -1276,7 +1285,7 @@ fn a_failure_accepting_ends_the_server() {
     let _g = serial();
     let o = exec_prepared(
         &format!(
-            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}r = await(s)\nprint(match r: Err(e) => (e.kind, e.code, e.message, starts_with(e.at, \"-e:\")) ;;)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
+            "import _native.net as net\nimport http\n_keep_net = net\n{UNTIL}{HELPERS}fn h(_req) = \"x\"\n{SERVE}_ = base\nr = await(s)\nprint(match r: Err(e) => (e.kind, e.code, e.message, starts_with(e.at, \"-e:\")) ;;)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
         ),
         Opts {
             internal: true,
@@ -1299,7 +1308,7 @@ fn a_read_is_cut_at_the_deadline() {
     let _g = serial();
     let start = Instant::now();
     let o = run(&format!(
-        "{PAIR}print(timeout(() => net.read_line(c, 100), 100ms))"
+        "{PAIR}_keep_s = s\nprint(timeout(() => net.read_line(c, 100), 100ms))"
     ));
     assert_eq!(
         out(&o),
@@ -1332,9 +1341,9 @@ fn connect_has_no_timeout_parameter() {
 fn a_failed_registration_releases_the_turn() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}supervise(fn(sc):\n  fail_next_register()\n  t = spawn(sc, () => net.read_line(s, 10))\n  print(kind(await(t)))\n;;, e => nil)\nnet.write(c, \"a\\n\")!\nprint(timeout(() => net.read_line(s, 10), 5s))\nprint(net_waiting())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+        "{PAIR}supervise(fn(sc):\n  fail_next_register()\n  t = spawn(sc, () => net.read_line(s, 10))\n  print(kind(await(t)))\n;;, _e => nil)\nnet.write(c, \"a\\n\")!\nprint(timeout(() => net.read_line(s, 10), 5s))\nprint(net_waiting())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
-    assert_eq!(out(&o), ("'error\nOk(\"a\")\n0\n", "", 0));
+    assert_eq!(out(&o), ("'error\nOk(Ok(\"a\"))\n0\n", "", 0));
 }
 
 /// A socket wait dropped as it is (its task abandoned) gives the turn
@@ -1373,12 +1382,12 @@ fn a_dropped_io_wait_releases_its_state() {
 fn the_fd_index_empties_with_the_table() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}l2 = net.listen(\"127.0.0.1:0\")!\nscope(fn(sc):\n  a = spawn(sc, () => net.read_line(s, 10))\n  b = spawn(sc, () => net.accept(l2))\n  until(() => net_waiting() == 2)\n  print(io_table())\n  net.write(c, \"x\\n\")!\n  print(await(a))\n  net.close(l2)!\n  print(kind(await(b)))\n  print(timeout(() => net.read_line(s, 10), 10ms))\n;;)\nprint(io_table())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+        "{PAIR}l2 = net.listen(\"127.0.0.1:0\")!\nscope(fn(sc):\n  a = spawn(sc, () => net.read_line(s, 10))\n  b = spawn(sc, () => net.accept(l2))\n  wait_for(() => net_waiting() == 2)\n  print(io_table())\n  net.write(c, \"x\\n\")!\n  print(await(a))\n  net.close(l2)!\n  print(kind(await(b)!))\n  print(timeout(() => net.read_line(s, 10), 10ms))\n;;)\nprint(io_table())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
     assert_eq!(
         out(&o),
         (
-            "2 2\nOk(\"x\")\n'closed\nErr({kind: 'timeout, message: \"timed out after 10ms\"})\n0 0\n",
+            "2 2\nOk(Ok(\"x\"))\n'closed\nErr({kind: 'timeout, message: \"timed out after 10ms\"})\n0 0\n",
             "",
             0
         )
@@ -1411,7 +1420,10 @@ fn two_accepts_on_one_listener_trip_the_assert() {
 fn a_released_turn_goes_to_the_next_in_line() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}fn reads(n, acc) = n == 0 then acc else reads(n - 1, acc + [net.read_line(s, 10)!])\nscope(fn(sc):\n  a = spawn(sc, () => reads(3, []))\n  b = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1 and in_line() == 1)\n  net.write(c, \"1\\n2\\n3\\n4\\n\")!\n  print(await(a), await(b))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+        "{PAIR}fn reads(n, acc) = n == 0 then acc else reads(n - 1, acc + [net.read_line(s, 10)!])\nscope(fn(sc):\n  a = spawn(sc, () => reads(3, []))\n  b = spawn(sc, () => net.read_line(s, 10))\n  wait_for(() => net_waiting() == 1 and in_line() == 1)\n  net.write(c, \"1\\n2\\n3\\n4\\n\")!\n  print(await(a), await(b))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
-    assert_eq!(out(&o), ("[\"1\", \"3\", \"4\"] Ok(\"2\")\n", "", 0));
+    assert_eq!(
+        out(&o),
+        ("Ok([\"1\", \"3\", \"4\"]) Ok(Ok(\"2\"))\n", "", 0)
+    );
 }

@@ -97,7 +97,8 @@ impl With {
         else {
             unreachable!("released outside the release phase")
         };
-        t.fiber.cancel = outer;
+        // A deadline that passed during the release is enforced (CC16).
+        t.restore_cancel_node(outer);
         t.world.shields.remove(&shield_key(&shield));
         let r_rel = discarded(r_rel);
         let failed = |r: &Result<Value, Stop>| matches!(r, Err(Stop::Error(d)) if !is_cancel(d));

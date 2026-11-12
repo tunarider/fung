@@ -1,58 +1,73 @@
 # cli: command-line argument parsing (06). Small on purpose: flags and the
 # rest; checking and converting values is ordinary code.
 #
-#   cli.parse(["in", "--out", "x", "--", "-v"])
+#   cli.parse(["in", "--out", "x", "--", "-v"], values: ["out"])
 #   → Ok({flags: {out: "x"}, rest: ["in", "-v"]})
 #
-# `--name value` and `--name=value` set a flag; `--name` alone, or a name
-# listed in `bools`, is true. Flag names turn `-` into `_` (`dry_run`), and
-# so do the names in `bools`, so either spelling lists a switch (LB11).
-# Arguments not starting with `--` go to rest in order; everything after
-# a bare `--` goes to rest. A lone `-` is an ordinary argument.
+# The flags are a closed set (D69): a name in `bools` is a switch
+# (`--name` is true, `--name=true` or `--name=false`), a name in `values`
+# takes a value (`--name value` or `--name=value`). Flag names turn `-`
+# into `_` (`dry_run`), and so do the names in the lists, so either
+# spelling lists a flag (LB11). Arguments not starting with `-` go to
+# rest in order, and so does a lone `-`; everything after a bare `--`
+# goes to rest.
 #
 # The command line is outside input, so a mistake in it is an
-# Err({kind: 'invalid, message}) (LB38): a flag without a name (`--=x`),
-# a flag given twice (in either spelling), a switch with a value other
-# than `true` or `false`. A script that only stops on it writes
-# `cli.parse(args)!`. Arguments that are not lists of strings are E0403
-# (SP18), before anything is read.
+# Err({kind: 'invalid, message}) (LB38): a flag not listed (`--dry-rnu`),
+# a single-dash flag (`-v`), a flag without a name (`--=x`), a flag given
+# twice (in either spelling), a switch with a value other than `true` or
+# `false`, a value flag without its value. A script that only stops on
+# it writes `cli.parse(args, …)!`. Arguments that are not lists of strings,
+# or names that are not option names (or are in both lists), are E0403
+# (SP18, D69), before anything is read.
 import _native.arg as _arg
 
-fn parse(argv: list, bools: list = []):
+fn parse(argv: list, bools: list = [], values: list = []):
   _arg.list_of("argv", argv, "str")
-  _arg.list_of("bools", bools, "str")
-  _parse(argv, map(bools, _key), {}, [])
+  _arg.options(bools, values)
+  _parse(argv, map(bools, _key), map(values, _key), {}, [])
 ;;
 
-fn _parse(argv, bools, flags, rest) = match argv:
-  []                                     => Ok({flags, rest})
-  ["--", ...more]                        => Ok({flags, rest: rest + more})
-  [a, ...more] when starts_with(a, "--") =>
-    (k, v, left) = _flag(a[2..], more, bools)?
+fn _parse(argv, bools, vals, flags, rest) = match argv:
+  []                                             => Ok({flags, rest})
+  ["--", ...more]                                => Ok({flags, rest: rest + more})
+  [a, ...more] when starts_with(a, "--")         =>
+    (k, v, left) = _flag(a[2..], more, bools, vals)?
     k in flags
     then _invalid("the flag `${split(a, "=")[0]}` is given twice")
-    else _parse(left, bools, put(flags, k, v), rest)
-  [a, ...more]                           => _parse(more, bools, flags, rest + [a])
+    else _parse(left, bools, vals, put(flags, k, v), rest)
+  [a, ...] when a != "-" and starts_with(a, "-") =>
+    _invalid("the flag `${a}` is not supported: flags start with `--` (put `--` before an argument that starts with `-`)")
+  [a, ...more]                                   => _parse(more, bools, vals, flags, rest + [a])
 ;;
 
 # One flag body (after `--`) with the remaining arguments → Ok((key,
 # value, rest)), or the Err of a mistake.
-fn _flag(body, rest, bools) = match split(body, "="):
-  ["", ...]                               => _invalid("the flag `--${body}` has no name")
-  [name, ...vals] when not is_empty(vals) => _value(name, join(vals, "="), rest, bools)
-  _                                       => _key(body) in bools then Ok((_key(body), true, rest))
-    else match rest:
-      [v, ...more] when not starts_with(v, "--") => Ok((_key(body), v, more))
-      _                                          => Ok((_key(body), true, rest))
+fn _flag(body, rest, bools, vals):
+  (name, given) = match split(body, "="):
+    [n]          => (n, nil)
+    [n, ...more] => (n, join(more, "="))
+  ;;
+  k = _key(name)
+  if name == "":
+    _invalid("the flag `--${body}` has no name")
+  else if k in bools:
+    match given:
+      nil     => Ok((k, true, rest))
+      "true"  => Ok((k, true, rest))
+      "false" => Ok((k, false, rest))
+      v       => _invalid("the switch `--${name}` takes true or false, got `${v}`")
     ;;
-;;
-
-# A `--name=value`: a switch takes only `true` or `false`.
-fn _value(name, v, rest, bools) = match (_key(name) in bools, v):
-  (false, _)      => Ok((_key(name), v, rest))
-  (true, "true")  => Ok((_key(name), true, rest))
-  (true, "false") => Ok((_key(name), false, rest))
-  _               => _invalid("the switch `--${name}` takes true or false, got `${v}`")
+  else if k not in vals:
+    _invalid("unknown flag `--${name}`")
+  else if given != nil:
+    Ok((k, given, rest))
+  else:
+    match rest:
+      [v, ...more] when not starts_with(v, "--") => Ok((k, v, more))
+      _                                          => _invalid("the flag `--${name}` needs a value")
+    ;;
+  ;;
 ;;
 
 fn _invalid(message) = Err({kind: 'invalid, message})

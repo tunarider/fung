@@ -27,6 +27,21 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
         trim_fn,
         vec![param("s"), opt("cut", Lit::Nil)],
     ));
+    add(def_step(
+        "trim_left",
+        trim_left_fn,
+        vec![param("s"), opt("cut", Lit::Nil)],
+    ));
+    add(def_step(
+        "trim_right",
+        trim_right_fn,
+        vec![param("s"), opt("cut", Lit::Nil)],
+    ));
+    add(def_step(
+        "index_of",
+        index_of_fn,
+        vec![param("s"), param("sub")],
+    ));
     add(def("upper", upper_fn, vec![param("s")]));
     add(def("lower", lower_fn, vec![param("s")]));
     add(def_step(
@@ -243,10 +258,10 @@ fn join_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
                 self.out.extend_from_slice(&self.sep);
             }
             self.first = false;
-            if let Some(tag) = crate::vm::result_kind(&x).result_name() {
-                return Err(nat::fail("E0519", vec![nat::s(tag), nat::s("`join`")]));
+            if let Some(d) = crate::vm::not_text(&x, "`join`") {
+                return Err(Stop::Error(Box::new(d)));
             }
-            write_for_print(&x, &mut self.out);
+            write_for_print(&x, &mut self.out)?;
             self.chars += char_count(&self.out[before..]) as i64;
             if self.chars > MAX_CHARS {
                 return Err(too_many_chars());
@@ -272,9 +287,28 @@ fn join_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 /// then from the back to the last (VA5), a piece at a time (VA10): the
 /// time is what is cut off, and nothing is collected.
 fn trim_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    trim_ends(t, a, true, true)
+}
+
+/// `trim_left(s, cut = nil)`: `trim` at the front only (D73).
+fn trim_left_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    trim_ends(t, a, true, false)
+}
+
+/// `trim_right(s, cut = nil)`: `trim` at the back only (D73).
+fn trim_right_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    trim_ends(t, a, false, true)
+}
+
+/// `trim` at the front, the back or both.
+fn trim_ends(t: &mut Task<'_>, a: Args, front: bool, back: bool) -> Result<Flow, Stop> {
     nat::need_bytes("s", &a[0])?;
+    // An empty `cut` would cut nothing: E0403 (D74), as `pad`'s.
     let cut: Vec<Unit> = match a[1] {
         Value::Nil => Vec::new(),
+        _ if nat::need_bytes("cut", &a[1])?.is_empty() => {
+            return Err(nat::not_nonempty("cut", &a[1]));
+        }
         _ => units(nat::need_bytes("cut", &a[1])?)
             .map(|(_, u)| u)
             .collect(),
@@ -288,6 +322,8 @@ fn trim_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
         at: usize,
         /// The kept part ends before `to`.
         to: usize,
+        /// Whether the back is cut too.
+        back: bool,
     }
     impl Trim {
         fn gone(&self, u: Unit) -> bool {
@@ -305,6 +341,9 @@ fn trim_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
                 while self.at < stop {
                     let u = fung_front::text::first(&s[self.at..]).expect("not at the end");
                     if !self.gone(u) {
+                        if !self.back {
+                            return Ok(Some(string(s[self.at..].to_vec())));
+                        }
                         // On from the back in the same step: a short
                         // string is one step.
                         self.from = Some(self.at);
@@ -328,6 +367,10 @@ fn trim_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
                 }
                 self.to -= u.byte_len();
             }
+            // Cut to nothing from the back alone (`trim_right`).
+            if self.to == from {
+                return Ok(Some(string(Vec::new())));
+            }
             Ok(None)
         }
     }
@@ -338,9 +381,65 @@ fn trim_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
             space: matches!(a[1], Value::Nil),
             s: a[0].clone(),
             cut,
-            from: None,
+            // the front is not cut: the kept part starts at 0
+            from: (!front).then_some(0),
             at: 0,
             to: len,
+            back,
+        },
+    )
+}
+
+/// `index_of(s, sub)`: the character index of the first occurrence of
+/// `sub` in `s` (as `s[i]` and `len` count, 02), or `nil` (D73). An
+/// occurrence starts on a character: a `sub` that starts with a byte
+/// inside one is not found there. An empty `sub` is everywhere: E0403,
+/// as `split`'s `sep`. A piece at a time (L6): `STEP_SCAN` bytes are
+/// searched and counted each time.
+fn index_of_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    nat::need_bytes("s", &a[0])?;
+    if nat::need_bytes("sub", &a[1])?.is_empty() {
+        return Err(nat::not_nonempty("sub", &a[1]));
+    }
+    struct Find {
+        s: Value,
+        finder: memchr::memmem::Finder<'static>,
+        /// Counted up to `at` (a character boundary), `chars` characters.
+        at: usize,
+        chars: usize,
+    }
+    impl Work for Find {
+        fn step(&mut self, _t: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let s = bytes_of(&self.s);
+            let n = self.finder.needle().len();
+            let stop = (self.at + STEP_SCAN).min(s.len());
+            let window = (stop + n - 1).min(s.len());
+            let found = self.finder.find(&s[self.at..window]).map(|i| self.at + i);
+            // Count up to the match (or the end of the piece), on whole
+            // characters.
+            let to = found.unwrap_or(stop);
+            while self.at < to {
+                let u = fung_front::text::first(&s[self.at..]).expect("not at the end");
+                self.at += u.byte_len();
+                self.chars += 1;
+            }
+            match found {
+                Some(m) if self.at == m => Ok(Some(Value::Int(self.chars as i64))),
+                // inside a character: search on from the next one
+                Some(_) => Ok(None),
+                None if window == s.len() => Ok(Some(Value::Nil)),
+                None => Ok(None),
+            }
+        }
+    }
+    let sub = nat::need_bytes("sub", &a[1])?;
+    pieces::run(
+        t,
+        Find {
+            s: a[0].clone(),
+            finder: memchr::memmem::Finder::new(sub).into_owned(),
+            at: 0,
+            chars: 0,
         },
     )
 }
@@ -371,46 +470,20 @@ fn map_text(s: &Text, f: fn(&str) -> String) -> Vec<u8> {
     out
 }
 
-/// `replace(s, old, new)`: every occurrence; an empty `old` matches before
-/// every character and at the end. A result past `MAX_CHARS` characters is
-/// E0806 before anything is built (02). Built a piece at a time (L6).
+/// `replace(s, old, new)`: every occurrence. An empty `old` is E0403
+/// (D74: it would match between every two characters), as `split`'s
+/// empty separator. A result past `MAX_CHARS` characters is E0806
+/// before anything is built (02). Built a piece at a time (L6).
 fn replace_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let [s, old, new] = nat::bytes_args(&a, ["s", "old", "new"])?;
+    if old.is_empty() {
+        return Err(nat::not_nonempty("old", &a[1]));
+    }
     if !replace_fits(s, old, new) {
         return Err(too_many_chars());
     }
     let new = new.to_vec();
     let out = Vec::with_capacity(s.len());
-    if old.is_empty() {
-        struct Between {
-            s: Value,
-            new: Vec<u8>,
-            at: usize,
-            out: Vec<u8>,
-        }
-        impl Work for Between {
-            fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
-                let (out, new) = (&mut self.out, &self.new);
-                if !chars_from(bytes_of(&self.s), &mut self.at, |c| {
-                    out.extend_from_slice(new);
-                    out.extend_from_slice(c);
-                }) {
-                    return Ok(None);
-                }
-                self.out.extend_from_slice(&self.new);
-                Ok(Some(string(std::mem::take(&mut self.out))))
-            }
-        }
-        return pieces::run(
-            t,
-            Between {
-                s: a[0].clone(),
-                new,
-                at: 0,
-                out,
-            },
-        );
-    }
     struct Replace {
         cuts: Cuts,
         new: Vec<u8>,
@@ -441,19 +514,11 @@ fn replace_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 fn replace_fits(s: &[u8], old: &[u8], new: &[u8]) -> bool {
     let limit = MAX_CHARS as i128;
     let (len, old_len, new_len) = (s.len() as i128, old.len() as i128, new.len() as i128);
-    let most = if old.is_empty() {
-        len + 1
-    } else {
-        len / old_len
-    };
+    let most = len / old_len;
     if len + most * (new_len - old_len).max(0) <= limit {
         return true;
     }
-    let n = if old.is_empty() {
-        char_count(s) as i128 + 1
-    } else {
-        memchr::memmem::find_iter(s, old).count() as i128
-    };
+    let n = memchr::memmem::find_iter(s, old).count() as i128;
     if len + n * (new_len - old_len) <= limit {
         return true;
     }
@@ -531,7 +596,8 @@ fn byte_len_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
 /// `bytes(s)`: the bytes of `s` as ints from 0 to 255, a piece at a
 /// time (VA10).
 fn bytes_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
-    nat::need_bytes("s", &a[0])?;
+    // A string of the most characters has up to four times the bytes (D63).
+    nat::check_len(nat::need_bytes("s", &a[0])?.len() as u64)?;
     struct Bytes {
         s: Value,
         at: usize,

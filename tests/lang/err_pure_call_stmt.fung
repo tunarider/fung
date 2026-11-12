@@ -1,0 +1,6 @@
+# A builtin with no effect, called as a statement, computes a value only
+# to drop it (D39): `put` returns a new map and changes nothing.
+m = {a: 1}
+put(m, "b", 2)
+# expect-error: E0234
+print(m)

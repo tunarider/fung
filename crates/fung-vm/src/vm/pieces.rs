@@ -57,27 +57,48 @@ pub(crate) trait Work: 'static {
 /// Runs `w` as a native's body: its result if it ends in the first piece,
 /// else a park that gives the turn and goes on in a box.
 pub(crate) fn run(t: &mut Task<'_>, mut w: impl Work) -> Result<Flow, Stop> {
-    let mut piece = Instant::now();
+    let mut piece = Piece::new();
     loop {
         if let Some(v) = w.step(t)? {
             return Ok(Flow::Done(v));
         }
-        if over(&mut piece) && t.piece_done() {
+        if piece.over() && t.piece_done() {
             return Ok(Flow::Park(Box::new(Pieces(w)), Wake::soon()));
         }
     }
 }
 
-/// Whether the piece that started at `piece` has had its time; if so,
-/// the next one starts now (in a swap's function, which cannot give its
-/// turn, the pieces follow one another).
-pub(crate) fn over(piece: &mut Instant) -> bool {
-    let now = Instant::now();
-    if now.duration_since(*piece) < PIECE_TIME {
-        return false;
+/// The clock of a piece (VA30, VA34). It is read first when the first
+/// step is done and the work goes on: a native done in one step, the
+/// common small input, reads no clock, and a walk that calls back fung
+/// code per element reads none per element.
+pub(crate) struct Piece(Option<Instant>);
+
+impl Piece {
+    pub(crate) const fn new() -> Piece {
+        Piece(None)
     }
-    *piece = now;
-    true
+
+    /// Whether the piece has had its time; if so, the next one starts now
+    /// (in a swap's function, which cannot give its turn, the pieces
+    /// follow one another). The first call starts the clock.
+    pub(crate) fn over(&mut self) -> bool {
+        if PIECE_TIME.is_zero() {
+            return true;
+        }
+        let now = Instant::now();
+        match self.0 {
+            Some(start) if now.duration_since(start) < PIECE_TIME => false,
+            Some(_) => {
+                self.0 = Some(now);
+                true
+            }
+            None => {
+                self.0 = Some(now);
+                false
+            }
+        }
+    }
 }
 
 /// [`run`]'s box between pieces.
@@ -86,12 +107,12 @@ struct Pieces<W>(W);
 impl<W: Work> Cont for Pieces<W> {
     fn resume(&mut self, t: &mut Task<'_>, _: Value) -> Result<Next, Stop> {
         t.check_cancelled()?;
-        let mut piece = Instant::now();
+        let mut piece = Piece::new();
         loop {
             if let Some(v) = self.0.step(t)? {
                 return Ok(Next::Done(v));
             }
-            if over(&mut piece) && t.piece_done() {
+            if piece.over() && t.piece_done() {
                 return Ok(Next::Park(Wake::soon()));
             }
         }
@@ -114,10 +135,10 @@ where
         then: Some(then),
         next: None,
     };
-    let mut piece = Instant::now();
+    let mut piece = Piece::new();
     loop {
         let done = c.copy();
-        if (done || over(&mut piece)) && t.piece_done() {
+        if (done || piece.over()) && t.piece_done() {
             return Ok(Flow::Park(Box::new(c), Wake::soon()));
         }
         // In a swap's function: no turn to give, so on at once.
@@ -166,10 +187,10 @@ where
         }
         t.check_cancelled()?;
         if self.xs.len() < self.list.len() {
-            let mut piece = Instant::now();
+            let mut piece = Piece::new();
             loop {
                 let done = self.copy();
-                if (done || over(&mut piece)) && t.piece_done() {
+                if (done || piece.over()) && t.piece_done() {
                     return Ok(Next::Park(Wake::soon()));
                 }
                 if done {

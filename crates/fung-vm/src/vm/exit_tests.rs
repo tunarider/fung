@@ -72,7 +72,7 @@ fn exec_on_silent_stdin(src: &'static str) -> Outcome {
     let (tx, stdin) = fed();
     let o = within(10, move || {
         exec_with_stdin(
-            &format!("{UNTIL}{src}"),
+            &crate::testutil::imports_first(&format!("{UNTIL}{src}")),
             Opts {
                 extra: stdin_probes,
                 ..Opts::default()
@@ -88,7 +88,7 @@ fn exec_on_silent_stdin(src: &'static str) -> Outcome {
 #[test]
 fn a_cancelled_stdin_wait_leaves_the_queue() {
     let o = exec_on_silent_stdin(
-        "scope(fn(s):\n  a = spawn(s, () => read_line())\n  until(() => reading() == 1)\n  cancel(a)\n  print(await(a), reading())\n;;)",
+        "scope(fn(s):\n  a = spawn(s, () => read_line())\n  wait_for(() => reading() == 1)\n  cancel(a)\n  print(await(a), reading())\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
@@ -130,7 +130,7 @@ fn an_exit_from_a_task_cancels_every_task() {
 fn an_exit_inside_a_swaps_f_is_e0707_and_leaves_the_state() {
     let (out, err, code) = within(10, || {
         run(
-            "a = atom(1)\nwith(() => nil, fn(_): swap(a, x => exit(4)); print(\"never\") ;;, _ => print(\"ae\", deref(a), swap(a, x => x + 1)))",
+            "a = atom(1)\nwith(() => nil, fn(_): swap(a, _x => exit(4)); print(\"never\") ;;, _ => print(\"ae\", deref(a), swap(a, x => x + 1)))",
         )
     });
     assert_eq!(out, "ae 1 2\n");
@@ -193,7 +193,7 @@ fn concurrent_readers_get_every_line_once() {
     let input: String = (0..2000).map(|i| format!("line-{i}\n")).collect();
     let input: &'static str = Box::leak(input.into_boxed_str());
     let o = crate::testutil::exec(
-        "scope(fn(s):\n  ts = for _ in 0..4: spawn(s, () => read_lines()!) ;;\n  each(ts, t => each(await(t), print))\n;;)",
+        "scope(fn(s):\n  ts = for _ in 0..4: spawn(s, () => read_lines()!) ;;\n  each(ts, t => each(await(t)!, print))\n;;)",
         Opts {
             stdin: input,
             ..Opts::default()
@@ -214,7 +214,7 @@ fn concurrent_readers_get_every_line_once() {
 fn a_task_waiting_for_stdin_lets_others_print_and_exit() {
     let start = Instant::now();
     let o = exec_on_silent_stdin(
-        "with(() => nil, _ => scope(fn(s):\n  t = spawn(s, () => read_line())\n  until(() => reading() == 1)\n  print(\"out\")\n  exit(3)\n;;), _ => print(\"bye\"))",
+        "with(() => nil, _ => scope(fn(s):\n  _t = spawn(s, () => read_line())\n  wait_for(() => reading() == 1)\n  print(\"out\")\n  exit(3)\n;;), _ => print(\"bye\"))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -228,7 +228,7 @@ fn a_task_waiting_for_stdin_lets_others_print_and_exit() {
 fn the_entry_waiting_for_stdin_ends_on_an_exit() {
     let start = Instant::now();
     let o = exec_on_silent_stdin(
-        "with(() => nil, _ => scope(fn(s):\n  spawn(s, fn(): until(() => reading() == 1); print(\"out\"); exit(3) ;;)\n  print(read_line())\n;;), _ => print(\"bye\"))",
+        "with(() => nil, _ => scope(fn(s):\n  spawn(s, fn(): wait_for(() => reading() == 1); print(\"out\"); exit(3) ;;)\n  print(read_line())\n;;), _ => print(\"bye\"))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -242,7 +242,7 @@ fn the_entry_waiting_for_stdin_ends_on_an_exit() {
 #[test]
 fn a_task_waiting_for_stdin_is_not_a_deadlock_and_can_be_cancelled() {
     let o = exec_on_silent_stdin(
-        "scope(fn(s):\n  t = spawn(s, () => read_line())\n  until(() => reading() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
+        "scope(fn(s):\n  t = spawn(s, () => read_line())\n  wait_for(() => reading() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -290,7 +290,7 @@ fn a_task_waiting_for_a_process_lets_others_run() {
     assert_eq!(o.err, "");
     assert_eq!(
         o.out,
-        "true\nOk({out: \"done\\n\", err: \"\", code: 0, signal: nil})\n"
+        "true\nOk(Ok({out: \"done\\n\", err: \"\", code: 0, signal: nil}))\n"
     );
 }
 

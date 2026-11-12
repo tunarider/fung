@@ -305,14 +305,18 @@ fn gate_natives() -> Vec<Value> {
 fn other_tasks_run_while_a_pattern_compiles() {
     let o = exec(
         &format!(
-            "{UNTIL}import regex\nscope(fn(s):\n  h = spawn(s, () => regex.is_match(\"x\", `{GATED}`))\n  until(compiling)\n  open_gate()\n  print(await(h))\n;;)"
+            "import regex\n{UNTIL}scope(fn(s):\n  h = spawn(s, () => regex.is_match(\"x\", `{GATED}`))\n  wait_for(compiling)\n  open_gate()\n  print(await(h))\n;;)"
         ),
         Opts {
             extra: gate_natives,
             ..Opts::default()
         },
     );
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("false\n", ""), "{o:?}");
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("Ok(false)\n", ""),
+        "{o:?}"
+    );
     let g = gate();
     assert!(g.0 && g.1, "the gate was not used: {:?}", *g);
     assert!(

@@ -161,7 +161,7 @@ print(exec(["no-such-tool", "--version"]))
 r = sh("printf 'a\\nERROR x\\nERROR y\\n' | grep -c ERROR")!
 print("errors:", trim(r.out))
 
-greeting = exec(["sh", "-c", "echo \"hi $WHO\""], env: {WHO: "ops"})!
+greeting = exec(["sh", "-c", `echo "hi $WHO"`], env: {WHO: "ops"})!
 print(trim(greeting.out))
 
 sorted = exec(["sort"], stdin: "pear\napple\nfig\n")!
@@ -170,12 +170,12 @@ print(lines(sorted.out))
 
 ## 명령줄 인자 {#args}
 
-`fung script.fung a b c`로 실행하면 스크립트 이름 뒤의 인자가 `args`에 문자열 리스트로 들어온다(2장). `--dir logs` 같은 옵션을 받으려면 `cli` 모듈의 `cli.parse(args)!`를 쓴다. 결과는 `Ok({flags, rest})`다(명령줄은 바깥 입력이라 잘못 친 명령줄, 예를 들어 같은 옵션을 두 번 준 것은 `Err`이고, `!`가 거기서 멈춘다). `--이름 값`과 `--이름=값`은 `flags`에, 나머지는 순서대로 `rest`에 간다. 값 없는 `--이름`은 `true`이고, `bools:`에 적은 이름은 다음 인자를 값으로 먹지 않는다. 이름의 `-`는 `_`로 바뀐다(`--dry-run` → `dry_run`).
+`fung script.fung a b c`로 실행하면 스크립트 이름 뒤의 인자가 `args`에 문자열 리스트로 들어온다(2장). `--dir logs` 같은 옵션을 받으려면 `cli` 모듈의 `cli.parse(args, bools: […], values: […])!`를 쓴다. 받을 옵션은 모두 적는다: 켜고 끄는 스위치는 `bools`, 값을 받는 옵션은 `values`다. 결과는 `Ok({flags, rest})`다(명령줄은 바깥 입력이라 잘못 친 명령줄, 예를 들어 목록에 없는 옵션이나 같은 옵션을 두 번 준 것은 `Err`이고, `!`가 거기서 멈춘다). `values`의 `--이름 값`과 `--이름=값`은 `flags`에 문자열로, `bools`의 `--이름`은 `true`로 들어가고, 나머지는 순서대로 `rest`에 간다. 이름의 `-`는 `_`로 바뀐다(`--dry-run` → `dry_run`).
 
 ```fung run args="--dir logs --min 100 --dry-run a.log b.log"
 import cli
 
-opts = cli.parse(args, bools: ["dry-run"])!
+opts = cli.parse(args, bools: ["dry-run"], values: ["dir", "min"])!
 print(opts)
 
 dir = get(opts.flags, "dir", ".")
@@ -262,7 +262,7 @@ import cli
 import fs
 import path
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["dir", "min"])!
 dir = get(opts.flags, "dir", ".")
 min_size = int(get(opts.flags, "min", "0"))
 
@@ -318,9 +318,9 @@ ready
 
 ```fung run
 import fs
-lines = fs.read_lines("app.log")!
-longest = fold(lines, "", (best, l) => len(l) > len(best) then l else best)
-print(len(lines), longest)
+log = fs.read_lines("app.log")!
+longest = fold(log, "", (best, l) => len(l) > len(best) then l else best)
+print(len(log), longest)
 ```
 
 :::
@@ -363,7 +363,7 @@ print(trim(r.out), r.code)
 - `fs.read`·`fs.read_lines`로 읽고, `fs.write`·`fs.append`로 쓴다. 모두 결과값이라 스크립트에서는 `!`를 붙인다.
 - `fs.list`·`fs.walk`·`fs.glob`로 파일을 찾고, `fs.stat`로 크기를 본다. 경로 계산은 `path`.
 - `exec([프로그램, 인자…])`는 쉘 없이 명령을 돌리고 `Ok({out, err, code})`를 준다. 0이 아닌 종료는 `Err({kind: 'exit, …})`. 쉘 기능이 필요할 때만 `sh`.
-- 인자는 `args`, 옵션은 `cli.parse(args)!`, 환경 변수는 `env("이름") ?? 기본값`, 표준 입력은 `read_lines()`.
+- 인자는 `args`, 옵션은 `cli.parse(args, bools: […], values: […])!`, 환경 변수는 `env("이름") ?? 기본값`, 표준 입력은 `read_lines()`.
 - 결과는 `print`, 경고와 에러는 `eprint`, 끝내는 코드는 `exit(n)`.
 
 함수마다의 자세한 설명은 레퍼런스의 [fs](../reference/modules/fs.html), [path](../reference/modules/path.html), [cli](../reference/modules/cli.html), [프로세스와 환경](../reference/prelude/process.html), [입출력](../reference/prelude/io.html), [에러와 종료](../reference/prelude/program.html)에 있다. 명령줄 도구의 종료 코드 표는 [명령줄 도구](../reference/cli.html#exit-codes)에 있다. 실무 예는 예제 모음의 [큰 파일 찾기](../recipes/find-big-files.html), [종료 코드와 stderr](../recipes/exit-codes.html)를 보라.

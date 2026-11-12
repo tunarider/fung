@@ -1,5 +1,7 @@
 use fung_front::consts::{format_dur, format_float, is_plain_key, quote_bytes, write_quoted};
 
+use fung_front::diag::Diag;
+
 use super::Value;
 
 /// Renders a value in fung literal form.
@@ -9,6 +11,22 @@ pub fn format(v: &Value) -> String {
     }
     let mut out = String::new();
     write(v, &mut out);
+    out
+}
+
+/// `format` that stops once the text passes `max` bytes (VA28): a value
+/// whose parts are shared can stand for far more text than it holds.
+/// `None` when it passed; the text written so far is dropped.
+pub fn format_within(v: &Value, max: usize) -> Option<String> {
+    let mut out = String::new();
+    write_within(v, &mut out, max).then_some(out)
+}
+
+/// The start of `v`'s literal form, at least `max` bytes of it when it is
+/// longer (a message shows that much and cuts the rest, VA28).
+pub fn format_start(v: &Value, max: usize) -> String {
+    let mut out = String::new();
+    write_within(v, &mut out, max);
     out
 }
 
@@ -59,16 +77,25 @@ enum Open<'a> {
 /// not grow with the value's depth, and each character is written once,
 /// so a value a million levels deep takes linear time.
 pub(crate) fn write(v: &Value, out: &mut String) {
+    write_within(v, out, usize::MAX);
+}
+
+/// `write` that stops as soon as `out` passes `max` bytes, false then
+/// (VA28): the text it would make is never built past the budget.
+pub(crate) fn write_within(v: &Value, out: &mut String, max: usize) -> bool {
     let mut open: Vec<Open<'_>> = Vec::new();
     let mut next = Some(v);
     loop {
         if let Some(v) = next.take()
-            && let Some(o) = write_head(v, out)
+            && let Some(o) = write_head(v, out, max)
         {
             open.push(o);
         }
+        if out.len() > max {
+            return false;
+        }
         let Some(top) = open.last_mut() else {
-            return;
+            return true;
         };
         match top {
             Open::Seq {
@@ -110,7 +137,7 @@ pub(crate) fn write(v: &Value, out: &mut String) {
 
 /// Writes what `v` shows before its items, or all of it if it has none;
 /// a collection comes back to have its items written.
-fn write_head<'a>(v: &'a Value, out: &mut String) -> Option<Open<'a>> {
+fn write_head<'a>(v: &'a Value, out: &mut String, max: usize) -> Option<Open<'a>> {
     let seq = |items, close| {
         Some(Open::Seq {
             items,
@@ -146,8 +173,10 @@ fn write_head<'a>(v: &'a Value, out: &mut String) -> Option<Open<'a>> {
             None
         }
         // Into the one buffer, not through a string of its own (VA13).
+        // A string past the budget is written only as far as it goes.
         Value::Str(s) => {
-            write_quoted(s, out);
+            let room = max.saturating_sub(out.len()).saturating_add(1);
+            write_quoted(&s[..s.len().min(room)], out);
             None
         }
         v => {
@@ -192,19 +221,31 @@ fn leaf_text(v: &Value) -> String {
 }
 
 /// What `print` and `${}` use, at the end of `out`: strings bare (their
-/// bytes as they are, L4), the rest in literal form.
-pub fn write_for_print(v: &Value, out: &mut Vec<u8>) {
+/// bytes as they are, L4), the rest in literal form. A value whose text
+/// passes four bytes per character of the string limit is E0806 as soon
+/// as it does, not once all of it is built (VA28).
+pub fn write_for_print(v: &Value, out: &mut Vec<u8>) -> Result<(), Diag> {
     match v {
         Value::Str(s) => out.extend_from_slice(s),
-        _ => out.extend_from_slice(format(v).as_bytes()),
+        _ => out.extend_from_slice(format_text(v)?.as_bytes()),
     }
+    Ok(())
 }
+
+/// `format` for a text a program gets (`str`, `dbg`): E0806 as soon as
+/// it passes the string limit's bytes (VA28).
+pub fn format_text(v: &Value) -> Result<String, Diag> {
+    format_within(v, MAX_TEXT_BYTES).ok_or_else(super::arith::too_many_chars)
+}
+
+/// The most bytes the text of a value within the string limit can take.
+pub const MAX_TEXT_BYTES: usize = 4 * crate::prelude::MAX_CHARS as usize;
 
 /// `write_for_print` as text, bytes outside UTF-8 as U+FFFD (tests).
 #[cfg(test)]
 pub fn format_for_print(v: &Value) -> String {
     let mut out = Vec::new();
-    write_for_print(v, &mut out);
+    write_for_print(v, &mut out).expect("within the limit");
     String::from_utf8_lossy(&out).into_owned()
 }
 

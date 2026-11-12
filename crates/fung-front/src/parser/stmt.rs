@@ -1,6 +1,6 @@
 //! Statements, bodies, `if`, `test`, `import` and `type`.
 
-use super::{PResult, Parser, describe, err, s, tag_as_name};
+use super::{PResult, Parser, err, s, tag_as_name};
 use crate::lexer::{Kind, Token};
 use crate::source::Pos;
 use crate::tree::{Head, Import, Lit, Node, TypeAlias};
@@ -91,7 +91,7 @@ impl<'a> Parser<'a> {
         if t.kind == Kind::KwFn && self.kind_after() == Kind::Name {
             self.next();
             let name = self.next();
-            return self.fn_def(t, name.text.clone());
+            return self.fn_def(t, name.text.clone(), name.pos);
         }
         if t.kind == Kind::Name && self.kind_after() == Kind::Assign {
             self.next();
@@ -101,6 +101,8 @@ impl<'a> Parser<'a> {
             let target = Node::leaf(Head::Name, t.pos, Lit::Str(t.text.clone()));
             return Ok(Node::new(Head::Assign, t.pos, vec![target, rhs]));
         }
+        // an expression statement may be a `return` (D50)
+        self.return_ok = true;
         self.expr(0)
     }
 
@@ -127,6 +129,7 @@ impl<'a> Parser<'a> {
         let mut blk = Node::new(Head::Block, pos, Vec::new());
         self.skip_seps();
         while !self.at(Kind::DoubleSemi) && !self.at(Kind::KwElse) && !self.at(Kind::Eof) {
+            self.after_return(&blk)?;
             let stmt = self.spanned_statement()?;
             blk.kids.push(stmt);
             match self.peek().kind {
@@ -138,10 +141,23 @@ impl<'a> Parser<'a> {
         Ok(blk)
     }
 
+    /// E0131 when a statement would follow a `return` statement in the
+    /// block being read: it could never run (D50).
+    pub(super) fn after_return(&mut self, blk: &Node) -> PResult<()> {
+        match blk.kids.last() {
+            Some(k) if k.head == Head::Return && !k.paren => {
+                let pos = self.peek().pos;
+                Err(err("E0131", pos, Vec::new()))
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Parses a whole if/else-if/else chain closed by one `;;`.
     pub(super) fn if_expr(&mut self) -> PResult<Node> {
+        let open = self.peek();
         let n = self.if_chain()?;
-        self.expect_desc(Kind::DoubleSemi, "`;;` to close the if")?;
+        self.close("if", open)?;
         Ok(n)
     }
 
@@ -160,12 +176,7 @@ impl<'a> Parser<'a> {
                 self.next();
                 self.body(e.pos)?
             } else {
-                let p = self.peek();
-                return Err(err(
-                    "E0112",
-                    p.pos,
-                    vec![s("`:` or `if` after else"), s(describe(p))],
-                ));
+                return Err(self.expected("`:` or `if` after else", Some(Kind::Colon)));
             }
         } else {
             Node::new(Head::Nil, t.pos, Vec::new())
@@ -176,6 +187,11 @@ impl<'a> Parser<'a> {
     /// Parses `pattern = expr` at the statement start. When the text is not
     /// an assignment it restores the position and returns None.
     fn try_destructure(&mut self) -> PResult<Option<Node>> {
+        // Brackets that close right before `=` make an assignment: the
+        // pattern's own error is the one to report (FE52).
+        if self.brackets_close_before(&[Kind::Assign]) {
+            return self.destructure_assign().map(Some);
+        }
         let (save, save_nest, save_depth) = (self.i, self.nest, self.depth);
         match self.pattern() {
             Ok(_) if self.at(Kind::Assign) => {}
@@ -191,11 +207,16 @@ impl<'a> Parser<'a> {
         // It is an assignment: read it again as one (FE32), which points
         // at a literal the destructuring pattern does not take.
         self.i = save;
+        self.destructure_assign().map(Some)
+    }
+
+    /// `pattern = expr`, known to be an assignment.
+    fn destructure_assign(&mut self) -> PResult<Node> {
         let pat = self.destructure()?;
-        self.next();
+        self.expect_desc(Kind::Assign, "`=`")?;
         self.skip_newlines_after_operator();
         let rhs = self.expr(0)?;
-        Ok(Some(Node::new(Head::Assign, pat.pos, vec![pat, rhs])))
+        Ok(Node::new(Head::Assign, pat.pos, vec![pat, rhs]))
     }
 
     /// Parses `test "name": body ;;` (08). Tests live at the top level only;
@@ -206,18 +227,13 @@ impl<'a> Parser<'a> {
             return Err(err("E0114", t.pos, Vec::new()));
         }
         if !self.at(Kind::String) {
-            let p = self.peek();
-            return Err(err(
-                "E0112",
-                p.pos,
-                vec![s("a test name string after `test`"), s(describe(p))],
-            ));
+            return Err(self.expected("a test name string after `test`", None));
         }
         let st = self.next();
         let name = plain_text(st, "a plain test name")?;
         self.expect_desc(Kind::Colon, "`:` after the test name")?;
         let body = self.body(t.pos)?;
-        self.expect_desc(Kind::DoubleSemi, "`;;` to close the test")?;
+        self.close("test", t)?;
         Ok(Node::with_lit(
             Head::Test,
             t.pos,
@@ -261,15 +277,7 @@ impl<'a> Parser<'a> {
                 im.is_path = true;
             }
             _ => {
-                let p = self.peek();
-                return Err(err(
-                    "E0112",
-                    p.pos,
-                    vec![
-                        s("a module name or a path string after `import`"),
-                        s(describe(p)),
-                    ],
-                ));
+                return Err(self.expected("a module name or a path string after `import`", None));
             }
         }
         if !im.is_path {
@@ -277,6 +285,14 @@ impl<'a> Parser<'a> {
         }
         if self.at(Kind::KwAs) {
             self.next();
+            // `as _` binds nothing: the module could not be used (FE61)
+            if self.at(Kind::Name) && self.peek().text == "_" {
+                let mut e = self.expected("a name after `as`", Some(Kind::Name));
+                e.help = Some(
+                    "`as _` binds nothing, so the module could not be used; give it a name".into(),
+                );
+                return Err(e);
+            }
             let alias = self.expect_desc(Kind::Name, "a name after `as`")?;
             im.bind_pos = alias.pos;
             im.alias = alias.text.clone();

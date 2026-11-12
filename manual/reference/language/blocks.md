@@ -8,7 +8,7 @@ lede: 문장과 블록(<code>:</code> … <code>;;</code>), 줄 이어짐.
   <li>문장은 줄바꿈이나 <code>;</code>로 나눈다. 빈 문장은 괜찮다.</li>
   <li>블록은 <code>:</code>로 열고 <code>;;</code>로 닫는다. 블록의 값은 마지막 식의 값이다.</li>
   <li>값을 아무도 쓰지 않는 자리(마지막이 아닌 식, 그런 자리의 <code>if</code>·<code>match</code> 가지의 끝, 파일의 마지막 식)의 값은 버려진다. 버려지는 값이 <code>Err</code>면 E0606이다(<a href="results.html">결과값과 에러</a>).</li>
-  <li>버려지는 자리의 식은 무언가를 해야 한다. 이름, 리터럴, 람다·익명 <code>fn</code>, 이름과 리터럴만 넘긴 부분 적용(<code>f(_, x)</code>), 그리고 그것들만으로 된 연산자·필드·인덱스·튜플·리스트·맵·태그 값(<code>Ok(1)</code>, <code>Red</code>, <code>Point(x, y)</code>)은 계산해도 아무 일이 없으므로 컴파일 에러다(E0234). 호출, 대입, <code>assert</code>, <code>return</code>, 호출이 든 식(<code>Ok(f())</code>, <code>h(g(), _)</code>)은 된다. 예외는 맨 <code>nil</code> 하나다: 문장으로 쓴 <code>match</code>에서 할 일이 없는 절은 <code>_ =&gt; nil</code>로 쓰는데, 절에는 본문이 있어야 하므로 "아무것도 하지 않는다"를 <code>nil</code>로 적게 둔다. 일부러 버리려면 <code>_ = 식</code>. 실행 중에 계산된 <code>Err</code>를 버리면 여전히 E0606이다.</li>
+  <li>버려지는 자리의 식은 무언가를 해야 한다. 이름, 리터럴, 람다·익명 <code>fn</code>, 이름과 리터럴만 넘긴 부분 적용(<code>f(_, x)</code>), 그리고 그것들만으로 된 연산자·필드·인덱스·튜플·리스트·맵·태그 값(<code>Ok(1)</code>, <code>Red</code>, <code>Point(x, y)</code>)은 계산해도 아무 일이 없으므로 컴파일 에러다(E0234). 호출, 대입, <code>assert</code>, <code>return</code>, 호출이 든 식(<code>Ok(f())</code>, <code>h(g(), _)</code>)은 된다. 다만 효과가 없다고 알려진 내장 함수·표준 모듈 함수의 호출(<code>put(m, k, v)</code>, <code>sort(xs)</code>, <code>path.join(a, b)</code>처럼 값을 계산해 돌려줄 뿐인 것)도 E0234다: 결과를 버리면 아무 일도 없었던 것이다. 함수를 받는 내장 함수(<code>map</code>·<code>each</code> 등)와 사용자 함수는 무엇을 할지 모르므로 된다. 예외는 맨 <code>nil</code> 하나다: 문장으로 쓴 <code>match</code>에서 할 일이 없는 절은 <code>_ =&gt; nil</code>로 쓰는데, 절에는 본문이 있어야 하므로 "아무것도 하지 않는다"를 <code>nil</code>로 적게 둔다. 일부러 버리려면 <code>_ = 식</code>. 실행 중에 계산된 <code>Err</code>를 버리면 여전히 E0606이다.</li>
   <li>들여쓰기는 의미가 없다. 같은 코드를 한 줄로도 쓸 수 있다.</li>
 </ul>
 
@@ -84,4 +84,12 @@ fn f(x):
   y = x + 1
 ;;
 print(f(1))
+```
+
+효과가 없다고 알려진 내장 함수를 문장으로 부르는 것도 같다. `put`은 바뀐 사본을 돌려줄 뿐 `m`을 바꾸지 않는다.
+
+```fung run exit=2 error=E0234
+m = {a: 1}
+put(m, "b", 2)
+print(m)
 ```

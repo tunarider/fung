@@ -1,0 +1,3 @@
+# `in` compares the elements with == (D40).
+print("a" in [1])
+# expect-error: E0517

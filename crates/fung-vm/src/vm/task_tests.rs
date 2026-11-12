@@ -11,11 +11,11 @@ use crate::vm::{Stop, Task};
 #[test]
 fn spawn_and_await_basics() {
     let (out, err, code) = run(
-        "supervise(fn(s):\n  ts = for i in 1..=3: spawn(s, () => i * 2) ;;\n  print(ts |> map(await), await(spawn(s, () => Err('e))), await(spawn(s, () => 1 / 0)) |> is_err)\n;;, e => nil)",
+        "supervise(fn(s):\n  ts = for i in 1..=3: spawn(s, () => i * 2) ;;\n  print(ts |> map(await), await(spawn(s, () => Err('e))), await(spawn(s, () => 1 / 0)) |> is_err)\n;;, _e => nil)",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("[2, 4, 6] Err('e) true\n", "", 0)
+        ("[Ok(2), Ok(4), Ok(6)] Ok(Err('e)) true\n", "", 0)
     );
 }
 
@@ -40,7 +40,7 @@ fn cancel_reaches_a_sleeping_task_and_its_children() {
 #[test]
 fn a_busy_task_does_not_starve_the_others() {
     let (out, _, code) = run(
-        "fn spin(n) = n == 0 then 0 else spin(n - 1)\nscope(fn(s):\n  t = spawn(s, () => spin(50000000))\n  print(\"other ran\")\n  cancel(t)\n;;)",
+        "fn spin(k) = k == 0 then 0 else spin(k - 1)\nscope(fn(s):\n  t = spawn(s, () => spin(50000000))\n  print(\"other ran\")\n  cancel(t)\n;;)",
     );
     assert_eq!((out.as_str(), code), ("other ran\n", 0));
 }
@@ -53,7 +53,7 @@ fn a_busy_task_does_not_starve_the_others() {
 fn a_busy_task_hands_the_token_back() {
     let start = Instant::now();
     let (out, _, code) = run(
-        "fn spin(n) = n == 0 then 0 else spin(n - 1)\nscope(fn(s):\n  t = spawn(s, () => spin(500000000))\n  sleep(10ms)\n  print(\"other ran\")\n  cancel(t)\n  print(await(t))\n;;)",
+        "fn spin(k) = k == 0 then 0 else spin(k - 1)\nscope(fn(s):\n  t = spawn(s, () => spin(500000000))\n  sleep(10ms)\n  print(\"other ran\")\n  cancel(t)\n  print(await(t))\n;;)",
     );
     assert_eq!(
         (out.as_str(), code),
@@ -68,7 +68,7 @@ fn a_busy_task_hands_the_token_back() {
 #[test]
 fn two_thousand_tasks_run() {
     let (out, _, code) = run(
-        "scope(fn(s):\n  ts = for i in 0..2000: spawn(s, () => i) ;;\n  print(fold(ts, 0, (a, t) => a + await(t)))\n;;)",
+        "scope(fn(s):\n  ts = for i in 0..2000: spawn(s, () => i) ;;\n  print(fold(ts, 0, (a, t) => a + await(t)!))\n;;)",
     );
     assert_eq!((out.as_str(), code), ("1999000\n", 0));
 }
@@ -80,15 +80,15 @@ fn spawn_await_and_results() {
     let cases = [
         (
             "scope(fn(s):\n  t = spawn(s, () => 1 + 1)\n  print(await(t), await(t))\n;;)",
-            "2 2\n",
+            "Ok(2) Ok(2)\n",
         ),
         (
             "scope(fn(s):\n  t = spawn(s, () => Err(\"e\"))\n  print(await(t))\n;;)",
-            "Err(\"e\")\n",
+            "Ok(Err(\"e\"))\n",
         ),
         // A supervised child's runtime error comes back from `await`.
         (
-            "supervise(fn(s):\n  t = spawn(s, () => 1 / 0)\n  print(await(t))\n;;, e => nil)",
+            "supervise(fn(s):\n  t = spawn(s, () => 1 / 0)\n  print(await(t))\n;;, _e => nil)",
             "Err({kind: 'error, code: \"E0502\", message: \"division by zero\", at: \"-e:2\"})\n",
         ),
         (
@@ -101,7 +101,7 @@ fn spawn_await_and_results() {
         ),
         (
             "scope(fn(s):\n  ts = for i in 0..5: spawn(s, () => i * i) ;;\n  print(ts |> map(await))\n;;)",
-            "[0, 1, 4, 9, 16]\n",
+            "[Ok(0), Ok(1), Ok(4), Ok(9), Ok(16)]\n",
         ),
         (
             "scope(s => print(type_of(spawn(s, () => 1)), spawn(s, () => 1) == spawn(s, () => 1)))",
@@ -114,7 +114,7 @@ fn spawn_await_and_results() {
         // Cancelling a finished task changes nothing.
         (
             "scope(fn(s):\n  t = spawn(s, () => 1)\n  print(await(t), cancel(t), await(t))\n;;)",
-            "1 nil 1\n",
+            "Ok(1) nil Ok(1)\n",
         ),
     ];
     for (src, want) in cases {
@@ -134,12 +134,9 @@ fn spawn_await_and_results() {
 #[test]
 fn a_task_handle_prints_compares_and_types() {
     let (out, err, code) = run(
-        "t = scope(s => spawn(s, () => 1))\nprint(t, [t], {a: t}, t == t, t != t, type_of(t), str(t), \"${t}\")\nprint(t < t)",
+        "t = scope(s => spawn(s, () => 1))!\nprint(t, [t], {a: t}, t == t, t != t, type_of(t), str(t))\nprint(t < t)",
     );
-    assert_eq!(
-        out,
-        "<task> [<task>] {a: <task>} true false 'task <task> <task>\n"
-    );
+    assert_eq!(out, "<task> [<task>] {a: <task>} true false 'task <task>\n");
     assert!(
         err.starts_with("error[E0501]: cannot compare task and task\n  --> -e:3:9\n"),
         "{err}"
@@ -166,7 +163,7 @@ fn a_task_that_cancels_itself_stops_at_its_next_call() {
 #[test]
 fn an_await_timeout_does_not_hide_a_later_failure() {
     let (out, _, code) = run(
-        "(go_tx, go) = channel()\nsupervise(fn(s):\n  t = spawn(s, fn(): recv(go); fail(\"later\") ;;)\n  print(timeout(() => await(t), 1ms))\n  send(go_tx, nil)\n  print(await(t))\n;;, e => nil)",
+        "(go_tx, go) = channel()\nsupervise(fn(s):\n  t = spawn(s, fn(): recv(go); fail(\"later\") ;;)\n  print(timeout(() => await(t), 1ms))\n  send(go_tx, nil)\n  print(await(t))\n;;, _e => nil)",
     );
     assert_eq!(
         (out.as_str(), code),

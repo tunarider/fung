@@ -1,0 +1,3 @@
+# A `for` variable nobody reads is an error (D38).
+print(for x in [1, 2]: 0 ;;)
+# expect-error: E0239

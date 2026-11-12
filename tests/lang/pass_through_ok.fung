@@ -1,0 +1,31 @@
+# A function that can fail at run time returns a result (D65): the
+# functions that pass f's value through wrap it in Ok, so `!` and `?`
+# work whatever f returns, and an Err f returns is told from the runtime's.
+import conc
+import fs
+
+print(scope(s => await(spawn(s, () => 5))))
+# expect: Ok(Ok(5))
+print(scope(s => await(spawn(s, () => 5))!)!)
+# expect: 5
+print(supervise(_s => 1, _ => nil))
+# expect: Ok(1)
+print(timeout(() => 5, 1s))
+# expect: Ok(5)
+print(timeout(() => Err("mine"), 1s))
+# expect: Ok(Err("mine"))
+print(timeout(() => sleep(1s), 10ms))
+# expect: Err({kind: 'timeout, message: "timed out after 10ms"})
+r = fs.with_temp_dir(fn(d):
+  p = "${d}/a.txt"
+  fs.write(p, "hi")!
+  fs.with_open(p, f => read_line(f))
+;;)
+print(r)
+# expect: Ok(Ok(Ok("hi")))
+print(fs.with_open("/no/such/file", _f => 1) |> is_err)
+# expect: true
+print(conc.retry(() => Ok(5)))
+# expect: Ok(5)
+print(conc.pmap([1, 2], x => x * 10))
+# expect: [10, 20]

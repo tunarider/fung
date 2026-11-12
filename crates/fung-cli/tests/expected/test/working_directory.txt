@@ -7,10 +7,10 @@
 | ok   good.fung: only when it is the entry
 | 1 passed, 1 failed
 -- stderr
-| error[E0204]: undefined name `missing`
-|   --> broken.fung:1:10
-|   |
-| 1 | fn f() = missing + 1
-|   |          ^^^^^^^ not found in this scope
-|   |
+|   error[E0204]: undefined name `missing`
+|     --> broken.fung:1:10
+|     |
+|   1 | fn f() = missing + 1
+|     |          ^^^^^^^ not found in this scope
+|     |
 -- exit: 2

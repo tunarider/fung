@@ -1,0 +1,8 @@
+# A file with other errors shows only those: its unused names (E0239)
+# come once the rest is fixed, as many of them are the other errors' doing.
+import fs
+
+fn f():
+  unused = 1
+  nope
+;;

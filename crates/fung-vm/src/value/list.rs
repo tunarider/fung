@@ -21,8 +21,9 @@ pub struct List {
 #[derive(Clone)]
 enum Repr {
     Flat(Vec<Value>),
+    // Boxed so that a small list's head is the size of a `Vec` (VA37).
     Big {
-        vec: Pvec<Value>,
+        vec: Box<Pvec<Value>>,
         lo: usize,
         hi: usize,
     },
@@ -36,7 +37,7 @@ impl List {
                 repr: Repr::Flat(items),
             };
         }
-        let vec = Pvec::of(items);
+        let vec = Box::new(Pvec::of(items));
         let hi = vec.len();
         List {
             repr: Repr::Big { vec, lo: 0, hi },
@@ -54,18 +55,10 @@ impl List {
         }
     }
 
-    pub(crate) fn holds_mutable(&self) -> bool {
-        self.holds(Probe::Mutable)
-    }
-
-    /// Whether an item is an `Err` (a discarded list, 02): a big list
-    /// answers from its memo, so discarding versions of one long list
-    /// again and again does not scan it each time.
-    pub(crate) fn holds_err(&self) -> bool {
-        self.holds(Probe::Err)
-    }
-
-    fn holds(&self, p: Probe) -> bool {
+    /// Whether an item answers `p` (`Probed::has`): a big list answers
+    /// from its memo, so discarding versions of one long list again and
+    /// again does not scan it each time.
+    pub(crate) fn holds(&self, p: Probe) -> bool {
         match &self.repr {
             Repr::Flat(v) => v.iter().any(|x| x.has(p)),
             Repr::Big { vec, lo, hi } if *lo == 0 && *hi == vec.len() => vec.holds(p),
@@ -145,15 +138,15 @@ impl List {
         }
     }
 
-    /// Items `[lo, hi)`; callers check the bounds. A big result is a view
-    /// on the same vector; a small one, or one much smaller than the
-    /// vector it would keep alive, is copied out.
     /// Whether this list is a view into a shared vector (tests).
     #[cfg(test)]
     pub(crate) fn is_view(&self) -> bool {
         matches!(&self.repr, Repr::Big { lo, hi, vec } if *lo != 0 || *hi != vec.len())
     }
 
+    /// Items `[lo, hi)`; callers check the bounds. A big result is a view
+    /// on the same vector, or, much smaller than the vector it would keep
+    /// alive, a vector cut to its own leaves; a small one is copied out.
     pub fn slice(&self, lo: usize, hi: usize) -> List {
         assert!(lo <= hi && hi <= self.len(), "list slice out of range");
         let n = hi - lo;
@@ -165,6 +158,17 @@ impl List {
                     hi: base + hi,
                 },
             },
+            // A small part of a big vector: its own vector, cut from a
+            // copy of the tree in O(log n) (VA33), so it holds only the
+            // leaves its items are in.
+            Repr::Big { vec, lo: base, .. } if n > SMALL_MAX => {
+                let mut vec = vec.clone();
+                vec.truncate(base + hi);
+                vec.drop_front(base + lo);
+                List {
+                    repr: Repr::Big { vec, lo: 0, hi: n },
+                }
+            }
             _ => List::new(self.range(lo, hi).cloned().collect()),
         }
     }
@@ -186,7 +190,7 @@ impl List {
             }
             // a front slice that is most of its vector: cut the vector at
             // its end (O(log n), the leaves before stay shared) and grow
-            // it, so a list used as a stack (`s[..-1] + [x]`) stays cheap
+            // it, so a list used as a stack (`s[..len(s) - 1] + [x]`) stays cheap
             Repr::Big { vec, lo, hi } if (*hi - *lo) * 4 >= *hi => {
                 vec.truncate(*hi);
                 vec.push(x);

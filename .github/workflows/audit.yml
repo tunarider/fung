@@ -1,0 +1,47 @@
+# cargo-deny and cargo-audit once a week, so a new RustSec advisory for a
+# locked crate shows up without waiting for the next push (ci.yml runs the
+# same two on every push). Same tool versions and cache as ci.yml.
+# Run by hand: Actions -> audit -> "Run workflow" (or
+# `gh workflow run audit.yml`).
+name: audit
+
+on:
+  schedule:
+    # Mondays 03:17 UTC (off the hour, when scheduled runs pile up).
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_DENY_VERSION: 0.20.2
+      CARGO_AUDIT_VERSION: 0.22.2
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: toolchain
+        run: rustup show active-toolchain
+      - name: cache cargo-deny and cargo-audit
+        id: audit-tools
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cargo-audit-tools
+          key: audit-tools-deny-${{ env.CARGO_DENY_VERSION }}-audit-${{ env.CARGO_AUDIT_VERSION }}-${{ runner.os }}
+      - name: install cargo-deny and cargo-audit
+        if: steps.audit-tools.outputs.cache-hit != 'true'
+        run: cargo install --locked --root ~/.cargo-audit-tools cargo-deny@${CARGO_DENY_VERSION} cargo-audit@${CARGO_AUDIT_VERSION}
+      - name: check tool versions
+        run: |
+          export PATH="$HOME/.cargo-audit-tools/bin:$PATH"
+          cargo deny --version | grep -E "^cargo-deny ${CARGO_DENY_VERSION}$"
+          cargo audit --version | grep -E " ${CARGO_AUDIT_VERSION}$"
+      # Both run even when the other fails: each names different problems.
+      - name: cargo deny
+        id: deny
+        run: ~/.cargo-audit-tools/bin/cargo-deny check
+      - name: cargo audit
+        if: success() || steps.deny.outcome == 'failure'
+        run: ~/.cargo-audit-tools/bin/cargo-audit audit

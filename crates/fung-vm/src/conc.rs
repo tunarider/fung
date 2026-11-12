@@ -223,10 +223,14 @@ fn await_fn(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
 }
 
 /// `cancel(t)`: cancels the task and every task below it, or the scope
-/// (`vm/scope.rs`); a finished task is left as it is.
+/// (`vm/scope.rs`); a finished task is left as it is. A scope that has
+/// closed is E0706, as `spawn` into it (D66).
 fn cancel(_: &mut Task<'_>, args: Args) -> Result<Value, Stop> {
     match &args[0] {
         Value::Task(h) => h.cancel.cancel(),
+        Value::Scope(h) if !h.state.is_open() => {
+            return Err(nat::fail("E0706", vec![nat::s("cancel")]));
+        }
         Value::Scope(h) => h.state.cancel(),
         v => return Err(nat::wrong_arg("t", "task | scope", v)),
     }
@@ -437,9 +441,13 @@ impl Cont for ClosedWait {
 /// copy of the end.
 fn close(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
     // One `close` for what can be closed (SP10): a file handle closes on
-    // the pool, as `fs` did; a channel's sending end closes here.
+    // the pool, as `fs` did; a channel's sending end closes here. A
+    // closed one of either is `Err('closed)` (D72).
     match &args[0] {
         Value::File(_) => crate::native::fs::close_fn(t, args),
+        // A closed channel, by any end or because its receiving ends
+        // went, is a closed handle: closing it again is an Err (D72).
+        Value::Sender(e) if e.0.closed() => Ok(Flow::Done(err_kind("closed", "channel closed"))),
         Value::Sender(e) => {
             e.0.close();
             Ok(Flow::Done(nat::ok(Value::Nil)))

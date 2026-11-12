@@ -9,7 +9,9 @@
 //! Values that are discarded must do something (FE24): a name, a literal,
 //! a lambda, a partial application, or operators, fields, indexes, tuples,
 //! lists, maps and tag values of only those there is E0234. `nil` alone is exempt: it
-//! is how a branch says "nothing".
+//! is how a branch says "nothing". So is a discarded call of a builtin
+//! known to have no effect (D39: `put(m, k, v)` changes nothing), which
+//! resolve notes by position (`Pure`).
 //!
 //! A pass over the desugared tree, before names are resolved. `Place` says
 //! whether the node's value is used. A block's items before the last are
@@ -35,21 +37,43 @@ enum Place {
     Kept,
 }
 
+/// The calls of builtins known to have no effect, by `(line, col)`, with
+/// the name their error shows and where it is written (D39).
+pub(super) type Pure = std::collections::HashMap<(u32, u32), (String, Pos)>;
+
+/// What the walk carries: the pure calls, and the errors found.
+struct Ctx<'a> {
+    pure: &'a Pure,
+    errs: &'a mut Vec<Diag>,
+}
+
 /// Checks a file. `keep_value`: its last item is the REPL's value.
-pub(super) fn check_file(n: &Node, keep_value: bool, errs: &mut Vec<Diag>) {
+pub(super) fn check_file(n: &Node, keep_value: bool, pure: &Pure, errs: &mut Vec<Diag>) {
     let place = if keep_value {
         Place::Kept
     } else {
         Place::Discarded
     };
-    check(n, place, errs);
+    check(n, place, &mut Ctx { pure, errs });
 }
 
-fn check(n: &Node, place: Place, errs: &mut Vec<Diag>) {
+fn check(n: &Node, place: Place, cx: &mut Ctx<'_>) {
     if place == Place::Discarded && pointless(n) {
-        errs.push(discarded(n, None));
+        cx.errs.push(discarded(n, None));
         // Still check what it holds (a lambda's body), as a value.
-        return check(n, Place::Used, errs);
+        return check(n, Place::Used, cx);
+    }
+    if place == Place::Discarded
+        && n.head == Head::Call
+        && let Some((name, at)) = cx.pure.get(&(n.pos.line, n.pos.col))
+    {
+        cx.errs.push(
+            error("E0234", *at, vec![Arg::Str(format!("the result of `{name}(…)`"))])
+                .span(rune_len(name))
+                .with_help(&format!(
+                    "`{name}` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose"
+                )),
+        );
     }
     let used = place == Place::Used;
     match n.head {
@@ -57,30 +81,31 @@ fn check(n: &Node, place: Place, errs: &mut Vec<Diag>) {
         Head::Do if partial_shape(n) => {
             let (f, lets) = n.kids.split_last().expect("a partial has its lambda");
             for l in lets {
-                check(l, Place::Discarded, errs);
+                check(l, Place::Discarded, cx);
             }
-            check(f, Place::Used, errs);
+            check(f, Place::Used, cx);
         }
         Head::Do => {
             let last = n.kids.len().saturating_sub(1);
             for (i, k) in n.kids.iter().enumerate() {
                 if i == last && !hidden(k) {
-                    check(k, place, errs);
+                    check(k, place, cx);
                 } else if pointless(k) {
                     // Knowing the next statement explains a `- 2` line.
-                    errs.push(discarded(k, n.kids.get(i + 1)));
-                    check(k, Place::Used, errs);
+                    cx.errs.push(discarded(k, n.kids.get(i + 1)));
+                    check(k, Place::Used, cx);
                 } else {
-                    check(k, Place::Discarded, errs);
+                    check(k, Place::Discarded, cx);
                 }
             }
             if used {
                 match n.kids.iter().rev().find(|k| !hidden(k)) {
-                    None => errs.push(not_a_value(n.pos, "is empty".into())),
+                    None => cx.errs.push(not_a_value(n.pos, "is empty".into())),
                     Some(k) if k.head == Head::Assert => {
-                        errs.push(not_a_value(k.pos, "ends with `assert`".into()).span(6));
+                        cx.errs
+                            .push(not_a_value(k.pos, "ends with `assert`".into()).span(6));
                     }
-                    Some(k) if k.head == Head::Fn && !fn_name(k).is_empty() => errs.push(
+                    Some(k) if k.head == Head::Fn && !fn_name(k).is_empty() => cx.errs.push(
                         not_a_value(
                             k.pos,
                             format!("ends with the definition of `{}`", fn_name(k)),
@@ -104,12 +129,12 @@ fn check(n: &Node, place: Place, errs: &mut Vec<Diag>) {
                     Head::Pwild => not_a_value(t.pos, "ends with an assignment to `_`".into()),
                     _ => not_a_value(t.pos, "ends with an assignment to a pattern".into()),
                 };
-                errs.push(e);
+                cx.errs.push(e);
             }
-            check(&n.kids[1], Place::Used, errs);
+            check(&n.kids[1], Place::Used, cx);
         }
         Head::If => {
-            check(&n.kids[0], Place::Used, errs);
+            check(&n.kids[0], Place::Used, cx);
             // `a and b`, `a or b` and `c then a else b` (no blocks) are
             // operators: their operands are used.
             let branch = if n.kids[1].head == Head::Do {
@@ -118,39 +143,39 @@ fn check(n: &Node, place: Place, errs: &mut Vec<Diag>) {
                 Place::Used
             };
             for b in &n.kids[1..] {
-                check(b, branch, errs);
+                check(b, branch, cx);
             }
             // Only a block if can lack else: the parser gives it a nil leaf.
             if used && n.kids[1].head == Head::Do && n.kids[2].head == Head::Nil {
-                errs.push(error("E0223", n.pos, vec![]).span(2));
+                cx.errs.push(error("E0223", n.pos, vec![]).span(2));
             }
         }
         Head::Match => {
-            check(&n.kids[0], Place::Used, errs);
+            check(&n.kids[0], Place::Used, cx);
             for arm in &n.kids[1..] {
-                check(&arm.kids[1], Place::Used, errs);
-                check(&arm.kids[2], place, errs);
+                check(&arm.kids[1], Place::Used, cx);
+                check(&arm.kids[2], place, cx);
             }
         }
-        Head::Fn => function(n, Place::Used, errs),
+        Head::Fn => function(n, Place::Used, cx),
         // `fung test` discards what a test block returns (E0606 for an Err).
         // A discarded `==` there is most likely a missing `assert`.
         Head::Test => {
-            let from = errs.len();
-            function(&n.kids[0], Place::Discarded, errs);
-            for e in &mut errs[from..] {
+            let from = cx.errs.len();
+            function(&n.kids[0], Place::Discarded, cx);
+            for e in &mut cx.errs[from..] {
                 if e.code == "E0234" && e.help.as_deref() == Some(EQ_HELP) {
                     e.help = Some(TEST_EQ_HELP.to_string());
                 }
             }
         }
         Head::Call => {
-            check(&n.kids[0], Place::Used, errs);
+            check(&n.kids[0], Place::Used, cx);
             for k in &n.kids[1..] {
                 if k.head == Head::Fn && for_body(k) {
-                    function(k, place, errs);
+                    function(k, place, cx);
                 } else {
-                    check(k, Place::Used, errs);
+                    check(k, Place::Used, cx);
                 }
             }
         }
@@ -158,19 +183,19 @@ fn check(n: &Node, place: Place, errs: &mut Vec<Diag>) {
         Head::Import | Head::Typealias => {}
         _ => {
             for k in &n.kids {
-                check(k, Place::Used, errs);
+                check(k, Place::Used, cx);
             }
         }
     }
 }
 
 /// A function: its defaults are used, its body's last item is in `body`.
-fn function(n: &Node, body: Place, errs: &mut Vec<Diag>) {
+fn function(n: &Node, body: Place, cx: &mut Ctx<'_>) {
     let (b, defaults) = n.kids.split_last().expect("fn has a body");
     for d in defaults {
-        check(d, Place::Used, errs);
+        check(d, Place::Used, cx);
     }
-    check(b, body, errs);
+    check(b, body, cx);
 }
 
 /// An effect-free value that is an error where it is discarded: all but
@@ -241,7 +266,7 @@ fn partial_shape(n: &Node) -> bool {
                 && lets.iter().all(|l| {
                     l.head == Head::Let
                         && l.kids[0].head == Head::Name
-                        && lit_str(&l.kids[0]).starts_with('$')
+                        && crate::tree::is_hidden(lit_str(&l.kids[0]))
                 })
         }
         None => false,
@@ -302,7 +327,9 @@ fn for_body(n: &Node) -> bool {
 /// The assignment that unpacks a pattern parameter at the top of a body
 /// (`desugar::fn_node`): its value is a hidden `$` name.
 fn hidden(n: &Node) -> bool {
-    n.head == Head::Let && n.kids[1].head == Head::Name && lit_str(&n.kids[1]).starts_with('$')
+    n.head == Head::Let
+        && n.kids[1].head == Head::Name
+        && crate::tree::is_hidden(lit_str(&n.kids[1]))
 }
 
 /// E0224: a block used as a value that `what` (is empty, ends with a

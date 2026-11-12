@@ -1,4 +1,5 @@
-# An imported module's warnings are shown too, before the importer's.
+# An imported module's unused names are errors too (D38); its public
+# names are its interface.
 import fs
 
 fn helper():

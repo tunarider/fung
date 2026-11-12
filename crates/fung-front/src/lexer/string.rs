@@ -1,6 +1,8 @@
 //! String, raw string and symbol literals.
 
-use super::{Kind, Lexer, Part, Token, is_hex_digit, is_ident_part, is_ident_start};
+use super::{
+    Kind, Lexer, Part, Token, is_bidi_control, is_hex_digit, is_ident_part, is_ident_start,
+};
 use crate::diag::{Arg, Diag};
 use crate::source::Pos;
 use crate::text::Unit;
@@ -67,6 +69,21 @@ impl Lexer<'_> {
                     Unit::Char(c) => text.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes()),
                     Unit::Byte(b) => text.push(b),
                 },
+                // `$name` reads like interpolation but is not (D47).
+                Some('$') if is_ident_start(self.peek_at(1)) => {
+                    let at = self.pos();
+                    self.advance();
+                    let name = self.ident_text();
+                    let help =
+                        format!("write `${{{name}}}` for the value, or `\\${name}` for the text");
+                    return Err(self
+                        .err("E0129", at, &name)
+                        .with_help(&help)
+                        .span(name.chars().count() + 1));
+                }
+                Some(c) if is_bidi_control(c) => {
+                    return Err(self.bidi_error());
+                }
                 Some('$') if self.peek_at(1) == Some('{') => {
                     self.advance();
                     self.advance();
@@ -220,24 +237,36 @@ impl Lexer<'_> {
         }
     }
 
-    /// Lexes a `` `...` `` string: no escapes, no interpolation, newlines allowed.
+    /// Lexes a `` `...` `` string: no escapes, no interpolation, newlines
+    /// allowed. A line end is `\n` in the value whether the file ends its
+    /// lines with `\n` or `\r\n` (D58).
     pub(super) fn raw_str(&mut self) -> Result<(), Diag> {
         let p = self.pos();
         self.advance();
         let start = self.off;
         while self.peek() != Some('`') {
-            if self.peek().is_none() {
-                return Err(self.err_no_arg("E0104", p));
+            match self.peek() {
+                None => return Err(self.err_no_arg("E0104", p)),
+                Some(c) if is_bidi_control(c) => return Err(self.bidi_error()),
+                _ => {}
             }
             self.advance();
         }
-        let text = self.src[start..self.off].to_string();
+        let text = self.src[start..self.off].replace("\r\n", "\n");
         self.advance();
         self.emit(Kind::RawString, &text, p);
         Ok(())
     }
 
-    /// Lexes `'name`.
+    /// E0101 at a bidirectional control character (D59).
+    pub(super) fn bidi_error(&self) -> Diag {
+        let c = self.peek().unwrap_or_default();
+        self.err("E0101", self.pos(), &c.to_string())
+            .with_help("a bidirectional control shows text in another order than it reads; in a string, write it as an escape: `\\u{202E}`")
+    }
+
+    /// Lexes `'name`. A symbol starting with an uppercase letter is
+    /// written as the tag (D41): one notation for one value.
     pub(super) fn symbol(&mut self) -> Result<(), Diag> {
         let p = self.pos();
         self.advance();
@@ -253,6 +282,14 @@ impl Lexer<'_> {
         }
         // A symbol is a name: its text is the NFC form (01).
         let text = crate::unicode::nfc(&self.src[start..self.off]).into_owned();
+        if text.chars().next().is_some_and(crate::unicode::is_upper) {
+            let help =
+                format!("an uppercase symbol is written as the tag, without the quote: `{text}`");
+            return Err(self
+                .err("E0128", p, &text)
+                .with_help(&help)
+                .span(text.chars().count() + 1));
+        }
         self.emit(Kind::Symbol, &text, p);
         Ok(())
     }
@@ -336,10 +373,67 @@ mod tests {
 
     #[test]
     fn symbols() {
-        let (toks, _) = lex_src("'ok 'not_found 'Red").unwrap();
-        for (i, want) in ["ok", "not_found", "Red"].iter().enumerate() {
+        let (toks, _) = lex_src("'ok 'not_found '_x 'é").unwrap();
+        for (i, want) in ["ok", "not_found", "_x", "é"].iter().enumerate() {
             assert_eq!((toks[i].kind, toks[i].text.as_str()), (Kind::Symbol, *want));
         }
+    }
+
+    /// One notation for a symbol (D41): `'Red` is written `Red`.
+    #[test]
+    fn an_uppercase_symbol_is_written_as_the_tag() {
+        let d = lex_src("x = 'Red").unwrap_err();
+        assert_eq!((d.code.as_str(), d.pos.col), ("E0128", 5));
+        assert!(d.help.unwrap_or_default().contains("`Red`"));
+    }
+
+    /// `$` before a name is not interpolation (D47); other `$` are text.
+    /// A raw string has no interpolation at all.
+    #[test]
+    fn a_dollar_before_a_name_is_an_error() {
+        for (src, col) in [
+            (r#""$x""#, 2),
+            (r#""a $HOME b""#, 4),
+            (r#""${x} $_y""#, 7),
+            (r#""$é""#, 2),
+        ] {
+            let d = lex_src(src).unwrap_err();
+            assert_eq!((d.code.as_str(), d.pos.col), ("E0129", col), "{src}");
+        }
+        let d = lex_src(r#""$name""#).unwrap_err();
+        let help = d.help.unwrap_or_default();
+        assert!(
+            help.contains("${name}") && help.contains("\\$name"),
+            "{help}"
+        );
+        for src in [r#""$5 $ $$ $( \$x""#, "`$x`", r#""${x}$""#] {
+            assert!(lex_src(src).is_ok(), "{src}");
+        }
+    }
+
+    /// `\r\n` in a raw string is a line end, `\n` like any other (D58).
+    #[test]
+    fn crlf_in_a_raw_string_is_a_newline() {
+        let t = one("`a\r\nb\r\n`");
+        assert_eq!(t.text, "a\nb\n");
+    }
+
+    /// Bidirectional controls in strings and comments are E0101 (D59):
+    /// the text would show in another order than it reads.
+    #[test]
+    fn bidi_controls_are_refused() {
+        for c in ['\u{202A}', '\u{202E}', '\u{2066}', '\u{2069}'] {
+            for src in [
+                format!("x = 1 # a{c}b"),
+                format!("x = \"a{c}b\""),
+                format!("x = `a{c}b`"),
+            ] {
+                let d = lex_src(&src).unwrap_err();
+                assert_eq!(d.code, "E0101", "{src:?}");
+            }
+        }
+        // written as an escape, it is a value like any other
+        assert!(lex_src(r#"x = "\u{202E}""#).is_ok());
     }
 
     #[test]

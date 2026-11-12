@@ -25,7 +25,7 @@ description: fung prelude 타입과 변환: type_of, int, float, str, sym, sym_n
 
 돌려주는 심볼은 [값과 타입](../language/values.html) 표의 이름이다: `'int` `'float` `'str` `'bool` `'nil` `'sym` `'dur` `'time` `'list` `'map` `'tuple` `'range` `'fn` `'module` `'file` `'task` `'scope` `'sender` `'receiver` `'atom`. 내장 함수와 람다는 모두 `'fn`이다.
 
-태그 값(`Ok(1)`, `Circle(3)`)은 태그 이름 자체가 타입이라 `'Ok`, `'Circle`을 돌려준다. 그래서 결과값인지 가리는 [`is_ok`](results.html#fn-is_ok)는 `type_of(x) == 'Ok`로 쓰여 있다.
+태그 값(`Ok(1)`, `Circle(3)`)은 태그 이름 자체가 타입이라 `Ok`, `Circle`이라는 심볼을 돌려준다(`type_of(Circle(3)) == Circle`). 결과값의 이름은 맨 `Ok`로 쓸 수 없으므로(E0236) 결과값인지는 [`is_ok`](results.html#fn-is_ok)·`is_err`로 가린다.
 
 값의 모양에 따라 갈라지는 코드는 보통 `match`가 더 읽기 좋다. `type_of`는 에러 메시지에 타입을 보여 주거나, 여러 타입을 받는 함수의 입구에서 검사할 때 쓴다.
 
@@ -226,7 +226,7 @@ print("found ${n} hosts")
 
 :::box mistake 외부 입력을 그대로 심볼로 만들지 않는다
 
-만든 심볼은 프로그램이 끝날 때까지 해제되지 않는다. 요청 값이나 로그의 낱말처럼 종류에 끝이 없는 입력을 `sym`에 넣으면 메모리가 계속 는다. 정해진 몇 개의 이름(상태, 명령 이름)만 바꾸고, 나머지는 문자열로 다룬다.
+만든 심볼은 프로그램이 끝날 때까지 해제되지 않는다. 요청 값이나 로그의 낱말처럼 종류에 끝이 없는 입력을 `sym`에 넣으면 메모리가 계속 는다. 정해진 몇 개의 이름(상태, 명령 이름)만 바꾸고, 나머지는 문자열로 다룬다. `sym`은 실패를 `Err`로 돌려주지 않고 런타임 에러(E0513)로 멈추므로, 바깥 글은 먼저 허용 목록으로 검사한 뒤 바꾼다: `if state in ["ok", "failed"]: sym(state) else: …`.
 
 :::
 

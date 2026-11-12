@@ -1,0 +1,4 @@
+# A tuple is no JSON value (D80): write a list.
+import json
+print(json.stringify({k: (2,)}))
+# expect-error: E0513

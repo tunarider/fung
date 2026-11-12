@@ -1,0 +1,5 @@
+# conc.retry looks at f's result to decide whether to try again (D65): f
+# returns a result.
+import conc
+print(conc.retry(() => 5))
+# expect-error: E0605

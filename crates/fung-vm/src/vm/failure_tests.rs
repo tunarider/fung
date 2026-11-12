@@ -135,7 +135,7 @@ fn a_deadlock_after_the_last_runner_finishes() {
     // The sender finishes without sending: the receiver is left alone.
     let o = within(10, || {
         exec(
-            "(_tx, ch) = channel()\nscope(fn(s):\n  t = spawn(s, () => 1)\n  print(recv(ch))\n;;)",
+            "(_tx, ch) = channel()\nscope(fn(s):\n  _t = spawn(s, () => 1)\n  print(recv(ch))\n;;)",
             Opts::default(),
         )
     });
@@ -159,7 +159,7 @@ fn a_deadlock_after_the_last_runner_finishes() {
     let ok = within(10, || {
         on_big_stack(|| {
             let s = setup(
-                "fn spin(n) = n == 0 then 0 else spin(n - 1)\ntest \"waits for a worker\":\n  assert scope(s => await(spawn(s, () => spin(300000)))) == 0\n;;",
+                "fn spin(k) = k == 0 then 0 else spin(k - 1)\ntest \"waits for a worker\":\n  assert scope(s => await(spawn(s, () => spin(300000)))!)! == 0\n;;",
                 Opts {
                     tests: true,
                     ..Opts::default()
@@ -183,7 +183,7 @@ fn a_deadlock_after_the_last_runner_finishes() {
 fn a_woken_task_that_has_not_run_is_not_blocked() {
     let o = within(10, || {
         exec_waiting(
-            "(tx, ch) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(ch))\n  blocked(ch, 1)\n  send(tx, 1)\n;;)",
+            "(tx, ch) = channel()\nscope(fn(s):\n  _t = spawn(s, () => recv(ch))\n  blocked(ch, 1)\n  send(tx, 1)\n;;)",
         )
     });
     assert_eq!((o.err.as_str(), o.exit), ("", 0));
@@ -233,7 +233,7 @@ fn a_wait_outside_the_token_is_not_blocked() {
 fn a_mutual_wait_is_reported_at_once() {
     let start = Instant::now();
     let (_, err, code) = run_within(
-        "(a_tx, a) = channel()\n(b_tx, b) = channel()\nscope(fn(s):\n  t = spawn(s, fn(): recv(a); send(b_tx, 1) ;;)\n  recv(b)\n  send(a_tx, 1)\n;;)",
+        "(a_tx, a) = channel()\n(b_tx, b) = channel()\nscope(fn(s):\n  _t = spawn(s, fn(): recv(a); send(b_tx, 1) ;;)\n  recv(b)\n  send(a_tx, 1)\n;;)",
     );
     assert_eq!((report_heads(&err).as_str(), code), (DEADLOCK, 1));
     assert!(start.elapsed() < Duration::from_millis(500));
@@ -291,7 +291,7 @@ fn an_entry_error_beside_a_blocked_task_is_not_a_deadlock() {
 fn an_entry_error_beside_a_task_about_to_block_is_not_a_deadlock() {
     let o = within(10, || {
         exec_waiting(
-            "(go_tx, go) = channel(1)\n(ready_tx, ready) = channel(1)\n(_tx, never) = channel()\nscope(fn(s):\n  spawn(s, fn(): send(ready_tx, nil); until(() => buffered(go) > 0); recv(never) ;;)\n  recv(ready)\n  send(go_tx, true)\n  hold(5)\n  fail(\"real error\")\n;;)",
+            "(go_tx, go) = channel(1)\n(ready_tx, ready) = channel(1)\n(_tx, never) = channel()\nscope(fn(s):\n  spawn(s, fn(): send(ready_tx, nil); wait_for(() => buffered(go) > 0); recv(never) ;;)\n  recv(ready)\n  send(go_tx, true)\n  hold(5)\n  fail(\"real error\")\n;;)",
         )
     });
     assert!(o.err.starts_with("error[E0803]: real error\n"), "{}", o.err);

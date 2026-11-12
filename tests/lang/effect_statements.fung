@@ -2,8 +2,8 @@
 fn cleanup() = print("cleaned")
 cleanup()
 # expect: cleaned
-x = 1
-x = x + 1
+one = 1
+x = one + 1
 assert x == 2
 _ = x == 2
 _ = print(1, _)

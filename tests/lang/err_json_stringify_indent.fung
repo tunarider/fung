@@ -1,0 +1,4 @@
+# `indent` is at least 1 (D80): 0 would be the same as none.
+import json
+print(json.stringify([1], 0))
+# expect-error: E0403

@@ -21,7 +21,7 @@ fn atoms_hold_swap_and_reset() {
 fn concurrent_swaps_lose_no_update() {
     assert_eq!(
         run(
-            "a = atom(0)\nfn spin(n) = n == 0 then 0 else spin(n - 1)\nscope(fn(s): each(0..2, _ => spawn(s, () => each(0..10000, _ => swap(a, fn(x): spin(20); x + 1 ;;)))) ;;)\nprint(deref(a))"
+            "a = atom(0)\nfn spin(k) = k == 0 then 0 else spin(k - 1)\nscope(fn(s): each(0..2, _ => spawn(s, () => each(0..10000, _ => swap(a, fn(x): spin(20); x + 1 ;;)))) ;;)\nprint(deref(a))"
         ),
         ("20000\n".into(), "".into(), 0)
     );
@@ -50,7 +50,7 @@ fn a_turn_ending_inside_a_swap_is_given_after_it() {
 #[test]
 fn a_long_swap_ends_its_turns_once_a_turn() {
     let o = crate::testutil::exec_waiting(
-        "a = atom(0)\nfn spin(n) = n == 0 then 0 else spin(n - 1)\nn = turn_ends()\nswap(a, x => spin(20000))\nprint(turn_ends() - n <= 30)",
+        "a = atom(0)\nfn spin(k) = k == 0 then 0 else spin(k - 1)\nn = turn_ends()\nswap(a, _x => spin(20000))\nprint(turn_ends() - n <= 30)",
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("true\n", ""));
 }
@@ -85,7 +85,7 @@ fn blocking_spawning_and_other_atoms_are_effects() {
         ("[1] |> map(dbg)", "dbg"),
     ] {
         let src = format!(
-            "(_tx, rx) = channel()\na = atom(1)\nb = atom(2)\nswap(a, fn(x): {body}; x ;;)"
+            "(_tx, rx) = channel()\na = atom(1)\nb = atom(2)\n_both = [rx, b]\nswap(a, fn(x): {body}; x ;;)"
         );
         let (_, err, code) = run(&src);
         assert!(
@@ -100,7 +100,7 @@ fn blocking_spawning_and_other_atoms_are_effects() {
 fn reads_are_not_effects() {
     assert_eq!(
         run(
-            "import time\na = atom(1)\nb = atom(5)\nprint(swap(a, fn(x): t = time.now(); h = env(\"HOME\"); x + deref(b) + len(upper(\"ab\")) ;;))"
+            "import time\na = atom(1)\nb = atom(5)\nprint(swap(a, fn(x): _t = time.now(); _h = env(\"HOME\"); x + deref(b) + len(upper(\"ab\")) ;;))"
         ),
         ("8\n".into(), "".into(), 0)
     );
@@ -137,7 +137,7 @@ fn an_atom_cannot_hold_mutable_things() {
 fn a_failing_f_leaves_the_state() {
     assert_eq!(
         run(
-            "a = atom(1)\nsupervise(s => spawn(s, () => swap(a, x => x / 0)), e => nil)\nprint(deref(a))"
+            "a = atom(1)\nsupervise(s => spawn(s, () => swap(a, x => x / 0)), _e => nil)\nprint(deref(a))"
         ),
         ("1\n".into(), "".into(), 0)
     );
@@ -199,14 +199,14 @@ fn the_effect_table() {
 #[test]
 fn an_error_in_f_is_reported_inside_f() {
     let o = exec(
-        "a = atom(1)\nprint(2)\ng = x => [swap(a, y => y / 0)]\nx = g(1)",
+        "a = atom(1)\nprint(2)\ng = _v => [swap(a, y => y / 0)]\n_x = g(1)",
         Opts::default(),
     );
     assert_eq!(o.out, "2\n");
     let e = o.error.expect("an error");
     assert_eq!(
         (e.headline.as_str(), e.line, e.col),
-        ("error[E0502]: division by zero", 3, 26),
+        ("error[E0502]: division by zero", 3, 27),
         "{}",
         o.err
     );
@@ -349,19 +349,19 @@ fn e0707_names_what_the_user_called() {
 fn e0707_names_the_called_function_through_tail_calls() {
     for (src, name) in [
         (
-            "import http\na = atom(0)\nswap(a, x => http.get(\"http://127.0.0.1:1/\"))",
+            "import http\na = atom(0)\nswap(a, _x => http.get(\"http://127.0.0.1:1/\"))",
             "`http.get`",
         ),
         (
-            "import conc\na = atom(0)\nswap(a, x => conc.pmap([1], y => y))",
+            "import conc\na = atom(0)\nswap(a, _x => conc.pmap([1], y => y))",
             "`conc.pmap`",
         ),
         (
-            "(tx, rx) = channel(1)\na = atom(0)\nswap(a, x => take(rx, 1))",
+            "(_tx, rx) = channel(1)\na = atom(0)\nswap(a, _x => take(rx, 1))",
             "`take`",
         ),
         (
-            "(tx, rx) = channel(1)\na = atom(0)\nswap(a, x => first(rx))",
+            "(_tx, rx) = channel(1)\na = atom(0)\nswap(a, _x => first(rx))",
             "`first`",
         ),
     ] {
@@ -378,7 +378,7 @@ fn e0707_names_the_called_function_through_tail_calls() {
 #[test]
 fn a_regex_inside_a_swap_compiles_in_place() {
     let o = exec(
-        "import regex\na = atom(0)\nn = offloads()\nprint(swap(a, x => if regex.is_match(\"q12\", \"q[0-9]+z?\"): 1 else: 2 ;;), offloads() - n)",
+        "import regex\na = atom(0)\nn = offloads()\nprint(swap(a, _x => if regex.is_match(\"q12\", \"q[0-9]+z?\"): 1 else: 2 ;;), offloads() - n)",
         crate::testutil::Opts {
             extra: crate::testutil::probes,
             ..crate::testutil::Opts::default()
@@ -391,7 +391,7 @@ fn a_regex_inside_a_swap_compiles_in_place() {
 /// `_native.fs.read`) is named with its module too.
 #[test]
 fn e0707_names_a_direct_native_with_its_module() {
-    let (_, err, _) = run("import fs\na = atom(0)\nswap(a, x => fs.read(\"/nope\"))");
+    let (_, err, _) = run("import fs\na = atom(0)\nswap(a, _x => fs.read(\"/nope\"))");
     assert!(err.contains("`fs.read` has an effect"), "{err}");
 }
 
@@ -434,7 +434,7 @@ fn every_listed_name_exists() {
 /// the same under `for`, `map` or `fold`.
 #[test]
 fn e0506_help_does_not_name_a_verb() {
-    let (_, err, _) = run("(tx, rx) = channel()\nfold(tx, 0, (a, x) => a)");
+    let (_, err, _) = run("(tx, _rx) = channel()\nfold(tx, 0, (a, _x) => a)");
     assert!(
         err.contains("a sending end (`tx`) cannot be read; go over the receiving end (`rx`)"),
         "{err}"
@@ -451,7 +451,7 @@ fn e0707_names_a_direct_native_by_its_standard_module() {
             ("/p/util.fung", "import fs\nr = fs.read\n"),
             (
                 "/p/main.fung",
-                "import \"./util\"\nimport fs\na = atom(0)\nswap(a, x => fs.read(\"/nope\"))",
+                "import \"./util\"\nimport fs\n_u = util\na = atom(0)\nswap(a, _x => fs.read(\"/nope\"))",
             ),
         ],
         "/p/main.fung",

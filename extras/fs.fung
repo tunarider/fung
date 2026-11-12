@@ -22,8 +22,8 @@ write_line = _n.write_line
 fn read_lines(path: str) = Ok(lines(_n.read(path)?))
 
 # Opens path, calls f with the handle, and always closes it (03: a
-# `with`). f's result — a value or the Err that `?` returned — is passed
-# through.
+# `with`). The value is Ok of f's result (D65: the open can fail, so it
+# is a result), or the Err the open gave.
 #
 # The handle is opened inside the `with` (05), so nothing can come between
 # opening and the promise to close it. A close that fails (a write that
@@ -37,9 +37,10 @@ fn with_open(path: str, f: fn, mode: sym = 'read, perm: int | nil = nil) = with(
 # removal that fails is a runtime error.
 fn with_temp_dir(f: fn) = with(() => _n.temp_dir(), r => _with_ok(r, f), r => _remove_made(r))
 
-# f of what was acquired, or the Err acquiring gave.
+# Ok of f of what was acquired, or the Err acquiring gave: the value can
+# be the runtime's Err, so it is a result (D65).
 fn _with_ok(r, f) = match r:
-  Ok(x) => f(x)
+  Ok(x) => Ok(f(x))
   e     => e
 ;;
 

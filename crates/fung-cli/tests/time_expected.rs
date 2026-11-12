@@ -41,16 +41,22 @@ for n in [1772953200 - 1, 1772953200, 1772955000, 1793512800 - 1, 1793512800, 17
     r#"print(time.from_unix(4611686018427387904))"#,
     r#"print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"#,
     r#"print(time.from_unix("1"))"#,
-    // wall times the local zone skips or repeats, and the days around them
+    // wall times the local zone skips (an Err, D81) or repeats, and the
+    // days around them
     r#"for s in ["2026-03-08 01:59", "2026-03-08 02:00", "2026-03-08 02:30", "2026-03-08 03:00", "2026-11-01 00:59", "2026-11-01 01:00", "2026-11-01 01:30", "2026-11-01 02:00", "2026-11-01 02:30"]:
-  t = time.parse(s, "YYYY-MM-DD HH:mm")!
-  print(s, t, time.unix(t), time.parts(t), time.format(t, "HH:mm Z"), time.utc(t))
+  match time.parse(s, "YYYY-MM-DD HH:mm"):
+    Ok(t)  => print(s, t, time.unix(t), time.parts(t), time.format(t, "HH:mm Z"), time.utc(t))
+    Err(e) => print(s, e.message)
+  ;;
 ;;"#,
     // the 2026 Berlin changes (east of UTC): 2026-03-29 01:00 UTC skips
     // 02:00-03:00, 2026-10-25 01:00 UTC repeats 02:00-03:00
     r#"for s in ["2026-03-29 01:59", "2026-03-29 02:00", "2026-03-29 02:30", "2026-03-29 03:00", "2026-10-25 01:59", "2026-10-25 02:00", "2026-10-25 02:30", "2026-10-25 03:00"]:
-  t = time.parse(s, "YYYY-MM-DD HH:mm")!
-  print(s, t, time.unix(t), time.parts(t), time.format(t, "HH:mm Z"), time.utc(t))
+  match time.parse(s, "YYYY-MM-DD HH:mm"):
+    Ok(t)  => print(s, t, time.unix(t), time.parts(t), time.format(t, "HH:mm Z"), time.utc(t))
+    Err(e) => print(s, e.message)
+  ;;
+;;
 for n in [1774746000 - 1, 1774746000, 1792890000 - 1, 1792890000]:
   show = time.from_unix(n)
   print(show, time.parts(show), time.format(show, "HH:mm Z"))
@@ -171,32 +177,32 @@ fn an_unset_tz_reads_etc_localtime() {
     assert!(bad.is_empty(), "{} differ:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// East of UTC too, a skipped wall time moves forward by the gap and a
-/// repeated one is its earlier instant (06: 시간 형식).
+/// East of UTC too, a skipped wall time is no time (D81) and a repeated
+/// one is its earlier instant (06: 시간 형식).
 #[test]
 fn berlin_changes_follow_the_wall_time_rule() {
-    let src = r#"print(time.parse("2026-03-29 02:30", "YYYY-MM-DD HH:mm")!, time.parse("2026-10-25 02:30", "YYYY-MM-DD HH:mm")!)"#;
+    let src = r#"print(time.parse("2026-03-29 02:30", "YYYY-MM-DD HH:mm"), time.parse("2026-10-25 02:30", "YYYY-MM-DD HH:mm")!)"#;
     let (out, err, code) = run(&fung_bin(), src, Some("Europe/Berlin"));
     assert_eq!(
         (out.as_str(), err.as_str(), code),
         (
-            "2026-03-29T03:30:00+02:00 2026-10-25T02:30:00+02:00\n",
+            "Err({kind: 'parse, message: \"cannot parse `2026-03-29 02:30` as a time: no such local time: the clocks skip it (daylight saving)\"}) 2026-10-25T02:30:00+02:00\n",
             "",
             Some(0)
         )
     );
 }
 
-/// In New York the skipped 02:30 moves forward by the gap (03:30 daylight
-/// time), and the repeated 01:30 is its earlier (daylight) instant.
+/// In New York the skipped 02:30 is no time (D81), and the repeated
+/// 01:30 is its earlier (daylight) instant.
 #[test]
 fn new_york_changes_follow_the_wall_time_rule() {
-    let src = r#"print(time.parse("2026-03-08 02:30", "YYYY-MM-DD HH:mm")!, time.parse("2026-11-01 01:30", "YYYY-MM-DD HH:mm")!)"#;
+    let src = r#"print(time.parse("2026-03-08 02:30", "YYYY-MM-DD HH:mm"), time.parse("2026-11-01 01:30", "YYYY-MM-DD HH:mm")!)"#;
     let (out, err, code) = run(&fung_bin(), src, Some("America/New_York"));
     assert_eq!(
         (out.as_str(), err.as_str(), code),
         (
-            "2026-03-08T03:30:00-04:00 2026-11-01T01:30:00-04:00\n",
+            "Err({kind: 'parse, message: \"cannot parse `2026-03-08 02:30` as a time: no such local time: the clocks skip it (daylight saving)\"}) 2026-11-01T01:30:00-04:00\n",
             "",
             Some(0)
         )

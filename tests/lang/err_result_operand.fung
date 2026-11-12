@@ -1,0 +1,3 @@
+# A result used as a number: unwrap it first (VA39).
+print(parse_int("12") + 1)
+# expect-error: E0501

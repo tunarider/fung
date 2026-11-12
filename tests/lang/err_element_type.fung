@@ -1,0 +1,5 @@
+# A type annotation has no element type (D52): it would not be checked.
+fn count(xs: list, ...rest: list) -> int = len(xs) + len(rest)
+print(count([1], 2))
+fn f(x: list[int]) = x
+# expect-error: E0130

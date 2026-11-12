@@ -232,7 +232,7 @@ impl Channel {
         }
     }
 
-    fn closed(&self) -> bool {
+    pub(crate) fn closed(&self) -> bool {
         self.inner.borrow().closed
     }
 
@@ -292,7 +292,8 @@ impl Channel {
         drop(v);
     }
 
-    /// `close`: idempotent. Every blocked task wakes and sees `closed`;
+    /// Closes (again: nothing more; the prelude's `close` refuses a closed
+    /// channel first, D72). Every blocked task wakes and sees `closed`;
     /// the senders' values are dropped by their own tasks (with the slot).
     pub(crate) fn close(&self) {
         let (senders, receivers) = {

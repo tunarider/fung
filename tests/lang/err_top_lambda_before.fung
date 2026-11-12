@@ -2,4 +2,4 @@
 f = () => late
 # expect-error: E0204
 late = 1
-print(f())
+print(f(), late)

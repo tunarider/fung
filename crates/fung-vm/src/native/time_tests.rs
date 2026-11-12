@@ -224,7 +224,7 @@ fn parse_formats_name_each_field_once_and_check_the_weekday() {
             Value::str("YYYY-MM-DD ddd Z"),
         ],
     ));
-    assert!(r.starts_with("Err("), "{r}");
+    assert_eq!(r, "Ok(2026-01-02T00:00:00Z)");
     let r = code(call(
         "parse",
         vec![

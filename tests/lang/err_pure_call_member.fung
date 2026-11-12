@@ -1,0 +1,4 @@
+# A function of a standard module with no effect is the same (D39).
+import path
+path.join("a", "b")
+# expect-error: E0234

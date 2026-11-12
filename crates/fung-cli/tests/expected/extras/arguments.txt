@@ -36,6 +36,42 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
+==== cli.parse "import cli\nprint(cli.parse([], values: [1]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `values` must be a list of str, got a list holding int
+|   --> -e:2:16
+|   |
+| 2 | print(cli.parse([], values: [1]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== cli.parse "import cli\nprint(cli.parse([], values: [\"-x\"]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `values` must be a list of option names (letters, digits, `_` and `-`, from a letter or `_`), got "-x"
+|   --> -e:2:16
+|   |
+| 2 | print(cli.parse([], values: ["-x"]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== cli.parse "import cli\nprint(cli.parse([], [\"x\"], [\"x\"]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `values` must be a list of names not in `bools`, got "x"
+|   --> -e:2:16
+|   |
+| 2 | print(cli.parse([], ["x"], ["x"]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
 ==== conc.fan_in "import conc\nscope(s => conc.fan_in(s, 1))"
 -- stdout
 -- stderr
@@ -277,6 +313,18 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
+==== http.get "import http\nprint(http.get(\"http://127.0.0.1:1/\", redirects: -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `redirects` must be a non-negative int, got -1
+|   --> -e:2:15
+|   |
+| 2 | print(http.get("http://127.0.0.1:1/", redirects: -1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
 ==== http.post "import http\nprint(http.post(\"http://127.0.0.1:1/\", 1))"
 -- stdout
 -- stderr
@@ -430,9 +478,7 @@
 | 1 | print(is_ok())
 |   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== prelude.is_err "print(is_err())"
 -- stdout
 -- stderr
@@ -442,16 +488,14 @@
 | 1 | print(is_err())
 |   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
-==== prelude.until "print(until(1, 2, x => true))"
+-- exit: 2
+==== prelude.until "print(until(1, 2, _x => true))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:12
 |   |
-| 1 | print(until(1, 2, x => true))
+| 1 | print(until(1, 2, _x => true))
 |   |            ^
 |   |
 |  call path (innermost first):

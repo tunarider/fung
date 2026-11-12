@@ -89,7 +89,7 @@ fn cell(v):
   quote then &quot;\&quot;&quot; + replace(s, &quot;\&quot;&quot;, &quot;\&quot;\&quot;&quot;) + &quot;\&quot;&quot; else s
 ;;
 
-fn csv(rows) = ([columns] + map(rows, r =&gt; map(columns, c =&gt; get(r, c))))
+fn csv(records) = ([columns] + map(records, r =&gt; map(columns, c =&gt; get(r, c))))
   |&gt; map(cells =&gt; cells |&gt; map(cell) |&gt; join(&quot;,&quot;))
   |&gt; map(line =&gt; line + &quot;\n&quot;)
   |&gt; join

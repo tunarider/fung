@@ -52,24 +52,33 @@ impl Resolver<'_> {
         ];
         for (i, name) in im.names.iter().flatten().enumerate() {
             let pos = im.name_pos[i];
-            if name.starts_with('_') {
-                self.errs.push(
-                    error("E0304", pos, vec![str_arg(name), str_arg(&info.name)])
-                        .span(rune_len(name)),
-                );
-                continue;
-            }
-            if !info.exports.contains(name) {
-                self.errs.push(
-                    error("E0303", pos, vec![str_arg(&info.name), str_arg(name)])
-                        .span(rune_len(name)),
-                );
+            let e = if name.starts_with('_') {
+                Some(error(
+                    "E0304",
+                    pos,
+                    vec![str_arg(name), str_arg(&info.name)],
+                ))
+            } else if !info.exports.contains(name) {
+                Some(missing_member(&info.name, name, pos, &info.exports))
+            } else {
+                None
+            };
+            if let Some(e) = e {
+                self.errs.push(e.span(rune_len(name)));
+                // The name is bound all the same, so its uses are not
+                // reported again as undefined (FE61).
+                if self.bind_const(name, pos).is_some() {
+                    self.root_scope().used.insert(name.clone());
+                }
                 continue;
             }
             // A constant global, like a hoisted fn.
             if let Some(b) = self.bind_const(name, pos) {
-                if info.key == "conc" && name == "pmap" {
-                    self.pmap_globals.insert(b.index);
+                if let Some(sig) = info.sigs.get(name)
+                    && !self.opts.redefine
+                {
+                    self.global_sigs
+                        .insert(b.index, (name.clone(), sig.clone()));
                 }
                 kids.push(Node::with_lit(
                     Head::Member,
@@ -116,7 +125,7 @@ impl Resolver<'_> {
             self.errs.push(e.span(len));
             return None;
         }
-        self.warn_shadow(name, pos);
+        self.binds_fresh(name, pos, false, false);
         let b = Binding {
             global: true,
             index: self.globals.len(),
@@ -140,7 +149,7 @@ impl Resolver<'_> {
             self.errs.push(e);
             return None;
         }
-        self.warn_shadow(name, pos);
+        self.binds_fresh(name, pos, false, false);
         let b = Binding {
             global: true,
             index: self.globals.len(),
@@ -158,18 +167,6 @@ impl Resolver<'_> {
         self.import_bound.insert(name.to_string(), len);
     }
 
-    /// Reports E0308 when a new name would hide an imported module name
-    /// (04). Every place that creates a name calls it: assignment, fn,
-    /// params, patterns.
-    pub(super) fn check_shadow(&mut self, name: &str, pos: Pos) -> bool {
-        if self.module_names.contains_key(name) {
-            let e = self.shadow_error(name, pos);
-            self.errs.push(e);
-            return false;
-        }
-        true
-    }
-
     /// Reports a static member access on a module binding: private names
     /// are E0304, unknown names E0303 (04).
     pub(super) fn check_member(&mut self, target: &Node, member: &str, pos: Pos) {
@@ -184,10 +181,21 @@ impl Resolver<'_> {
         let e = if member.starts_with('_') {
             error("E0304", pos, vec![str_arg(member), str_arg(&info.name)])
         } else if !info.exports.iter().any(|x| x == member) {
-            error("E0303", pos, vec![str_arg(&info.name), str_arg(member)])
+            missing_member(&info.name, member, pos, &info.exports)
         } else {
             return;
         };
         self.errs.push(e.span(rune_len(member)));
+    }
+}
+
+/// E0303 for `member` missing from module `module`, with the member of a
+/// similar name if there is one, as an undefined variable gets (FE61).
+fn missing_member(module: &str, member: &str, pos: Pos, exports: &[String]) -> Diag {
+    let e = error("E0303", pos, vec![str_arg(module), str_arg(member)]);
+    let index = super::similar::Index::default();
+    match super::similar::similar(member, &index, exports.iter().map(String::as_str)) {
+        Some(s) => e.with_help(&format!("a similar name exists: `{s}`")),
+        None => e,
     }
 }

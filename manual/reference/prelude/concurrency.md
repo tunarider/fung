@@ -21,8 +21,8 @@ results = scope(fn(s):
       "${h} ok"
     ;;)
   ;;
-  map(tasks, await)
-;;)
+  map(tasks, t => await(t)!)
+;;)!
 print(results)
 print("faster than one by one:", time.monotonic() - start < 900ms)
 ```
@@ -43,6 +43,8 @@ fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. �
 
 ### 기다림의 실패 {#errs}
 
+실행 중에 실패할 수 있는 함수는 결과값을 돌려준다([결과값](../language/results.html)). `scope`·`supervise`·`await`·`timeout`은 넘긴 함수의 값을 내주지만 런타임이 `Err`(취소, 시간 초과, 태스크의 죽음)를 만들 수 있으므로, 성공하면 그 값을 `Ok`로 감싼다. 그래서 `await(t)!`·`scope(…)!`가 함수가 무엇을 돌려주든 되고, 함수가 돌려준 `Err`는 `Ok(Err(e))`로 런타임의 `Err`와 구별된다.
+
 이 페이지에서 `Err({kind: 'timeout})`처럼 `kind`만 적은 것은 패턴의 모양이다. 실제 값에는 다른 `Err`처럼 `message`도 있어서 `e.message`를 그대로 찍을 수 있다: 시간 초과는 `"timed out after 2s"`, 취소는 `"cancelled"`, 닫힌 채널은 `"channel closed"`. 맵 패턴은 적지 않은 키를 상관하지 않으므로 `Err({kind: 'timeout}) => …`으로 가른다.
 
 ```fung run
@@ -58,13 +60,13 @@ match r:
 
 :::fn scope(f)
 
-태스크 범위를 열고 `f(s)`를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 돌려준다.
+태스크 범위를 열고 `f(s)`를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 `Ok`로 감싸 돌려준다.
 
 #### 설명
 
-`s`는 태스크 범위 핸들이고, [`spawn(s, g)`](#fn-spawn)으로 이 범위에 태스크를 띄울 때 쓴다. `scope`는 본문 `f(s)`가 끝난 뒤에도 띄운 태스크가 모두 끝날 때까지 기다린다. 결과는 본문의 반환값이다. 태스크의 결과가 필요하면 본문에서 `await`한다.
+`s`는 태스크 범위 핸들이고, [`spawn(s, g)`](#fn-spawn)으로 이 범위에 태스크를 띄울 때 쓴다. `scope`는 본문 `f(s)`가 끝난 뒤에도 띄운 태스크가 모두 끝날 때까지 기다린다. 결과는 `Ok(본문의 반환값)`이다. 취소되면 런타임이 `Err`를 만들므로 결과는 늘 결과값이다([기다림의 실패](#errs)). 태스크의 결과가 필요하면 본문에서 `await`한다.
 
-**실패**: 태스크 하나가 런타임 에러로 죽으면 태스크 범위는 나머지 태스크와 본문을 취소하고, 모두 멈추기를 기다린 뒤 그 에러를 `scope`를 부른 자리에서 다시 낸다. 에러에는 `note: scope opened at …`가 붙어 어느 범위였는지 알려 준다. 함수가 `Err` **값**을 돌려준 것은 실패가 아니다(그냥 결과다). 한 태스크의 실패가 다른 태스크를 멈추지 않게 하려면 [`supervise`](#fn-supervise)를 쓴다.
+**실패**: 태스크 하나가 런타임 에러로 죽으면 태스크 범위는 나머지 태스크와 본문을 취소하고, 모두 멈추기를 기다린 뒤 그 에러를 `scope`를 부른 자리에서 다시 낸다. 에러에는 `note: scope opened at …`가 붙어 어느 범위였는지 알려 준다. 함수가 `Err` **값**을 돌려준 것은 실패가 아니다(그냥 결과다: `Ok(Err(e))`). 한 태스크의 실패가 다른 태스크를 멈추지 않게 하려면 [`supervise`](#fn-supervise)를 쓴다.
 
 **취소**: `cancel(s)`로 취소된 태스크 범위는 `Err({kind: 'cancelled})`를 돌려준다. 본문에서 스스로 `cancel(s)`하면 본문도 그 자리에서 멈춘다.
 
@@ -74,7 +76,7 @@ match r:
 
 #### 돌려주는 값
 
-본문 `f(s)`의 결과. 취소되었으면 `Err({kind: 'cancelled})`.
+`Ok(본문 f(s)의 결과)`. 취소되었으면 `Err({kind: 'cancelled})`.
 
 #### 에러
 
@@ -88,7 +90,7 @@ match r:
 r = scope(fn(s):
   a = spawn(s, () => 6 * 7)
   b = spawn(s, () => 1 + 1)
-  [await(a), await(b)]
+  [await(a)!, await(b)!]
 ;;)
 print(r)
 ```
@@ -133,6 +135,8 @@ print(scope(fn(s):
 ;;))
 ```
 
+바깥 `Ok`는 `scope`의, 그 안의 `Ok`는 `await`의 것이다. 태스크 함수가 돌려준 `Err`는 그 안에 그대로 있다.
+
 #### 같이 보기
 
 [`spawn`](#fn-spawn), [`await`](#fn-await), [`supervise`](#fn-supervise), [`conc.pmap`](../modules/conc.html#fn-conc-pmap)
@@ -158,7 +162,7 @@ print(scope(fn(s):
 
 #### 돌려주는 값
 
-본문 `f(s)`의 결과. 취소되었으면 `Err({kind: 'cancelled})`.
+`Ok(본문 f(s)의 결과)`. 취소되었으면 `Err({kind: 'cancelled})`.
 
 #### 에러
 
@@ -194,8 +198,8 @@ r = supervise(fn(s):
     spawn(s, () => h == "web-2" then fail("${h} unreachable") else "${h} ok")
   ;;
   map(tasks, await)
-;;, _ => nil)
-print(r |> filter(x => not is_err(x)))
+;;, _ => nil)!
+print(r |> filter(is_ok) |> map(x => x!))
 print(r |> filter(is_err) |> len, "failed")
 ```
 
@@ -213,11 +217,11 @@ print(r |> filter(is_err) |> len, "failed")
 
 #### 설명
 
-`f`는 인자 없는 함수다. 보통 그 자리의 람다로 쓰고, 태스크에 줄 값은 람다가 붙잡게 한다: `spawn(s, () => check(host))`. `spawn`은 곧바로 돌아오고, 태스크는 지금 태스크가 기다리는 틈에 돈다. 돌려받은 핸들(`<task>`, `type_of`는 `'task`)로 [`await`](#fn-await)하거나 [`cancel`](#fn-cancel)한다.
+`f`는 인자 없는 함수다. 보통 그 자리의 람다로 쓰고, 태스크에 줄 값은 람다가 붙잡게 한다: `spawn(s, () => check(host))`. `spawn`은 곧바로 돌아오고, 태스크는 지금 태스크가 차례를 넘길 때 돈다. 차례는 기다리는 자리(`await`, `recv`, `sleep` 등)와 호출 1,000번마다 넘어간다. 돌려받은 핸들(`<task>`, `type_of`는 `'task`)로 [`await`](#fn-await)하거나 [`cancel`](#fn-cancel)한다.
 
-태스크 범위가 기다리는 동안에는 태스크 안에서도 같은 범위에 `spawn`할 수 있다(일감이 일감을 낳는 경우). `scope(`가 이미 돌아온 범위에 `spawn`하면 E0706이다. 범위 핸들을 범위 밖으로 들고 나가도 쓸 수 없다는 뜻이다.
+태스크 범위가 기다리는 동안에는 태스크 안에서도 같은 범위에 `spawn`할 수 있다(일감이 일감을 낳는 경우). `scope(`가 이미 돌아온 범위에 `spawn`하면 E0706이다([`cancel`](#fn-cancel)도 같다). 범위 핸들을 범위 밖으로 들고 나가도 쓸 수 없다는 뜻이다.
 
-태스크의 함수가 `Err`를 돌려주면 누군가 `await`로 읽어야 한다. 핸들을 버려 아무도 읽을 수 없게 되면 버려진 `Err`처럼 E0607로 범위가 실패한다([`await`](#fn-await)). 결과가 필요 없는 일이면 함수를 `nil`로 맺는다: `spawn(s, fn(): _ = fs.remove(p); nil ;;)`.
+태스크의 함수가 `Err`를 돌려주면(`Err`가 든 값도) 누군가 `await`로 읽어야 한다. 핸들을 버려 아무도 읽을 수 없게 되면 버려진 `Err`처럼 E0607로 범위가 실패한다([`await`](#fn-await)). 결과가 필요 없는 일이면 함수를 `nil`로 맺는다: `spawn(s, fn(): _ = fs.remove(p); nil ;;)`.
 
 #### 매개변수
 
@@ -230,7 +234,7 @@ print(r |> filter(is_err) |> len, "failed")
 
 #### 에러
 
-닫힌 태스크 범위면 런타임 에러 E0706(`spawn into a closed scope`). 함수가 돌려준 `Err`를 아무도 읽지 않으면 이 자리를 가리키는 E0607(`task's Err was never awaited`)로 범위가 실패한다. 함수의 결과가 그 태스크 자신의 핸들에 닿으면(채널을 거쳐 받은 자기 핸들을 돌려줌) 해제할 수 없는 고리라 E0709로 실패한다.
+닫힌 태스크 범위면 런타임 에러 E0706(`` `spawn` on a closed scope ``). 함수가 돌려준 `Err`를 아무도 읽지 않으면 이 자리를 가리키는 E0607(`task's Err was never awaited`)로 범위가 실패한다. 함수의 결과가 그 태스크 자신의 핸들에 닿으면(채널을 거쳐 받은 자기 핸들을 돌려줌) 해제할 수 없는 고리라 E0709로 실패한다.
 
 #### 예제
 
@@ -239,15 +243,15 @@ print(r |> filter(is_err) |> len, "failed")
 ```fung run
 squares = scope(fn(s):
   tasks = map(1..=4, n => spawn(s, () => n * n))
-  map(tasks, await)
-;;)
+  map(tasks, t => await(t)!)
+;;)!
 print(squares)
 ```
 
 **닫힌 태스크 범위**
 
 ```fung run exit=1 error=E0706
-leaked = scope(s => s)
+leaked = scope(s => s)!
 spawn(leaked, () => 1)
 ```
 
@@ -259,17 +263,17 @@ spawn(leaked, () => 1)
 
 :::fn await(t)
 
-태스크가 끝나기를 기다려 그 결과를 돌려준다.
+태스크가 끝나기를 기다려 그 결과를 돌려준다: `Ok(함수의 값)`, 또는 런타임의 `Err`.
 
 #### 설명
 
-- 정상으로 끝났으면 태스크 함수의 반환값.
+- 정상으로 끝났으면 `Ok(태스크 함수의 반환값)`. 함수가 `Err`를 돌려줬으면 `Ok(Err(e))`다.
 - 런타임 에러로 죽었으면 `Err({kind: 'error, code, message, at})`([`supervise`](#fn-supervise)와 같은 맵). `scope` 안에서는 그 전에 태스크 범위가 실패하므로, 이 경우는 주로 `supervise`에서 본다.
 - 취소됐으면 `Err({kind: 'cancelled})`.
 
 이미 끝난 태스크면 곧바로 돌려주고, 여러 번 불러도 같은 결과다. 기다리는 시간에 한도를 두려면 [`timeout`](#fn-timeout)으로 감싼다. 시간이 지나도 태스크 자체는 계속 돈다(멈추려면 `cancel`).
 
-**함수가 돌려준 `Err`는 읽어야 한다.** 읽기 전에 읽을 수 없게 되면 실패다(E0607, 위치는 `spawn` 자리). 태스크가 끝날 때 핸들이 하나도 없을 때, 끝난 뒤 마지막 핸들이 읽히지 않은 채 사라질 때, 범위가 닫힐 때 핸들이 범위 밖에 남았을 때가 그렇다. `scope`는 실패하고 `supervise`는 `on_fail`이 `code: "E0607"`로 받는다. 리스트를 돌려주면 그 원소(한 겹)도 본다. 취소·시간 초과의 `Err`는 런타임이 만든 것이라 세지 않는다. 범위가 취소(`cancel(s)`, 바깥의 취소, 기한, `exit`)로 되감기는 동안 읽을 수 없게 된 `Err`도 세지 않는다: 취소는 그 결과를 더는 원하지 않는다는 뜻이다. 그래서 [`timeout`](#fn-timeout) 안에서 이미 `Err`로 끝난 태스크가 있어도 결과는 `Err timeout`이다. 다만 범위는 그대로이고 읽을 태스크만 [`cancel(t)`](#fn-cancel)로 끊었으면 그 `Err`는 정말 버려진 것이라 E0607이다. 그러니 `Err`가 날 수 있는 결과는 범위 안에서 `await`한다.
+**함수가 돌려준 `Err`는 읽어야 한다.** 읽기 전에 읽을 수 없게 되면 실패다(E0607, 위치는 `spawn` 자리). 태스크가 끝날 때 핸들이 하나도 없을 때, 끝난 뒤 마지막 핸들이 읽히지 않은 채 사라질 때, 범위가 닫힐 때 핸들이 범위 밖에 남았을 때가 그렇다. `scope`는 실패하고 `supervise`는 `on_fail`이 `code: "E0607"`로 받는다. 리스트·맵·튜플·태그를 돌려주면 그 안도 깊이와 상관없이 본다(버려지는 `Err`와 같다). 태스크 자신이 취소되어 끝난 결과(`Err({kind: 'cancelled})`)는 세지 않는다. 함수가 돌려준 `Err`는 런타임이 만든 것(`timeout`의 `Err timeout`, `recv`의 `Err closed`)이라도 센다. 범위가 취소(`cancel(s)`, 바깥의 취소, 기한, `exit`)로 되감기는 동안 읽을 수 없게 된 `Err`도 세지 않는다: 취소는 그 결과를 더는 원하지 않는다는 뜻이다. 그래서 [`timeout`](#fn-timeout) 안에서 이미 `Err`로 끝난 태스크가 있어도 결과는 `Err timeout`이다. 다만 범위는 그대로이고 읽을 태스크만 [`cancel(t)`](#fn-cancel)로 끊었으면 그 `Err`는 정말 버려진 것이라 E0607이다. 그러니 `Err`가 날 수 있는 결과는 범위 안에서 `await`한다.
 
 #### 매개변수
 
@@ -277,7 +281,7 @@ spawn(leaked, () => 1)
 
 #### 돌려주는 값
 
-태스크의 결과, 또는 위의 `Err`.
+`Ok(태스크 함수의 값)`, 또는 위의 `Err`.
 
 #### 에러
 
@@ -288,7 +292,7 @@ spawn(leaked, () => 1)
 **결과 받기**
 
 ```fung run
-print(scope(s => await(spawn(s, () => 6 * 7))))
+print(scope(s => await(spawn(s, () => 6 * 7))!)!)
 ```
 
 **읽지 않은 `Err`**
@@ -311,7 +315,7 @@ r = scope(fn(s):
   r = timeout(() => await(t), 20ms)
   cancel(t)
   r
-;;)
+;;)!
 print(r)
 ```
 
@@ -327,7 +331,7 @@ print(scope(fn(s):
   ;;)
   cancel(t)
   await(t)
-;;))
+;;)!)
 ```
 
 #### 같이 보기
@@ -338,11 +342,11 @@ print(scope(fn(s):
 
 :::fn timeout(f, d)
 
-`f()`를 부르되, `d`가 지나면 `f` 안의 모든 것을 취소하고 `Err({kind: 'timeout})`을 돌려준다.
+`f()`를 불러 `Ok(f()의 값)`을 돌려주되, `d`가 지나면 `f` 안의 모든 것을 취소하고 `Err({kind: 'timeout})`을 돌려준다.
 
 #### 설명
 
-`d` 안에 끝나면 `f()`의 결과를 그대로 돌려준다(`f`가 돌려준 `Err`도 그대로다). 기한이 지나면 `f` 안에서 돌던 모든 것, 곧 그 안에서 연 태스크 범위의 태스크까지 취소하고 `Err({kind: 'timeout})`을 돌려준다. 취소되는 동안에도 [`with`](program.html#fn-with)의 `release`는 끝까지 돈다. `d`가 `0s`면 `f`를 부르지 않고 곧바로 `Err({kind: 'timeout})`이다. 음수 기간은 E0403이다(남은 시간을 계산해 음수가 될 수 있으면 `max(d, 0s)`로 드러낸다).
+`d` 안에 끝나면 `f()`의 결과를 `Ok`로 감싸 돌려준다. `f`가 돌려준 `Err`는 `Ok(Err(e))`라 시간 초과와 구별된다: `timeout(() => http.get(url), 2s)!?`는 시간 초과에서 멈추고 요청의 실패는 호출자에게 넘긴다. 기한이 지나면 `f` 안에서 돌던 모든 것, 곧 그 안에서 연 태스크 범위의 태스크까지 취소하고 `Err({kind: 'timeout})`을 돌려준다. 취소되는 동안에도 [`with`](program.html#fn-with)의 `release`는 끝까지 돈다. `d`가 `0s`면 `f`를 부르지 않고 곧바로 `Err({kind: 'timeout})`이다. 음수 기간은 E0403이다(남은 시간을 계산해 음수가 될 수 있으면 `max(d, 0s)`로 드러낸다).
 
 기한이 겹치면 이른 기한이 이긴다. 바깥 기한이 먼저 지나면 바깥 `timeout`이 답한다.
 
@@ -355,7 +359,7 @@ print(scope(fn(s):
 
 #### 돌려주는 값
 
-`f()`의 결과, 또는 `Err({kind: 'timeout})`.
+`Ok(f()의 결과)`, 또는 `Err({kind: 'timeout})`.
 
 #### 에러
 
@@ -401,7 +405,7 @@ fn probe(host) = timeout(fn():
   "${host} up"
 ;;, 500ms)
 
-print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(await)))
+print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(t => await(t)!))!)
 ```
 
 #### 같이 보기
@@ -416,9 +420,9 @@ print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(
 
 #### 설명
 
-취소는 "지금 멈춰라"다. 취소된 태스크는 다음에 기다리는 자리(또는 지금 기다리고 있는 자리)에서 멈추고, 지나는 [`with`](program.html#fn-with)의 `release`를 돌린 뒤 끝난다. 그 태스크를 `await`하면 `Err({kind: 'cancelled})`다. 태스크 범위를 취소하면 본문과 그 안의 모든 태스크가 취소되고 `scope`는 `Err({kind: 'cancelled})`를 돌려준다.
+취소는 "지금 멈춰라"다. 취소된 태스크는 다음 호출(내장 함수 호출 포함)이나 지금 기다리고 있는 자리에서 멈추고, 지나는 [`with`](program.html#fn-with)의 `release`를 돌린 뒤 끝난다. 그 태스크를 `await`하면 `Err({kind: 'cancelled})`다. 태스크 범위를 취소하면 본문과 그 안의 모든 태스크가 취소되고 `scope`는 `Err({kind: 'cancelled})`를 돌려준다.
 
-취소는 실패가 아니라 종료 코드에 영향이 없다. 이미 끝난 태스크를 취소하면 아무 일도 없다(`await`는 원래 결과를 준다). "하던 일을 마치고 끝내라"는 정중한 요청은 [`stop_signal`](#fn-stop_signal)의 몫이다.
+취소는 실패가 아니라 종료 코드에 영향이 없다. 이미 끝난 태스크를 취소하면 아무 일도 없다(`await`는 원래 결과를 준다). 닫힌 태스크 범위(`scope(`가 이미 돌아온 범위)는 취소할 것이 없으므로, 그 핸들로 부르면 `spawn`처럼 E0706이다. "하던 일을 마치고 끝내라"는 정중한 요청은 [`stop_signal`](#fn-stop_signal)의 몫이다.
 
 #### 매개변수
 
@@ -430,7 +434,7 @@ print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(
 
 #### 에러
 
-`t`가 태스크도 태스크 범위도 아니면 런타임 에러 E0403.
+`t`가 태스크도 태스크 범위도 아니면 런타임 에러 E0403. 닫힌 태스크 범위면 런타임 에러 E0706(`` `cancel` on a closed scope ``).
 
 #### 예제
 
@@ -447,11 +451,11 @@ winner = scope(fn(s):
     sleep(1s)
     send(tx, "mirror-b")!
   ;;)
-  first = recv(rx)!
+  got = recv(rx)!
   cancel(a)
   cancel(b)
-  first
-;;)
+  got
+;;)!
 print(winner)
 ```
 
@@ -489,7 +493,7 @@ print(r)
 
 끝은 복사할 수 있다. 같은 `tx`를 여러 생산 태스크에, 같은 `rx`를 여러 일꾼 태스크에 줄 수 있다. 받는 끝은 `for`, `map`, `take` 같은 컬렉션 함수로 돌 수 있다. 값이 올 때마다 처리하고, 채널이 닫히면 끝난다.
 
-**자동 닫힘**: 보내는 끝의 마지막 사본이 사라지면 채널이 닫힌다. 받는 쪽은 남은 값을 다 받은 뒤 `Err({kind: 'closed})`를 받고, 받는 끝을 돌던 `for`는 끝난다. 받는 끝의 마지막 사본이 사라지면 채널이 닫히고 버퍼를 버리며, 그 뒤의 `send`는 `Err({kind: 'closed})`다. 지역 변수는 마지막으로 읽힌 문장 뒤에(한 번도 읽지 않으면 함수가 돌아올 때), 태스크가 붙잡은 값은 태스크가 끝날 때, 최상위 변수는 프로그램이 끝날 때 사라진다([값의 수명](../language/scope.html)). 그래서 함수 안에서 만든 채널의 보내는 끝을 생산 태스크에만 넘기면 생산이 끝날 때 저절로 닫힌다. 최상위에서 만든 채널은 [`close`](#fn-close)로 직접 닫는다.
+**자동 닫힘**: 보내는 끝의 마지막 사본이 사라지면 채널이 닫힌다. 받는 쪽은 남은 값을 다 받은 뒤 `Err({kind: 'closed})`를 받고, 받는 끝을 돌던 `for`는 끝난다. 받는 끝의 마지막 사본이 사라지면 채널이 닫히고 버퍼를 버리며, 그 뒤의 `send`는 `Err({kind: 'closed})`다. 지역 변수는 더 읽힐 수 없게 된 곳에서(문장 뒤, 가지가 시작할 때, 마지막으로 붙잡은 클로저를 만든 뒤; 한 번도 읽지 않으면 함수가 돌아올 때), 태스크가 붙잡은 값은 태스크가 끝날 때, 최상위 변수는 프로그램이 끝날 때 사라진다([값의 수명](../language/scope.html)). 그래서 함수 안에서 만든 채널의 보내는 끝을 생산 태스크에만 넘기면 생산이 끝날 때 저절로 닫힌다. 최상위에서 만든 채널은 [`close`](#fn-close)로 직접 닫는다.
 
 모든 태스크가 서로를 기다려 아무도 나아갈 수 없으면 **교착**(deadlock)이고 런타임 에러 E0702다. 받거나 닫히기를([`wait_closed`](#fn-wait_closed)) 기다리는 쪽이 보내는 끝을 스스로 쥐고 있어서 채널이 닫힐 수 없는 경우면 보고가 그것을 알려 준다.
 
@@ -540,7 +544,7 @@ out = scope(fn(s):
   ;;
   spawn(s, () => each(1..=4, j => send(jobs_tx, j)))
   results |> take(4) |> sort
-;;)
+;;)!
 print(out)
 ```
 
@@ -549,7 +553,7 @@ print(out)
 **보내는 끝을 쥔 채 받으면 교착**
 
 ```fung run exit=1 error=E0702
-(tx, rx) = channel()
+(_tx, rx) = channel()
 for x in rx:
   print(x)
 ;;
@@ -569,7 +573,7 @@ for x in rx:
 
 #### 설명
 
-버퍼가 없거나 찼으면 받는 쪽이 받아 갈 때까지 기다린다. 채널이 닫혔거나 받는 끝이 모두 사라졌으면 `Err({kind: 'closed})`를 돌려준다. 결과값이므로 문장으로 쓴 `send(tx, v)`가 닫힌 채널을 만나면 E0606으로 멈춘다. 받는 쪽이 먼저 그만둘 수 있으면 `match`로 가르거나, 그만둬도 되면 `_ = send(tx, v)`로 쓴다.
+버퍼가 없거나 찼으면 받는 쪽이 받아 갈 때까지 기다린다. 기다리는 보내는 쪽이 여럿이면 먼저 기다린 쪽의 값이 먼저 간다. 채널이 닫혔거나 받는 끝이 모두 사라졌으면 `Err({kind: 'closed})`를 돌려준다. 결과값이므로 문장으로 쓴 `send(tx, v)`가 닫힌 채널을 만나면 E0606으로 멈춘다. 받는 쪽이 먼저 그만둘 수 있으면 `match`로 가르거나, 그만둬도 되면 `_ = send(tx, v)`로 쓴다.
 
 값은 불변이므로 복사 걱정 없이 무엇이든 보낸다. 다른 채널의 끝(응답을 받을 채널)도 보낼 수 있다. 다만 채널에 **그 채널 자신의** 끝을 보내면(어느 끝이든, `x` 안 어디에 들어 있어도) 런타임 에러 E0709다. fung은 메모리를 참조 계수로 회수하므로 자기 끝을 담은 채널은 닫히지도 해제되지도 않기 때문이다. 다른 채널의 버퍼나 끝난 태스크의 결과를 거쳐 자기 끝에 닿는 값(서로의 받는 끝을 담은 두 채널)도 같은 이유로 E0709다. 채널 끝 같은 바뀌는 것을 품지 않은 값은 이 검사를 위해 훑지 않으므로 큰 값을 보내도 느리지 않다.
 
@@ -593,7 +597,7 @@ for x in rx:
 **버퍼와 닫힌 채널**
 
 ```fung run
-(tx, rx) = channel(2)
+(tx, _rx) = channel(2)
 print(send(tx, 1), send(tx, 2))
 print(timeout(() => send(tx, 3), 10ms))
 close(tx)
@@ -649,7 +653,7 @@ scope(fn(s):
 
 #### 설명
 
-값이 올 때까지 기다린다. 채널이 닫혀도 버퍼에 남은 값은 먼저 다 준 뒤에 `Err({kind: 'closed})`를 준다. 그래서 닫힘은 "더 올 것이 없다"는 정상적인 끝이다. 받는 끝을 끝까지 돌 때는 `recv`를 되풀이하는 대신 `for x in rx:`를 쓴다.
+값이 올 때까지 기다린다. 받는 쪽이 여럿이면 먼저 기다리기 시작한 쪽이 먼저 받는다. 채널이 닫혀도 버퍼에 남은 값은 먼저 다 준 뒤에 `Err({kind: 'closed})`를 준다. 그래서 닫힘은 "더 올 것이 없다"는 정상적인 끝이다. 받는 끝을 끝까지 돌 때는 `recv`를 되풀이하는 대신 `for x in rx:`를 쓴다.
 
 기다리는 시간은 [`timeout`](#fn-timeout)으로 정한다: `timeout(() => recv(rx), 1s)`. 기한이 지나면 받지 않은 값은 채널에 그대로 남는다.
 
@@ -862,7 +866,7 @@ scope(fn(s):
 
 닫을 수 있는 것은 이 함수 하나로 닫는다.
 
-- **보내는 끝**: 그 끝의 다른 사본이 살아 있어도 채널을 지금 닫는다. 보통은 [자동 닫힘](#fn-channel)으로 충분하고, 최상위에서 만든 채널처럼 사본이 오래 사는 경우에 쓴다. 닫은 뒤 받는 쪽은 남은 값을 받은 뒤 `Err({kind: 'closed})`를 받고, 그 뒤의 `send`는 `Err({kind: 'closed})`다. 이미 닫힌 채널을 다시 닫아도 `Ok(nil)`이다. 받는 끝은 닫을 수 없다: 받기를 그만두려면 받는 끝을 버린다(마지막 사본이 사라지면 닫힌다).
+- **보내는 끝**: 그 끝의 다른 사본이 살아 있어도 채널을 지금 닫는다. 보통은 [자동 닫힘](#fn-channel)으로 충분하고, 최상위에서 만든 채널처럼 사본이 오래 사는 경우에 쓴다. 닫은 뒤 받는 쪽은 남은 값을 받은 뒤 `Err({kind: 'closed})`를 받고, 그 뒤의 `send`는 `Err({kind: 'closed})`다. 이미 닫힌 채널(어느 사본으로 닫았든, 받는 끝이 모두 사라져 닫혔든)을 다시 닫으면 파일 핸들처럼 `Err({kind: 'closed})`다: 두 번 닫기는 대개 실수이고, 버리면 E0606으로 드러난다. 닫혔을 수 있는 채널을 그래도 닫으려면 `_ = close(tx)`로 쓴다. 받는 끝은 닫을 수 없다: 받기를 그만두려면 받는 끝을 버린다(마지막 사본이 사라지면 닫힌다).
 - **파일 핸들**([`fs.open`](../modules/fs.html#fn-fs-open)): 버퍼에 남은 쓰기를 디스크에 비우고 핸들을 닫는다. 비우기나 닫기가 실패하면 그 에러를 돌려준다(NFS처럼 닫을 때에야 쓰기를 보내는 파일 시스템에서는 디스크 가득 참이 여기서 나온다). 닫힌 핸들로 읽고 쓰면 `Err({kind: 'closed})`이고, 한 번 더 닫아도 같다. 닫지 않은 핸들은 그 값의 마지막 사본이 사라지면 런타임의 닫기 스레드가 비우고 닫는다. 그래서 데이터가 파일에 닿는 때는 정해져 있지 않고, 그 비우기나 닫기가 실패하면 표준 에러에 [E0810](../errors.html#E0810)을 쓰고 종료 코드가 1이 된다. 그래서 쓴 핸들은 직접 닫거나 [`fs.with_open`](../modules/fs.html#fn-fs-with_open)을 쓴다.
 
 #### 매개변수
@@ -871,12 +875,13 @@ scope(fn(s):
 
 #### 돌려주는 값
 
-`Ok(nil)`.
+`Ok(nil)`, 또는 아래의 `Err`.
 
 #### 에러
 
 - `x`가 보내는 끝도 파일 핸들도 아니면(받는 끝 포함) 런타임 에러 E0403.
-- 파일 핸들: `Err({kind: 'closed})`(이미 닫힘), `Err({kind: 'io})`(버퍼를 비우다 실패, 디스크가 참 등).
+- 이미 닫혔으면 `Err({kind: 'closed})`(보내는 끝, 파일 핸들 모두).
+- 파일 핸들: `Err({kind: 'io})`(버퍼를 비우다 실패, 디스크가 참 등).
 
 #### 예제
 
@@ -906,7 +911,7 @@ print(fs.write_line(h, "two"))
 **받는 끝은 닫지 못한다**
 
 ```fung run exit=1 error=E0403
-(tx, rx) = channel()
+(_tx, rx) = channel()
 close(rx)
 ```
 
@@ -1075,7 +1080,7 @@ print(deref(hits))
 
 ```fung run exit=1 error=E0708
 (tx, _rx) = channel()
-registry = atom({main: tx})
+_registry = atom({main: tx})
 ```
 
 #### 같이 보기

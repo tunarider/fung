@@ -49,7 +49,7 @@ fn collections_run() {
             "[1, \"a\", [2]] (1,) () {name: \"x\", \"a b\": 1} Circle(3) 0..3 0..=3\n",
         ),
         (
-            "xs = [10, 20, 30]\nprint(xs[0], xs[-1], xs[1..3], xs[..1], xs[-2..], xs[0..0], xs[3..])",
+            "xs = [10, 20, 30]\nprint(xs[0], xs[2], xs[1..3], xs[..1], xs[1..], xs[0..0], xs[3..])",
             "10 30 [20, 30] [10] [20, 30] [] []\n",
         ),
         (
@@ -65,7 +65,7 @@ fn collections_run() {
             "true false true true true false true true\n",
         ),
         (
-            "print([1] + [2], [1, 2] == [1, 2], [1] == (1,), {a: 1, b: 2} == {b: 2, a: 1}, [1, 2] < [1, 3], Ok(1) == Ok(1))",
+            "print([1] + [2], [1, 2] == [1, 2], [1] == [2], {a: 1, b: 2} == {b: 2, a: 1}, [1, 2] < [1, 3], Ok(1) == Ok(1))",
             "[1, 2] true false true true true\n",
         ),
         (
@@ -73,7 +73,7 @@ fn collections_run() {
             "'Circle 'sym 'list 'range\n",
         ),
         (
-            "fn area(s: Circle | Rect) = 1\nprint(area(Circle(3)))",
+            "fn area(_s: Circle | Rect) = 1\nprint(area(Circle(3)))",
             "1\n",
         ),
         (
@@ -89,11 +89,11 @@ fn collections_run() {
             "[3, 7]\n",
         ),
         (
-            "fn sum(...xs) = len(xs)\nprint(sum(), sum(1, 2, 3))",
+            "fn count(...xs) = len(xs)\nprint(count(), count(1, 2, 3))",
             "0 3\n",
         ),
         (
-            "fn f(a, ...rest) = rest\nprint(f(1), f(1, 2, 3))",
+            "fn f(_a, ...rest) = rest\nprint(f(1), f(1, 2, 3))",
             "[] [2, 3]\n",
         ),
         (
@@ -111,7 +111,7 @@ fn collections_run() {
 fn review_fixes() {
     check_out(&[
         (
-            "xs = [1, 2, 3]\nprint(xs[1..=2], xs[0..=-1], xs[..=0], \"참치회\"[1..=1])",
+            "xs = [1, 2, 3]\nprint(xs[1..=2], xs[0..=2], xs[..=0], \"참치회\"[1..=1])",
             "[2, 3] [1, 2, 3] [1] 치\n",
         ),
         (
@@ -119,7 +119,7 @@ fn review_fixes() {
             "1 2\n",
         ),
         (
-            "a = 1\nprint(for (a, b) in [(2, 3)]: a + b ;;, a)",
+            "a = 1\nprint(for (p, q) in [(2, 3)]: p + q ;;, a)",
             "[5] 1\n",
         ),
     ]);
@@ -174,6 +174,10 @@ fn runtime_errors_m4() {
     check_code(&[
         ("[1][1]", "E0507"),
         ("[1][-2]", "E0507"),
+        ("[1][-1]", "E0507"),
+        ("\"ab\"[-1]", "E0507"),
+        ("[1, 2][..-1]", "E0507"),
+        ("\"ab\"[-1..]", "E0507"),
         ("[1, 2][0..3]", "E0507"),
         ("{a: 1}.b", "E0508"),
         ("{a: 1}[\"b\"]", "E0508"),
@@ -182,11 +186,11 @@ fn runtime_errors_m4() {
         ("(1,)[0..1]", "E0511"),
         ("1 in 1", "E0512"),
         ("1 in \"a\"", "E0501"),
-        ("[1][\"a\"]", "E0501"),
+        ("[1][\"a\"]", "E0509"),
         ("\"a\"..\"b\"", "E0501"),
         ("match 1: 0 => 1 ;;", "E0601"),
-        ("(a, b) = (1, 2, 3)", "E0602"),
-        ("Ok(x) = Err(1)", "E0602"),
+        ("(_a, _b) = (1, 2, 3)", "E0602"),
+        ("Ok(_x) = Err(1)", "E0602"),
         ("map(1, x => x)", "E0506"),
     ]);
 }
@@ -197,7 +201,7 @@ fn m4_error_reports() {
     let cases = [
         ("1 in \"a\"", "error[E0501]: cannot search str and int"),
         (
-            "Ok(x) = Err(1)",
+            "Ok(_x) = Err(1)",
             "error[E0602]: value Err(1) does not match the pattern",
         ),
         (
@@ -234,7 +238,7 @@ fn m4_error_reports() {
     let (_, err, _) = run("print((1,2).x)");
     assert_eq!(
         err,
-        "error[E0509]: cannot index a value of type tuple\n  --> -e:1:12\n  |\n1 | print((1,2).x)\n  |            ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
+        "error[E0509]: cannot index tuple with str\n  --> -e:1:12\n  |\n1 | print((1,2).x)\n  |            ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
 }
 
@@ -247,7 +251,7 @@ fn errors_cut_long_values_in_the_headline() {
     let ints: Vec<String> = (0..1000).map(|i| i.to_string()).collect();
     let list: String = format!("[{}", ints.join(", ")).chars().take(200).collect();
     assert_eq!(
-        head("[a] = map(0..1000000, x => x)"),
+        head("[_a] = map(0..1000000, x => x)"),
         format!("error[E0602]: value {list}… does not match the pattern")
     );
     assert_eq!(
@@ -270,6 +274,31 @@ fn errors_cut_long_values_in_the_headline() {
         head(&format!("match \"{over}\": \"\" => 0 ;;")),
         format!("error[E0601]: no pattern matched \"{}…", &over[..199 * 3])
     );
+}
+
+/// VA28: a value whose parts are shared shows its start at once, however
+/// long its whole text would be; `assert`'s notes are cut the same way.
+#[test]
+fn errors_show_a_shared_value_at_once() {
+    let x = "x = fold(0..40, [1], (a, _i) => [a, a])\n";
+    let head = |src: &str| {
+        exec(&format!("{x}{src}"), Opts::default())
+            .error
+            .expect(src)
+            .headline
+    };
+    let start = format!("{}1]", "[".repeat(41));
+    assert!(head("[_y] = x").starts_with(&format!("error[E0602]: value {start}")));
+    assert!(head("[_y] = x").ends_with("… does not match the pattern"));
+    assert!(head("match x: [] => 1 ;;").ends_with('…'));
+    let o = exec(&format!("{x}assert x != x"), Opts::default());
+    let e = o.error.expect("assert fails");
+    assert!(e.headline.starts_with("error[E0807]"), "{}", e.headline);
+    let notes = e.notes.join("\n");
+    assert!(notes.contains(&format!("x = {start}")), "{notes}");
+    assert!(notes.len() < 1000, "{notes}");
+    // A conversion's message cuts the value too.
+    assert!(head("int(x)").len() < 300);
 }
 
 /// A guard on alternatives is tried with each alternative in turn (03):
@@ -312,4 +341,25 @@ fn a_failed_guard_tries_the_next_alternative() {
         &format!("print(match [2, 2, 2, 2, 2, 2, 2, 2]: [{fine}] when true => 1; _ => 2 ;;)"),
         "1\n",
     )]);
+}
+
+/// FE55: a parameter with no name in the source (a hole, a pattern) is
+/// called by its place, and a hole cannot be named.
+#[test]
+fn hidden_parameters_are_called_by_place() {
+    assert_eq!(
+        headline("f = fn((_a, _b), _c): 1 ;;\nf()"),
+        "error[E0407]: missing argument 1"
+    );
+    assert_eq!(
+        headline("fn s2(a, b) = a - b\ng = s2(_, 1)\ng()"),
+        "error[E0407]: missing argument 1"
+    );
+    assert!(
+        headline("fn s2(a, b) = a - b\ng = s2(_, 1)\nprint(g(h0: 5))").starts_with("error[E0406]")
+    );
+    assert_eq!(
+        headline("f = fn(a, b): [a, b] ;;\nf(1)"),
+        "error[E0407]: missing argument `b`"
+    );
 }

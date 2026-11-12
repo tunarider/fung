@@ -41,7 +41,7 @@ fn cell(v):
   quote then "\"" + replace(s, "\"", "\"\"") + "\"" else s
 ;;
 
-fn csv(rows) = ([columns] + map(rows, r => map(columns, c => get(r, c))))
+fn csv(records) = ([columns] + map(records, r => map(columns, c => get(r, c))))
   |> map(cells => cells |> map(cell) |> join(","))
   |> map(line => line + "\n")
   |> join

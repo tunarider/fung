@@ -107,12 +107,15 @@ fn label(n):
 print(label(12))
 ```
 
-"오른쪽을 먼저"에는 다른 효과도 있다. `x = x + 1`에서 오른쪽의 `x`는 대입하기 **전의** `x`다. 같은 스코프에서 같은 이름에 다시 대입하면 같은 칸을 다시 쓴다.
+"오른쪽을 먼저"에는 다른 효과도 있다. `x = x + 1`에서 오른쪽의 `x`는 대입하기 **전의** `x`다. 블록 안에서 같은 이름에 다시 대입하면 같은 칸을 다시 쓴다. (파일 최상위에서는 이름을 한 번만 묶는다. 다시 묶으면 E0238이다.)
 
 ```dump core
-x = 1
-x = x + 1
-print(x)
+fn bump():
+  x = 1
+  x = x + 1
+  x
+;;
+print(bump())
 ```
 
 ## 파일 최상위: 전역과 끌어올리기 {#globals}
@@ -127,7 +130,7 @@ fn clamp(x) = x > limit then limit else x
 print(clamp(42))
 ```
 
-소스에서는 `limit = 10`이 먼저인데, 코어에서는 `clamp`의 대입이 맨 앞으로 왔다. `clamp`가 0번, `limit`이 1번 칸이다. 그런데 `clamp`는 `limit`보다 먼저 만들어지는데도 안에서 `(global 1)`로 `limit`을 읽는다. 이것은 `limit`이 최상위에서 **딱 한 번만** 대입되는 이름이라서 가능하다. 한 번만 대입되면 값이 바뀌지 않으므로 상수와 같고, 최상위 `fn`이 불릴 때 그 칸을 읽어도 안전하다. 두 번 이상 대입되는 최상위 변수는 최상위 `fn` 안에서 보이지 않는다(`E0204`와 "인자로 넘기세요" 도움말). 이 규칙의 이유는 9장에서 "함수는 만들어질 때 보이는 변수를 복사한다"는 fung의 함수 규칙과 함께 본다.
+소스에서는 `limit = 10`이 먼저인데, 코어에서는 `clamp`의 대입이 맨 앞으로 왔다. `clamp`가 0번, `limit`이 1번 칸이다. 그런데 `clamp`는 `limit`보다 먼저 만들어지는데도 안에서 `(global 1)`로 `limit`을 읽는다. 이것은 최상위 이름이 **딱 한 번만** 묶이기 때문에 가능하다(다시 묶으면 `E0238`). 한 번만 묶이면 값이 바뀌지 않으므로 상수와 같고, 최상위 `fn`이 불릴 때 그 칸을 읽어도 안전하다. 아직 대입되지 않은 칸을 읽으면(대입 줄보다 먼저 함수를 부르면) 실행 중에 `E0809`다. 이 규칙의 이유는 9장에서 "함수는 만들어질 때 보이는 변수를 복사한다"는 fung의 함수 규칙과 함께 본다.
 
 ```fung run
 limit = 10
@@ -161,9 +164,9 @@ print(doubel(21))
 이름 해석은 이름을 번호로 바꾸는 김에 fung의 스코프 규칙도 검사한다. 대표적인 것이 **바깥 변수 재대입 금지**다. 블록 안에서 블록 바깥의 변수에 다시 대입할 수 없다. 쉘 스크립트에 익숙하면 이렇게 쓰고 싶어진다.
 
 ```fung run exit=2 error=E0205
-lines = ["ok", "error: disk", "ok", "error: net"]
+events = ["ok", "error: disk", "ok", "error: net"]
 count = 0
-for l in lines:
+for l in events:
   if starts_with(l, "error"): count = count + 1 ;;
 ;;
 print(count)
@@ -180,14 +183,14 @@ print(b)
 
 파서는 첫 에러에서 멈췄는데(4장) 이름 해석은 왜 다 모을 수 있을까? 파서가 틀리면 그 뒤의 구조를 믿을 수 없지만, 이름 해석은 이미 올바른 트리 위에서 일한다. 이름 하나가 틀려도 트리의 다른 부분은 멀쩡하므로 계속 검사해도 엉뚱한 에러가 따라 나오지 않는다.
 
-이름 해석이 검사하는 것은 그 밖에도 많다. `for` 안의 `return`(`E0213`), 파일 최상위의 `return`(`E0211`), 모듈 이름 가리기, 최상위 `fn` 이름에 대입(`E0209`), 대문자 이름을 변수로(`E0225`)… 그리고 **경고**도 여기서 만든다. 쓰지 않는 지역 변수(`W0102`), 쓰지 않는 import(`W0101`), prelude 이름 가리기(`W0103`). 경고는 `fung check`와 `fung test`에서만 보인다. 끝으로 이름 해석이 끝난 트리를 한 번 더 돌며 "값을 쓰는 자리의 조용한 `nil`"(`else` 없는 `if`는 `E0223`, 비었거나 대입 같은 문장으로 끝나는 블록은 `E0224`)을 찾는다. 함수 본문의 끝은 늘 값을 쓰는 자리이고, `test` 블록의 본문과 문장 `for`의 본문은 아니다.
+이름 해석이 검사하는 것은 그 밖에도 많다. `for` 본문과 람다 안의 `return`·`?`(`E0237`), 파일 최상위의 `return`(`E0211`), 모듈 이름 가리기, 최상위 `fn` 이름에 대입(`E0209`), 대문자 이름을 변수로(`E0225`)… 그리고 이름에 관한 두 규칙도 여기서 지킨다. 새로 묶는 이름이 보이는 바깥 이름(바깥 지역, 최상위 이름, import한 이름, prelude 함수)을 가리면 `E0240`(바깥 변수에 대입하면 `E0205`), 묶고 한 번도 읽지 않는 지역 변수·매개변수·import는 `E0239`다(`_`로 시작하는 이름은 빼고). 바깥 이름은 `outer_name`이 함수의 블록 쌓기와 바깥 함수들을 안에서 밖으로 훑어 찾고, 읽기는 블록마다 `used`에 적어 두었다가 블록을 닫을 때 견준다. 끝으로 이름 해석이 끝난 트리를 한 번 더 돌며 "값을 쓰는 자리의 조용한 `nil`"(`else` 없는 `if`는 `E0223`, 비었거나 대입 같은 문장으로 끝나는 블록은 `E0224`)을 찾는다. 함수 본문의 끝은 늘 값을 쓰는 자리이고, `test` 블록의 본문과 문장 `for`의 본문은 아니다.
 
 :::box mistake 블록 안에서 바깥 변수 바꾸기
 `E0205`는 쉘이나 다른 언어에서 넘어온 사람이 가장 자주 만나는 에러다. 값을 바꾸는 대신 값을 **만든다**. 위의 예는 `fold`로 쓴다. `fold(xs, 처음, f)`는 처음 값에서 시작해 원소마다 `f(지금까지, 원소)`를 불러 새 값을 만든다.
 
 ```fung run
-lines = ["ok", "error: disk", "ok", "error: net"]
-count = fold(lines, 0, (n, l) => starts_with(l, "error") then n + 1 else n)
+events = ["ok", "error: disk", "ok", "error: net"]
+count = fold(events, 0, (n, l) => starts_with(l, "error") then n + 1 else n)
 print(count)
 ```
 
@@ -209,14 +212,14 @@ print(count)
 
 ## 코드에서 찾아보기 {#source}
 
-- `crates/fung-front/src/resolve.rs`: 입구 `resolve(core, prelude, opts)`가 `Resolved`(바뀐 트리, 메인 프레임의 칸 수 `num_locals`, 전역 이름 목록 `globals`, 경고)나 에러 목록을 돌려준다.
-  - `Resolver::root_block`: 파일 최상위. `fn`을 먼저 모아 전역 번호를 붙이는 끌어올리기, 한 번만 대입되는 이름의 칸을 미리 잡는 `Resolver::declare_consts`.
+- `crates/fung-front/src/resolve.rs`: 입구 `resolve(core, prelude, opts)`가 `Resolved`(바뀐 트리, 메인 프레임의 칸 수 `num_locals`, 전역 이름 목록 `globals`)나 에러 목록을 돌려준다.
+  - `Resolver::root_block`: 파일 최상위. `fn`을 먼저 모아 전역 번호를 붙이는 끌어올리기, 최상위 이름(모두 한 번만 묶임)의 칸을 미리 잡는 `Resolver::declare_consts`.
   - `Resolver::name`(이름 읽기와 `E0204`·`E0206`·`E0208`), `Resolver::lookup`(찾는 순서), `Resolver::capture_from`(바깥 함수에서 붙잡기).
   - `Resolver::let_`(오른쪽 먼저), `Resolver::bind_new`(`E0205`·`E0209` 판정), `Resolver::bind_here`(전역 칸 또는 슬롯 배정).
   - `Resolver::push_block`·`Resolver::pop_block`: 블록 스코프를 쌓고 버리며, 버릴 때 슬롯 번호를 되돌린다.
 - `crates/fung-front/src/resolve/scope.rs`: 심볼 테이블. `Binding`(전역인가, 번호, 상수인가), 블록 스코프 `Scope`, 함수 스코프 `FnScope`와 `FnScope::alloc_slot`.
 - `crates/fung-front/src/resolve/similar.rs`: 비슷한 이름 찾기 `similar`, `edit_budget`, `edit_distance`.
-- `crates/fung-front/src/resolve/value.rs`의 `check`: 값 자리의 `nil`(`E0223`·`E0224`). `resolve/warn.rs`: 경고.
+- `crates/fung-front/src/resolve/value.rs`의 `check`: 값 자리의 `nil`(`E0223`·`E0224`). `resolve/names.rs`: 가리는 이름(`E0240`)과 쓰지 않는 이름(`E0239`).
 - `crates/fung-front/src/builtins.rs`와 `spec/builtins.txt`: prelude 이름의 목록. VM 쪽 표에서 생성하고 테스트가 같은지 지킨다.
 
 :::exercise 슬롯 번호 맞히기
@@ -275,7 +278,7 @@ print(describe("db1", 443))
 - 바인딩은 이름과 값의 연결, 스코프는 이름이 보이는 범위다. fung은 소스만 보고 스코프가 정해지는 렉시컬 스코프다.
 - 이름 해석은 모든 이름을 지역 슬롯, 붙잡은 값, 자기 자신, 모듈 전역, prelude 중 하나로 정한다. 실행 중에는 이름을 찾지 않는다.
 - 슬롯 번호는 함수마다 차례로 주고, 블록이 끝나면 되돌려 재사용한다. 대입은 오른쪽을 먼저 해석한다.
-- 최상위 `fn`은 끌어올려진다. 한 번만 대입되는 최상위 이름은 최상위 `fn`에서도 읽힌다.
+- 최상위 `fn`은 끌어올려진다. 최상위 이름은 한 번만 묶이는 상수라 최상위 `fn`에서도 읽힌다.
 - 스코프 위반은 멈추지 않고 모두 모아 보고한다. 비슷한 이름 힌트는 편집 거리로 찾는다.
 
 다음 장에서는 지금까지 본 에러 메시지가 어떻게 만들어지는지, 위치와 카탈로그를 본다. 스코프 규칙 전체는 [언어 레퍼런스의 스코프](../reference/language/scope.html)에, `E0205`는 [에러 목록](../reference/errors.html#E0205)에 있다.

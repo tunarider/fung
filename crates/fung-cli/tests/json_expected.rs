@@ -197,13 +197,17 @@ fn run(bin: &std::path::Path, src: &str, args: &[&str]) -> (String, String, Opti
 /// `stringify` programs, and parse programs whose input is easier to build
 /// in fung (deep nesting, round trips).
 const PROGRAMS: &[&str] = &[
-    r#"print(json.stringify({b: 1, a: [true, nil, "x<y>&z", 2.0], t: (1, 2), s: 'ok', e: [], m: {}}))"#,
+    r#"print(json.stringify({b: 1, a: [true, nil, "x<y>&z", 2.0], t: [1, 2], s: sym_name('ok), e: [], m: {}}))"#,
     r#"print(json.stringify("\u{2028}<>&\u{7f}\u{1}\u{8}\u{c}\n\r\t\"\\\u{fffd}\u{2029}é\u{1f}😀"))"#,
     r#"print(json.stringify([1e21, 1e20, 1e-7, 1e-4, 0.1, -0.0, 1.0, 123456789.0, 1.5e300, -2.5e-300, 9223372036854775807, -9223372036854775808]))"#,
     r#"print(json.stringify({"A": 1, "a": 2, "a b": 3, "é": 4, "\"": 5}))"#,
     r#"print(json.stringify(time.utc(time.from_unix(1791072307))), json.stringify([time.from_unix(0)]))"#,
-    r#"print(json.stringify({a: [1, {b: 'sym}], t: (1, 2), e: [], m: {}}, indent: 2))"#,
-    r#"print(json.stringify([[], {}, [[]]], indent: 1), json.stringify({}, indent: 0), json.stringify([1, 2], indent: 0), json.stringify(1, indent: 4))"#,
+    r#"print(json.stringify({a: [1, {b: "s"}], t: [1, 2], e: [], m: {}}, indent: 2))"#,
+    r#"print(json.stringify([[], {}, [[]]], indent: 1), json.stringify({}, indent: 1), json.stringify([1, 2], indent: 1), json.stringify(1, indent: 4))"#,
+    // the JSON types only, and an indent of 1 or more (D80)
+    r#"print(json.stringify({t: (1, 2)}))"#,
+    r#"print(json.stringify(['ok]))"#,
+    r#"print(json.stringify([1], indent: 0))"#,
     r#"print(json.stringify("x", nil), json.stringify("x", indent: nil))"#,
     r#"print(json.stringify([], indent: 4611686018427387904), json.stringify(1, indent: 9223372036854775807))"#,
     r#"print(json.stringify([1], indent: 4611686018427387904))"#,
@@ -215,7 +219,7 @@ const PROGRAMS: &[&str] = &[
     r#"print(json.stringify(print))"#,
     r#"print(json.stringify((x) => x))"#,
     r#"(_tx, rx) = channel(); print(json.stringify(rx))"#,
-    r#"print(json.stringify(scope(s => spawn(s, () => 1))))"#,
+    r#"print(json.stringify(scope(s => spawn(s, () => 1))!))"#,
     r#"print(json.stringify(json))"#,
     r#"print(json.stringify(1, indent: -1))"#,
     r#"print(json.stringify(1, indent: 1.0))"#,
@@ -251,7 +255,7 @@ print(json.stringify(v, indent: 1))"#,
 
 /// How many parse inputs and programs there are.
 const PARSE_CASES: usize = 143;
-const PROGRAM_CASES: usize = 37;
+const PROGRAM_CASES: usize = 40;
 
 /// A run as an entry: standard output, standard error, exit code.
 fn entry(label: String, (out, err, code): (String, String, Option<i32>)) -> Entry {
@@ -302,7 +306,15 @@ fn program_entries(bin: &std::path::Path) -> Vec<Entry> {
     PROGRAMS
         .iter()
         .map(|src| {
-            let src = format!("import json\nimport time\n{src}");
+            // the program's own imports come first, then a read of the
+            // two every program gets, so a program need not use them (D38)
+            let (imports, rest): (Vec<&str>, Vec<&str>) =
+                src.lines().partition(|l| l.starts_with("import "));
+            let src = format!(
+                "import json\nimport time\n{}_imports = [json, time]\n{}",
+                imports.iter().map(|l| format!("{l}\n")).collect::<String>(),
+                rest.join("\n")
+            );
             entry(
                 expected::short_label(&format!("{src:?}")),
                 run(bin, &src, &[]),

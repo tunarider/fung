@@ -78,17 +78,24 @@ pub fn run_fmt(args: &[String], raw: &[Vec<u8>]) -> Out {
         if formatted == src {
             continue;
         }
-        out.stdout.extend_from_slice(path);
-        out.stdout.push(b'\n');
         if check {
+            out.stdout.extend_from_slice(path);
+            out.stdout.push(b'\n');
             worse(&mut out, EXIT_RUNTIME);
             continue;
         }
-        if let Err(e) = write(path, formatted.as_bytes()) {
-            out.stderr.extend_from_slice(
-                &[b"error: cannot write `", &path[..], b"`: ", &e, b"\n"].concat(),
-            );
-            worse(&mut out, EXIT_COMPILE);
+        // only a file written is named as changed (TL11)
+        match write(path, formatted.as_bytes()) {
+            Ok(()) => {
+                out.stdout.extend_from_slice(path);
+                out.stdout.push(b'\n');
+            }
+            Err(e) => {
+                out.stderr.extend_from_slice(
+                    &[b"error: cannot write `", &path[..], b"`: ", &e, b"\n"].concat(),
+                );
+                worse(&mut out, EXIT_COMPILE);
+            }
         }
     }
     out

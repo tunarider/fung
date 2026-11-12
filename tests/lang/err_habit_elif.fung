@@ -1,0 +1,9 @@
+# A word other languages have as a keyword is named with fung's way
+# (FE43): `else if`.
+x = 2
+if x == 1:
+  print("one")
+elif x == 2:
+  print("two")
+;;
+# expect-error: E0134

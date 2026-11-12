@@ -1,0 +1,8 @@
+# index_of (D73): the character index of the first occurrence, or nil;
+# a character index, as s[i] and len count (02).
+s = "참치 김밥 참치"
+i = index_of(s, "김밥")
+print(i, s[i..i + len("김밥")], index_of(s, "참치"), index_of(s, "라면"))
+# expect: 3 김밥 0 nil
+print(index_of("a\xffb", "b"), index_of("abc", "abcd"), index_of("abab", "ba"))
+# expect: 2 nil 1

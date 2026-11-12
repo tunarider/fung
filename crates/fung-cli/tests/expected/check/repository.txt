@@ -32,12 +32,6 @@
 ==== check examples/logsum.fung
 -- stdout
 -- stderr
-| warning[W0103]: `lines` shadows a prelude function
-|   --> examples/logsum.fung:9:11
-|   |
-| 9 | fn report(lines, top):
-|   |           ^^^^^
-|   |
 -- exit: 0
 ==== check examples/rename.fung
 -- stdout
@@ -67,9 +61,9 @@
 -- stdout
 -- stderr
 | error[E0310]: `_native.arg` is internal; it checks the arguments of the built-in modules
-|   --> extras/cli.fung:19:1
+|   --> extras/cli.fung:23:1
 |    |
-| 19 | import _native.arg as _arg
+| 23 | import _native.arg as _arg
 |    | ^
 |    |
 -- exit: 2
@@ -176,6 +170,17 @@
 ==== check tests/lang/_lib/greet.fung
 -- stdout
 -- stderr
+| error[E0239]: unused variable `version`
+|   --> tests/lang/_lib/greet.fung:4:1
+|   |
+| 4 | version = 2
+|   | ^^^^^^^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/_lib/my-lib.fung
+-- stdout
+-- stderr
 -- exit: 0
 ==== check tests/lang/_lib/noisy.fung
 -- stdout
@@ -260,12 +265,6 @@
 ==== check tests/lang/destructure.fung
 -- stdout
 -- stderr
-| warning[W0103]: `first` shadows a prelude function
-|   --> tests/lang/destructure.fung:1:2
-|   |
-| 1 | [first, ...rest] = [1, 2, 3]
-|   |  ^^^^^
-|   |
 -- exit: 0
 ==== check tests/lang/destructure_rule.fung
 -- stdout
@@ -291,11 +290,11 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/element_types.fung
+==== check tests/lang/eq_sym_str_pairs.fung
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/eq_sym_str_pairs.fung
+==== check tests/lang/eq_types.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -333,16 +332,33 @@
 -- stdout
 -- stderr
 | error[E0216]: alternatives of a pattern must bind the same names
-|   --> tests/lang/err_alt_names.fung:1:18
+|   --> tests/lang/err_alt_names.fung:1:19
 |   |
-| 1 | match 1: Ok(x) | Err(y) => print(1) ;;
-|   |                  ^
+| 1 | match 1: Ok(_x) | Err(_y) => print(1) ;;
+|   |                   ^
 |   |
+-- exit: 2
+==== check tests/lang/err_alt_never_matches.fung
+-- stdout
+-- stderr
+| error[E0241]: this alternative never matches: it repeats an alternative before it
+|   --> tests/lang/err_alt_never_matches.fung:3:7
+|   |
+| 3 |   1 | 1 => print("one")
+|   |       ^
+|   |
+|  help: remove it
 -- exit: 2
 ==== check tests/lang/err_arg_twice.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0405]: argument `a` given twice
+|   --> tests/lang/err_arg_twice.fung:2:2
+|   |
+| 2 | f(1, a: 2)
+|   |  ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_arg_type.fung
 -- stdout
 -- stderr
@@ -364,6 +380,30 @@
 | 3 | "a" | "b" = "a"
 |   | ^
 |   |
+-- exit: 2
+==== check tests/lang/err_assign_top_fn_in_fn.fung
+-- stdout
+-- stderr
+| error[E0240]: `count` hides a top-level function
+|   --> tests/lang/err_assign_top_fn_in_fn.fung:4:3
+|   |
+| 4 |   count = 0
+|   |   ^^^^^
+|   |
+|   note: `count` is a top-level function defined on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_assign_top_name_in_fn.fung
+-- stdout
+-- stderr
+| error[E0205]: cannot reassign `limit` here: it was defined outside this block
+|   --> tests/lang/err_assign_top_name_in_fn.fung:5:3
+|   |
+| 5 |   limit = 5
+|   |   ^^^^^
+|   |
+|   note: `limit` is a top-level name bound on line 3
+|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== check tests/lang/err_atom_effect.fung
 -- stdout
@@ -389,29 +429,86 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_bare_err_pattern.fung
+-- stdout
+-- stderr
+| error[E0236]: `Err` takes exactly one value, found 0
+|   --> tests/lang/err_bare_err_pattern.fung:4:3
+|   |
+| 4 |   Err => "err"
+|   |   ^
+|   |
+|  help: give it its value, `Ok(x)`; to test for a result, use `is_ok(r)`/`is_err(r)` or the pattern `Ok(_)`
+-- exit: 2
+==== check tests/lang/err_bare_ok.fung
+-- stdout
+-- stderr
+| error[E0236]: `Ok` takes exactly one value, found 0
+|   --> tests/lang/err_bare_ok.fung:4:5
+|   |
+| 4 | x = Ok
+|   |     ^
+|   |
+|  help: give it its value, `Ok(x)`; to test for a result, use `is_ok(r)`/`is_err(r)` or the pattern `Ok(_)`
+-- exit: 2
 ==== check tests/lang/err_block_assign_const.fung
 -- stdout
 -- stderr
 | error[E0205]: cannot reassign `c` here: it was defined outside this block
-|   --> tests/lang/err_block_assign_const.fung:6:5
+|   --> tests/lang/err_block_assign_const.fung:5:5
 |   |
-| 6 |     c = 2
+| 5 |     c = 2
 |   |     ^
 |   |
+|   note: `c` is a top-level name bound on line 2
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== check tests/lang/err_block_leak.fung
 -- stdout
 -- stderr
-| error[E0206]: `y` is not visible here: it was defined inside a block
+| error[E0206]: `_y` is not visible here: it was defined inside a block
 |   --> tests/lang/err_block_leak.fung:2:7
 |   |
-| 2 | print(y)
-|   |       ^
+| 2 | print(_y)
+|   |       ^^
 |   |
-|  help: assign the block's value instead: `y = if … ;;`
+|  help: assign the block's value instead: `_y = if … ;;`
 -- exit: 2
 ==== check tests/lang/err_bool.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_call_count_static.fung
+-- stdout
+-- stderr
+| error[E0402]: len takes 1 argument(s), got 2
+|   --> tests/lang/err_call_count_static.fung:3:10
+|   |
+| 3 | print(len([1], [2]))
+|   |          ^
+|   |
+-- exit: 2
+==== check tests/lang/err_call_missing_static.fung
+-- stdout
+-- stderr
+| error[E0407]: missing argument `b`
+|   --> tests/lang/err_call_missing_static.fung:5:10
+|   |
+| 5 | print(add(1))
+|   |          ^
+|   |
+-- exit: 2
+==== check tests/lang/err_call_name_static.fung
+-- stdout
+-- stderr
+| error[E0406]: join has no argument named `sep`
+|   --> tests/lang/err_call_name_static.fung:4:16
+|   |
+| 4 | print(path.join("a", "b", sep: "/"))
+|   |                ^
+|   |
+-- exit: 2
+==== check tests/lang/err_cancel_closed_scope.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -438,16 +535,35 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_cli_option_name.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_cli_option_twice.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_closed_name_in_lambda.fung
 -- stdout
 -- stderr
-| error[E0206]: `lines` is not visible here: it was defined inside a block
+| error[E0206]: `_found` is not visible here: it was defined inside a block
 |   --> tests/lang/err_closed_name_in_lambda.fung:6:11
 |   |
-| 6 | g = () => lines
-|   |           ^^^^^
+| 6 | g = () => _found
+|   |           ^^^^^^
 |   |
-|  help: assign the block's value instead: `lines = if … ;;`
+|  help: assign the block's value instead: `_found = if … ;;`
+-- exit: 2
+==== check tests/lang/err_coalesce_pipe.fung
+-- stdout
+-- stderr
+| error[E0127]: `??` and `|>` cannot be mixed without parentheses
+|   --> tests/lang/err_coalesce_pipe.fung:5:19
+|   |
+| 5 | print(Err("none") ?? "{}" |> json.parse)
+|   |                   ^^
+|   |
+|  help: say which one goes first: `(a ?? b) |> f` or `a ?? (b |> f)`
 -- exit: 2
 ==== check tests/lang/err_cond_not_bool.fung
 -- stdout
@@ -470,6 +586,18 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_discard_branch.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_discard_deep_map.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_discard_deep_ok.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_discard_deep_tuple.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -513,15 +641,20 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_drop_count_first.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_dup_fn.fung
 -- stdout
 -- stderr
 | error[E0210]: function `f` is defined twice
-|   --> tests/lang/err_dup_fn.fung:2:1
+|   --> tests/lang/err_dup_fn.fung:2:4
 |   |
 | 2 | fn f() = 2
-|   | ^
+|   |    ^
 |   |
+|   note: `f` is first defined on line 1
 -- exit: 2
 ==== check tests/lang/err_dup_key.fung
 -- stdout
@@ -532,6 +665,7 @@
 | 1 | x = {a: 1, a: 2}
 |   |            ^
 |   |
+|   note: the key `a` is first written at 1:6
 -- exit: 2
 ==== check tests/lang/err_dup_pattern_name.fung
 -- stdout
@@ -559,7 +693,7 @@
 |   --> tests/lang/err_duration_fraction_part.fung:2:7
 |   |
 | 2 | print(1.5h30m)
-|   |       ^
+|   |       ^^^^^^^
 |   |
 |  help: only the last part of a duration has a fraction: write `1h30.5m`, not `1.5h30m`
 -- exit: 2
@@ -570,7 +704,7 @@
 |   --> tests/lang/err_duration_leading_zero.fung:2:7
 |   |
 | 2 | print(1h05m)
-|   |       ^
+|   |       ^^^^^
 |   |
 |  help: a duration part does not start with 0: drop the zeros
 -- exit: 2
@@ -581,7 +715,7 @@
 |   --> tests/lang/err_duration_rounds_to_zero.fung:2:7
 |   |
 | 2 | print(0.0000004ms)
-|   |       ^
+|   |       ^^^^^^^^^^^
 |   |
 |  help: a duration is counted in whole nanoseconds; this part rounds to 0
 -- exit: 2
@@ -695,28 +829,49 @@
 |   |
 |  help: use the value, or write `_ = …` to discard it on purpose
 -- exit: 2
+==== check tests/lang/err_element_type.fung
+-- stdout
+-- stderr
+| error[E0130]: a type annotation has no element type
+|   --> tests/lang/err_element_type.fung:4:13
+|   |
+| 4 | fn f(x: list[int]) = x
+|   |             ^
+|   |
+|  help: write `list` or `map` alone: the elements are not checked, so they are not written
+-- exit: 2
 ==== check tests/lang/err_element_type_on_scalar.fung
 -- stdout
 -- stderr
-| error[E0232]: `int` takes no element type
-|   --> tests/lang/err_element_type_on_scalar.fung:2:9
+| error[E0130]: a type annotation has no element type
+|   --> tests/lang/err_element_type_on_scalar.fung:2:12
 |   |
 | 2 | fn f(x: int[str]) = x
-|   |         ^^^
+|   |            ^
 |   |
-|  help: only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone
+|  help: write `list` or `map` alone: the elements are not checked, so they are not written
 -- exit: 2
-==== check tests/lang/err_element_type_unknown.fung
+==== check tests/lang/err_env_name.fung
 -- stdout
 -- stderr
-| error[E0212]: unknown type `lsit`
-|   --> tests/lang/err_element_type_unknown.fung:3:14
-|   |
-| 3 | fn f(x: list[lsit]) = x
-|   |              ^^^^
-|   |
--- exit: 2
+-- exit: 0
+==== check tests/lang/err_eq_fn.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_eq_sym_str_compared.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_eq_types.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_eq_types_nested.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_eq_types_tag.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -763,18 +918,26 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_field_of_list.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_file_wrong_mode.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_flatten_scalar.fung
 -- stdout
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_float_underflow.fung
 -- stdout
 -- stderr
-| error[E0102]: malformed number "1e-400"
+| error[E0135]: number "1e-400" is out of range
 |   --> tests/lang/err_float_underflow.fung:2:7
 |   |
 | 2 | print(1e-400)
-|   |       ^
+|   |       ^^^^^^
 |   |
 |  help: the number is too small for a float; write `0.0` for zero
 -- exit: 2
@@ -784,7 +947,7 @@
 | error[E0224]: a block used as a value is empty, so the value is nil
 |   --> tests/lang/err_fn_empty_body.fung:3:1
 |   |
-| 3 | fn f((a, b)): ;;
+| 3 | fn f((_a, _b)): ;;
 |   | ^
 |   |
 |  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
@@ -802,13 +965,13 @@
 ==== check tests/lang/err_for_var_after.fung
 -- stdout
 -- stderr
-| error[E0206]: `len` is not visible here: it was defined inside a block
-|   --> tests/lang/err_for_var_after.fung:6:7
+| error[E0206]: `item` is not visible here: it was defined inside a block
+|   --> tests/lang/err_for_var_after.fung:5:7
 |   |
-| 6 | print(len([1, 2]))
-|   |       ^^^
+| 5 | print(item)
+|   |       ^^^^
 |   |
-|  help: `len` is bound in a `for` body, only there; use the for's value instead: `xs = for … ;;`
+|  help: `item` is bound in a `for` body, only there; use the for's value instead: `xs = for … ;;`
 -- exit: 2
 ==== check tests/lang/err_glob_pattern.fung
 -- stdout
@@ -827,12 +990,230 @@
 | 3 |   x = 2
 |   |   ^
 |   |
+|   note: `x` is a top-level name bound on line 1
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== check tests/lang/err_group_key.fung
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_habit_and.fung
+-- stdout
+-- stderr
+| error[E0101]: unexpected character "&"
+|   --> tests/lang/err_habit_and.fung:2:12
+|   |
+| 2 | print(true && false)
+|   |            ^^
+|   |
+|  help: fung writes `and`
+-- exit: 2
+==== check tests/lang/err_habit_compare.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `:` after the if condition, found `=`
+|   --> tests/lang/err_habit_compare.fung:3:6
+|   |
+| 3 | if x = 1:
+|   |      ^
+|   |
+|  help: to compare, write `==`; `=` binds a name, and only as a statement
+-- exit: 2
+==== check tests/lang/err_habit_elif.fung
+-- stdout
+-- stderr
+| error[E0134]: `elif` is not a keyword in fung
+|   --> tests/lang/err_habit_elif.fung:6:1
+|   |
+| 6 | elif x == 2:
+|   | ^^^^
+|   |
+|  help: fung writes `else if`
+-- exit: 2
+==== check tests/lang/err_habit_reserved.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected reserved word `match`
+|   --> tests/lang/err_habit_reserved.fung:2:1
+|   |
+| 2 | match = 1
+|   | ^^^^^
+|   |
+|  help: `match` is a reserved word, so it cannot be a name; pick another one
+-- exit: 2
+==== check tests/lang/err_hex_upper.fung
+-- stdout
+-- stderr
+| error[E0102]: malformed number "0xFF"
+|   --> tests/lang/err_hex_upper.fung:3:7
+|   |
+| 3 | print(0xFF)
+|   |       ^^^^
+|   |
+|  help: write the hexadecimal digits in lowercase: `0xff`
+-- exit: 2
+==== check tests/lang/err_hide_arm_name.fung
+-- stdout
+-- stderr
+| error[E0240]: `x` hides a variable of an outer block
+|   --> tests/lang/err_hide_arm_name.fung:3:3
+|   |
+| 3 |   x => x
+|   |   ^
+|   |
+|   note: `x` is bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_assign_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `len` hides a prelude function
+|   --> tests/lang/err_hide_assign_prelude.fung:3:3
+|   |
+| 3 |   len = 3
+|   |   ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_for_pattern.fung
+-- stdout
+-- stderr
+| error[E0240]: `a` hides a variable of an outer block
+|   --> tests/lang/err_hide_for_pattern.fung:3:8
+|   |
+| 3 |   for (a, b) in [(1, 2)]: a + b ;;
+|   |        ^
+|   |
+|   note: `a` is bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_for_var.fung
+-- stdout
+-- stderr
+| error[E0240]: `x` hides a top-level name
+|   --> tests/lang/err_hide_for_var.fung:3:11
+|   |
+| 3 | print(for x in [1, 2]: x ;;, x)
+|   |           ^
+|   |
+|   note: `x` is a top-level name bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_import_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `split` hides a prelude function
+|   --> tests/lang/err_hide_import_prelude.fung:2:15
+|   |
+| 2 | import regex (split)
+|   |               ^^^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_lambda_param.fung
+-- stdout
+-- stderr
+| error[E0240]: `x` hides a variable of an outer block
+|   --> tests/lang/err_hide_lambda_param.fung:4:7
+|   |
+| 4 |   g = x => x + 1
+|   |       ^
+|   |
+|   note: `x` is bound on line 3
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_local_fn.fung
+-- stdout
+-- stderr
+| error[E0240]: `c` hides a top-level name
+|   --> tests/lang/err_hide_local_fn.fung:4:6
+|   |
+| 4 |   fn c() = 5
+|   |      ^
+|   |
+|   note: `c` is a top-level name bound on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_own_name.fung
+-- stdout
+-- stderr
+| error[E0240]: `go` hides the name of the function it is in
+|   --> tests/lang/err_hide_own_name.fung:3:9
+|   |
+| 3 |   fn go(go) = go + 1
+|   |         ^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_param_import.fung
+-- stdout
+-- stderr
+| error[E0240]: `greet` hides an imported name
+|   --> tests/lang/err_hide_param_import.fung:3:6
+|   |
+| 3 | fn f(greet) = greet + 1
+|   |      ^^^^^
+|   |
+|   note: `greet` is imported on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_param_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `len` hides a prelude function
+|   --> tests/lang/err_hide_param_prelude.fung:2:6
+|   |
+| 2 | fn f(len) = len + 1
+|   |      ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_param_top_fn.fung
+-- stdout
+-- stderr
+| error[E0240]: `g` hides a top-level function
+|   --> tests/lang/err_hide_param_top_fn.fung:3:6
+|   |
+| 3 | fn f(g) = g + 1
+|   |      ^
+|   |
+|   note: `g` is a top-level function defined on line 2
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_param_top_name.fung
+-- stdout
+-- stderr
+| error[E0240]: `limit` hides a top-level name
+|   --> tests/lang/err_hide_param_top_name.fung:2:6
+|   |
+| 2 | fn f(limit) = limit + 1
+|   |      ^^^^^
+|   |
+|   note: `limit` is a top-level name bound on line 3
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_top_assign_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `max` hides a prelude function
+|   --> tests/lang/err_hide_top_assign_prelude.fung:2:1
+|   |
+| 2 | max = 3
+|   | ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
+==== check tests/lang/err_hide_top_fn_prelude.fung
+-- stdout
+-- stderr
+| error[E0240]: `len` hides a prelude function
+|   --> tests/lang/err_hide_top_fn_prelude.fung:2:4
+|   |
+| 2 | fn len(x) = 99
+|   |    ^^^
+|   |
+|  help: a visible name means one thing: give the new one a name of its own
+-- exit: 2
 ==== check tests/lang/err_hole.fung
 -- stdout
 -- stderr
@@ -862,6 +1243,17 @@
 | 1 | fn f(): import fs ;;
 |   |         ^
 |   |
+-- exit: 2
+==== check tests/lang/err_import_late.fung
+-- stdout
+-- stderr
+| error[E0313]: `import` after another statement
+|   --> tests/lang/err_import_late.fung:3:1
+|   |
+| 3 | import json
+|   | ^^^^^^
+|   |
+|  help: put every import at the top of the file, before the other statements
 -- exit: 2
 ==== check tests/lang/err_import_missing.fung
 -- stdout
@@ -910,6 +1302,22 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_in_range_types.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_in_types.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_index_negative.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_index_of_empty.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_index_range.fung
 -- stdout
 -- stderr
@@ -918,6 +1326,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_int_out_of_range.fung
+-- stdout
+-- stderr
+| error[E0135]: number "99999999999999999999" is out of range
+|   --> tests/lang/err_int_out_of_range.fung:2:7
+|   |
+| 2 | print(99999999999999999999)
+|   |       ^^^^^^^^^^^^^^^^^^^^
+|   |
+|  help: an int holds -9223372036854775808 to 9223372036854775807
+-- exit: 2
 ==== check tests/lang/err_interp.fung
 -- stdout
 -- stderr
@@ -928,7 +1347,27 @@
 |   |             ^
 |   |
 -- exit: 2
+==== check tests/lang/err_interp_deep.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_interp_fn.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_interp_nil.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_interp_result.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_join_deep.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_join_nil.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -940,7 +1379,56 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_json_stringify_indent.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_json_stringify_sym.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_json_stringify_tuple.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_key.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_lambda_operand.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected lambda
+|   --> tests/lang/err_lambda_operand.fung:4:9
+|   |
+| 4 | g = 1 + x => x * 2
+|   |         ^
+|   |
+|  help: put the lambda in parentheses: `(x => …)`
+-- exit: 2
+==== check tests/lang/err_lambda_question.fung
+-- stdout
+-- stderr
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_lambda_question.fung:3:40
+|   |
+| 3 | fn f(xs) = filter(xs, x => parse_int(x)? > 1)
+|   |                                        ^
+|   |
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+-- exit: 2
+==== check tests/lang/err_lambda_return.fung
+-- stdout
+-- stderr
+| error[E0237]: `return` inside a lambda `=>`
+|   --> tests/lang/err_lambda_return.fung:8:37
+|   |
+| 8 | fn h(xs) = find(xs, x => x > 1 then return true else false)
+|   |                                     ^^^^^^
+|   |
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+-- exit: 2
+==== check tests/lang/err_list_limit_flatten.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -955,6 +1443,17 @@
 |   |
 |  help: local functions can only call themselves; move both functions to the top level
 -- exit: 2
+==== check tests/lang/err_local_fn_twice.fung
+-- stdout
+-- stderr
+| error[E0210]: function `a` is defined twice
+|   --> tests/lang/err_local_fn_twice.fung:4:6
+|   |
+| 4 |   fn a() = 2
+|   |      ^
+|   |
+|   note: `a` is first defined on line 3
+-- exit: 2
 ==== check tests/lang/err_local_never_read.fung
 -- stdout
 -- stderr
@@ -962,13 +1461,13 @@
 ==== check tests/lang/err_map_named_f_question.fung
 -- stdout
 -- stderr
-| error[E0226]: `?` inside a lambda given to map
-|   --> tests/lang/err_map_named_f_question.fung:3:44
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_map_named_f_question.fung:2:44
 |   |
-| 3 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
+| 2 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
 |   |                                            ^
 |   |
-|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== check tests/lang/err_map_pattern_dup_key.fung
 -- stdout
@@ -979,17 +1478,18 @@
 | 3 |   {a: x, a: 2} => print(x)
 |   |          ^
 |   |
+|   note: the key `a` is first written at 3:4
 -- exit: 2
 ==== check tests/lang/err_map_question.fung
 -- stdout
 -- stderr
-| error[E0226]: `?` inside a lambda given to map
-|   --> tests/lang/err_map_question.fung:2:45
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_map_question.fung:3:45
 |   |
-| 2 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
+| 3 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
 |   |                                             ^
 |   |
-|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== check tests/lang/err_match_after_all.fung
 -- stdout
@@ -998,7 +1498,7 @@
 |   --> tests/lang/err_match_after_all.fung:3:3
 |   |
 | 3 |   _ => 1
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
 -- exit: 2
@@ -1009,9 +1509,16 @@
 |   --> tests/lang/err_match_alt_all.fung:3:3
 |   |
 | 3 |   n | n => print(n)
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
+| error[E0241]: this alternative never matches: an alternative before it matches everything
+|   --> tests/lang/err_match_alt_all.fung:3:7
+|   |
+| 3 |   n | n => print(n)
+|   |       ^
+|   |
+|  help: remove it
 -- exit: 2
 ==== check tests/lang/err_match_alt_any.fung
 -- stdout
@@ -1020,9 +1527,20 @@
 |   --> tests/lang/err_match_alt_any.fung:4:3
 |   |
 | 4 |   1 | _ => "any"
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
+-- exit: 2
+==== check tests/lang/err_match_dup_literal.fung
+-- stdout
+-- stderr
+| error[E0235]: this arm never runs: the arm on line 3 matches the same literal first
+|   --> tests/lang/err_match_dup_literal.fung:4:3
+|   |
+| 4 |   1 => "b"
+|   |   ^
+|   |
+|  help: remove one of the two arms, or join their bodies in one
 -- exit: 2
 ==== check tests/lang/err_match_lambda_stmt.fung
 -- stdout
@@ -1031,7 +1549,7 @@
 |   --> tests/lang/err_match_lambda_stmt.fung:8:3
 |   |
 | 8 |   y => y + 1
-|   |   ^ matches everything
+|   |   ^
 |   |
 |  help: move it last, or give it a guard: `n when n > 0 =>`
 -- exit: 2
@@ -1039,17 +1557,31 @@
 -- stdout
 -- stderr
 | error[E0235]: this arm matches everything, so the arms after it never run
-|   --> tests/lang/err_match_name_compare.fung:5:3
+|   --> tests/lang/err_match_name_compare.fung:6:3
 |   |
-| 5 |   limit => "at limit"
-|   |   ^^^^^ matches everything
+| 6 |   limit => "at limit"
+|   |   ^^^^^
 |   |
 |  help: a name in a pattern binds a new name, so `limit` here is not the variable; compare with a guard: `v when v == limit =>`
+| error[E0240]: `limit` hides a top-level name
+|   --> tests/lang/err_match_name_compare.fung:6:3
+|   |
+| 6 |   limit => "at limit"
+|   |   ^^^^^
+|   |
+|   note: `limit` is a top-level name bound on line 4
+|  help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
 ==== check tests/lang/err_missing_arg.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0407]: missing argument `_b`
+|   --> tests/lang/err_missing_arg.fung:2:2
+|   |
+| 2 | f(1)
+|   |  ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_missing_comma.fung
 -- stdout
 -- stderr
@@ -1057,7 +1589,7 @@
 |   --> tests/lang/err_missing_comma.fung:4:1
 |   |
 | 4 | print(ports)
-|   | ^
+|   | ^^^^^
 |   |
 |   note: the `[` opened at 3:9
 -- exit: 2
@@ -1070,7 +1602,12 @@
 | 3 | 
 |   | ^
 |   |
+|   note: the `if` opened at 1:1
 -- exit: 2
+==== check tests/lang/err_mixed_inexact.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_native_import.fung
 -- stdout
 -- stderr
@@ -1100,7 +1637,7 @@
 |   --> tests/lang/err_number.fung:1:7
 |   |
 | 1 | print(30abc)
-|   |       ^
+|   |       ^^^^^
 |   |
 -- exit: 2
 ==== check tests/lang/err_number_leading_zero.fung
@@ -1110,7 +1647,7 @@
 |   --> tests/lang/err_number_leading_zero.fung:3:8
 |   |
 | 3 | perm = 0755
-|   |        ^
+|   |        ^^^^
 |   |
 |  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
 -- exit: 2
@@ -1121,7 +1658,7 @@
 |   --> tests/lang/err_number_trailing_dot.fung:3:5
 |   |
 | 3 | x = 1.
-|   |     ^
+|   |     ^^
 |   |
 -- exit: 2
 ==== check tests/lang/err_number_upper_exp.fung
@@ -1131,7 +1668,7 @@
 |   --> tests/lang/err_number_upper_exp.fung:2:7
 |   |
 | 2 | print(1E5)
-|   |       ^
+|   |       ^^^
 |   |
 |  help: write the exponent with a lowercase `e`: `1e5`
 -- exit: 2
@@ -1142,9 +1679,9 @@
 |   --> tests/lang/err_number_upper_prefix.fung:2:7
 |   |
 | 2 | print(0XFF)
-|   |       ^
+|   |       ^^^^
 |   |
-|  help: write the base prefix in lowercase: `0xFF`
+|  help: write the base prefix in lowercase: `0xff`
 -- exit: 2
 ==== check tests/lang/err_ok_two_values.fung
 -- stdout
@@ -1216,6 +1753,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_pad_huge.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_param_bare_tag.fung
 -- stdout
 -- stderr
@@ -1225,6 +1766,17 @@
 | 2 | fn f(Red) = 1
 |   |      ^
 |   |
+-- exit: 2
+==== check tests/lang/err_pipe_coalesce.fung
+-- stdout
+-- stderr
+| error[E0127]: `??` and `|>` cannot be mixed without parentheses
+|   --> tests/lang/err_pipe_coalesce.fung:4:18
+|   |
+| 4 | print("x" |> env ?? "d")
+|   |                  ^^
+|   |
+|  help: say which one goes first: `(x |> f) ?? d` or `x |> (f ?? d)`
 -- exit: 2
 ==== check tests/lang/err_pipe_hole.fung
 -- stdout
@@ -1241,6 +1793,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_pipe_postfix.fung
+-- stdout
+-- stderr
+| error[E0229]: `!` on the right of `|>` applies to the call, not to the pipe
+|   --> tests/lang/err_pipe_postfix.fung:3:40
+|   |
+| 3 | nums = ["1", "2"] |> try_map(parse_int)!
+|   |                                        ^
+|   |
+|  help: put the pipe in parentheses: `(xs |> try_map(f))?`
+-- exit: 2
 ==== check tests/lang/err_pipe_quoted_symbol.fung
 -- stdout
 -- stderr
@@ -1263,13 +1826,13 @@
 ==== check tests/lang/err_pmap_question.fung
 -- stdout
 -- stderr
-| error[E0226]: `?` inside a lambda given to conc.pmap
-|   --> tests/lang/err_pmap_question.fung:5:47
+| error[E0237]: `?` inside a lambda `=>`
+|   --> tests/lang/err_pmap_question.fung:4:47
 |   |
-| 5 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
+| 4 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
 |   |                                               ^
 |   |
-|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== check tests/lang/err_positional_after_named.fung
 -- stdout
@@ -1282,16 +1845,42 @@
 |   |
 |  help: put the positional arguments first: `f(1, b: 2)`
 -- exit: 2
+==== check tests/lang/err_pow_negative.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_pure_call_member.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `path.join(…)` is computed and discarded
+|   --> tests/lang/err_pure_call_member.fung:3:1
+|   |
+| 3 | path.join("a", "b")
+|   | ^^^^^^^^^
+|   |
+|  help: `path.join` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== check tests/lang/err_pure_call_stmt.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `put(…)` is computed and discarded
+|   --> tests/lang/err_pure_call_stmt.fung:4:1
+|   |
+| 4 | put(m, "b", 2)
+|   | ^^^
+|   |
+|  help: `put` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== check tests/lang/err_question_in_for.fung
 -- stdout
 -- stderr
-| error[E0220]: `?` inside a for body
-|   --> tests/lang/err_question_in_for.fung:1:26
+| error[E0237]: `?` inside a `for` body
+|   --> tests/lang/err_question_in_for.fung:2:26
 |   |
-| 1 | fn f(xs) = for x in xs: x? ;;
+| 2 | fn f(xs) = for x in xs: x? ;;
 |   |                          ^
 |   |
-|  help: `for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== check tests/lang/err_question_nil.fung
 -- stdout
@@ -1319,7 +1908,7 @@
 |   |
 |  help: `..` does not chain: put the inner range in parentheses if you mean it
 -- exit: 2
-==== check tests/lang/err_range_index_reversed.fung
+==== check tests/lang/err_range_index_negative.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1346,6 +1935,7 @@
 | 2 | if true: total = total + 1 ;;
 |   |          ^^^^^
 |   |
+|   note: `total` is a top-level name bound on line 1
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== check tests/lang/err_regex.fung
@@ -1353,6 +1943,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_regex_replace_group.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_replace_empty.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1365,7 +1959,7 @@
 | 2 | fn f(...xs: int) = xs
 |   |         ^^
 |   |
-|  help: annotate it `list` (or not at all); `list[int]` names the elements without checking them
+|  help: annotate it `list`, or not at all
 -- exit: 2
 ==== check tests/lang/err_result_arity_pattern.fung
 -- stdout
@@ -1389,10 +1983,29 @@
 |   |
 |  help: put several values in a tuple: `Ok((a, b))` or `Err((a, b))`
 -- exit: 2
+==== check tests/lang/err_result_operand.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_result_type_symbol.fung
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_retry_not_result.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_return_dead.fung
+-- stdout
+-- stderr
+| error[E0131]: this statement comes after `return`, so it never runs
+|   --> tests/lang/err_return_dead.fung:4:3
+|   |
+| 4 |   print("dead")
+|   |   ^ never runs
+|   |
+|  help: remove it, or move the `return` after it
+-- exit: 2
 ==== check tests/lang/err_return_in_default.fung
 -- stdout
 -- stderr
@@ -1407,13 +2020,24 @@
 ==== check tests/lang/err_return_in_for.fung
 -- stdout
 -- stderr
-| error[E0213]: return inside a for body
-|   --> tests/lang/err_return_in_for.fung:1:15
+| error[E0237]: `return` inside a `for` body
+|   --> tests/lang/err_return_in_for.fung:1:25
 |   |
-| 1 | for x in [1]: return x ;;
-|   |               ^
+| 1 | fn f(xs) = for x in xs: return x ;;
+|   |                         ^^^^^^
 |   |
-|  help: `for` builds a list; use `find`, `all`/`any`, or `fold` instead
+|  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+-- exit: 2
+==== check tests/lang/err_return_operand.fung
+-- stdout
+-- stderr
+| error[E0132]: `return` used as a value
+|   --> tests/lang/err_return_operand.fung:5:11
+|   |
+| 5 |   x = 1 + return a
+|   |           ^^^^^^
+|   |
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
 -- exit: 2
 ==== check tests/lang/err_return_type.fung
 -- stdout
@@ -1427,12 +2051,23 @@
 -- stdout
 -- stderr
 | error[E0308]: cannot shadow module `fs`
-|   --> tests/lang/err_shadow_module.fung:2:1
+|   --> tests/lang/err_shadow_module.fung:3:1
 |   |
-| 2 | fs = 1
+| 3 | fs = 1
 |   | ^^
 |   |
 |  help: import it under another name: `import fs as m`
+-- exit: 2
+==== check tests/lang/err_slice_coalesce_end.fung
+-- stdout
+-- stderr
+| error[E0125]: `??` binds looser than `..`, so it cannot be an end of a slice
+|   --> tests/lang/err_slice_coalesce_end.fung:6:12
+|   |
+| 6 | print(xs[a ?? 0..3])
+|   |            ^
+|   |
+|  help: put the end in parentheses: `xs[(a or b)..]`
 -- exit: 2
 ==== check tests/lang/err_slice_loose_end.fung
 -- stdout
@@ -1445,10 +2080,25 @@
 |   |
 |  help: put the end in parentheses: `xs[(a or b)..]`
 -- exit: 2
+==== check tests/lang/err_slice_negative_end.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_slice_nil_end.fung
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_slice_pipe_end.fung
+-- stdout
+-- stderr
+| error[E0125]: `|>` binds looser than `..`, so it cannot be an end of a slice
+|   --> tests/lang/err_slice_pipe_end.fung:5:12
+|   |
+| 5 | print(xs[4 |> half..])
+|   |            ^
+|   |
+|  help: put the end in parentheses: `xs[(a or b)..]`
+-- exit: 2
 ==== check tests/lang/err_slice_range_chain.fung
 -- stdout
 -- stderr
@@ -1471,6 +2121,38 @@
 ==== check tests/lang/err_spawn_without_scope.fung
 -- stdout
 -- stderr
+| error[E0407]: missing argument `f`
+|   --> tests/lang/err_spawn_without_scope.fung:1:6
+|   |
+| 1 | spawn(() => 1)
+|   |      ^
+|   |
+-- exit: 2
+==== check tests/lang/err_spread_list.fung
+-- stdout
+-- stderr
+| error[E0133]: a spread `...` cannot stand in a list literal
+|   --> tests/lang/err_spread_list.fung:4:11
+|   |
+| 4 | print([1, ...xs])
+|   |           ^
+|   |
+|  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
+-- exit: 2
+==== check tests/lang/err_spread_not_last.fung
+-- stdout
+-- stderr
+| error[E0133]: a spread `...` cannot stand before another positional argument
+|   --> tests/lang/err_spread_not_last.fung:3:19
+|   |
+| 3 | print(add(...[1], 2))
+|   |                   ^
+|   |
+|  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
+-- exit: 2
+==== check tests/lang/err_spread_value.fung
+-- stdout
+-- stderr
 -- exit: 0
 ==== check tests/lang/err_stack_overflow.fung
 -- stdout
@@ -1490,6 +2172,29 @@
 |   |       ^
 |   |
 -- exit: 2
+==== check tests/lang/err_string_dollar_name.fung
+-- stdout
+-- stderr
+| error[E0129]: `$x` in a string is not interpolation
+|   --> tests/lang/err_string_dollar_name.fung:5:8
+|   |
+| 5 | print("$x")
+|   |        ^^
+|   |
+|  help: write `${x}` for the value, or `\$x` for the text
+-- exit: 2
+==== check tests/lang/err_string_index_negative.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_sum_list.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_sum_str.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_sym_name.fung
 -- stdout
 -- stderr
@@ -1502,6 +2207,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_symbol_upper.fung
+-- stdout
+-- stderr
+| error[E0128]: a symbol is not written with an uppercase letter: `'Red`
+|   --> tests/lang/err_symbol_upper.fung:3:5
+|   |
+| 3 | x = 'Red
+|   |     ^^^^
+|   |
+|  help: an uppercase symbol is written as the tag, without the quote: `Red`
+-- exit: 2
 ==== check tests/lang/err_tag_assign.fung
 -- stdout
 -- stderr
@@ -1547,6 +2263,14 @@
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
 ==== check tests/lang/err_tail_library.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_tail_return_inherited.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_tail_return_native.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1602,20 +2326,19 @@
 |   |   ^
 |   |
 -- exit: 2
-==== check tests/lang/err_too_many_args.fung
+==== check tests/lang/err_text_not_utf8.fung
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/err_top_assigned_twice.fung
+==== check tests/lang/err_too_many_args.fung
 -- stdout
 -- stderr
-| error[E0204]: undefined name `level`
-|   --> tests/lang/err_top_assigned_twice.fung:4:13
+| error[E0402]: f takes 1 argument(s), got 2
+|   --> tests/lang/err_too_many_args.fung:2:2
 |   |
-| 4 | fn show() = level
-|   |             ^^^^^ not found in this scope
+| 2 | f(1, 2)
+|   |  ^
 |   |
-|  help: `level` is a file-level variable (assigned on line 2) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument
 -- exit: 2
 ==== check tests/lang/err_top_before_init.fung
 -- stdout
@@ -1630,7 +2353,19 @@
 | 2 | f = () => late
 |   |           ^^^^ not found in this scope
 |   |
-|  help: `late` is a file-level variable (assigned on line 4) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument
+|  help: `late` is a file-level variable (assigned on line 4) that this function cannot see: a lambda or a function made in a block copies only the variables that exist when it is made; assign `late` first, or pass it as an argument
+-- exit: 2
+==== check tests/lang/err_top_reassign.fung
+-- stdout
+-- stderr
+| error[E0238]: cannot bind `n` again: a top-level name is bound once
+|   --> tests/lang/err_top_reassign.fung:6:1
+|   |
+| 6 | n = n + 1
+|   | ^
+|   |
+|   note: `n` is first bound on line 4
+|  help: give the new value a name of its own, or compute it in one expression (`x = if … ;;`, `fold`)
 -- exit: 2
 ==== check tests/lang/err_top_return.fung
 -- stdout
@@ -1643,6 +2378,14 @@
 |   |
 |  help: use `exit()` to stop a script early
 -- exit: 2
+==== check tests/lang/err_trim_empty.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_trim_left_empty.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_try_map_nil.fung
 -- stdout
 -- stderr
@@ -1659,6 +2402,18 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_unclosed_block.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> tests/lang/err_unclosed_block.fung:8:1
+|   |
+| 8 | 
+|   | ^
+|   |
+|   note: the `if` opened at 3:3
+|   note: line 6 is not indented under the `if`: was the block meant to close before it?
+-- exit: 2
 ==== check tests/lang/err_undefined.fung
 -- stdout
 -- stderr
@@ -1683,10 +2438,24 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/err_unknown_named.fung
+==== check tests/lang/err_unique_fn.fung
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_unique_types.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_unknown_named.fung
+-- stdout
+-- stderr
+| error[E0406]: f has no argument named `b`
+|   --> tests/lang/err_unknown_named.fung:2:2
+|   |
+| 2 | f(b: 1)
+|   |  ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_unknown_type.fung
 -- stdout
 -- stderr
@@ -1696,6 +2465,105 @@
 | 1 | fn f(a: integer) = a
 |   |         ^^^^^^^
 |   |
+-- exit: 2
+==== check tests/lang/err_unused_arm_name.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `n`
+|   --> tests/lang/err_unused_arm_name.fung:3:6
+|   |
+| 3 |   Ok(n)   => 0
+|   |      ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_destructured.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `b`
+|   --> tests/lang/err_unused_destructured.fung:3:7
+|   |
+| 3 |   (a, b) = (1, 2)
+|   |       ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_for_var.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `x`
+|   --> tests/lang/err_unused_for_var.fung:2:11
+|   |
+| 2 | print(for x in [1, 2]: 0 ;;)
+|   |           ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_import.fung
+-- stdout
+-- stderr
+| error[E0239]: unused import `fs`
+|   --> tests/lang/err_unused_import.fung:2:8
+|   |
+| 2 | import fs
+|   |        ^^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_lambda_param.fung
+-- stdout
+-- stderr
+| error[E0239]: unused parameter `x`
+|   --> tests/lang/err_unused_lambda_param.fung:2:19
+|   |
+| 2 | print(map([1, 2], x => 0))
+|   |                   ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_local.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `unused`
+|   --> tests/lang/err_unused_local.fung:3:3
+|   |
+| 3 |   unused = 1
+|   |   ^^^^^^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_param.fung
+-- stdout
+-- stderr
+| error[E0239]: unused parameter `x`
+|   --> tests/lang/err_unused_param.fung:2:6
+|   |
+| 2 | fn f(x) = 1
+|   |      ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_top_level.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `total`
+|   --> tests/lang/err_unused_top_level.fung:2:1
+|   |
+| 2 | total = 3
+|   | ^^^^^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
+-- exit: 2
+==== check tests/lang/err_unused_written_only.fung
+-- stdout
+-- stderr
+| error[E0239]: unused variable `x`
+|   --> tests/lang/err_unused_written_only.fung:3:3
+|   |
+| 3 |   x = 1
+|   |   ^
+|   |
+|  help: remove it, or start its name with `_` if it is kept on purpose
 -- exit: 2
 ==== check tests/lang/err_use_before_assign.fung
 -- stdout
@@ -1743,14 +2611,22 @@
 ==== check tests/lang/err_value_ends_in_fn.fung
 -- stdout
 -- stderr
-| error[E0224]: a block used as a value ends with the definition of `g`, so the value is nil
+| error[E0224]: a block used as a value ends with the definition of `_g`, so the value is nil
 |   --> tests/lang/err_value_ends_in_fn.fung:3:3
 |   |
-| 3 |   fn g() = 1
+| 3 |   fn _g() = 1
 |   |   ^^
 |   |
 |  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 -- exit: 2
+==== check tests/lang/err_write_line_newline.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_write_str.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/exit_from_task.fung
 -- stdout
 -- stderr
@@ -1766,14 +2642,12 @@
 ==== check tests/lang/fs_and_path.fung
 -- stdout
 -- stderr
-| warning[W0103]: `lines` shadows a prelude function
-|   --> tests/lang/fs_and_path.fung:7:3
-|   |
-| 7 |   lines = fs.with_open(p, h => read_lines(h)!)
-|   |   ^^^^^
-|   |
 -- exit: 0
 ==== check tests/lang/http_serve.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/http_url_encode.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1793,7 +2667,23 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/import_names_only.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/index_of.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/json.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/json_stringify_types.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/jump_shapes.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1844,12 +2734,6 @@
 ==== check tests/lang/match.fung
 -- stdout
 -- stderr
-| warning[W0103]: `first` shadows a prelude function
-|   --> tests/lang/match.fung:9:4
-|   |
-| 9 |   [first, ...] => "list from ${first}"
-|   |    ^^^^^
-|   |
 -- exit: 0
 ==== check tests/lang/match_catch_all.fung
 -- stdout
@@ -1879,11 +2763,19 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/pass_through_ok.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/path_rules.fung
 -- stdout
 -- stderr
 -- exit: 0
 ==== check tests/lang/pieces.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/pipe_order.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1894,18 +2786,16 @@
 ==== check tests/lang/pipe_tags.fung
 -- stdout
 -- stderr
-| warning[W0103]: `join` shadows a prelude function
-|   --> tests/lang/pipe_tags.fung:8:1
-|   |
-| 8 | fn join(a, b) = "${a}/${b}"
-|   | ^^^^
-|   |
 -- exit: 0
 ==== check tests/lang/pipes_partial.fung
 -- stdout
 -- stderr
 -- exit: 0
 ==== check tests/lang/process.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/pure_call_stmt_ok.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1918,6 +2808,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/regex.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/regex_escape.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1953,6 +2847,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/rules_w4a.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/scopes.fung
 -- stdout
 -- stderr
@@ -1962,6 +2860,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/slices_inclusive.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/spread_args.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -2017,6 +2919,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/tail_return_type.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/task_err.fung
 -- stdout
 -- stderr
@@ -2053,6 +2959,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/timeout_after_release.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/timeouts.fung
 -- stdout
 -- stderr
@@ -2060,12 +2970,10 @@
 ==== check tests/lang/top_constants.fung
 -- stdout
 -- stderr
-| warning[W0103]: `first` shadows a prelude function
-|   --> tests/lang/top_constants.fung:8:1
-|   |
-| 8 | fn first() = names[0]
-|   | ^^^^^
-|   |
+-- exit: 0
+==== check tests/lang/trim_sides.fung
+-- stdout
+-- stderr
 -- exit: 0
 ==== check tests/lang/try_map.fung
 -- stdout
@@ -2091,27 +2999,13 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/unused_var_silent_in_run.fung
+==== check tests/lang/unused_exempt.fung
 -- stdout
 -- stderr
-| warning[W0102]: unused variable `unused`
-|   --> tests/lang/unused_var_silent_in_run.fung:2:3
-|   |
-| 2 |   unused = 1
-|   |   ^^^^^^
-|   |
-|  help: prefix it with `_` if it is intentional
 -- exit: 0
 ==== check tests/lang/value_statement_blocks.fung
 -- stdout
 -- stderr
-| warning[W0102]: unused variable `helper`
-|   --> tests/lang/value_statement_blocks.fung:10:3
-|    |
-| 10 |   fn helper() = 2
-|    |   ^^^^^^
-|    |
-|  help: prefix it with `_` if it is intentional
 -- exit: 0
 ==== check tests/lang/wait_closed.fung
 -- stdout
@@ -2122,6 +3016,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/with_exit.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/write.fung
 -- stdout
 -- stderr
 -- exit: 0

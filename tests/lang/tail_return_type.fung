@@ -1,0 +1,13 @@
+# A function with a return type reuses its frame for every tail call: the
+# frame takes the check along, and one taken along again is not added
+# twice, so tail calls going round run in constant space (D44).
+fn a(n) -> int = n == 0 then 0 else b(n - 1)
+fn b(n) -> int = n == 0 then 0 else a(n - 1)
+print(a(300000))
+# expect: 0
+fn count(n, acc) -> int = n == 0 then acc else count(n - 1, acc + 1)
+print(count(1_000_000, 0))
+# expect: 1000000
+fn total(xs) -> int = sum(xs)
+print(total([1, 2]))
+# expect: 3

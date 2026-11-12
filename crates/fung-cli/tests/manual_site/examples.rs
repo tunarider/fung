@@ -50,8 +50,10 @@ fn one(bin: &Path, code: &Code) -> Result<Outcome, String> {
     let dir = laid_out(code)?;
     let checked = exec(bin, &dir, code, &["check", "example.fung"], false)?;
     // an example that states a failing exit may be one `check` refuses
-    // (a compile error); its run below shows that error for real
-    let shows_failure = code.exit != 0;
+    // (a compile error); its run below shows that error for real. A
+    // `fung check` fence followed by `expect check` shows what `check`
+    // prints, errors included: the comparison below holds it.
+    let shows_failure = code.exit != 0 || (code.kind == Kind::Check && code.expect_checked);
     if (checked.code != 0 || checked.output.contains("error[")) && !shows_failure {
         return Err(format!("check: exit {}\n{}", checked.code, checked.output));
     }

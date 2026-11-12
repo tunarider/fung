@@ -1,0 +1,6 @@
+# A statement after `return` in the same block never runs (D50).
+fn f():
+  return 1
+  print("dead")
+;;
+# expect-error: E0131

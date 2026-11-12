@@ -1,0 +1,3 @@
+# `join` refuses nil like interpolation (D46).
+print(join([nil, "a"], ","))
+# expect-error: E0519

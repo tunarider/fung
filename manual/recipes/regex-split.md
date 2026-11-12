@@ -62,12 +62,12 @@ fn parse(line):
 ;;
 
 # The samples of one metric as mountpoint → value.
-fn by_mount(samples, name) = samples
+fn by_mount(xs, name) = xs
   |> filter(s => s.name == name and "mountpoint" in s.labels)
   |> filter(s => get(s.labels, "fstype", "") != "tmpfs")
   |> fold({}, (acc, s) => put(acc, s.labels.mountpoint, s.value))
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["max"])!
 max_pct = parse_int(get(opts.flags, "max", "90")) ?? fail("--max takes a whole percent")
 samples = read_lines()! |> map(parse) |> filter(s => s != nil)
 avail = by_mount(samples, "node_filesystem_avail_bytes")

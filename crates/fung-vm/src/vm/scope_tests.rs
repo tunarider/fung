@@ -6,8 +6,8 @@ use crate::testutil::{Opts, exec_waiting, on_big_stack, run, setup};
 #[test]
 fn scope_returns_the_body_value() {
     assert_eq!(
-        run("print(scope(s => 1 + 1))"),
-        ("2\n".into(), "".into(), 0)
+        run("print(scope(_s => 1 + 1))"),
+        ("Ok(2)\n".into(), "".into(), 0)
     );
 }
 
@@ -30,16 +30,16 @@ fn await_inside_a_scope() {
         run(
             "print(scope(fn(s): a = spawn(s, () => 2); b = spawn(s, () => Err('e)); [await(a), await(b)] ;;))"
         ),
-        ("[2, Err('e)]\n".into(), "".into(), 0)
+        ("Ok([Ok(2), Ok(Err('e))])\n".into(), "".into(), 0)
     );
 }
 
 #[test]
 fn spawn_into_a_closed_scope_is_e0706() {
-    let (out, err, code) = run("s2 = scope(s => s)\nspawn(s2, () => 1)\nprint(\"not here\")");
+    let (out, err, code) = run("s2 = scope(s => s)!\nspawn(s2, () => 1)\nprint(\"not here\")");
     assert_eq!(out, "");
     assert!(err.contains("E0706"), "{err}");
-    assert!(err.contains("spawn into a closed scope"), "{err}");
+    assert!(err.contains("`spawn` on a closed scope"), "{err}");
     assert_eq!(code, 1);
 }
 
@@ -125,7 +125,7 @@ fn a_failure_cancels_the_siblings() {
 fn an_err_value_is_not_a_failure() {
     assert_eq!(
         run("print(scope(s => await(spawn(s, () => Err('x)))))"),
-        ("Err('x)\n".into(), "".into(), 0)
+        ("Ok(Ok(Err('x)))\n".into(), "".into(), 0)
     );
 }
 
@@ -228,18 +228,18 @@ fn two_failures_are_both_shown() {
 #[test]
 fn a_supervised_failure_goes_to_on_fail_and_the_rest_run_on() {
     let (out, err, code) = run(
-        "r = supervise(fn(s):\n  a = spawn(s, () => 1)\n  b = spawn(s, () => fail(\"b\"))\n  c = spawn(s, () => 3)\n  [await(a), await(c)]\n;;, e => print(\"handled: ${e.message}\"))\nprint(r)",
+        "r = supervise(fn(s):\n  a = spawn(s, () => 1)\n  _b = spawn(s, () => fail(\"b\"))\n  c = spawn(s, () => 3)\n  [await(a), await(c)]\n;;, e => print(\"handled: ${e.message}\"))\nprint(r)",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("handled: b\n[1, 3]\n", "", 0)
+        ("handled: b\nOk([Ok(1), Ok(3)])\n", "", 0)
     );
 }
 
 #[test]
 fn await_sees_the_failure_too() {
     let (out, err, code) = run(
-        "supervise(fn(s): t = spawn(s, () => 1 / 0); print(await(t) |> is_err) ;;, e => print(\"handled\"))",
+        "supervise(fn(s): t = spawn(s, () => 1 / 0); print(await(t) |> is_err) ;;, _e => print(\"handled\"))",
     );
     assert!(out.contains("handled\n") && out.contains("true\n"), "{out}");
     assert_eq!((err.as_str(), code), ("", 0));
@@ -289,7 +289,7 @@ fn on_fail_runs_one_at_a_time_in_order() {
 #[test]
 fn an_on_fail_error_fails_the_supervise() {
     let (out, err, code) =
-        run("supervise(s => spawn(s, () => fail(\"x\")), e => 1 / 0)\nprint(\"not here\")");
+        run("supervise(s => spawn(s, () => fail(\"x\")), _e => 1 / 0)\nprint(\"not here\")");
     assert_eq!(out, "");
     assert!(err.contains("1 / 0"), "{err}");
     assert_eq!(code, 1);
@@ -303,7 +303,7 @@ fn an_on_fail_error_fails_the_supervise() {
 fn queued_failures_of_a_cancelled_supervise_are_reported() {
     let o = exec_waiting(
         "(_gate_tx, gate) = channel()\n(note_tx, note) = channel(1)\n\
-         r = supervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  spawn(s, fn(): blocked(gate, 1); send(note_tx, 1); fail(\"b\") ;;)\n  spawn(s, fn(): recv(note); cancel(s) ;;)\n;;, e => recv(gate))\nprint(r)",
+         r = supervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  spawn(s, fn(): blocked(gate, 1); send(note_tx, 1); fail(\"b\") ;;)\n  spawn(s, fn(): recv(note); cancel(s) ;;)\n;;, _e => recv(gate))\nprint(r)",
     );
     assert_eq!(o.out, "Err({kind: 'cancelled, message: \"cancelled\"})\n");
     assert_eq!(o.err.matches("task failed:").count(), 1, "{}", o.err);
@@ -314,7 +314,7 @@ fn queued_failures_of_a_cancelled_supervise_are_reported() {
 
 #[test]
 fn a_thousand_supervised_failures_leave_no_node() {
-    let src = "each(0..1000, _ => supervise(s => spawn(s, () => 1 / 0), e => nil))";
+    let src = "each(0..1000, _ => supervise(s => spawn(s, () => 1 / 0), _e => nil))";
     let left = on_big_stack(move || {
         let s = setup(src, Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
         s.rt.run().unwrap();
@@ -343,7 +343,7 @@ fn spawn_needs_a_scope() {
 fn the_old_spawn_form_is_an_arity_error() {
     let (_, err, code) = run("spawn(() => 1)");
     assert!(err.contains("missing argument `f`"), "{err}");
-    assert_eq!(code, 1);
+    assert_eq!(code, 2, "a prelude function: caught when compiled (D43)");
 }
 
 #[test]
@@ -372,7 +372,7 @@ fn cancelling_a_finished_supervised_task_does_not_stop_on_fail() {
 #[test]
 fn a_failure_whose_handler_was_cancelled_is_not_reported_again() {
     let o = exec_waiting(
-        "(_gate_tx, gate) = channel()\nr = supervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  blocked(gate, 1)\n  cancel(s)\n;;, e => recv(gate))\nprint(r)",
+        "(_gate_tx, gate) = channel()\nr = supervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  blocked(gate, 1)\n  cancel(s)\n;;, _e => recv(gate))\nprint(r)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -386,7 +386,7 @@ fn a_failure_whose_handler_was_cancelled_is_not_reported_again() {
 #[test]
 fn an_outer_cancel_while_on_fail_runs_reports_nothing() {
     let o = exec_waiting(
-        "(_gate_tx, gate) = channel()\n(_h_tx, h) = channel()\nr = scope(fn(o):\n  spawn(o, fn(): blocked(h, 1); cancel(o) ;;)\n  supervise(fn(s):\n    spawn(s, () => fail(\"a\"))\n    recv(gate)\n  ;;, e => recv(h))\n;;)\nprint(r)",
+        "(_gate_tx, gate) = channel()\n(_h_tx, h) = channel()\nr = scope(fn(o):\n  spawn(o, fn(): blocked(h, 1); cancel(o) ;;)\n  supervise(fn(s):\n    spawn(s, () => fail(\"a\"))\n    recv(gate)\n  ;;, _e => recv(h))\n;;)\nprint(r)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -400,7 +400,7 @@ fn an_outer_cancel_while_on_fail_runs_reports_nothing() {
 fn cancel_inside_on_fail_reports_nothing() {
     for after in ["", "\n  print(\"not here\")"] {
         let o = exec_waiting(&format!(
-            "(stx, srx) = channel(1)\n(_gate_tx, gate) = channel()\nr = supervise(fn(s):\n  send(stx, s)\n  spawn(s, () => fail(\"a\"))\n  recv(gate)\n;;, fn(e):\n  print(\"handling\")\n  cancel(recv(srx)!){after}\n;;)\nprint(r)"
+            "(stx, srx) = channel(1)\n(_gate_tx, gate) = channel()\nr = supervise(fn(s):\n  send(stx, s)\n  spawn(s, () => fail(\"a\"))\n  recv(gate)\n;;, fn(_e):\n  print(\"handling\")\n  cancel(recv(srx)!){after}\n;;)\nprint(r)"
         ));
         assert_eq!(
             (o.out.as_str(), o.err.as_str(), o.exit),
@@ -419,7 +419,7 @@ fn cancel_inside_on_fail_reports_nothing() {
 #[test]
 fn exit_inside_on_fail_reports_nothing() {
     let o = exec_waiting(
-        "(_gate_tx, gate) = channel()\nsupervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  recv(gate)\n;;, e => exit(7))",
+        "(_gate_tx, gate) = channel()\nsupervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  recv(gate)\n;;, _e => exit(7))",
     );
     assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("", "", 7));
 }
@@ -442,7 +442,7 @@ fn a_deadlock_in_a_scope_body_keeps_its_position() {
 /// `extras/conc.fung`.
 #[test]
 fn the_scope_note_names_the_users_line() {
-    let (_, err, _) = run("import conc\nconc.pmap([1], x => 1 / 0)");
+    let (_, err, _) = run("import conc\nconc.pmap([1], _x => 1 / 0)");
     assert!(err.contains("note: scope opened at -e:2"), "{err}");
 }
 
@@ -502,7 +502,7 @@ fn an_unawaited_err_fails_the_scope() {
         ),
         (
             "dropped unread",
-            "scope(fn(s):\n  t = spawn(s, fn(): Err(\"x\") ;;)\n  until(() => finished(t))\n  hold(1)\n;;)\nprint(\"not here\")",
+            "scope(fn(s):\n  t = spawn(s, fn(): Err(\"x\") ;;)\n  wait_for(() => finished(t))\n  hold(1)\n;;)\nprint(\"not here\")",
         ),
         (
             "left the scope",
@@ -537,11 +537,11 @@ fn an_unawaited_err_fails_the_scope() {
 /// a task that ends in nil, and an awaited Err discarded on purpose.
 #[test]
 fn a_read_or_runtime_err_is_no_e0607() {
-    let src = "(_tx, rx) = channel()\nscope(fn(s):\n  a = spawn(s, fn(): Err(\"a\") ;;)\n  print(await(a))\n  b = spawn(s, fn(): Err(\"b\") ;;)\n  until(() => finished(b))\n  print(await(b))\n  c = spawn(s, () => recv(rx))\n  cancel(c)\n  spawn(s, fn():\n    _ = Err(\"d\")\n    nil\n  ;;)\n  e = spawn(s, fn(): Err(\"e\") ;;)\n  _ = await(e)\n  nil\n;;)\nprint(\"done\")";
+    let src = "(_tx, rx) = channel()\nscope(fn(s):\n  a = spawn(s, fn(): Err(\"a\") ;;)\n  print(await(a))\n  b = spawn(s, fn(): Err(\"b\") ;;)\n  wait_for(() => finished(b))\n  print(await(b))\n  c = spawn(s, () => recv(rx))\n  cancel(c)\n  spawn(s, fn():\n    _ = Err(\"d\")\n    nil\n  ;;)\n  e = spawn(s, fn(): Err(\"e\") ;;)\n  _ = await(e)\n  nil\n;;)\nprint(\"done\")";
     let o = exec_waiting(src);
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err(\"a\")\nErr(\"b\")\ndone\n", "", 0)
+        ("Ok(Err(\"a\"))\nOk(Err(\"b\"))\ndone\n", "", 0)
     );
 }
 
@@ -551,8 +551,8 @@ fn a_read_or_runtime_err_is_no_e0607() {
 fn supervise_hands_an_unawaited_err_to_on_fail() {
     for src in [
         "supervise(s => spawn(s, fn(): Err(\"x\") ;;), e => print(e.code, e.message))",
-        "supervise(fn(s):\n  t = spawn(s, fn(): Err(\"x\") ;;)\n  until(() => finished(t))\n  hold(1)\n;;, e => print(e.code, e.message))",
-        "t = supervise(s => spawn(s, fn(): Err(\"x\") ;;), e => print(e.code, e.message))\nprint(\"after\")",
+        "supervise(fn(s):\n  t = spawn(s, fn(): Err(\"x\") ;;)\n  wait_for(() => finished(t))\n  hold(1)\n;;, e => print(e.code, e.message))",
+        "_t = supervise(s => spawn(s, fn(): Err(\"x\") ;;), e => print(e.code, e.message))\nprint(\"after\")",
     ] {
         let o = exec_waiting(src);
         let (out, err, code) = (o.out, o.err, o.exit);
@@ -577,7 +577,7 @@ fn in_every_order(src: &str) -> Vec<(String, String, i32)> {
     fn seed_3(rt: &crate::vm::Runtime) {
         rt.shuffle_schedule(3);
     }
-    let src = format!("{}{src}", crate::testutil::UNTIL);
+    let src = crate::testutil::imports_first(&format!("{}{src}", crate::testutil::UNTIL));
     let opts = Opts {
         extra: crate::testutil::probes,
         ..Opts::default()
@@ -601,7 +601,7 @@ fn a_cancelled_scope_gives_up_its_unread_errs() {
     for (what, src, want) in [
         (
             "timeout over scope",
-            "r = timeout(() => scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  sleep(1h)\n  await(t)\n;;), 100ms)\nprint(r)",
+            "r = timeout(() => scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  wait_for(() => finished(t))\n  sleep(1h)\n  await(t)\n;;), 100ms)\nprint(r)",
             (
                 "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n",
                 "",
@@ -619,12 +619,12 @@ fn a_cancelled_scope_gives_up_its_unread_errs() {
         ),
         (
             "cancel(s)",
-            "r = scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  cancel(s)\n  await(t)\n;;)\nprint(r)",
+            "r = scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  wait_for(() => finished(t))\n  cancel(s)\n  await(t)\n;;)\nprint(r)",
             ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0),
         ),
         (
             "timeout over supervise",
-            "r = timeout(() => supervise(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  sleep(1h)\n  await(t)\n;;, e => print(\"on_fail\", e.code)), 100ms)\nprint(r)",
+            "r = timeout(() => supervise(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  wait_for(() => finished(t))\n  sleep(1h)\n  await(t)\n;;, e => print(\"on_fail\", e.code)), 100ms)\nprint(r)",
             (
                 "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n",
                 "",
@@ -633,7 +633,7 @@ fn a_cancelled_scope_gives_up_its_unread_errs() {
         ),
         (
             "a handle left in a cancelled scope",
-            "(tx, rx) = channel(1)\nr = scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  send(tx, t)!\n  until(() => finished(t))\n  cancel(s)\n;;)\nprint(r)",
+            "(tx, _rx) = channel(1)\nr = scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  send(tx, t)!\n  wait_for(() => finished(t))\n  cancel(s)\n;;)\nprint(r)",
             ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0),
         ),
         (
@@ -643,7 +643,7 @@ fn a_cancelled_scope_gives_up_its_unread_errs() {
         ),
         (
             "exit",
-            "scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  exit(3)\n  await(t)\n;;)",
+            "scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  wait_for(() => finished(t))\n  exit(3)\n  await(t)\n;;)",
             ("", "", 3),
         ),
     ] {
@@ -663,7 +663,7 @@ fn a_cancelled_scope_gives_up_its_unread_errs() {
 /// the scope (a note).
 #[test]
 fn a_dropped_err_outside_a_cancelled_scope_is_still_e0607() {
-    let reader = "(_tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, fn():\n    t = spawn(s, () => Err(\"bad\"))\n    until(() => finished(t))\n    recv(rx)\n    await(t)\n  ;;)\n  until(() => queued(rx) > 0)\n  cancel(r)\n;;)\nprint(\"not here\")";
+    let reader = "(_tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, fn():\n    t = spawn(s, () => Err(\"bad\"))\n    wait_for(() => finished(t))\n    recv(rx)\n    await(t)\n  ;;)\n  wait_for(() => queued(rx) > 0)\n  cancel(r)\n;;)\nprint(\"not here\")";
     for (i, (out, err, code)) in in_every_order(reader).into_iter().enumerate() {
         assert_eq!((out.as_str(), code), ("", 1), "order {i}: {err}");
         assert!(
@@ -671,7 +671,7 @@ fn a_dropped_err_outside_a_cancelled_scope_is_still_e0607() {
             "order {i}: {err}"
         );
     }
-    let beside = "scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  spawn(s, () => 1 / 0)\n  sleep(1h)\n  await(t)\n;;)";
+    let beside = "scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  wait_for(() => finished(t))\n  spawn(s, () => 1 / 0)\n  sleep(1h)\n  await(t)\n;;)";
     for (i, (out, err, code)) in in_every_order(beside).into_iter().enumerate() {
         assert_eq!((out.as_str(), code), ("", 1), "order {i}: {err}");
         assert!(err.starts_with("error[E0"), "order {i}: {err}");

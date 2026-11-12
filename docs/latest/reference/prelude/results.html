@@ -54,7 +54,7 @@
 <li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
 <li><a href="../../reference/prelude/maps.html">맵</a></li>
 <li><a href="../../reference/prelude/strings.html">문자열</a></li>
-<li><a href="../../reference/prelude/results.html" aria-current="page">결과값</a><ol class="toc2"><li><a href="#concepts">결과값이란</a></li><li><a href="#functions">함수</a></li></ol></li>
+<li><a href="../../reference/prelude/results.html" aria-current="page">결과값</a><ol class="toc2"><li><a href="#concepts">결과값이란</a></li><li><a href="#kinds">실패의 종류</a></li><li><a href="#functions">함수</a></li></ol></li>
 <li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
 <li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
 <li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
@@ -109,14 +109,35 @@ match port_of(&quot;70000&quot;):
 ;;</code></pre><pre class="out plain"><code>Ok(8080) 80
 bad: out of range: 70000</code></pre></div>
 <p>결과값을 쓰지 않고 버리면(문장으로 쓴 호출이 <code>Err</code>를 돌려주면) E0606으로 멈춘다. 실패를 조용히 넘기지 않기 위한 규칙이다. 일부러 버릴 때는 <code>_ = 식</code>으로 쓴다.</p>
-<p>결과값과 다른 실패도 하나 있다. <strong>런타임 에러</strong>는 코드가 틀린 경우(없는 키 읽기, 0으로 나누기, 타입이 틀린 인자)에 프로그램을 멈추는 것으로, 값으로 받을 수 없다. 에러 번호와 뜻은 <a href="../errors.html">에러 목록</a>에 있다.</p>
+<h2 id="kinds">실패의 종류</h2>
+<p>표준 라이브러리가 쓰는 <code>kind</code>는 아래가 전부다. 같은 원인은 어느 함수에서나 같은 <code>kind</code>다.</p>
+<table>
+  <thead><tr><th><code>kind</code></th><th>뜻</th><th>주로 내는 곳</th></tr></thead>
+  <tbody>
+    <tr><td><code>'not_found</code></td><td>경로나 명령이 없다. 경로 중간이 디렉터리가 아닌 것도(<code>ENOENT</code>·<code>ENOTDIR</code>)</td><td><code>fs</code>, <code>exec</code>·<code>sh</code></td></tr>
+    <tr><td><code>'permission</code></td><td>권한이 없다(<code>EACCES</code>·<code>EPERM</code>)</td><td><code>fs</code>, <code>exec</code>·<code>sh</code></td></tr>
+    <tr><td><code>'exists</code></td><td>이미 있다. 비지 않은 디렉터리도(<code>EEXIST</code>·<code>ENOTEMPTY</code>)</td><td><code>fs</code></td></tr>
+    <tr><td><code>'invalid</code></td><td>받은 값의 모양이 틀렸다: NUL이 든 경로·인자, 운영체제가 거절한 인자(<code>EINVAL</code>), URL·스킴·주소·프록시 값의 문법, 잘못된 명령줄</td><td><code>fs</code>, <code>exec</code>·<code>sh</code>, <code>http</code>, <code>cli</code></td></tr>
+    <tr><td><code>'io</code></td><td>그 밖의 입출력 실패(디스크가 참 등), 한도를 넘는 바깥 글(<code>max_body</code>를 넘는 응답, 너무 긴 출력)</td><td><code>fs</code>, <code>exec</code>·<code>sh</code>, <code>http</code>, 표준 입력</td></tr>
+    <tr><td><code>'network</code></td><td>전송 실패: 연결 거부, 이름 조회 실패, 끊긴 연결, 잘못된 응답</td><td><code>http</code></td></tr>
+    <tr><td><code>'closed</code></td><td>닫힌 핸들을 썼거나 다시 닫았다. 채널에서는 정상적인 끝(닫혔고 남은 값이 없음)</td><td>파일 핸들, 채널</td></tr>
+    <tr><td><code>'timeout</code>·<code>'cancelled</code></td><td>기한이 지났다, 취소됐다</td><td><code>timeout</code>, <code>scope</code>, <code>await</code>, <code>http</code></td></tr>
+    <tr><td><code>'parse</code></td><td>글을 값으로 읽지 못했다</td><td><code>parse_*</code>, <code>json.parse</code>, <code>time.parse</code></td></tr>
+    <tr><td><code>'exit</code></td><td>명령이 0이 아닌 코드나 신호로 끝났다</td><td><code>exec</code>·<code>sh</code></td></tr>
+    <tr><td><code>'error</code></td><td>태스크가 런타임 에러로 죽었다</td><td><code>await</code>, <code>supervise</code></td></tr>
+    <tr><td><code>'empty</code>·<code>'full</code></td><td>기다리지 않는 채널 연산이 기다려야 했다</td><td><code>recv_now</code>, <code>send_now</code></td></tr>
+  </tbody>
+</table>
+<p>운영체제의 에러 번호(errno)는 표의 앞 다섯 줄로 옮긴다: <code>ENOENT</code>·<code>ENOTDIR</code> → <code>'not_found</code>, <code>EACCES</code>·<code>EPERM</code> → <code>'permission</code>, <code>EEXIST</code>·<code>ENOTEMPTY</code> → <code>'exists</code>, NUL·<code>EINVAL</code> → <code>'invalid</code>, 나머지 → <code>'io</code>. <code>fs</code>·<code>exec</code>·<code>sh</code>가 이 한 표를 쓴다. <code>'invalid</code>처럼 다시 해도 같은 실패와 <code>'network</code>처럼 다시 해 볼 만한 실패를 <code>kind</code>로 가를 수 있다.</p>
+<p><code>'closed</code>는 두 뜻이다. 파일·소켓 핸들에서는 "이미 닫은 핸들을 썼다"(버그)이고, 채널에서는 "보내는 쪽이 모두 끝났고 남은 값이 없다"(정상적인 끝)이다. 흐름의 끝도 두 모양이다: 파일과 표준 입력의 <code>read_line</code>은 끝에서 <code>Ok(nil)</code>이고, 채널의 <code>recv</code>는 <code>Err({kind: 'closed})</code>다. 채널은 <code>nil</code>을 값으로 보낼 수 있어 <code>Ok(nil)</code>이 끝을 뜻할 수 없기 때문이다. 채널을 끝까지 받을 때는 <code>for x in rx:</code>가 닫힘에서 멈추므로 <code>'closed</code>를 직접 볼 일이 드물다.</p>
+<p>결과값과 다른 실패도 하나 있다. <strong>런타임 에러</strong>는 코드가 틀린 경우(없는 키 읽기, 0으로 나누기, 타입이 틀린 인자)에 프로그램을 멈추는 것으로, 값으로 받을 수 없다(태스크 경계의 <a href="concurrency.html#fn-supervise"><code>supervise</code></a>만 예외로 그 태스크의 에러를 <code>Err({kind: 'error, …})</code>로 준다). 에러 번호와 뜻은 <a href="../errors.html">에러 목록</a>에 있다.</p>
 <h2 id="functions">함수</h2>
 <section class="entry" id="fn-is_ok">
 <h3>is_ok<span class="by">fung으로 작성</span></h3>
 <p><code>Ok(…)</code>이면 <code>true</code>.</p>
 <div class="sig"><code>is_ok(x)</code></div>
 <h4>설명</h4>
-<p><code>type_of(x) == 'Ok</code>와 같다. 결과값이 아닌 값(<code>nil</code>, 수 등)에도 에러 없이 <code>false</code>를 돌려준다. 하나의 결과값을 다룰 때는 <code>match</code>나 <code>!</code>·<code>?</code>·<code>??</code>가 낫다. <code>is_ok</code>는 결과값의 <strong>리스트</strong>를 거를 때 빛난다: <code>rs |&gt; filter(is_ok)</code>.</p>
+<p><code>match x: Ok(_) =&gt; true; _ =&gt; false ;;</code>와 같다. 결과값이 아닌 값(<code>nil</code>, 수 등)에도 에러 없이 <code>false</code>를 돌려준다. 하나의 결과값을 다룰 때는 <code>match</code>나 <code>!</code>·<code>?</code>·<code>??</code>가 낫다. <code>is_ok</code>는 결과값의 <strong>리스트</strong>를 거를 때 빛난다: <code>rs |&gt; filter(is_ok)</code>.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>x</code>: 아무 값.</li>
@@ -142,7 +163,7 @@ print(filter(rs, is_ok) |&gt; map(r =&gt; r!))</code></pre><pre class="out plain
 <p><code>Err(…)</code>이면 <code>true</code>.</p>
 <div class="sig"><code>is_err(x)</code></div>
 <h4>설명</h4>
-<p><code>type_of(x) == 'Err</code>와 같다. 결과값이 아닌 값에는 <code>false</code>다. 실패한 것만 모아 보고할 때 쓴다.</p>
+<p><code>match x: Err(_) =&gt; true; _ =&gt; false ;;</code>와 같다. 결과값이 아닌 값에는 <code>false</code>다. 실패한 것만 모아 보고할 때 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>x</code>: 아무 값.</li>

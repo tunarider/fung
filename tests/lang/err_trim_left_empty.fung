@@ -1,0 +1,3 @@
+# An empty `cut` cuts nothing: an argument error, as for trim (D74).
+print(trim_right("xax", ""))
+# expect-error: E0403

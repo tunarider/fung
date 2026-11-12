@@ -1,0 +1,9 @@
+# json.stringify takes the JSON types only (D80): a symbol goes through
+# sym_name, a tuple as a list, a time through time.format.
+import json
+print(json.stringify({kind: sym_name('a), pair: [1, "b"], n: nil, f: 1.5, ok: true}))
+# expect: {"kind":"a","pair":[1,"b"],"n":null,"f":1.5,"ok":true}
+print(json.stringify([1], 1))
+# expect: [
+# expect:  1
+# expect: ]

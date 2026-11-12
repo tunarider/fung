@@ -15,16 +15,16 @@ description: fung 모듈 fs — 파일과 디렉터리를 읽고 쓰고 만들�
 
 경로를 이어 붙이거나 확장자를 떼는 계산은 디스크를 건드리지 않으므로 [`path`](path.html) 모듈이 따로 맡는다.
 
-파일 연산은 프로그램이 잘못하지 않아도 실패할 수 있다. 파일이 없거나, 권한이 없거나, 디스크가 찼을 수 있다. 그래서 `fs`의 함수는 실패를 런타임 에러로 멈추지 않고 **값으로** 돌려준다. 성공하면 `Ok(값)`, 실패하면 `Err({kind, message})`다. `kind`는 실패의 종류를 나타내는 심볼이고 `message`는 사람이 읽을 문장이다.
+파일 연산은 프로그램이 잘못하지 않아도 실패할 수 있다. 파일이 없거나, 권한이 없거나, 디스크가 찼을 수 있다. 그래서 `fs`의 함수는 실패를 런타임 에러로 멈추지 않고 **값으로** 돌려준다. 성공하면 `Ok(값)`, 실패하면 `Err({kind, message})`다. `kind`는 실패의 종류를 나타내는 심볼이고 `message`는 사람이 읽을 문장이다. 운영체제의 에러 번호는 `exec`·`sh`와 같은 [한 표](../prelude/results.html#kinds)로 `kind`가 된다.
 
 <table>
   <thead><tr><th><code>kind</code></th><th>뜻</th></tr></thead>
   <tbody>
-    <tr><td><code>'not_found</code></td><td>경로가 없다(위의 디렉터리가 없는 경우도).</td></tr>
+    <tr><td><code>'not_found</code></td><td>경로가 없다(위의 디렉터리가 없는 경우도, 경로 중간이 파일인 경우도).</td></tr>
     <tr><td><code>'exists</code></td><td>이미 있다(<code>mkdir</code>할 자리에 파일이 있음, 비지 않은 디렉터리를 <code>remove</code>함, <code>move</code>할 자리에 이미 있음 등).</td></tr>
     <tr><td><code>'permission</code></td><td>권한이 없다.</td></tr>
-    <tr><td><code>'io</code></td><td>그 밖의 입출력 실패(디렉터리를 파일처럼 읽음, 경로 중간이 파일임, 디스크가 참 등).</td></tr>
-    <tr><td><code>'invalid</code></td><td>정규 파일이 아닌 것(FIFO·장치)을 복사(<code>fs.copy</code>). 잘못된 glob 패턴은 E0515, 읽기로 열지 않은 핸들로 읽기(또는 그 반대)는 E0520이다(코드의 잘못).</td></tr>
+    <tr><td><code>'io</code></td><td>그 밖의 입출력 실패(디렉터리를 파일처럼 읽음, 디스크가 참 등).</td></tr>
+    <tr><td><code>'invalid</code></td><td>NUL이 든 경로, 운영체제가 거절한 인자(<code>EINVAL</code>), 정규 파일이 아닌 것(FIFO·장치)을 복사(<code>fs.copy</code>). 잘못된 glob 패턴은 E0515, 읽기로 열지 않은 핸들로 읽기(또는 그 반대)는 E0520이다(코드의 잘못).</td></tr>
     <tr><td><code>'closed</code></td><td>닫힌 파일 핸들을 썼다(핸들 함수만).</td></tr>
   </tbody>
 </table>
@@ -346,7 +346,7 @@ print(dirs)
   </tbody>
 </table>
 
-셸과 다른 점이 셋 있다. `*`는 `.`으로 시작하는 숨은 파일에도 맞는다. `**`는 특별하지 않아서 `*`와 같다(하위 디렉터리까지 찾으려면 [`fs.walk`](#fn-fs-walk)와 `filter`를 쓴다). `!`는 보통 글자다(여집합은 `[^…]`).
+셸과 다른 점이 셋 있다. `*`는 `.`으로 시작하는 숨은 파일에도 맞는다. `**`(이스케이프하지 않은 별표 둘)는 "모든 깊이"가 아니라서 E0515다(하위 디렉터리까지 찾으려면 [`fs.walk`](#fn-fs-walk)와 `filter`를 쓴다). `!`는 보통 글자다(여집합은 `[^…]`).
 
 #### 매개변수
 
@@ -358,7 +358,7 @@ print(dirs)
 
 #### 에러
 
-- 패턴이 잘못되면 런타임 에러 E0515(``invalid pattern `[a`: a glob syntax error``)다. 패턴은 코드가 정하는 것이라 잘못된 정규식과 같다. 파일을 읽기 전에 검사한다.
+- 패턴이 잘못되면 런타임 에러 E0515(``invalid pattern `[a`: a glob syntax error``)다. `**`도 E0515다(도움말 `fs.walk`). 패턴은 코드가 정하는 것이라 잘못된 정규식과 같다. 파일을 읽기 전에 검사한다.
 - 패턴이 들어가는 디렉터리를 읽지 못하면(권한이 없는 디렉터리 등) [`fs.walk`](#fn-fs-walk)처럼 그 경로의 `Err`다(``cannot glob `logs/old`: permission denied``, `kind`는 `'permission`). 와일드카드가 고른 디렉터리도 마찬가지다. 없는 디렉터리나 파일은 맞는 것이 없을 뿐이다.
 
 #### 예제
@@ -395,7 +395,7 @@ print(fs.glob("logs/[a"))
 
 #### 설명
 
-`dir`에서 시작해 하위 디렉터리로 끝까지 내려가며 **파일**의 경로만 모은다(디렉터리 자체는 들어 있지 않다). 경로는 `dir`을 앞에 붙인 정리된 꼴이고, 디렉터리마다 이름의 바이트 순서로 깊이 우선(한 디렉터리를 다 본 뒤 다음으로) 나온다. 셸의 `find dir -type f`와 비슷하다. 도중에 읽지 못하는 디렉터리가 있으면 그 경로로 `Err`다.
+`dir`에서 시작해 하위 디렉터리로 끝까지 내려가며 **파일**의 경로만 모은다(디렉터리 자체는 들어 있지 않다). 경로는 `dir`을 앞에 붙인 정리된 꼴이고, 디렉터리마다 이름의 바이트 순서로 깊이 우선(한 디렉터리를 다 본 뒤 다음으로) 나온다. 셸의 `find dir -type f`와 비슷하다. `dir`은 디렉터리여야 한다([`fs.list`](#fn-fs-list)와 같다): 디렉터리를 가리키는 링크는 따라가고, 파일이면 `Err`다. 아래의 링크는 따라가지 않고 파일처럼 넣는다. 도중에 읽지 못하는 디렉터리가 있으면 그 경로로 `Err`다.
 
 #### 매개변수
 
@@ -407,7 +407,7 @@ print(fs.glob("logs/[a"))
 
 #### 에러
 
-- `Err({kind: 'not_found})`: `dir`이 없다.
+- `Err({kind: 'not_found})`: `dir`이 없거나 디렉터리가 아니다(``cannot walk `a.txt`: not a directory``).
 - `Err({kind: 'permission})`: 아래의 어느 디렉터리를 읽을 수 없다.
 
 #### 예제
@@ -677,7 +677,7 @@ print(fs.remove_all("/"))
 
 #### 설명
 
-셸의 `mv`와 비슷하지만 **이미 있는 것을 덮어쓰지 않는다**: `to`가 있으면 `Err({kind: 'exists})`다(셸의 `mv -n`과 같고, 실패를 알린다). 파일을 덮어쓰려면 `overwrite: true`를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux `renameat2`, macOS `renamex_np`), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 **디렉터리**는 `overwrite`를 줘도 덮지 않는다(`mv a dir`처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: `fs.move("a.txt", "dir/a.txt")`. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다. 다른 파일 시스템으로 옮길 때(Linux의 tmpfs `/tmp` 등)는 이름 바꾸기가 닿지 않으므로, 파일이면 같은 덮어쓰기 규칙으로 복사한 뒤 원본을 지운다(셸의 `mv`와 같다; 이때는 한 번에 일어나지 않는다). 디렉터리와 심볼릭 링크는 다른 파일 시스템으로 옮기지 않는다(`Err`, ``cross-device link``).
+셸의 `mv`와 비슷하지만 **이미 있는 것을 덮어쓰지 않는다**: `to`가 있으면 `Err({kind: 'exists})`다(셸의 `mv -n`과 같고, 실패를 알린다). 파일을 덮어쓰려면 `overwrite: true`를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux `renameat2`, macOS `renamex_np`), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 **디렉터리**는 `overwrite`를 줘도 덮지 않는다(`mv a dir`처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: `fs.move("a.txt", "dir/a.txt")`. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다. `to`가 `from` 자신이어도(`fs.move("a.txt", "a.txt")`) 대상이 이미 있는 것이라 `Err({kind: 'exists})`다. 다른 파일 시스템으로 옮길 때(Linux의 tmpfs `/tmp` 등)는 이름 바꾸기가 닿지 않으므로, 파일이면 같은 덮어쓰기 규칙으로 복사한 뒤 원본을 지운다(셸의 `mv`와 같다; 이때는 한 번에 일어나지 않는다). 디렉터리와 심볼릭 링크는 다른 파일 시스템으로 옮기지 않는다(`Err`, ``cross-device link``).
 
 #### 매개변수
 
@@ -692,7 +692,7 @@ print(fs.remove_all("/"))
 #### 에러
 
 - `Err({kind: 'not_found})`: `from`이 없거나 `to`의 위 디렉터리가 없다.
-- `Err({kind: 'exists})`: `to`가 이미 있다(``cannot move `a.txt` to `b.txt`: file exists``). 디렉터리면 `overwrite: true`여도 그렇다.
+- `Err({kind: 'exists})`: `to`가 이미 있다(``cannot move `a.txt` to `b.txt`: file exists``). `from`과 같은 경로여도 그렇다. 디렉터리면 `overwrite: true`여도 그렇다.
 
 #### 예제
 
@@ -833,6 +833,7 @@ print(fs.copy("dir", "dir2"))
 
 - `Err({kind: 'not_found})`: `'read`로 여는데 파일이 없다, 또는 위의 디렉터리가 없다.
 - `Err({kind: 'permission})`: 권한이 없다.
+- `Err({kind: 'io})`: `path`가 디렉터리다(``cannot open `logs`: is a directory``). 어느 모드든 열 때 알린다.
 - `mode`가 셋 중 하나가 아니거나 `perm`이 맞지 않으면 런타임 에러 E0403.
 
 #### 예제
@@ -878,7 +879,7 @@ fs.open("servers.txt", 'readwrite)
 
 #### 설명
 
-`line` 뒤에 줄바꿈 `\n`을 붙여 쓴다. `line`은 문자열이어야 한다(숫자는 `str(n)`이나 `"${n}"`으로). 쓰기는 버퍼에 모였다가 닫을 때 디스크에 닿는다.
+`line` 뒤에 줄바꿈 `\n`을 붙여 쓴다. `line`은 줄바꿈이 없는 문자열이어야 한다(숫자는 `str(n)`이나 `"${n}"`으로). 여러 줄이면 줄마다 부른다. 쓰기는 버퍼에 모였다가 닫을 때 디스크에 닿는다.
 
 #### 매개변수
 
@@ -893,7 +894,7 @@ fs.open("servers.txt", 'readwrite)
 
 - `Err({kind: 'closed})`: 닫힌 핸들이다.
 - `'read`로 연 핸들이면 런타임 에러 E0520(``file `a.txt` is not open for writing``). 모드는 코드가 정하는 것이라 코드 오류다.
-- `line`이 문자열이 아니면 런타임 에러 E0403.
+- `line`이 문자열이 아니거나 `\n`이 들어 있으면 런타임 에러 E0403(한 줄을 쓰는 함수다).
 
 #### 예제
 
@@ -920,25 +921,25 @@ print(fs.read_lines("squares.txt")!)
 
 #### 설명
 
-`path`를 `mode`로 열고 `f(핸들)`을 부른 뒤, `f`가 값을 돌려주든 `?`로 `Err`를 돌려주든 런타임 에러로 멈추든 핸들을 닫는다. 결과는 `f`가 돌려준 값 그대로다. 열지 못하면 `f`를 부르지 않고 그 `Err`를 돌려준다. prelude의 [`with`](../prelude/program.html#fn-with)로 만들었다. 다른 언어의 `defer`나 `with open(...)` 블록 대신 쓰는 모양이다.
+`path`를 `mode`로 열고 `f(핸들)`을 부른 뒤, `f`가 값을 돌려주든 `?`로 `Err`를 돌려주든 런타임 에러로 멈추든 핸들을 닫는다. 결과는 `Ok(f가 돌려준 값)`이다. 열지 못하면 `f`를 부르지 않고 그 `Err`를 돌려준다. 열기가 실패할 수 있으므로 결과는 늘 결과값이고([결과값](../language/results.html)), `f`가 돌려준 `Err`는 `Ok(Err(e))`로 열기의 실패와 구별된다. prelude의 [`with`](../prelude/program.html#fn-with)로 만들었다. 다른 언어의 `defer`나 `with open(...)` 블록 대신 쓰는 모양이다.
 
-`f` 안에서 `?`를 쓰면 `f`(람다)에서 `Err`를 돌려주는 것이므로, 핸들이 닫힌 뒤 그 `Err`가 `with_open`의 결과가 된다. `f`가 스스로 핸들을 닫아도 실패가 아니다. 닫기가 실패하면(버퍼를 비우지 못함) 런타임 에러다. 핸들을 `f` 밖으로 돌려줘도 막지 않지만, 그때는 이미 닫혀 있어 쓰는 순간 `'closed`다.
+`f` 안에서 `?`를 쓰면 `f`(람다)에서 `Err`를 돌려주는 것이므로, 핸들이 닫힌 뒤 `Ok(Err(e))`가 `with_open`의 결과가 된다. `f`가 스스로 핸들을 닫아도 실패가 아니다. 닫기가 실패하면(버퍼를 비우지 못함) 런타임 에러다. 핸들을 `f` 밖으로 돌려줘도 막지 않지만, 그때는 이미 닫혀 있어 쓰는 순간 `'closed`다.
 
 #### 매개변수
 
 - `path`: 열 파일.
-- `f`: 핸들을 받는 함수. 그 결과가 `with_open`의 결과가 된다.
+- `f`: 핸들을 받는 함수. 그 결과를 `Ok`로 감싼 것이 `with_open`의 결과가 된다.
 - `mode`: [`fs.open`](#fn-fs-open)과 같다.
 - `perm`: [`fs.open`](#fn-fs-open)과 같다.
 
 #### 돌려주는 값
 
-`f`의 결과, 또는 열지 못했을 때의 `Err`.
+`Ok(f의 결과)`, 또는 열지 못했을 때의 `Err`.
 
 #### 에러
 
 - 열 때의 `Err`([`fs.open`](#fn-fs-open)과 같다).
-- `f`가 돌려준 `Err`(그대로 전달).
+- `f`가 돌려준 `Err`는 `Ok(Err(e))`로 전달한다.
 
 #### 예제
 
@@ -952,8 +953,8 @@ second line
 ```fung run
 import fs
 
-first = fs.with_open("notes.txt", h => read_line(h))!
-print(first)
+head = fs.with_open("notes.txt", h => read_line(h))!!
+print(head)
 ```
 
 **`?`로 중간에 나가도 닫힌다**
@@ -965,7 +966,7 @@ r = fs.with_open("log.txt", fn(h):
   fs.write_line(h, "first")?
   fs.write_line(h, "second")?
   Ok("wrote 2 lines")
-;;, mode: 'write)
+;;, mode: 'write)!
 print(r, fs.read_lines("log.txt")!)
 print(fs.with_open("missing.txt", h => read_line(h)))
 ```
@@ -976,7 +977,7 @@ print(fs.with_open("missing.txt", h => read_line(h)))
 import fs
 
 fs.write("a.txt", "x\n")!
-h = fs.with_open("a.txt", h => h)
+h = fs.with_open("a.txt", h => h)!
 print(read_line(h))
 ```
 
@@ -992,7 +993,7 @@ print(read_line(h))
 
 #### 설명
 
-운영체제의 임시 디렉터리(`TMPDIR`, 없으면 `/tmp`) 아래에 이름이 겹치지 않는 새 디렉터리(`fung-…`)를 만들고 `f(경로)`를 부른다. `f`가 어떻게 끝나든(값, `Err`, 런타임 에러) 디렉터리를 안의 것까지 지운다. 중간 파일을 잠시 두거나, 테스트에서 깨끗한 작업 공간이 필요할 때 쓴다. 결과는 `f`의 결과이고, 지우기가 실패하면 런타임 에러다.
+운영체제의 임시 디렉터리(`TMPDIR`, 없으면 `/tmp`) 아래에 이름이 겹치지 않는 새 디렉터리(`fung-…`)를 만들고 `f(경로)`를 부른다. `f`가 어떻게 끝나든(값, `Err`, 런타임 에러) 디렉터리를 안의 것까지 지운다. 중간 파일을 잠시 두거나, 테스트에서 깨끗한 작업 공간이 필요할 때 쓴다. 결과는 `Ok(f의 결과)`이고(만들기가 실패할 수 있으므로 결과값이다), 지우기가 실패하면 런타임 에러다.
 
 #### 매개변수
 
@@ -1000,7 +1001,7 @@ print(read_line(h))
 
 #### 돌려주는 값
 
-`f`의 결과, 또는 디렉터리를 만들지 못했을 때의 `Err`.
+`Ok(f의 결과)`, 또는 디렉터리를 만들지 못했을 때의 `Err`.
 
 #### 예제
 
@@ -1015,7 +1016,7 @@ kept = fs.with_temp_dir(fn(dir):
   fs.write(p, "partial")!
   print(fs.read(p)!)
   dir
-;;)
+;;)!
 print(fs.exists(kept)!)
 ```
 
@@ -1024,7 +1025,7 @@ print(fs.exists(kept)!)
 ```fung run hide-output
 import fs
 
-print(fs.with_temp_dir(dir => dir))
+print(fs.with_temp_dir(dir => dir)!)
 ```
 
 #### 같이 보기

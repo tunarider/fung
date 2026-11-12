@@ -52,7 +52,7 @@ fn dig(v, path) = match path:
   [k, ...rest] => type_of(v) == 'map then dig(get(v, k), rest) else nil
 ;;
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["state"])!
 text = match first(opts.rest):
   nil => join(read_lines()!, "\n")
   url => fetch(url)!

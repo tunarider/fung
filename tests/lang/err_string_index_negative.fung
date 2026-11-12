@@ -1,0 +1,6 @@
+# A negative index of a string is out of range like a list's (D37).
+s = "참치"
+print(s[1])
+# expect: 치
+print(s[-1])
+# expect-error: E0507

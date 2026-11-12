@@ -1,0 +1,5 @@
+# `sum` adds numbers and durations only (D82); `join` joins text.
+print(sum([1, 2.5]), sum([1s, 2s]), sum([]))
+# expect: 3.5 3s 0
+print(sum(["a", "b"]))
+# expect-error: E0506

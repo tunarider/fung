@@ -9,7 +9,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::cont::{Cont, ContFrame, Flow, Next, Wake};
-use super::frame::{Frame, TailFrom};
+use super::frame::{Check, Frame, TailFrom};
 use super::{RtProto, Stop, Task, at, err, no_pos};
 use crate::value::{Args, Closure, List, Native, NativeBody, Sym, Value, type_name};
 
@@ -113,6 +113,12 @@ impl<'a> Callee<'a> {
 }
 
 /// The stand-in for a continuation's box while it runs (`deliver`).
+///
+/// Invariant (VM36): if `resume` panics, the real box is dropped with the
+/// panic and this stand-in stays in its place. The panic (E0801) then
+/// unwinds through it with the default `unwind`, which only passes the
+/// stop on: that native's own unwinding (a `with` release, say) does not
+/// run. A panic is a runtime bug, so this is accepted, not handled.
 struct Hole;
 
 impl Cont for Hole {
@@ -162,11 +168,17 @@ pub(super) enum Entered {
 }
 
 impl Task<'_> {
-    /// CALL / TAILCALL with the callee and its operands on the stack.
-    /// Frame `fi` (the top one) makes the call; its position is read only
-    /// for an error or a native's call (VM16).
-    pub(super) fn call_op(&mut self, arg: usize, fi: usize, tail: bool) -> Result<Entered, Stop> {
-        let (npos, nnamed) = decode_call(arg);
+    /// CALL / TAILCALL with the callee and its operands on the stack:
+    /// `npos` positional arguments and `nnamed` named ones. Frame `fi`
+    /// (the top one) makes the call; its position is read only for an
+    /// error or a native's call (VM16).
+    pub(super) fn call_op(
+        &mut self,
+        npos: usize,
+        nnamed: usize,
+        fi: usize,
+        tail: bool,
+    ) -> Result<Entered, Stop> {
         let top = self.fiber.stack.len();
         let callee_at = top - npos - 2 * nnamed - 1;
         // A fung function: called with exactly its positional parameters,
@@ -179,16 +191,21 @@ impl Task<'_> {
                 unreachable!()
             };
             let callee = Callee::Fung(&c.proto);
-            if !callee.exact(npos, nnamed) {
+            // Every parameter given by position: the defaults' prologue
+            // has nothing to fill, and the frame starts past it (VM21).
+            let start = if callee.exact(npos, nnamed) {
+                c.proto.body
+            } else {
                 self.bind_in_place(callee, callee_at + 1, npos, nnamed)
                     .map_err(|d| at(d, self.here(fi)))?;
-            }
+                0
+            };
             if tail {
                 let base = self.fiber.frames.last().expect("a frame").base();
                 // Drop the frame's slots, temporaries and the callee slot;
                 // the arguments slide down to the frame base.
                 self.fiber.stack.drain(base..=callee_at);
-                self.reuse_frame(c);
+                self.reuse_frame(c, start);
                 return Ok(Entered::Frame);
             }
             if self.fiber.frames.len() >= MAX_FRAMES {
@@ -200,7 +217,7 @@ impl Task<'_> {
             }
             // The callee slot stays, empty, below the arguments: they
             // become the new frame's first slots where they lie (VM16).
-            self.push_frame(c, callee_at + 1, callee_at);
+            self.push_frame(c, callee_at + 1, callee_at, start);
             return Ok(Entered::Frame);
         }
         // A native: it runs on its arguments, bound where they lie when
@@ -222,6 +239,82 @@ impl Task<'_> {
             self.here(fi),
             vec![Arg::Str(type_name(&callee))],
         ))
+    }
+
+    /// CALLSPREAD / TAILCALLSPREAD: the last of the `npos` positional
+    /// arguments is a list or a range, and its items take its place on
+    /// the stack, before the named arguments (D45). Anything else is
+    /// E0506. Returns the positional count after. Out of the run loop,
+    /// like every rare path there: inlined, it grows the loop's frame.
+    #[inline(never)]
+    pub(super) fn spread_args(
+        &mut self,
+        npos: usize,
+        nnamed: usize,
+        fi: usize,
+    ) -> Result<usize, Stop> {
+        let slot = self.fiber.stack.len() - 2 * nnamed - 1;
+        let v = self.fiber.stack[slot].take().expect("a spread value");
+        let items = match &v {
+            Value::List(_) | Value::Range(_) => crate::native::nat::items(&v, "spread"),
+            _ => Err(crate::native::nat::not_iterable("spread", &v)),
+        };
+        let items = items.map_err(|e| match e {
+            Stop::Error(d) => at(*d, self.here(fi)),
+            other => other,
+        })?;
+        let n = items.len();
+        self.fiber
+            .stack
+            .splice(slot..=slot, items.into_iter().map(Some));
+        Ok(npos - 1 + n)
+    }
+
+    /// TAILCHECK at `ip` of frame `fi`: the frame takes the return check
+    /// `types[ty]` of the function it runs along into the tail call that
+    /// follows (D44). A call to the very closure the frame runs needs
+    /// none: its own check runs where it returns.
+    #[inline(never)]
+    pub(super) fn tail_check(&mut self, fi: usize, ip: usize, ty: usize) {
+        let f = &self.fiber.frames[fi];
+        let call = f.proto().code[ip + 1];
+        let (npos, nnamed) = decode_call(call.arg as usize);
+        let callee_at = self.fiber.stack.len() - npos - 2 * nnamed - 1;
+        if let Some(Value::Closure(c)) = &self.fiber.stack[callee_at]
+            && Rc::ptr_eq(c, &f.closure)
+        {
+            return;
+        }
+        let check = Check {
+            proto: f.proto().clone(),
+            ty,
+            pos: self.here(fi),
+        };
+        self.fiber.frames[fi].add_check(check);
+    }
+
+    /// The return checks the top frame took along with its tail calls
+    /// (D44), on its value `v`, the latest first: E0404 where the function
+    /// that wrote the return type returns its value, with the call path
+    /// as it is.
+    #[cold]
+    #[inline(never)]
+    fn run_checks(&self, v: &Value) -> Result<(), Stop> {
+        let f = self.fiber.frames.last().expect("a frame");
+        let checks = f.extra.as_ref().map_or(&[][..], |x| &x.checks[..]);
+        for c in checks.iter().rev() {
+            let t = &c.proto.types[c.ty];
+            if !t.matches(v) {
+                let mut d = error(
+                    "E0404",
+                    c.pos,
+                    vec![Arg::Str(t.text().to_string()), Arg::Str(type_name(v))],
+                );
+                d.call_path = self.call_path();
+                return Err(Stop::Error(Box::new(d)));
+            }
+        }
+        Ok(())
     }
 
     /// Binds a call where its arguments lie (VM6, 09: 호출 규약), for fung
@@ -251,44 +344,65 @@ impl Task<'_> {
             Some(Value::Sym(k)) => *k,
             _ => panic!("named argument without a symbol name"),
         };
-        let stack = &self.fiber.stack;
         let slot_of = |k: Sym| callee.slot_of(k, fixed);
-        for j in 0..nnamed {
-            let k = sym_at(stack, j);
-            let Some(i) = slot_of(k) else {
-                return Err(error(
-                    "E0406",
-                    no_pos(),
-                    vec![Arg::Str(name.to_string()), Arg::Str(k.name().to_string())],
-                ));
-            };
-            if i < npos || (0..j).any(|e| sym_at(stack, e) == k) {
-                return Err(error(
-                    "E0405",
-                    no_pos(),
-                    vec![Arg::Str(k.name().to_string())],
-                ));
-            }
-        }
-        for i in npos.min(fixed)..fixed {
-            let named = (0..nnamed).any(|j| slot_of(sym_at(stack, j)) == Some(i));
-            if !named && !callee.has_default(i) {
-                return Err(error(
-                    "E0407",
-                    no_pos(),
-                    vec![Arg::Str(callee.param_name(i).to_string())],
-                ));
-            }
-        }
-        // The named values come off the top into the task's buffer, which
-        // keeps its room from call to call.
+        // One pass over the named arguments finds each one's slot and
+        // marks it (VM34: the checks were a scan per pair before, cubic
+        // in a call with thousands of them). The slots are kept with the
+        // values in the task's buffer, which keeps its room from call to
+        // call (VM6).
         let mut named = std::mem::take(&mut self.fiber.named);
-        let mut ops = self.fiber.stack.drain(named_at..);
-        while let (Some(k), Some(v)) = (ops.next(), ops.next()) {
-            let Some(Value::Sym(k)) = k else {
-                unreachable!("checked above")
-            };
-            named.push((k, v.expect("named argument from an unassigned slot")));
+        named.clear();
+        let mut filled = std::mem::take(&mut self.fiber.filled);
+        filled.clear();
+        filled.resize(fixed, false);
+        let checked = (|| {
+            let stack = &self.fiber.stack;
+            for j in 0..nnamed {
+                let k = sym_at(stack, j);
+                let Some(i) = slot_of(k) else {
+                    return Err(error(
+                        "E0406",
+                        no_pos(),
+                        vec![Arg::Str(name.to_string()), Arg::Str(k.name().to_string())],
+                    ));
+                };
+                if i < npos || filled[i] {
+                    return Err(error(
+                        "E0405",
+                        no_pos(),
+                        vec![Arg::Str(k.name().to_string())],
+                    ));
+                }
+                filled[i] = true;
+                named.push((i, Value::Nil));
+            }
+            for (i, &named) in filled.iter().enumerate().skip(npos.min(fixed)) {
+                if !named && !callee.has_default(i) {
+                    // a parameter with no name in the source (`$`) by its
+                    // place (FE55)
+                    let p = callee.param_name(i);
+                    let which = if p.starts_with('$') {
+                        (i + 1).to_string()
+                    } else {
+                        format!("`{p}`")
+                    };
+                    return Err(error("E0407", no_pos(), vec![Arg::Str(which)]));
+                }
+            }
+            Ok(())
+        })();
+        self.fiber.filled = filled;
+        if let Err(d) = checked {
+            self.fiber.named = named;
+            return Err(d);
+        }
+        // The named values come off the top, next to their slots.
+        let mut ops = self.fiber.stack.drain(named_at..).skip(1).step_by(2);
+        for (_, v) in named.iter_mut() {
+            *v = ops
+                .next()
+                .flatten()
+                .expect("named argument from an unassigned slot");
         }
         drop(ops);
         if rest {
@@ -307,8 +421,7 @@ impl Task<'_> {
                 .push(Some(Value::List(Rc::new(List::new(surplus)))));
         }
         self.pad_slots(at, callee.num_locals().max(n));
-        for (k, v) in named.drain(..) {
-            let i = slot_of(k).expect("checked above");
+        for (i, v) in named.drain(..) {
             self.fiber.stack[at + i] = Some(v);
         }
         self.fiber.named = named;
@@ -393,10 +506,14 @@ impl Task<'_> {
 
     /// Pushes a frame for `c` whose arguments start at `base` and that
     /// cuts the stack back to `floor` when it returns.
-    fn push_frame(&mut self, c: Rc<Closure>, base: usize, floor: usize) {
+    /// Enters `c` in a new frame at instruction `start` (0, or past the
+    /// defaults' prologue, VM21).
+    fn push_frame(&mut self, c: Rc<Closure>, base: usize, floor: usize, start: usize) {
         self.pad_slots(base, c.proto.num_locals);
         let entry = self.entry_for(&c.proto, self.fiber.frames.last());
-        self.fiber.frames.push(Frame::new(c, base, floor, entry));
+        let mut f = Frame::new(c, base, floor, entry);
+        f.ip = start;
+        self.fiber.frames.push(f);
     }
 
     /// The built-in function a frame for `proto` runs inside of, called
@@ -414,7 +531,7 @@ impl Task<'_> {
 
     /// Makes the current frame run `c` (a tail call); the arguments are
     /// already at the frame base.
-    fn reuse_frame(&mut self, c: Rc<Closure>) {
+    fn reuse_frame(&mut self, c: Rc<Closure>, start: usize) {
         let base = self.fiber.frames.last().expect("a frame").base();
         self.pad_slots(base, c.proto.num_locals);
         // A function calling itself (a loop): the frame already runs this
@@ -422,7 +539,7 @@ impl Task<'_> {
         let f = self.fiber.frames.last_mut().expect("a frame");
         if Rc::ptr_eq(&f.closure, &c) {
             f.tail_calls += 1;
-            f.ip = 0;
+            f.ip = start;
             return;
         }
         let n = self.fiber.frames.len();
@@ -445,16 +562,17 @@ impl Task<'_> {
             f.tail_calls += 1;
         } else {
             if !f.proto().builtin {
-                f.tail_from = Some(Box::new(TailFrom {
+                let t = TailFrom {
                     proto: f.proto().clone(),
                     pos: f.current_pos(),
                     tail_calls: f.tail_calls,
-                }));
+                };
+                f.extra.get_or_insert_with(Default::default).tail_from = Some(t);
             }
             f.tail_calls = 0;
         }
         f.closure = c;
-        f.ip = 0;
+        f.ip = start;
     }
 
     /// Pops the current frame (a RETURN, or a TAILCALL whose native
@@ -463,6 +581,9 @@ impl Task<'_> {
     /// the last frame returns.
     #[inline(always)]
     pub(super) fn ret_with(&mut self, v: Value) -> Result<Ran, Stop> {
+        if self.fiber.frames.last().is_some_and(Frame::has_checks) {
+            self.run_checks(&v)?;
+        }
         let f = self.fiber.frames.pop().expect("a frame");
         self.fiber.stack.truncate(f.floor());
         self.finish(v)
@@ -514,6 +635,9 @@ impl Task<'_> {
                         let c = self.fiber.conts.pop().expect("a continuation");
                         v = self.done(&c, w);
                         if c.tail {
+                            if self.fiber.frames.last().is_some_and(Frame::has_checks) {
+                                self.run_checks(&v)?;
+                            }
                             let f = self.fiber.frames.pop().expect("a frame");
                             self.fiber.stack.truncate(f.floor());
                         }
@@ -565,6 +689,9 @@ impl Task<'_> {
             Ok(Next::Done(w)) => {
                 let w = self.done(&c, w);
                 if c.tail {
+                    if self.fiber.frames.last().is_some_and(Frame::has_checks) {
+                        self.run_checks(&w)?;
+                    }
                     let f = self.fiber.frames.pop().expect("a frame");
                     self.fiber.stack.truncate(f.floor());
                 }
@@ -617,11 +744,14 @@ impl Task<'_> {
         match &f {
             Value::Closure(c) if self.fiber.frames.len() < MAX_FRAMES => {
                 // Defaults or a rest parameter: bound where they lie (VM6).
-                if !Callee::Fung(&c.proto).exact(n, 0) {
+                let start = if Callee::Fung(&c.proto).exact(n, 0) {
+                    c.proto.body
+                } else {
                     self.bind_in_place(Callee::Fung(&c.proto), at, n, 0)
                         .map_err(|d| super::at(d, no_pos()))?;
-                }
-                self.push_frame(c.clone(), at, at);
+                    0
+                };
+                self.push_frame(c.clone(), at, at, start);
                 Ok(Entered::Frame)
             }
             Value::Closure(_) => {

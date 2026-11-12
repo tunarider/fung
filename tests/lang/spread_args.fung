@@ -1,0 +1,12 @@
+# `...xs` as a call's last positional argument spreads a list or a range
+# into the arguments (D45).
+fn log(level, ...parts) = print(level, ...parts)
+log("info", "a", 1)
+# expect: info a 1
+fn add(a, b, c = 0) = a + b + c
+xs = [1, 2]
+print(add(...xs), add(10, ...[20]), add(...0..2, c: 5), add(...[1, 2, 3]))
+# expect: 3 30 6 6
+plus = add(100, _, ...[1])
+print(plus(10), sum(...[[4, 5]]))
+# expect: 111 9

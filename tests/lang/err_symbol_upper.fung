@@ -1,0 +1,4 @@
+# A symbol has one notation (D41): an uppercase one is written as the tag.
+print(Red, 'red)
+x = 'Red
+# expect-error: E0128

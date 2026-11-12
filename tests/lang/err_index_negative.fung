@@ -1,0 +1,7 @@
+# An index counts from the start only: a negative one is out of range
+# (D37). The last element is `last(xs)` or `xs[len(xs) - 1]`.
+xs = [10, 20, 30]
+print(xs[len(xs) - 1], last(xs))
+# expect: 30 30
+print(xs[-1])
+# expect-error: E0507

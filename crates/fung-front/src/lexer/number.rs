@@ -1,7 +1,7 @@
 //! Number literals: integers, floats and durations.
 
-use super::{Kind, Lexer, is_digit, is_hex_digit, is_ident_part, is_ident_start};
-use crate::diag::Diag;
+use super::{Kind, Lexer, is_digit, is_ident_part, is_ident_start, is_lower_hex_digit};
+use crate::diag::{Arg, Diag};
 use crate::source::Pos;
 
 /// Largest value an `i64` nanosecond count can hold, as a float (2^63).
@@ -18,14 +18,41 @@ fn duration_unit(s: &str) -> Option<(u8, i64)> {
     }
 }
 
+/// The help of E0135 for an int literal (FE61).
+pub(crate) const INT_RANGE: &str = "an int holds -9223372036854775808 to 9223372036854775807";
+
+/// The help of E0135 for a float literal too large.
+const FLOAT_RANGE: &str = "a float holds up to about 1.8e308";
+
 impl Lexer<'_> {
     /// Lexes integers (decimal, 0x, 0o, 0b, with `_` separators), floats
     /// (digits on both sides of the point, optional exponent) and durations
     /// (a number immediately followed by ms/s/m/h, possibly compound: 1h30m).
     pub(super) fn number(&mut self) -> Result<(), Diag> {
+        // The error underlines the number it shows (FE61).
+        self.number_inner().map_err(|mut d| {
+            if let (0, Some(Arg::Str(text))) = (d.len, d.args.first()) {
+                d.len = text.chars().count();
+            }
+            d
+        })
+    }
+
+    fn number_inner(&mut self) -> Result<(), Diag> {
         let p = self.pos();
         let start = self.off;
+        self.number_token(p, start)?;
+        // A number has no fields (FE2, FE56): `1.5.foo` and `5s.foo` are
+        // refused like `1.foo`.
+        if self.peek() == Some('.') && is_ident_start(self.peek_at(1)) {
+            self.advance();
+            self.ident_text();
+            return Err(self.err("E0102", p, &self.src[start..self.off]));
+        }
+        Ok(())
+    }
 
+    fn number_token(&mut self, p: Pos, start: usize) -> Result<(), Diag> {
         if self.peek() == Some('0') && matches!(self.peek_at(1), Some('x' | 'o' | 'b')) {
             return self.prefixed_int(p, start);
         }
@@ -35,7 +62,12 @@ impl Lexer<'_> {
             self.advance();
             self.ident_text();
             let raw = &self.src[start..self.off];
-            let fixed = format!("0{}{}", raw[1..2].to_ascii_lowercase(), &raw[2..]);
+            // the digits too, for hexadecimal (D56)
+            let fixed = if raw.as_bytes()[1] == b'X' {
+                raw.to_ascii_lowercase()
+            } else {
+                format!("0{}{}", raw[1..2].to_ascii_lowercase(), &raw[2..])
+            };
             let help = format!("write the base prefix in lowercase: `{fixed}`");
             return Err(suggest(self.err("E0102", p, raw), &fixed, &help));
         }
@@ -124,15 +156,15 @@ impl Lexer<'_> {
                 // A literal that is not zero but reads as 0.0 lost its
                 // value (FE31): refused like an overflow.
                 Ok(f) if f == 0.0 && mantissa_is_nonzero(&text) => Err(self
-                    .err("E0102", p, raw)
+                    .err("E0135", p, raw)
                     .with_help("the number is too small for a float; write `0.0` for zero")),
-                // an overflow parses as infinity, which is E0102 below
+                // an overflow parses as infinity: out of range (FE61)
                 Ok(f) if f.is_finite() => {
                     let raw = raw.to_string();
                     self.emit(Kind::Float, &raw, p).float = f;
                     Ok(())
                 }
-                _ => Err(self.err("E0102", p, raw)),
+                _ => Err(self.err("E0135", p, raw).with_help(FLOAT_RANGE)),
             };
         }
         match text.parse::<i64>() {
@@ -148,7 +180,8 @@ impl Lexer<'_> {
                 self.emit(Kind::Int, &raw, p).int = i64::MIN;
                 Ok(())
             }
-            Err(_) => Err(self.err("E0102", p, raw)),
+            // the digits are fine: the value does not fit (FE61)
+            Err(_) => Err(self.err("E0135", p, raw).with_help(INT_RANGE)),
         }
     }
 
@@ -190,14 +223,24 @@ impl Lexer<'_> {
         };
         let dig_start = self.off;
         // `_` only between digits (01): not right after the prefix
-        while is_hex_digit(self.peek())
-            || (self.peek() == Some('_') && self.off > dig_start && is_hex_digit(self.peek_at(1)))
+        while is_lower_hex_digit(self.peek())
+            || (self.peek() == Some('_')
+                && self.off > dig_start
+                && is_lower_hex_digit(self.peek_at(1)))
         {
             self.advance();
         }
         if self.off == dig_start || is_ident_start(self.peek()) || is_digit(self.peek()) {
             self.ident_text();
-            return Err(self.err("E0102", p, &self.src[start..self.off]));
+            let raw = &self.src[start..self.off];
+            let d = self.err("E0102", p, raw);
+            // `0xFF`: the digits are lowercase too (D56)
+            if base == 16 && raw.bytes().any(|b| b.is_ascii_uppercase()) {
+                let fixed = raw.to_ascii_lowercase();
+                let help = format!("write the hexadecimal digits in lowercase: `{fixed}`");
+                return Err(suggest(d, &fixed, &help));
+            }
+            return Err(d);
         }
         let text: String = self.src[dig_start..self.off]
             .chars()
@@ -211,7 +254,9 @@ impl Lexer<'_> {
                 self.emit(Kind::Int, &raw, p).int = n as i64;
                 Ok(())
             }
-            _ => Err(self.err("E0102", p, &self.src[start..self.off])),
+            _ => Err(self
+                .err("E0135", p, &self.src[start..self.off])
+                .with_help(INT_RANGE)),
         }
     }
 
@@ -426,7 +471,9 @@ mod tests {
             ("1_", "E0102"),
             ("0x", "E0102"),
             ("0xg", "E0102"),
-            ("9223372036854775809", "E0102"),
+            ("9223372036854775809", "E0135"),
+            ("99999999999999999999", "E0135"),
+            ("1e400", "E0135"),
             ("1e", "E0102"),
             ("1h30", "E0105"),
             ("30m1h", "E0105"),
@@ -445,6 +492,9 @@ mod tests {
             ("1.\nprint(x)", "E0102"),
             ("1.e5", "E0102"),
             ("1.foo", "E0102"),
+            ("1.5.foo", "E0102"),
+            ("1e5.foo", "E0102"),
+            ("5s.foo", "E0102"),
             // lowercase prefixes and exponents only (SP27, D32)
             ("0XFF", "E0102"),
             ("0O17", "E0102"),
@@ -459,8 +509,8 @@ mod tests {
             ("1.5h30m", "E0105"),
             // a non-zero literal that rounds to zero (FE31, D9)
             ("0.0000004ms", "E0105"),
-            ("1e-400", "E0102"),
-            ("0.1e-330", "E0102"),
+            ("1e-400", "E0135"),
+            ("0.1e-330", "E0135"),
         ];
         for (src, want) in cases {
             match lex_src(src) {
@@ -481,10 +531,41 @@ mod tests {
         assert_eq!(d.args, vec![Arg::Str("1h30".to_string())]);
     }
 
+    /// FE61: a number too large for its type is out of range, not
+    /// malformed, and the whole number is underlined.
+    #[test]
+    fn a_number_out_of_range_says_so() {
+        use crate::diag::{Arg, message};
+        for (src, help) in [
+            ("99999999999999999999", "an int holds"),
+            ("0xffffffffffffffffff", "an int holds"),
+            ("1e400", "a float holds"),
+            ("1e-400", "too small"),
+        ] {
+            let d = lex_src(src).unwrap_err();
+            assert_eq!(d.code, "E0135", "{src}");
+            assert_eq!(d.args, vec![Arg::Str(src.to_string())]);
+            assert_eq!(d.len, src.len(), "{src}");
+            assert!(
+                d.help.clone().unwrap_or_default().contains(help),
+                "{src}: {:?}",
+                d.help
+            );
+            assert_eq!(
+                message(&d.code, &d.args),
+                format!("number \"{src}\" is out of range")
+            );
+        }
+        // a malformed number is underlined whole too
+        assert_eq!(lex_src("30abc").unwrap_err().len, 5);
+    }
+
     #[test]
     fn uppercase_prefixes_suggest_the_lowercase_form() {
         for (src, help) in [
-            ("0XFF", "`0xFF`"),
+            ("0XFF", "`0xff`"),
+            ("0xFF", "`0xff`"),
+            ("0xaB_cD", "`0xab_cd`"),
             ("0O17", "`0o17`"),
             ("0B1", "`0b1`"),
             ("1E5", "`1e5`"),
@@ -540,7 +621,7 @@ mod tests {
     fn min_int_magnitude_is_a_token_for_the_parser() {
         let t = one("9223372036854775808");
         assert_eq!((t.kind, t.int), (Kind::Int, i64::MIN));
-        assert_eq!(lex_src("9223372036854775809").unwrap_err().code, "E0102");
+        assert_eq!(lex_src("9223372036854775809").unwrap_err().code, "E0135");
         // in any base (FE31, D9)
         for src in [
             "0x8000000000000000",
@@ -550,6 +631,6 @@ mod tests {
             let t = one(src);
             assert_eq!((t.kind, t.int), (Kind::Int, i64::MIN), "{src}");
         }
-        assert_eq!(lex_src("0x8000000000000001").unwrap_err().code, "E0102");
+        assert_eq!(lex_src("0x8000000000000001").unwrap_err().code, "E0135");
     }
 }

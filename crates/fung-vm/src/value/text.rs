@@ -29,6 +29,10 @@ pub struct Text {
     /// The number of characters once counted (`UNCOUNTED` before): a
     /// string is never changed, so `len` counts it once (VA12).
     chars: Cell<usize>,
+    /// The last character found by its number, and its byte offset: a
+    /// loop of `s[i]` over a non-ASCII string reads on from there instead
+    /// of from the start each time (VA35).
+    cursor: Cell<(usize, usize)>,
 }
 
 const UNCOUNTED: usize = usize::MAX;
@@ -41,6 +45,7 @@ impl Text {
                 repr: Repr::Bytes(e.into_bytes()),
                 ascii: false,
                 chars: Cell::new(UNCOUNTED),
+                cursor: Cell::new((0, 0)),
             },
         }
     }
@@ -84,20 +89,63 @@ impl Text {
         }
     }
 
-    /// `x` followed by `y`. Two valid UTF-8 texts whose characters are
-    /// both counted already make a text whose count is the sum (VA26);
-    /// otherwise the count waits to be asked (bytes outside UTF-8 may
-    /// join into characters at the seam).
+    /// Valid UTF-8 whose being ASCII is known: no pass over it (VA38).
+    pub fn ascii(s: String, ascii: bool) -> Text {
+        debug_assert_eq!(s.is_ascii(), ascii);
+        Text {
+            repr: Repr::Utf8(s),
+            ascii,
+            chars: Cell::new(UNCOUNTED),
+            cursor: Cell::new((0, 0)),
+        }
+    }
+
+    /// Valid UTF-8 (a `String`): one pass to learn whether it is ASCII,
+    /// none to check it (VA38). Bytes that may not be UTF-8 go through
+    /// [`Text::new`].
+    pub fn utf8(s: String) -> Text {
+        Text::from(s)
+    }
+
+    /// `x` followed by `y`. Two valid UTF-8 texts are joined as text, with
+    /// no check of the result, and their counted characters add up (VA26,
+    /// VA32); otherwise the bytes are looked at again (bytes outside UTF-8
+    /// may join into characters at the seam).
     pub fn concat(x: &Text, y: &Text) -> Text {
+        if let (Repr::Utf8(a), Repr::Utf8(b)) = (&x.repr, &y.repr) {
+            let mut s = String::with_capacity(a.len() + b.len());
+            s.push_str(a);
+            s.push_str(b);
+            let t = Text::ascii(s, x.ascii && y.ascii);
+            if let (Some(m), Some(n)) = (x.counted(), y.counted()) {
+                t.chars.set(m + n);
+            }
+            return t;
+        }
         let mut b = Vec::with_capacity(x.as_bytes().len() + y.as_bytes().len());
         b.extend_from_slice(x.as_bytes());
         b.extend_from_slice(y.as_bytes());
-        let t = Text::new(b);
-        if let (true, true, Some(m), Some(n)) = (x.is_utf8(), y.is_utf8(), x.counted(), y.counted())
-        {
-            t.chars.set(m + n);
+        Text::new(b)
+    }
+
+    /// Puts `y` after this text in place, when both are valid UTF-8 (a
+    /// string held by one value only grows, `s = s + x`, VA32); false
+    /// otherwise, and nothing changed.
+    pub fn append(&mut self, y: &Text) -> bool {
+        if !(self.is_utf8() && y.is_utf8()) {
+            return false;
         }
-        t
+        let counted = match (self.counted(), y.counted()) {
+            (Some(m), Some(n)) => m + n,
+            _ => UNCOUNTED,
+        };
+        let (Repr::Utf8(a), Repr::Utf8(b)) = (&mut self.repr, &y.repr) else {
+            unreachable!("both checked to be UTF-8")
+        };
+        a.push_str(b);
+        self.ascii = self.ascii && y.ascii;
+        self.chars.set(counted);
+        true
     }
 
     /// The number of characters, counted the first time it is asked.
@@ -127,14 +175,22 @@ impl Text {
         }
     }
 
-    /// Where the `k`th character from the end starts (`k` ≥ 1), or
-    /// `None` when there are fewer: only the part after it is read.
-    pub fn byte_back(&self, k: usize) -> Option<usize> {
-        match &self.repr {
-            _ if self.ascii => self.as_bytes().len().checked_sub(k),
-            Repr::Utf8(s) => text::utf8_back(s.as_bytes(), k),
-            Repr::Bytes(b) => text::back(b, k),
+    /// The byte offset of character `n`, or the length past the end: from
+    /// the character looked up last when `n` is not before it (VA35).
+    pub fn offset_of(&self, n: usize) -> usize {
+        if self.ascii {
+            return n.min(self.as_bytes().len());
         }
+        let (k, b) = self.cursor.get();
+        let at = if n >= k {
+            self.byte_at(b, n - k)
+        } else {
+            self.byte_at(0, n)
+        };
+        if at < self.as_bytes().len() {
+            self.cursor.set((n, at));
+        }
+        at
     }
 
     /// The text for a message; bytes outside UTF-8 become U+FFFD.
@@ -149,6 +205,7 @@ impl From<String> for Text {
             ascii: s.is_ascii(),
             repr: Repr::Utf8(s),
             chars: Cell::new(UNCOUNTED),
+            cursor: Cell::new((0, 0)),
         }
     }
 }

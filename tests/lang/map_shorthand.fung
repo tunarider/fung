@@ -1,9 +1,8 @@
-name = "fung"
-port = 8080
-cfg = {name, port, debug: false}
+fn make(name, number) = {name, number, debug: false}
+cfg = make("fung", 8080)
 print(cfg)
-# expect: {name: "fung", port: 8080, debug: false}
-{name: n, port} = cfg
+# expect: {name: "fung", number: 8080, debug: false}
+{name: n, number: port} = cfg
 print(n, port)
 # expect: fung 8080
 match {kind: 'parse, line: 3}:

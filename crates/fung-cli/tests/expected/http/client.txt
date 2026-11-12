@@ -286,7 +286,7 @@
 ==== server 20
 -- program: print(http.get(URL + "/a%20b/%41%zz"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT/a%20b/%41%zz`: invalid URL: invalid escape `%zz`"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:$PORT/a%20b/%41%zz`: invalid URL: invalid escape `%zz`"})
 -- stderr
 -- exit: 0
 ==== server 21
@@ -858,133 +858,133 @@
 ==== no server 03
 -- program: print(http.get("ftp://x/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `ftp://x/`: unsupported scheme `ftp`"})
+| Err({kind: 'invalid, message: "cannot request `ftp://x/`: unsupported scheme `ftp`"})
 -- stderr
 -- exit: 0
 ==== no server 04
 -- program: print(http.get("::bad"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `::bad`: invalid URL: empty scheme"})
+| Err({kind: 'invalid, message: "cannot request `::bad`: invalid URL: empty scheme"})
 -- stderr
 -- exit: 0
 ==== no server 05
 -- program: print(http.get("http://[::1"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://[::1`: invalid URL: missing `]` in host"})
+| Err({kind: 'invalid, message: "cannot request `http://[::1`: invalid URL: missing `]` in host"})
 -- stderr
 -- exit: 0
 ==== no server 06
 -- program: print(http.get("x"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `x`: URL has no scheme"})
+| Err({kind: 'invalid, message: "cannot request `x`: URL has no scheme"})
 -- stderr
 -- exit: 0
 ==== no server 07
 -- program: print(http.get(""))
 -- stdout
-| Err({kind: 'network, message: "cannot request ``: URL has no scheme"})
+| Err({kind: 'invalid, message: "cannot request ``: URL has no scheme"})
 -- stderr
 -- exit: 0
 ==== no server 08
 -- program: print(http.get("http://a b/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://a b/`: invalid URL: invalid character ` ` in host"})
+| Err({kind: 'invalid, message: "cannot request `http://a b/`: invalid URL: invalid character ` ` in host"})
 -- stderr
 -- exit: 0
 ==== no server 09
 -- program: print(http.get("http:///path"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http:///path`: URL has no host"})
+| Err({kind: 'invalid, message: "cannot request `http:///path`: URL has no host"})
 -- stderr
 -- exit: 0
 ==== no server 10
 -- program: print(http.get("http:foo"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http:foo`: URL has no host"})
+| Err({kind: 'invalid, message: "cannot request `http:foo`: URL has no host"})
 -- stderr
 -- exit: 0
 ==== no server 11
 -- program: print(http.get("http://x:y/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://x:y/`: invalid URL: invalid port `y`"})
+| Err({kind: 'invalid, message: "cannot request `http://x:y/`: invalid URL: invalid port `y`"})
 -- stderr
 -- exit: 0
 ==== no server 12
 -- program: print(http.get("http://127.0.0.1:99999/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:99999/`: invalid URL: invalid port `99999`"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:99999/`: invalid URL: invalid port `99999`"})
 -- stderr
 -- exit: 0
 ==== no server 13
 -- program: print(http.get("http://127.0.0.1:99999999999999999999999/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:99999999999999999999999/`: invalid URL: invalid port `99999999999999999999999`"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:99999999999999999999999/`: invalid URL: invalid port `99999999999999999999999`"})
 -- stderr
 -- exit: 0
 ==== no server 14
 -- program: print(http.get("http://%zz/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://%zz/`: invalid URL: invalid escape `%zz`"})
+| Err({kind: 'invalid, message: "cannot request `http://%zz/`: invalid URL: invalid escape `%zz`"})
 -- stderr
 -- exit: 0
 ==== no server 15
 -- program: print(http.get("http://x/%zz"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://x/%zz`: invalid URL: invalid escape `%zz`"})
+| Err({kind: 'invalid, message: "cannot request `http://x/%zz`: invalid URL: invalid escape `%zz`"})
 -- stderr
 -- exit: 0
 ==== no server 16
 -- program: print(http.get("http://x/#%zz"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://x/#%zz`: invalid URL: invalid escape `%zz`"})
+| Err({kind: 'invalid, message: "cannot request `http://x/#%zz`: invalid URL: invalid escape `%zz`"})
 -- stderr
 -- exit: 0
 ==== no server 17
 -- program: print(http.get("http://x/\u{1}"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://x/\u{1}`: invalid URL: control character in URL"})
+| Err({kind: 'invalid, message: "cannot request `http://x/\u{1}`: invalid URL: control character in URL"})
 -- stderr
 -- exit: 0
 ==== no server 18
 -- program: print(http.get("a:b/c"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `a:b/c`: unsupported scheme `a`"})
+| Err({kind: 'invalid, message: "cannot request `a:b/c`: unsupported scheme `a`"})
 -- stderr
 -- exit: 0
 ==== no server 19
 -- program: print(http.get("1http://x/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `1http://x/`: invalid URL: first path segment cannot contain a colon"})
+| Err({kind: 'invalid, message: "cannot request `1http://x/`: invalid URL: first path segment cannot contain a colon"})
 -- stderr
 -- exit: 0
 ==== no server 20
 -- program: print(http.get("/relative"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `/relative`: URL has no scheme"})
+| Err({kind: 'invalid, message: "cannot request `/relative`: URL has no scheme"})
 -- stderr
 -- exit: 0
 ==== no server 21
 -- program: print(http.get("http://[::1]x/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://[::1]x/`: invalid URL: unexpected `x` after `]`"})
+| Err({kind: 'invalid, message: "cannot request `http://[::1]x/`: invalid URL: unexpected `x` after `]`"})
 -- stderr
 -- exit: 0
 ==== no server 22
 -- program: print(http.get("http://a[::1]/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://a[::1]/`: invalid URL: invalid IP address in brackets"})
+| Err({kind: 'invalid, message: "cannot request `http://a[::1]/`: invalid URL: invalid IP address in brackets"})
 -- stderr
 -- exit: 0
 ==== no server 23
 -- program: print(http.get("http://[nope]/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://[nope]/`: invalid URL: invalid IP address `nope`"})
+| Err({kind: 'invalid, message: "cannot request `http://[nope]/`: invalid URL: invalid IP address `nope`"})
 -- stderr
 -- exit: 0
 ==== no server 24
 -- program: print(http.get("http://[127.0.0.1]/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://[127.0.0.1]/`: invalid URL: invalid IP address in brackets"})
+| Err({kind: 'invalid, message: "cannot request `http://[127.0.0.1]/`: invalid URL: invalid IP address in brackets"})
 -- stderr
 -- exit: 0
 ==== no server 25
@@ -1008,7 +1008,7 @@
 ==== no server 28
 -- program: print(http.get("http://[fe80::1%25en0]:99999/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://[fe80::1%25en0]:99999/`: invalid URL: invalid port `99999`"})
+| Err({kind: 'invalid, message: "cannot request `http://[fe80::1%25en0]:99999/`: invalid URL: invalid port `99999`"})
 -- stderr
 -- exit: 0
 ==== no server 29

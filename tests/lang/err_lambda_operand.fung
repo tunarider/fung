@@ -1,0 +1,5 @@
+# A lambda is not an operator's operand without parentheses (FE41).
+f = 1 + (x => x * 2)(3)
+print(f)
+g = 1 + x => x * 2
+# expect-error: E0110

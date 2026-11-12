@@ -1,0 +1,12 @@
+# http.url_encode and url_decode (D73): a query value or path segment
+# as a URL holds it (all but A-Z a-z 0-9 - . _ ~ escaped), and back.
+import http
+v = "a b&c=d/é+~"
+e = http.url_encode(v)
+print(e, http.url_decode(e), http.url_decode("x+y%2b"))
+# expect: a%20b%26c%3Dd%2F%C3%A9%2B~ Ok("a b&c=d/é+~") Ok("x+y+")
+print(http.url_decode("%zz"), http.url_decode("50%"))
+# expect: Err({kind: 'invalid, message: "invalid escape `%zz`"}) Err({kind: 'invalid, message: "invalid escape `%`"})
+# A URL with an invalid escape is refused, not re-encoded (D75).
+print(http.get("http://127.0.0.1:1/q?c=%zz"))
+# expect: Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:1/q?c=%zz`: invalid URL: invalid escape `%zz`"})

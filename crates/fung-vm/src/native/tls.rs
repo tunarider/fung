@@ -180,10 +180,10 @@ pub(super) fn ended_cleanly(t: &Mutex<Session>) -> bool {
 pub(super) fn start(host: &str, alpn: &[Vec<u8>]) -> Result<Session, Fail> {
     if host.is_empty() {
         // there is no name to verify the certificate against
-        return Err(Fail::Network("TLS needs a host name".into()));
+        return Err(Fail::Invalid("TLS needs a host name".into()));
     }
     let name = ServerName::try_from(host.to_string())
-        .map_err(|_| Fail::Network(format!("invalid TLS server name `{host}`")))?;
+        .map_err(|_| Fail::Invalid(format!("invalid TLS server name `{host}`")))?;
     let cfg = if alpn.is_empty() {
         config()
     } else {

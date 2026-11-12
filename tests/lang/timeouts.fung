@@ -1,16 +1,18 @@
-# A timeout scope gives the body's value, or Err timeout at the deadline.
+import conc
+
+# A timeout scope gives Ok of the body's value (D65), or Err timeout at
+# the deadline.
 print(timeout(() => 1 + 1, 1s))
 # `_tx` keeps the channel open, so the receive waits
 (_tx, rx) = channel()
 print(timeout(() => recv(rx), 20ms))
 print(timeout(() => 1, 0s))
-# expect: 2
+# expect: Ok(2)
 # expect: Err({kind: 'timeout, message: "timed out after 20ms"})
 # expect: Err({kind: 'timeout, message: "timed out after 0s"})
 
 # An Err a task returned before the deadline is given up with the rest
 # of the timed-out work (D1): no E0607, whichever task ended first.
-import conc
 fn check(h):
   if h == 1:
     sleep(1s)

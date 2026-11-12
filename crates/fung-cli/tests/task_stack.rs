@@ -33,7 +33,7 @@ fn deep_callbacks_in_a_task_match_the_entry() {
     let entry = eval(&format!("{DEEP_CALLBACK}print(f(99000) |> type_of)"));
     assert_eq!(entry, "'int\n");
     let task = eval(&format!(
-        "{DEEP_CALLBACK}print(scope(s => await(spawn(s, () => f(99000)))) |> type_of)"
+        "{DEEP_CALLBACK}print(scope(s => await(spawn(s, () => f(99000)))!)! |> type_of)"
     ));
     assert_eq!(task, entry);
 }

@@ -289,9 +289,13 @@ impl Pipe {
 /// Clears `O_NONBLOCK`, so that the last bytes are written in full.
 fn set_blocking(f: &std::fs::File) -> io::Result<()> {
     let fd = f.as_raw_fd();
-    // SAFETY: plain fcntl calls on a descriptor `f` owns.
+    // SAFETY: a plain fcntl call on a descriptor `f` owns.
     let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
-    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags & !libc::O_NONBLOCK) } < 0 {
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: as above; only the flags change.
+    if unsafe { libc::fcntl(fd, libc::F_SETFL, flags & !libc::O_NONBLOCK) } < 0 {
         return Err(io::Error::last_os_error());
     }
     Ok(())

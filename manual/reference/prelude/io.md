@@ -1,6 +1,6 @@
 ---
 lede: 프로그램이 바깥과 글자를 주고받는 세 통로, 곧 표준 출력·표준 에러·표준 입력을 다룬다. 결과는 <code>print</code>로 쓰고, 진행 상황과 경고는 <code>eprint</code>로, 들어오는 줄은 <code>read_line</code>·<code>read_lines</code>로 읽는다.
-description: fung prelude 출력과 입력: print, eprint, read_line, read_lines, dbg.
+description: fung prelude 출력과 입력: print, eprint, write, ewrite, read_line, read_lines, dbg.
 ---
 # 출력과 입력
 
@@ -119,6 +119,79 @@ match parse_int(port):
 #### 같이 보기
 
 [`print`](#fn-print), [`exit`](program.html#fn-exit), [`fail`](program.html#fn-fail)
+
+:::
+
+:::fn write(s)
+
+문자열을 줄바꿈 없이 그대로 표준 출력에 쓴다.
+
+#### 설명
+
+[`print`](#fn-print)는 값을 보여 주는 함수라 인자를 공백으로 잇고 끝에 줄바꿈을 붙인다. `write`는 문자열 하나를 **글자 그대로** 쓴다. 진행 표시(`.`을 하나씩), 같은 줄에 이어 쓰기, 다른 프로그램이 읽을 정확한 바이트를 낼 때 쓴다. 줄바꿈이 필요하면 직접 넣는다(`write("done\n")`). `print`와 같은 쓰기 통로를 지나므로 둘을 섞어 써도 쓴 순서대로 나간다. 값을 찍으려면 `print`나 보간(`"${x}"`)으로 먼저 문자열을 만든다.
+
+#### 매개변수
+
+- `s`: 쓸 문자열.
+
+#### 돌려주는 값
+
+`nil`.
+
+#### 에러
+
+`s`가 문자열이 아니면 런타임 에러 E0403.
+
+#### 예제
+
+**한 줄에 이어 쓰기**
+
+```fung run
+write("checking")
+each(1..=3, _ => write("."))
+write(" ok\n")
+print("done")
+```
+
+#### 같이 보기
+
+[`print`](#fn-print), [`ewrite`](#fn-ewrite), [`fs.write`](../modules/fs.html#fn-fs-write)
+
+:::
+
+:::fn ewrite(s)
+
+`write`와 같이 줄바꿈 없이 표준 에러에 쓴다.
+
+#### 설명
+
+나가는 곳만 표준 에러인 [`write`](#fn-write)다. [`eprint`](#fn-eprint)와 같은 쓰기 통로를 지나므로 둘의 순서가 지켜진다.
+
+#### 매개변수
+
+- `s`: 쓸 문자열.
+
+#### 돌려주는 값
+
+`nil`.
+
+#### 에러
+
+`s`가 문자열이 아니면 런타임 에러 E0403.
+
+#### 예제
+
+**진행 표시는 표준 에러에**
+
+```fung run
+ewrite("working")
+ewrite("...\n")
+print("result 42")
+```
+
+#### 같이 보기
+
+[`eprint`](#fn-eprint), [`write`](#fn-write)
 
 :::
 

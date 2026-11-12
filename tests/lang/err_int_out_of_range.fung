@@ -1,0 +1,3 @@
+# An int literal past 64 bits is out of range, not malformed (FE61).
+print(99999999999999999999)
+# expect-error: E0135

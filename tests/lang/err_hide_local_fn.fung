@@ -1,0 +1,8 @@
+# A local fn cannot hide a top-level name (D38, FE46).
+c = 1
+fn f():
+  fn c() = 5
+  c()
+;;
+print(f() + c)
+# expect-error: E0240

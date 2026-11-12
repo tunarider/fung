@@ -2,7 +2,7 @@
 
 use super::{MAX_DEPTH, PResult, Parser, describe, err, s, tag_as_name};
 use crate::diag::Arg;
-use crate::lexer::Kind;
+use crate::lexer::{Kind, Token};
 use crate::source::Pos;
 use crate::tree::{Head, Lit, Node};
 
@@ -150,6 +150,13 @@ impl Parser<'_> {
                 // Outside brackets a newline ends the tag; inside them it is
                 // whitespace (01), so `(` may follow on the next line.
                 if !self.at(Kind::LParen) {
+                    // A result holds one value (D41): a bare `Ok` could
+                    // only match a symbol, never a result.
+                    if matches!(t.text.as_str(), "Ok" | "Err") {
+                        let mut e = err("E0236", t.pos, vec![s(&t.text), Arg::Int(0)]);
+                        e.help = Some(crate::desugar::BARE_RESULT_HELP.to_string());
+                        return Err(e);
+                    }
                     // A bare tag matches the symbol only (03의 함정).
                     return leaf(Head::Psym, Lit::Str(t.text.clone()));
                 }
@@ -254,7 +261,7 @@ impl Parser<'_> {
 
     /// The entries of a `{…}` pattern after the `{`.
     fn pmap(&mut self, mut n: Node) -> PResult<Node> {
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = std::collections::HashMap::new();
         while !self.at(Kind::RBrace) {
             // The keys a map literal takes (SP3): identifier-shaped, or a
             // string without interpolation (a pattern's keys are text).
@@ -276,9 +283,10 @@ impl Parser<'_> {
             } else {
                 return Err(err("E0112", p.pos, vec![s("a map key"), s(describe(p))]));
             };
-            if !seen.insert(text.clone()) {
-                return Err(err("E0113", p.pos, vec![s(text)]));
+            if let Some(&first) = seen.get(&text) {
+                return Err(super::duplicate_key(p, text, first));
             }
+            seen.insert(text.clone(), p.pos);
             let key = self.next();
             let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
             let v = if key.kind == Kind::String {
@@ -335,6 +343,21 @@ impl Parser<'_> {
     /// - A nesting-limit error (E0115) is always fatal, so a stack overflow
     ///   cannot hide behind "not an arm head".
     fn arm_head(&mut self) -> PResult<Option<(Node, Node)>> {
+        // Brackets that close right before `=>` or `when` make an arm
+        // head: the pattern's own error is the one to report (FE52).
+        if self.brackets_close_before(&[Kind::FatArrow, Kind::KwWhen]) {
+            let pat = self.pattern()?;
+            let guard = if self.at(Kind::KwWhen) {
+                self.next();
+                self.guard_expr()?
+            } else {
+                Node::new(Head::Nil, pat.pos, Vec::new())
+            };
+            if !self.at(Kind::FatArrow) {
+                return Err(self.unexpected());
+            }
+            return Ok(Some((pat, guard)));
+        }
         let (save, save_nest, save_depth) = (self.i, self.nest, self.depth);
         let back = |p: &mut Self| {
             p.i = save;
@@ -386,23 +409,27 @@ impl Parser<'_> {
         self.nest = 0;
         self.guard = false;
         self.slice = None;
-        let r = self.match_arms(Node::new(Head::Match, t.pos, vec![subject]));
+        let r = self.match_arms(Node::new(Head::Match, t.pos, vec![subject]), t);
         self.nest = saved_nest;
         self.guard = saved_guard;
         self.slice = saved_slice;
         r
     }
 
-    fn match_arms(&mut self, mut n: Node) -> PResult<Node> {
+    fn match_arms(&mut self, mut n: Node, open: &Token) -> PResult<Node> {
         self.skip_seps();
         if self.at(Kind::DoubleSemi) {
             let p = self.peek();
             return Err(err("E0112", p.pos, vec![s("a match arm"), s(describe(p))]));
         }
+        if self.at(Kind::Eof) {
+            return Err(self.unclosed("match", open));
+        }
         let mut next = Some(self.first_arm_head()?);
         while let Some((pat, guard)) = next {
             let arrow = self.next(); // =>
-            let (body, following) = self.arm_body(Node::new(Head::Block, arrow.pos, Vec::new()))?;
+            let (body, following) =
+                self.arm_body(Node::new(Head::Block, arrow.pos, Vec::new()), open)?;
             if body.kids.is_empty() {
                 let p = self.peek();
                 let mut e = err(
@@ -442,15 +469,16 @@ impl Parser<'_> {
 
     /// The statements of one arm, up to the next arm head (returned, parsed)
     /// or `;;` (not consumed).
-    fn arm_body(&mut self, mut body: Node) -> PResult<(Node, Option<(Node, Node)>)> {
+    fn arm_body(&mut self, mut body: Node, open: &Token) -> PResult<(Node, Option<(Node, Node)>)> {
         self.skip_seps();
         while !self.at(Kind::DoubleSemi) {
             if self.at(Kind::Eof) {
-                return Err(self.unexpected());
+                return Err(self.unclosed("match", open));
             }
             if let Some(head) = self.arm_head()? {
                 return Ok((body, Some(head)));
             }
+            self.after_return(&body)?;
             self.block_depth += 1;
             let stmt = self.spanned_statement();
             self.block_depth -= 1;
@@ -474,7 +502,7 @@ impl Parser<'_> {
         let iter = self.outside_slice(|p| p.expr(0))?;
         self.expect_desc(Kind::Colon, "`:` after the for header")?;
         let body = self.body(t.pos)?;
-        self.expect_desc(Kind::DoubleSemi, "`;;` to close the for")?;
+        self.close("for", t)?;
         Ok(Node::new(Head::For, t.pos, vec![pat, iter, body]))
     }
 }

@@ -1,4 +1,4 @@
-# Nothing here may warn (Review Focus 3).
+# Nothing here is an error (Review Focus 3, D38).
 import fs
 import json as j
 import path (ext)
@@ -46,14 +46,13 @@ fn underscored():
   0
 ;;
 
-fn params(unused_param, other = unused_param) = 1
+fn params(given, other = given) = other
 
 fn loops(xs) = for (k, v) in xs: k + v ;;
 
 fn defaults(a, b = a + 1) = b
 
 total = 0
-top_level_unused = 1
 
 test "uses imports and globals":
   assert fs.exists(".")!

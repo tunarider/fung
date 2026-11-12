@@ -1,6 +1,6 @@
 # A block used as a value that ends in a fn definition has no value (FE4).
 x = if true:
-  fn g() = 1
+  fn _g() = 1
 else:
   2
 ;;

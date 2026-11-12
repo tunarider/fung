@@ -15,7 +15,7 @@ mod pattern;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use crate::bytecode::{Op, Proto};
 use crate::consts::Const;
@@ -47,23 +47,15 @@ struct Compiler<'a> {
     opts: &'a Options<'a>,
     /// Byte offsets where the source's lines start (`start_pos`).
     lines: &'a [usize],
-    /// The operators that fold to a constant (`fold::constants`).
-    folds: &'a HashMap<*const Node, Const>,
+    /// The operators that fold to a constant, by node number
+    /// (`fold::constants`).
+    folds: &'a HashMap<u32, Const>,
     /// A return type annotation disables tail calls (03).
     has_ret: bool,
-    /// The reads of locals that are their last (`moves::last_reads`):
-    /// they compile to MOVELOCAL.
-    moves: HashSet<*const Node>,
-    /// The slots read after each statement of a block (`moves::Lives`).
-    after: HashMap<*const Node, moves::Live>,
-    /// For each store, the slots read after it (`moves::Lives::stored`).
-    stored_live: HashMap<*const Node, moves::Live>,
-    /// The locals that hold, on the path being compiled, a value read
-    /// somewhere after it was stored, and are not let go yet: a
-    /// statement's end lets go of those not read after it (`block`, 03:
-    /// 값의 수명). A move empties its slot; a value never read is never
-    /// held, so it lives on. Each branch starts from what was held before.
-    held: BTreeSet<usize>,
+    /// Where this frame's locals hand over (MOVELOCAL) and let go of
+    /// (CLEARLOCAL) their values (`moves::lives`, 03: 값의 수명): the
+    /// compiler only looks them up.
+    lives: moves::Lives,
     /// The UNWRAPTESTs of `?` and their places, whose returns go after
     /// the function's end (`emit_stubs`).
     stubs: Vec<(usize, Pos)>,
@@ -96,14 +88,10 @@ pub fn compile(
         lines: &lines,
         folds: &folds,
         has_ret: true,
-        moves: HashSet::new(),
-        after: HashMap::new(),
-        stored_live: HashMap::new(),
-        held: BTreeSet::new(),
+        lives: moves::lives(&res.core, opts.tests, false),
         stubs: Vec::new(),
         ret_pos: res.core.pos,
     };
-    c.take_lives(moves::last_reads(&res.core));
     c.block(&res.core, false)?;
     if !opts.keep_value
         && let Some(last) = res.core.kids.last()
@@ -115,7 +103,16 @@ pub fn compile(
     }
     c.proto.emit(Op::Return, 0, res.core.pos);
     c.emit_stubs();
+    c.proto.thread_jumps();
     c.proto.check_operands()?;
+    // A debug build checks every program it makes (VM22): what the VM
+    // takes on trust is an internal error here instead of a panic or a
+    // wrong value there.
+    if cfg!(debug_assertions)
+        && let Err(v) = crate::bytecode::verify(&c.proto)
+    {
+        return Err(internal(res.core.pos, format!("compiler: {v}")));
+    }
     Ok(c.proto)
 }
 
@@ -181,7 +178,7 @@ fn logic(n: &Node) -> Option<Logic<'_>> {
     }
     let is_bool =
         |k: &Node, b: bool| k.head == Head::Bool && matches!(k.lit, Lit::Bool(x) if x == b);
-    let checked = |k: &Node| k.head == Head::Op && lit_str(k) == "bool";
+    let checked = |k: &Node| k.head == Head::Op && lit_str(k) == crate::tree::BOOL_CHECK;
     let [a, then, other] = &n.kids[..] else {
         return None;
     };
@@ -201,11 +198,17 @@ fn makes_bool(n: &Node) -> bool {
         Head::Bool => true,
         Head::Op => matches!(
             lit_str(n),
-            "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "not" | "bool"
+            "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "not" | crate::tree::BOOL_CHECK
         ),
         Head::If => logic(n).is_some(),
         _ => false,
     }
+}
+
+/// `not e` where `e` always makes a bool: a condition can test `e` with
+/// the targets swapped, with no NOT and no other error (VM27).
+fn is_not_of_bool(n: &Node) -> bool {
+    n.head == Head::Op && lit_str(n) == "not" && n.kids.len() == 1 && makes_bool(&n.kids[0])
 }
 
 /// An E0801 internal error.
@@ -268,7 +271,7 @@ fn unary_op(op: &str) -> Option<Op> {
     Some(match op {
         "-" => Op::Neg,
         "not" => Op::Not,
-        "bool" => Op::CheckBool,
+        crate::tree::BOOL_CHECK => Op::CheckBool,
         _ => return None,
     })
 }
@@ -308,10 +311,7 @@ impl Compiler<'_> {
         for (i, k) in n.kids.iter().enumerate() {
             let last = i == last_i;
             let stmt = match k.head {
-                Head::Let => Some(
-                    self.let_stmt(k)
-                        .map(|()| self.stored(&k.kids[0], &k.kids[0])),
-                ),
+                Head::Let => Some(self.let_stmt(k)),
                 Head::Import => Some(self.import_stmt(k)),
                 Head::Assert => Some(self.assert_stmt(k)),
                 Head::Test => Some(self.test_stmt(k)),
@@ -342,70 +342,29 @@ impl Compiler<'_> {
         Ok(())
     }
 
-    /// Ends statement `k` of a block: the locals held on this path and not
-    /// read after it are let go (03: 값의 수명). A statement the walk did
-    /// not record lets go of nothing.
+    /// Ends statement `k` of a block: lets go of the locals nothing reads
+    /// after it (03: 값의 수명).
     fn let_go(&mut self, k: &Node) {
-        if let Some(later) = self.after.get(&(k as *const Node)) {
-            let later = later.clone();
-            let mut held = std::mem::take(&mut self.held);
-            let pos = self.start_pos(k);
-            self.clear_unread(&mut held, &later, pos);
-            self.held = held;
-        }
+        let pos = self.start_pos(k);
+        self.clear(self.lives.after.get(&k.id).cloned(), pos);
     }
 
-    /// Takes what the walk learned about this frame (`moves::last_reads`):
-    /// the parameters read later hold values to let go.
-    pub(super) fn take_lives(&mut self, lives: moves::Lives) {
-        self.moves = lives.moves;
-        self.after = lives.after;
-        self.stored_live = lives.stored;
-        self.held = lives.entry;
+    /// Starts branch `n` (`moves::Lives::entry`): lets go of what is dead
+    /// on it (VM19).
+    pub(super) fn enter(&mut self, n: &Node) {
+        let pos = self.start_pos(n);
+        self.enter_at(n.id, pos);
     }
 
-    /// Target or pattern `n` (as the walk saw it, `key`) stored into its
-    /// slots: a value read after the store is held; one never read is not,
-    /// so it lives on until the frame returns (03: 값의 수명).
-    pub(super) fn stored(&mut self, key: &Node, n: &Node) {
-        let live = self.stored_live.get(&(key as *const Node)).cloned();
-        let mut slots = BTreeSet::new();
-        moves::written_slots(n, &mut slots);
-        for slot in slots {
-            if live.as_ref().is_some_and(|l| l.contains(&slot)) {
-                self.held.insert(slot);
-            } else {
-                self.held.remove(&slot);
-            }
-        }
+    /// Starts the branch the analysis knows by node number `id`.
+    pub(super) fn enter_at(&mut self, id: u32, pos: Pos) {
+        self.clear(self.lives.entry.get(&id).cloned(), pos);
     }
 
-    /// Compiles the branches of one choice (`if`, `??`, `match` arms) one
-    /// after another: each starts from the locals held before the choice,
-    /// and after it a local is held if some branch still holds it.
-    pub(super) fn branches(
-        &mut self,
-        count: usize,
-        mut each: impl FnMut(&mut Self, usize) -> Result<(), Diag>,
-    ) -> Result<(), Diag> {
-        let before = self.held.clone();
-        let mut joined = BTreeSet::new();
-        for i in 0..count {
-            self.held = before.clone();
-            each(self, i)?;
-            joined.append(&mut self.held);
-        }
-        self.held = joined;
-        Ok(())
-    }
-
-    /// Emits CLEARLOCAL for each local in `held` that `later` does not
-    /// read, and forgets it.
-    fn clear_unread(&mut self, held: &mut BTreeSet<usize>, later: &BTreeSet<usize>, pos: Pos) {
-        let gone: Vec<usize> = held.difference(later).copied().collect();
-        for slot in gone {
+    /// Emits CLEARLOCAL for each slot.
+    fn clear(&mut self, slots: Option<Vec<usize>>, pos: Pos) {
+        for slot in slots.into_iter().flatten() {
             self.proto.emit(Op::ClearLocal, slot, pos);
-            held.remove(&slot);
         }
     }
 
@@ -491,10 +450,8 @@ impl Compiler<'_> {
             }
             Head::Local => {
                 let slot = lit_index(n);
-                // A copy leaves the value held; a move empties the slot on
-                // this path, so nothing is left to let go.
-                let op = if self.moves.contains(&(n as *const Node)) {
-                    self.held.remove(&slot);
+                // The last read moves the value out of the slot.
+                let op = if self.lives.moves.contains(&n.id) {
                     Op::MoveLocal
                 } else {
                     Op::LoadLocal
@@ -515,16 +472,21 @@ impl Compiler<'_> {
                 self.emit_const(prelude_const(name), pos);
             }
             Head::Op => {
-                if let Some(c) = self.folds.get(&(n as *const Node)) {
+                if let Some(c) = self.folds.get(&n.id) {
                     self.emit_const(c.clone(), pos);
                 } else {
-                    return self.op(n);
+                    return self.op(n, tail);
                 }
             }
             Head::If => return self.if_expr(n, tail),
+            // An interpolation of literals is folded (VM31).
             Head::Concat => {
-                self.kids(n)?;
-                self.proto.emit(Op::Concat, n.kids.len(), pos);
+                if let Some(c) = self.folds.get(&n.id) {
+                    self.emit_const(c.clone(), pos);
+                } else {
+                    self.kids(n)?;
+                    self.proto.emit(Op::Concat, n.kids.len(), pos);
+                }
             }
             Head::List
             | Head::Map
@@ -541,6 +503,7 @@ impl Compiler<'_> {
             Head::Fn => {
                 let idx = self.function(n)?;
                 self.proto.emit(Op::Closure, idx, pos);
+                self.captured(n);
             }
             Head::Return => return self.return_expr(n),
             // Assignment is a statement (01); it cannot appear in
@@ -559,11 +522,12 @@ impl Compiler<'_> {
     /// `(op name a [b])`: the operands, then the operator. A missing table
     /// entry must be an error, not a wrong opcode: later milestones add
     /// operators to the parser first.
-    fn op(&mut self, n: &Node) -> Result<(), Diag> {
+    fn op(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
         let name = lit_str(n);
-        // A value that is a bool already needs no check (VM10 d).
-        if name == "bool" && makes_bool(&n.kids[0]) {
-            return self.expr(&n.kids[0], false);
+        // A value that is a bool already needs no check (VM10 d); its
+        // value is this one's, so it keeps the tail position (VM28).
+        if name == crate::tree::BOOL_CHECK && makes_bool(&n.kids[0]) {
+            return self.expr(&n.kids[0], tail);
         }
         self.kids(n)?;
         if name == "in" {
@@ -585,20 +549,23 @@ impl Compiler<'_> {
         Ok(())
     }
 
+    /// After CLOSURE for `fn` node `n`: lets go of the locals whose last
+    /// read was its capture (VM19).
+    pub(super) fn captured(&mut self, n: &Node) {
+        self.clear(self.lives.closure.get(&n.id).cloned(), n.pos);
+    }
+
+    /// Each branch lets go, as it starts, of what only the other reads
+    /// (VM19).
     fn if_expr(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
         let mut to_else = Vec::new();
         self.cond(&n.kids[0], &mut to_else)?;
-        let mut to_end = None;
-        self.branches(2, |c, i| {
-            if i == 0 {
-                c.expr(&n.kids[1], tail)?;
-                to_end = c.end_branch(tail, n.pos);
-                c.patch_all(&to_else);
-            } else {
-                c.expr(&n.kids[2], tail)?;
-            }
-            Ok(())
-        })?;
+        self.enter(&n.kids[1]);
+        self.expr(&n.kids[1], tail)?;
+        let to_end = self.end_branch(tail, n.pos);
+        self.patch_all(&to_else);
+        self.enter(&n.kids[2]);
+        self.expr(&n.kids[2], tail)?;
         if let Some(j) = to_end {
             self.proto.patch(j, self.proto.code.len());
         }
@@ -613,13 +580,9 @@ impl Compiler<'_> {
         let mut to_end = Vec::new();
         self.cond(&k.kids[0], &mut to_end)?;
         let pos = self.start_pos(k);
-        self.branches(2, |c, i| {
-            if i == 0 {
-                c.expr(&k.kids[1], false)?;
-                c.proto.emit(Op::Pop, 0, pos);
-            }
-            Ok(())
-        })?;
+        self.enter(&k.kids[1]);
+        self.expr(&k.kids[1], false)?;
+        self.proto.emit(Op::Pop, 0, pos);
         self.patch_all(&to_end);
         Ok(())
     }
@@ -631,30 +594,70 @@ impl Compiler<'_> {
     /// at the same place.
     fn cond(&mut self, n: &Node, fails: &mut Vec<usize>) -> Result<(), Diag> {
         match logic(n) {
+            // The right side is a branch: it lets go, as it starts, of
+            // what only the other path reads (VM19).
             Some(Logic::And(a, b)) => {
                 self.cond(a, fails)?;
-                // b runs on one path only: what it lets go is still held
-                // on the other (`branches`).
-                let before = self.held.clone();
+                self.enter(b);
                 self.cond(b, fails)?;
-                self.held.extend(before);
             }
             Some(Logic::Or(a, b)) => {
-                let mut to_b = Vec::new();
-                self.cond(a, &mut to_b)?;
-                let to_true = self.proto.emit(Op::Jump, 0, n.pos);
-                self.patch_all(&to_b);
-                let before = self.held.clone();
+                let mut to_true = Vec::new();
+                self.cond_true(a, &mut to_true)?;
+                self.enter(b);
                 self.cond(b, fails)?;
-                self.held.extend(before);
-                self.proto.patch(to_true, self.proto.code.len());
+                self.patch_all(&to_true);
             }
-            None if n.head == Head::Op && lit_str(n) == "bool" => self.cond(&n.kids[0], fails)?,
+            None if n.head == Head::Op && lit_str(n) == crate::tree::BOOL_CHECK => {
+                self.cond(&n.kids[0], fails)?
+            }
+            // `not e` of a bool `e` is `e` with the targets swapped (VM27).
+            None if is_not_of_bool(n) => self.cond_true(&n.kids[0], fails)?,
+            // A literal condition is known (VM31): true falls through,
+            // false always goes where false goes.
+            None if n.head == Head::Bool => {
+                if matches!(n.lit, Lit::Bool(false)) {
+                    fails.push(self.proto.emit(Op::Jump, 0, n.pos));
+                }
+            }
             None => {
                 self.expr(n, false)?;
                 // The jump carries the condition's position so a non-bool
                 // condition is reported where the condition is.
                 fails.push(self.proto.emit(Op::JumpIfFalse, 0, n.pos));
+            }
+        }
+        Ok(())
+    }
+
+    /// `cond` the other way round (VM27): it falls through when `n` is
+    /// false, and each jump it pushes on `trues` goes where true goes.
+    fn cond_true(&mut self, n: &Node, trues: &mut Vec<usize>) -> Result<(), Diag> {
+        match logic(n) {
+            Some(Logic::And(a, b)) => {
+                let mut to_false = Vec::new();
+                self.cond(a, &mut to_false)?;
+                self.enter(b);
+                self.cond_true(b, trues)?;
+                self.patch_all(&to_false);
+            }
+            Some(Logic::Or(a, b)) => {
+                self.cond_true(a, trues)?;
+                self.enter(b);
+                self.cond_true(b, trues)?;
+            }
+            None if n.head == Head::Op && lit_str(n) == crate::tree::BOOL_CHECK => {
+                self.cond_true(&n.kids[0], trues)?
+            }
+            None if is_not_of_bool(n) => self.cond(&n.kids[0], trues)?,
+            None if n.head == Head::Bool => {
+                if matches!(n.lit, Lit::Bool(true)) {
+                    trues.push(self.proto.emit(Op::Jump, 0, n.pos));
+                }
+            }
+            None => {
+                self.expr(n, false)?;
+                trues.push(self.proto.emit(Op::JumpIfTrue, 0, n.pos));
             }
         }
         Ok(())
@@ -677,6 +680,11 @@ impl Compiler<'_> {
             self.end_tail(self.ret_pos);
             return None;
         }
+        // A branch that ended the frame itself (`return`) needs no jump
+        // past the others (VM28).
+        if self.proto.ends_closed() {
+            return None;
+        }
         Some(self.proto.emit(Op::Jump, 0, pos))
     }
 
@@ -690,7 +698,7 @@ impl Compiler<'_> {
             .proto
             .code
             .last()
-            .is_some_and(|i| matches!(i.op(), Op::TailCall | Op::Return));
+            .is_some_and(|i| matches!(i.op(), Op::TailCall | Op::TailCallSpread | Op::Return));
         if !done {
             self.emit_return(pos);
         }

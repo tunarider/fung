@@ -1,0 +1,7 @@
+# A top-level name is bound once (D53): every one is a constant that the
+# top-level fns see, wherever it is assigned.
+fn twice() = n * 2
+n = 3
+print(twice())
+n = n + 1
+# expect-error: E0238

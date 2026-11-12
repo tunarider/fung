@@ -1,4 +1,4 @@
-# W0102: block-local names never read.
+# E0239 (formerly the warning W0102): local names never read (D38).
 fn plain():
   never = 1
   _quiet = 2

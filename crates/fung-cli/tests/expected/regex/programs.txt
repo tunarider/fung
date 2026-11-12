@@ -161,9 +161,7 @@
 | 2 | print(regex.find("x"))
 |   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import regex\nprint(regex.split(\"x\", \"y\", \"z\"))"
 -- stdout
 -- stderr
@@ -173,9 +171,7 @@
 | 2 | print(regex.split("x", "y", "z"))
 |   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import regex\nprint(regex.find(s: \"x\", pat: \"x\"))"
 -- stdout
 -- stderr
@@ -185,9 +181,7 @@
 | 2 | print(regex.find(s: "x", pat: "x"))
 |   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import regex\nfn f(p) = regex.find(\"x\", p)\nprint(f(\"a)\"))"
 -- stdout
 -- stderr

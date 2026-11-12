@@ -42,10 +42,11 @@ import cli
 
 # "10K" → 10240. A plain number is bytes.
 fn parse_size(s):
-  (num, unit) = match upper(s[-1..]):
-    "K" => (s[..-1], 1024)
-    "M" => (s[..-1], 1024 * 1024)
-    "G" => (s[..-1], 1024 * 1024 * 1024)
+  n = len(s) - 1
+  (num, unit) = match upper(s[n..]):
+    "K" => (s[..n], 1024)
+    "M" => (s[..n], 1024 * 1024)
+    "G" => (s[..n], 1024 * 1024 * 1024)
     _   => (s, 1)
   ;;
   (parse_int(num) ?? fail("not a size: ${s}")) * unit
@@ -64,7 +65,7 @@ fn size_of(p) = match fs.stat(p):
   Err(_) => 0
 ;;
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: ["top", "min"])!
 dir = first(opts.rest) ?? "."
 top = parse_int(get(opts.flags, "top", "10")) ?? fail("--top must be a number")
 min_size = parse_size(get(opts.flags, "min", "0"))
@@ -84,7 +85,7 @@ print(pad_left(human(found |> map(f => f.size) |> sum), 7), "total")
 
 ## 줄별 설명 {#how}
 
-- `parse_size`: 마지막 글자(`s[-1..]`)를 보고 단위를 정한다. `s[..-1]`은 마지막 글자를 뺀 앞부분이다. `match`가 `(숫자 부분, 곱할 수)` 튜플을 돌려주고, 대입의 왼쪽 `(num, unit)`이 그것을 둘로 나눠 받는다. 숫자가 아니면 `parse_int`가 `Err`를 주고, `?? fail(…)`이 알아보기 쉬운 메시지로 멈춘다.
+- `parse_size`: 마지막 글자(`s[n..]`, `n`은 `len(s) - 1`)를 보고 단위를 정한다. `s[..n]`은 마지막 글자를 뺀 앞부분이다. 인덱스는 0부터만 세므로(음수는 범위 밖) 뒤에서의 자리는 `len`으로 계산한다. `match`가 `(숫자 부분, 곱할 수)` 튜플을 돌려주고, 대입의 왼쪽 `(num, unit)`이 그것을 둘로 나눠 받는다. 숫자가 아니면 `parse_int`가 `Err`를 주고, `?? fail(…)`이 알아보기 쉬운 메시지로 멈춘다.
 - `human`: `then … else`를 사슬로 이어 세 경우를 고른다. `n * 10 // 1024`로 소수 첫째 자리까지 남긴 정수를 만든 뒤 `/ 10`으로 나누면 실수가 되어 `1.2`처럼 찍힌다(`/`는 늘 실수, `//`는 내림 나눗셈).
 - `size_of`: `fs.walk`로 목록을 받은 뒤 `fs.stat`을 부르기 전에 파일이 지워질 수 있다. 그런 파일 하나 때문에 전체가 멈추지 않도록 `Err`면 0으로 친다.
 - `fs.walk(dir)!`: 아래의 모든 파일 경로(디렉터리는 빼고)를 리스트로 준다. 디렉터리를 읽지 못하면 `!`가 멈춘다.

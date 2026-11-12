@@ -120,7 +120,7 @@ E0502   division by zero
     <tr><td><code>E06xx</code></td><td>패턴·결과값</td><td>VM</td></tr>
     <tr><td><code>E07xx</code></td><td>동시성</td><td>런타임</td></tr>
     <tr><td><code>E08xx</code></td><td>한도·환경, 내부 오류</td><td>여러 곳</td></tr>
-    <tr><td><code>W01xx</code></td><td>경고</td><td>이름 해석</td></tr>
+    <tr><td><code>W01xx</code></td><td>은퇴한 경고(지금은 E0239·E0240)</td><td>없음</td></tr>
   </tbody>
 </table>
 
@@ -170,9 +170,9 @@ main()
 
 에러는 `firsts`의 2줄을 가리키고, 경로에는 `firsts`가 남는다. `take`의 프레임은 내장 함수의 것이라 경로에 보이지 않는다(내장 함수는 Rust로 썼든 fung으로 썼든 같다, [모듈](11-modules.html#builtin-errors)).
 
-### 경고 {#warnings}
+### 경고는 없다 {#warnings}
 
-경고는 에러와 같은 모양으로 찍되 머리가 `warning[W0102]`이다. 프로그램은 그대로 실행된다.
+fung에는 경고가 없다. 예전 경고(쓰지 않는 이름 W0101·W0102, prelude 이름 가리기 W0103)는 모두 에러(E0239·E0240)가 되었다. 경고는 `run`에서 보이지 않으면 아무도 읽지 않고, 보이면 cron 메일과 로그를 더럽힌다. 둘 다 아니려면 에러이거나 아무것도 아니어야 한다. 쓰지 않는 이름은 다른 에러의 결과일 때가 많으므로(오타로 읽지 못한 변수), E0239는 파일에 다른 에러가 없을 때만 낸다. "같은 원인에서 따라 나오는 에러는 억제한다"와 같은 생각이다.
 
 ```fung check
 fn f():
@@ -184,16 +184,14 @@ print(f())
 ```
 
 ```expect check
-warning[W0102]: unused variable `unused`
+error[E0239]: unused variable `unused`
   --> example.fung:2:3
   |
 2 |   unused = 1
   |   ^^^^^^
   |
- help: prefix it with `_` if it is intentional
+ help: remove it, or start its name with `_` if it is kept on purpose
 ```
-
-경고는 `fung check`와 `fung test`에서만 보인다. `fung run`은 경고를 내지 않는다. 매일 도는 스크립트가 표준 에러에 경고를 뿌리면 cron 메일과 로그가 지저분해지기 때문이다(설계 문서 08).
 
 ### 패닉은 사용자에게 가지 않는다 {#panic}
 
@@ -230,7 +228,7 @@ fung check deploy.fung && fung deploy.fung    # 검사를 통과해야 실행
 - **메시지는 카탈로그로 분리한다.** 처음에는 영어만, 다른 언어는 카탈로그 추가로.
 - **번호는 바꾸지 않고, 폐기한 번호는 재사용하지 않는다.** 골든 테스트와 사용자가 번호에 기댄다.
 - **문법 에러는 첫 번째 하나만, 의미 에러는 모두.** 단, 같은 원인에서 따라 나오는 에러는 억제한다.
-- **경고는 검사와 테스트에서만** 보인다(`fung check`, `fung test`).
+- **경고는 없다.** 실수일 가능성이 큰 코드도 에러다(설계 문서 08의 경고 등급은 D38로 은퇴).
 - **종료 코드는 0·1·2·3으로 고정한다.**
 :::
 

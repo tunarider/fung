@@ -9,7 +9,7 @@ use fung_front::diag::{Arg, Diag, error};
 use super::arith::{no_pos, overflow};
 use fung_front::text;
 
-use super::{List, Value, type_name};
+use super::{List, Text, Value, type_name};
 
 fn err(code: &str, args: Vec<Arg>) -> Diag {
     error(code, no_pos(), args)
@@ -28,6 +28,15 @@ fn type_error(verb: &str, a: &Value, b: &Value) -> Diag {
             Arg::Str(type_name(a)),
             Arg::Str(type_name(b)),
         ],
+    )
+}
+
+/// E0509 for `x[i]` that has no meaning: one wording for every index,
+/// whichever of the two is wrong (VA39).
+fn index_error(x: &Value, i: &Value) -> Diag {
+    err(
+        "E0509",
+        vec![Arg::Str(type_name(x)), Arg::Str(type_name(i))],
     )
 }
 
@@ -70,16 +79,16 @@ pub fn not_a_key(k: &Value) -> Diag {
     d
 }
 
-/// A possibly negative index as a position, or E0507 naming `i`.
+/// An index as a position, or E0507 naming `i`: positions count from
+/// the start, so a negative one is out of range (D37).
 fn norm_index(i: i64, n: usize) -> Result<usize, Diag> {
-    let idx = if i < 0 { i + n as i64 } else { i };
-    if idx < 0 || idx >= n as i64 {
-        return Err(out_of_range("index", i, n));
+    match usize::try_from(i) {
+        Ok(idx) if idx < n => Ok(idx),
+        _ => Err(out_of_range("index", i, n)),
     }
-    Ok(idx as usize)
 }
 
-/// `x[i]` (02): lists and strings by position (negative from the end)
+/// `x[i]` (02): lists and strings by position (from the start, D37)
 /// or by a range (a slice), maps by string key, modules by member name (04: a private name is
 /// E0304, a missing one E0303). Out of range is an error.
 pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
@@ -96,24 +105,21 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
     match x {
         Value::List(l) => {
             let Value::Int(n) = i else {
-                return Err(type_error("index", x, i));
+                return Err(index_error(x, i));
             };
             let idx = norm_index(*n, l.len())?;
             Ok(l.at(idx).expect("index checked against the length").clone())
         }
         Value::Str(s) => {
             let Value::Int(n) = i else {
-                return Err(type_error("index", x, i));
+                return Err(index_error(x, i));
             };
-            // Only the characters up to `n` are read (from the end for a
-            // negative one); the length is counted for the message alone
-            // (VA12).
-            let at = if *n >= 0 {
-                let at = s.byte_at(0, *n as usize);
+            // Only the characters up to `n` are read; the length is
+            // counted for the message alone (VA12).
+            let at = usize::try_from(*n).ok().and_then(|i| {
+                let at = s.offset_of(i);
                 (at < s.len()).then_some(at)
-            } else {
-                s.byte_back(n.unsigned_abs() as usize)
-            };
+            });
             let Some(at) = at else {
                 return Err(out_of_range("index", *n, s.char_len()));
             };
@@ -131,7 +137,7 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
         }
         Value::Module(m) => {
             let Value::Str(k) = i else {
-                return Err(type_error("index", x, i));
+                return Err(index_error(x, i));
             };
             // A member is a name: found in NFC however it was written (01).
             let Some(k) = k.as_str() else {
@@ -155,13 +161,35 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
                 )),
             }
         }
-        _ => Err(err("E0509", vec![Arg::Str(type_name(x))])),
+        _ => Err(index_error(x, i)),
     }
 }
 
 /// `x.name`: an index by the name as a string key.
 pub fn field(x: &Value, name: &str) -> Result<Value, Diag> {
-    index(x, &Value::str(name))
+    let k = Value::str(name);
+    index(x, &k).map_err(|d| field_help(d, x, &k))
+}
+
+/// The help of `x.name`'s E0509: only a map and a module have names, so
+/// `xs.len` meant a call of the prelude's `len` (VA39).
+pub fn field_help(d: Diag, x: &Value, name: &Value) -> Diag {
+    let (true, Value::Str(k)) = (d.code == "E0509", name) else {
+        return d;
+    };
+    let Some(name) = k.as_str() else {
+        return d;
+    };
+    if fung_front::builtins::builtins()
+        .prelude_signature(name)
+        .is_none()
+    {
+        return d;
+    }
+    let t = type_name(x);
+    d.with_help(&format!(
+        "a {t} has no fields; to call `{name}` on it, write `{name}(…)`"
+    ))
 }
 
 /// One end of a slice: `None` is open (`SLICE` marks a missing end),
@@ -183,9 +211,10 @@ fn bound(v: Option<&Value>) -> Result<Option<i64>, Diag> {
 }
 
 /// Resolves the ends against length `n`. Both ends may equal `n`; start
-/// may not exceed end (E0516). A negative end counts from the end, and an
-/// inclusive end takes one more. An end out of range is reported as the
-/// program wrote it (counted in i128, so nothing wraps).
+/// may not exceed end (E0516). Ends count from the start, so a negative
+/// one is out of range (D37), and an inclusive end takes one more. An end
+/// out of range is reported as the program wrote it (counted in i128, so
+/// nothing wraps).
 fn slice_bounds(
     start: Option<&Value>,
     end: Option<&Value>,
@@ -193,10 +222,7 @@ fn slice_bounds(
     inclusive: bool,
 ) -> Result<(usize, usize), Diag> {
     let len = n as i128;
-    let resolve = |i: i64| -> i128 {
-        let i = i128::from(i);
-        if i < 0 { i + len } else { i }
-    };
+    let resolve = i128::from;
     let start = bound(start)?;
     let end = bound(end)?;
     let lo = start.map_or(0, resolve);
@@ -204,9 +230,9 @@ fn slice_bounds(
     if !(0..=len).contains(&lo) {
         return Err(out_of_range("slice start", written(start, 0), n));
     }
-    // An inclusive end is an element's index (`0..len`, or `-len..=-1`
-    // from the end), checked before the one is added: `xs[..=-4]` of
-    // three, or `[][..=-1]`, is out of range rather than empty (VA2).
+    // An inclusive end is an element's index (`0..len`), checked before
+    // the one is added: `xs[..=3]` of three, or `[][..=0]`, is out of
+    // range rather than empty (VA2).
     let hi = match end {
         Some(e) if inclusive => {
             let i = resolve(e);
@@ -252,12 +278,20 @@ pub fn slice(
         }
         Value::Str(s) => {
             let (lo, hi) = slice_bounds(start, end, s.char_len(), inclusive)?;
-            let from = s.byte_at(0, lo);
+            let from = s.offset_of(lo);
             let to = s.byte_at(from, hi - lo);
             if from == 0 && to == s.len() {
                 return Ok(x.clone());
             }
-            Ok(Value::bytes(s[from..to].to_vec()))
+            // A slice of valid UTF-8 at character boundaries is valid
+            // UTF-8, ASCII if the whole is: not looked at again (VA32).
+            Ok(match s.as_str() {
+                Some(t) if s.is_ascii() => {
+                    Value::Str(Rc::new(Text::ascii(t[from..to].to_string(), true)))
+                }
+                Some(t) => Value::Str(Rc::new(Text::utf8(t[from..to].to_string()))),
+                None => Value::bytes(s[from..to].to_vec()),
+            })
         }
         _ => Err(err("E0511", vec![Arg::Str(type_name(x))])),
     }
@@ -287,7 +321,12 @@ pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
         Value::Range(r) => match x {
             Value::Int(i) => Ok(r.contains(*i)),
             Value::Float(f) => Ok(whole_int(*f).is_some_and(|i| r.contains(i))),
-            _ => Ok(false),
+            Value::Nil => Ok(false),
+            // A range holds ints: another type is `==`'s error (D40).
+            _ => {
+                super::compare::check_element(x, &Value::Int(r.start))?;
+                Ok(false)
+            }
         },
         _ => Err(err("E0512", vec![Arg::Str(type_name(c))])),
     }

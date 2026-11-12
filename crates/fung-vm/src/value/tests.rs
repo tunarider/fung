@@ -144,12 +144,15 @@ fn pow_cases() {
     ok(pow, Value::Int(2), Value::Int(10), Value::Int(1024));
     ok(pow, Value::Int(2), Value::Int(0), Value::Int(1));
     ok(pow, Value::Int(-2), Value::Int(3), Value::Int(-8));
-    ok(pow, Value::Int(2), Value::Int(-1), Value::Float(0.5));
+    ok(pow, Value::Int(2), Value::Float(-1.0), Value::Float(0.5));
+    // D49: an int to a negative int power is no int.
+    fails(pow, Value::Int(2), Value::Int(-1), "E0524");
     ok(pow, Value::Float(2.0), Value::Int(2), Value::Float(4.0));
     ok(pow, Value::Int(4), Value::Float(0.5), Value::Float(2.0));
     fails(pow, Value::Int(2), Value::Bool(true), "E0501");
     // Zero to a negative power divides by zero (VA14).
-    fails(pow, Value::Int(0), Value::Int(-1), "E0502");
+    fails(pow, Value::Int(0), Value::Int(-1), "E0524");
+    fails(pow, Value::Int(0), Value::Float(-1.0), "E0502");
     fails(pow, Value::Float(0.0), Value::Int(-1), "E0502");
     fails(pow, Value::Int(0), Value::Float(-0.5), "E0502");
     fails(pow, Value::Float(-0.0), Value::Float(-2.0), "E0502");
@@ -963,6 +966,22 @@ fn list_matches_slice() {
     same_list("final", &cur.0, &cur.1);
 }
 
+// A small part of a big list is cut from the tree (O(log n)), not copied
+// item by item, and does not keep the whole vector as a view (VA33).
+#[test]
+fn small_slices_of_a_big_list_are_cut_not_copied() {
+    let xs = List::new((0..10_000).map(Value::Int).collect());
+    for (lo, hi) in [(0, 100), (5_000, 5_100), (9_900, 10_000), (31, 1_000)] {
+        let mut ys = xs.slice(lo, hi);
+        assert!(!ys.is_view(), "{lo}..{hi} is a view on the big vector");
+        let want: Vec<i64> = (lo as i64..hi as i64).collect();
+        same_list("cut", &ys, &want);
+        ys.push(Value::Int(-1));
+        assert_eq!(ys.at(hi - lo).map(int_of), Some(-1));
+        assert_eq!(xs.at(hi.min(9_999)).map(int_of), Some(hi.min(9_999) as i64));
+    }
+}
+
 // TestListViewAppendKeepsOriginal
 #[test]
 fn list_view_append_keeps_original() {
@@ -1282,7 +1301,7 @@ fn module_value() {
     assert!(same(&got, &Value::Int(1)));
     assert_eq!(index::index(&m, &s("nope")).unwrap_err().code, "E0303");
     assert_eq!(index::index(&m, &s("_hidden")).unwrap_err().code, "E0304");
-    assert_eq!(index::index(&m, &Value::Int(0)).unwrap_err().code, "E0501");
+    assert_eq!(index::index(&m, &Value::Int(0)).unwrap_err().code, "E0509");
     let other = Value::Module(Rc::new(Module::new("fs", "fs")));
     assert!(
         equal(&m, &m) && !equal(&m, &other),
@@ -1312,7 +1331,7 @@ fn module_set_replaces_in_place_and_messages_match_go() {
     );
     assert_eq!(
         msg(Value::Int(1)),
-        "error[E0501]: cannot index module and int"
+        "error[E0509]: cannot index module with int"
     );
     assert_eq!(
         fung_front::diag::headline(&index::field(&m, "nope").unwrap_err()),
@@ -1338,9 +1357,9 @@ fn deep_module_chain_drops_without_recursion() {
     t.join().unwrap();
 }
 
-/// A slice out of range names the index as written: a negative one is
-/// not shown counted from the end, an inclusive end not plus one, and
-/// nothing wraps.
+/// A slice out of range names the index as written: an inclusive end
+/// not plus one, and nothing wraps. Ends count from the start, so a
+/// negative one is out of range (D37).
 #[test]
 fn slice_errors_name_the_index_as_written() {
     use fung_front::diag::Arg;
@@ -1359,9 +1378,11 @@ fn slice_errors_name_the_index_as_written() {
     assert_eq!(shown(Some(0), Some(5), true), Arg::Int(5));
     assert_eq!(shown(Some(0), Some(i64::MAX), true), Arg::Int(i64::MAX));
     assert_eq!(shown(Some(i64::MIN), None, false), Arg::Int(i64::MIN));
-    // An inclusive end is an element's index: -4 is not one of three.
-    assert_eq!(shown(None, Some(-4), true), Arg::Int(-4));
-    assert_eq!(shown(Some(0), Some(-4), true), Arg::Int(-4));
+    // An inclusive end is an element's index: -1 is not one of three.
+    assert_eq!(shown(None, Some(-1), true), Arg::Int(-1));
+    assert_eq!(shown(Some(0), Some(-1), false), Arg::Int(-1));
+    assert_eq!(shown(Some(-1), None, false), Arg::Int(-1));
+    assert_eq!(shown(Some(-1), Some(1), false), Arg::Int(-1));
 }
 
 /// A one-byte string made by `chars` or `s[i]` is shared,
@@ -1383,9 +1404,9 @@ fn one_byte_characters_are_shared() {
     assert!(same(&Value::char_str("가".as_bytes()), &Value::str("가")));
 }
 
-/// `s[i]` reads only up to the character it gives, from the front or
-/// from the end, and still gives what cutting into characters does; out
-/// of range it reports the length (VA12).
+/// `s[i]` reads only up to the character it gives and still gives what
+/// cutting into characters does; out of range, a negative index too
+/// (D37), it reports the length (VA12).
 #[test]
 fn string_index_reads_up_to_the_character() {
     use fung_front::text::units;
@@ -1403,11 +1424,7 @@ fn string_index_reads_up_to_the_character() {
         let s = Value::bytes(b.to_vec());
         for i in -n - 2..n + 2 {
             let got = super::index::index(&s, &Value::Int(i));
-            let want = if i >= 0 {
-                chars.get(i as usize)
-            } else {
-                chars.get((n + i) as usize).filter(|_| n + i >= 0)
-            };
+            let want = usize::try_from(i).ok().and_then(|i| chars.get(i));
             match want {
                 Some(c) => assert!(same(&got.unwrap(), &Value::bytes(c.clone())), "{b:?}[{i}]"),
                 None => {
@@ -1424,20 +1441,22 @@ fn string_index_reads_up_to_the_character() {
 }
 
 /// An inclusive end names an element: an empty list or string has none,
-/// so `..=-1` is out of range there too (VA2).
+/// so `..=0` is out of range there (VA2), and `..=-1` everywhere (D37).
 #[test]
 fn an_inclusive_end_must_be_an_element() {
     let empty = Value::List(Rc::new(List::new(vec![])));
-    let e = super::index::slice(&empty, None, Some(&Value::Int(-1)), true).unwrap_err();
+    let e = super::index::slice(&empty, None, Some(&Value::Int(0)), true).unwrap_err();
     assert_eq!(e.code, "E0507");
     let s = Value::str("abc");
-    let e = super::index::slice(&s, None, Some(&Value::Int(-4)), true).unwrap_err();
+    let e = super::index::slice(&s, None, Some(&Value::Int(3)), true).unwrap_err();
     assert_eq!(e.code, "E0507");
-    let e = super::index::slice(&Value::str(""), None, Some(&Value::Int(-1)), true).unwrap_err();
+    let e = super::index::slice(&s, None, Some(&Value::Int(-1)), true).unwrap_err();
     assert_eq!(e.code, "E0507");
-    let all = super::index::slice(&s, None, Some(&Value::Int(-1)), true).unwrap();
+    let e = super::index::slice(&Value::str(""), None, Some(&Value::Int(0)), true).unwrap_err();
+    assert_eq!(e.code, "E0507");
+    let all = super::index::slice(&s, None, Some(&Value::Int(2)), true).unwrap();
     assert!(same(&all, &Value::str("abc")));
-    let one = super::index::slice(&s, None, Some(&Value::Int(-3)), true).unwrap();
+    let one = super::index::slice(&s, None, Some(&Value::Int(0)), true).unwrap();
     assert!(same(&one, &Value::str("a")));
 }
 
@@ -1463,10 +1482,6 @@ fn reversed_slice_names_both_ends() {
     assert_eq!(
         shown(2, 0, true),
         "slice start 2 is after its end 0 (length 3)"
-    );
-    assert_eq!(
-        shown(-1, 1, false),
-        "slice start -1 is after its end 1 (length 3)"
     );
     let e = super::index::slice(
         &s("hello"),
@@ -1573,7 +1588,7 @@ fn deep_values_compare_and_hash_without_recursion() {
             assert_eq!(eq(&a, &b).map_err(|d| d.code), Ok(true));
             let hash = |v: &Value| {
                 let mut h = std::hash::DefaultHasher::new();
-                hash_value(v, &mut h);
+                hash_value(v, &mut h).unwrap();
                 std::hash::Hasher::finish(&h)
             };
             assert_eq!(hash(&a), hash(&b));
@@ -1594,6 +1609,61 @@ fn deep_values_compare_and_hash_without_recursion() {
         let st = deep(DEEP, s("x"), in_list);
         assert_eq!(eq(&sym, &st).map_err(|d| d.code), Err("E0517".to_string()));
     });
+}
+
+/// D40, D62: `eq` refuses a pair of different types where it compares
+/// one (numbers of either kind are one type, `nil` meets anything, a
+/// tag's type is its name) and two functions; `equal` (patterns) only
+/// says no. A function has no hash either.
+#[test]
+fn eq_refuses_pairs_of_different_types() {
+    let list = |xs: Vec<Value>| Value::List(Rc::new(List::new(xs)));
+    let int = Value::Int;
+    let code = |a: &Value, b: &Value| eq(a, b).map_err(|d| d.code);
+    assert_eq!(code(&int(1), &Value::Float(1.0)), Ok(true));
+    assert_eq!(code(&Value::Nil, &int(1)), Ok(false));
+    assert_eq!(code(&s("1"), &Value::Nil), Ok(false));
+    assert_eq!(code(&int(1), &s("1")), Err("E0517".to_string()));
+    assert_eq!(
+        code(&list(vec![int(1)]), &Value::tuple(vec![int(1)])),
+        Err("E0517".to_string())
+    );
+    assert_eq!(
+        code(&list(vec![int(1), s("a")]), &list(vec![int(2), int(3)])),
+        Ok(false)
+    );
+    assert_eq!(
+        code(&list(vec![int(1), s("a")]), &list(vec![int(1), int(3)])),
+        Err("E0517".to_string())
+    );
+    let tag = |n: &str, x: Value| {
+        Value::Tag(Rc::new(crate::value::Tag {
+            name: intern(n),
+            args: vec![x].into(),
+        }))
+    };
+    assert_eq!(code(&tag("Ok", int(1)), &tag("Ok", int(2))), Ok(false));
+    // Tagged values are one type: names that differ are just unequal.
+    assert_eq!(code(&tag("Ok", int(1)), &tag("Err", int(1))), Ok(false));
+    assert_eq!(code(&tag("Circle", int(1)), &tag("Ok", int(1))), Ok(false));
+    assert_eq!(code(&tag("Ok", int(1)), &int(1)), Err("E0517".to_string()));
+    assert!(!equal(&int(1), &s("1")));
+    let f = Value::Native(
+        crate::prelude::core()
+            .into_iter()
+            .find_map(|(n, v)| match v {
+                Value::Native(x) if n == "print" => Some(x),
+                _ => None,
+            })
+            .expect("print"),
+    );
+    assert_eq!(code(&f, &f), Err("E0501".to_string()));
+    assert_eq!(code(&f, &Value::Nil), Ok(false));
+    let mut h = std::hash::DefaultHasher::new();
+    assert_eq!(
+        hash_value(&list(vec![f]), &mut h).map_err(|d| d.code),
+        Err("E0501".to_string())
+    );
 }
 
 /// What the walks keep (L9): `compare` stops at the first difference and
@@ -1625,7 +1695,7 @@ fn the_walks_keep_their_rules() {
     assert!(!equal(&m1, &map(&[("a", 1), ("c", 2)])));
     let hash = |v: &Value| {
         let mut h = std::hash::DefaultHasher::new();
-        hash_value(v, &mut h);
+        hash_value(v, &mut h).unwrap();
         std::hash::Hasher::finish(&h)
     };
     assert_eq!(hash(&m1), hash(&m2));
@@ -1723,4 +1793,46 @@ fn adding_text_and_another_value_has_a_help() {
     }
     let d = super::arith::add(&Value::Int(3), &Value::Bool(true)).unwrap_err();
     assert_eq!(d.help, None);
+}
+
+/// A list whose halves are one list, `depth` times: 2^depth items in
+/// `depth` nodes (VA28, VA36).
+fn doubled(depth: usize) -> Value {
+    let mut x = list(ints(&[1]));
+    for _ in 0..depth {
+        x = list(vec![x.clone(), x]);
+    }
+    x
+}
+
+/// VA28: formatting stops once the text passes its budget, whatever the
+/// value's whole text would take, and a long string is written only as
+/// far as the budget goes.
+#[test]
+fn format_stops_at_its_budget() {
+    let x = doubled(40);
+    assert_eq!(format_within(&x, 1000), None);
+    let start = format_start(&x, 1000);
+    assert!(start.len() > 1000 && start.len() < 1100, "{}", start.len());
+    assert!(start.starts_with("[[[[[[[[[[[[[[[["));
+    let small = list(ints(&[1, 2]));
+    assert_eq!(format_within(&small, 6).as_deref(), Some("[1, 2]"));
+    assert_eq!(format_within(&small, 5), None);
+    let long = list(vec![s(&"a".repeat(1_000_000))]);
+    assert_eq!(format_start(&long, 10).len(), 13); // `[` and 10 bytes quoted
+}
+
+/// VA36: comparing a value with itself, or with a value sharing its
+/// parts, does not walk the shared parts again.
+#[test]
+fn compare_skips_shared_parts() {
+    let x = doubled(40);
+    assert_eq!(compare(&x, &x).unwrap(), Ordering::Equal);
+    let y = list(vec![x.clone(), list(ints(&[2]))]);
+    let z = list(vec![x, list(ints(&[3]))]);
+    assert_eq!(compare(&y, &z).unwrap(), Ordering::Less);
+    // A value that does not compare does not compare with itself either.
+    let nils = list(vec![Value::Nil]);
+    let twice = list(vec![nils.clone(), nils]);
+    assert!(compare(&twice, &twice).is_err());
 }

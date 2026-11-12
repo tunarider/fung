@@ -1,0 +1,8 @@
+# A tail call into a built-in function that calls back (`map`) takes the
+# check along too: it runs when the call's frame returns (D44).
+fn total(xs) -> int = sum(xs)
+print(total([1, 2]))
+# expect: 3
+fn doubled(xs) -> int = map(xs, x => x * 2)
+print(doubled([1]))
+# expect-error: E0404

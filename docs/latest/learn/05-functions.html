@@ -130,17 +130,19 @@ http://api.internal:80</code></pre></div>
 print(remote(&quot;web-1&quot;, &quot;df&quot;, &quot;-h&quot;))
 print(remote(&quot;web-1&quot;))</code></pre><pre class="out plain"><code>ssh web-1 df -h
 ssh web-1 </code></pre></div>
-<p>매개변수의 순서는 "필수 → 기본값 있는 것 → <code>...rest</code>"다. 인자 개수가 맞지 않거나 모르는 이름을 주면 런타임 에러다.</p>
+<p>매개변수의 순서는 "필수 → 기본값 있는 것 → <code>...rest</code>"다. 인자 개수가 맞지 않거나 모르는 이름을 주면 에러다. 부르는 함수가 최상위 <code>fn</code>이나 내장 함수처럼 정해져 있으면 실행하기 전에 잡는다(종료 코드 2).</p>
 <div class="run"><pre><code>fn endpoint(host, port = 443) = &quot;${host}:${port}&quot;
-print(endpoint(prot: 80))</code></pre><pre class="out err plain" data-code="1"><code>error[E0406]: endpoint has no argument named `prot`
+print(endpoint(prot: 80))</code></pre><pre class="out err plain" data-code="2"><code>error[E0406]: endpoint has no argument named `prot`
   --&gt; example.fung:2:15
   |
 2 | print(endpoint(prot: 80))
   |               ^
-  |
- call path (innermost first):
-   example.fung:2 &lt;entry&gt;</code></pre></div>
+  |</code></pre></div>
 <p>위에서는 <code>port</code>를 <code>prot</code>로 잘못 썼다. 모르는 인자 이름이라는 E0406으로 멈춘다.</p>
+<p>거꾸로, 이미 리스트로 든 값을 위치 인자로 넘기려면 마지막 위치 인자 자리에 <code>...</code>를 붙여 <strong>펼친다</strong>.</p>
+<div class="run"><pre><code>fn remote(host, ...cmd) = &quot;ssh ${host} ${join(cmd, &quot; &quot;)}&quot;
+parts = [&quot;df&quot;, &quot;-h&quot;]
+print(remote(&quot;web-1&quot;, ...parts))</code></pre><pre class="out plain"><code>ssh web-1 df -h</code></pre></div>
 <p>내장 함수도 똑같다. 예를 들어 <code>join(xs, sep = &quot;&quot;)</code>는 <code>sep</code>에 기본값이 있어서 <code>join([&quot;a&quot;, &quot;b&quot;])</code>로 부를 수 있다. 레퍼런스의 함수 항목에 이런 서명이 그대로 적혀 있다.</p>
 <h2 id="values">함수는 값이다</h2>
 <p>fung에서 함수는 숫자나 문자열과 같은 <strong>값</strong>이다. 이름에 대입할 수 있고, 다른 함수에 인자로 넘길 수 있고, 함수가 함수를 돌려줄 수도 있다. 4장의 <code>filter(usages, u =&gt; u &gt;= 90)</code>이 바로 함수를 인자로 넘긴 것이다.</p>
@@ -165,31 +167,24 @@ error = tagger(&quot;ERROR&quot;)
 print(warn(&quot;disk 91%&quot;))
 print([&quot;timeout&quot;, &quot;refused&quot;] |&gt; map(error))</code></pre><pre class="out plain"><code>[WARN] disk 91%
 [&quot;[ERROR] timeout&quot;, &quot;[ERROR] refused&quot;]</code></pre></div>
-<p>fung의 클로저 규칙은 하나다. <strong>함수는 만들어질 때 보이는 변수의 값을 복사한다.</strong> 나중에 그 이름에 다른 값을 대입해도, 함수가 가진 값은 그대로다.</p>
-<div class="run"><pre><code>suffix = &quot;.log&quot;
-is_target = name =&gt; ends_with(name, suffix)
-suffix = &quot;.txt&quot;
-print(is_target(&quot;app.log&quot;), is_target(&quot;notes.txt&quot;))</code></pre><pre class="out plain"><code>true false</code></pre></div>
+<p>fung의 클로저 규칙은 하나다. <strong>함수는 만들어질 때 보이는 변수의 값을 복사한다.</strong> 나중에 그 이름에 다른 값을 대입해도(함수 본문 같은 블록 안에서는 같은 이름에 다시 대입할 수 있다), 함수가 가진 값은 그대로다.</p>
+<div class="run"><pre><code>fn targets(names):
+  suffix = &quot;.log&quot;
+  is_target = name =&gt; ends_with(name, suffix)
+  suffix = &quot;.txt&quot;
+  filter(names, is_target)
+;;
+print(targets([&quot;app.log&quot;, &quot;notes.txt&quot;]))</code></pre><pre class="out plain"><code>[&quot;app.log&quot;]</code></pre></div>
 <p><code>is_target</code>이 만들어질 때 <code>suffix</code>는 <code>&quot;.log&quot;</code>였으므로, 그 뒤에 <code>suffix</code>가 바뀌어도 <code>is_target</code>은 계속 <code>.log</code>를 찾는다. 값이 바뀌지 않는 언어라서 "그때의 값"과 "지금의 값"이 섞일 일이 없다.</p>
 <h3 id="top-level">최상위 함수가 볼 수 있는 이름</h3>
 <p>위 규칙을 최상위 <code>fn</code>에 적용하면 결론이 하나 나온다. 최상위 <code>fn</code>은 프로그램 시작 <strong>전에</strong> 만들어지므로, 그때는 복사할 변수가 아직 없다. 그래서 최상위 <code>fn</code>이 볼 수 있는 파일의 이름은 다음뿐이다.</p>
 <ul>
 <li>다른 최상위 <code>fn</code>과 <code>import</code>한 모듈(10장)</li>
-<li>최상위에서 <strong>한 번만</strong> 대입한 이름, 곧 상수(3장). 상수는 바뀔 일이 없으니 부를 때 읽는다.</li>
+<li>최상위의 다른 이름, 곧 상수(3장). 최상위 이름은 한 번만 붙으니 바뀔 일이 없어 부를 때 읽는다.</li>
 </ul>
-<p>두 번 이상 대입한 이름은 보이지 않는다. 그런 값은 인자로 넘긴다.</p>
-<div class="run"><pre><code>log_dir = &quot;/var/log/app&quot;
-fn log_path(name) = &quot;${log_dir}/${name}&quot;
+<div class="run"><pre><code>fn log_path(name) = &quot;${log_dir}/${name}&quot;
+log_dir = &quot;/var/log/app&quot;
 print(log_path(&quot;api.log&quot;))</code></pre><pre class="out plain"><code>/var/log/app/api.log</code></pre></div>
-<div class="run"><pre><code>level = 1
-level = 2
-fn show() = level</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `level`
-  --&gt; example.fung:3:13
-  |
-3 | fn show() = level
-  |             ^^^^^ not found in this scope
-  |
- help: `level` is a file-level variable (assigned on line 1) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument</code></pre></div>
 <h2 id="pipe">파이프</h2>
 <p>함수 결과를 다음 함수에 넣고, 그 결과를 또 다음 함수에 넣다 보면 괄호가 깊어진다. <code>len(filter(lines, is_error))</code>는 안쪽부터 거꾸로 읽어야 한다. <strong>파이프</strong> <code>|&gt;</code>는 같은 것을 데이터가 흐르는 순서대로 쓰게 해 준다. 규칙은 둘뿐이다.</p>
 <ul>
@@ -237,8 +232,8 @@ liftoff</code></pre></div>
 <div class="box learn"><b>매개변수와 인자, 정의와 호출</b>
 <p><strong>정의</strong>는 "이런 계산이 있다"고 적어 두는 것이고, <strong>호출</strong>은 그 계산을 실제로 하는 것이다. <code>fn percent(used, total) = …</code>의 <code>used</code>와 <code>total</code>이 매개변수(빈칸의 이름)이고, <code>percent(45, 50)</code>의 <code>45</code>와 <code>50</code>이 인자(빈칸에 넣은 값)다. 정의만 하고 부르지 않으면 아무 일도 일어나지 않는다.</p>
 </div>
-<div class="box mistake"><b>최상위 함수에서 바뀌는 변수 읽기 (E0204)</b>
-<p>최상위에서 두 번 이상 대입한 변수를 최상위 <code>fn</code>이 읽으면 E0204다. <code>help:</code> 줄이 이유를 알려 준다. 바뀌는 값은 인자로 넘기거나, 한 번만 대입하도록 고친다(예: <code>level = if … ;;</code>). 최상위 <code>fn</code>이 부를 때마다 파일의 "지금 값"을 찾는 언어에서는 함수의 결과가 호출 시점에 따라 달라지는데, fung은 그런 숨은 의존을 만들지 않는다.</p>
+<div class="box mistake"><b>최상위에서 이름 다시 쓰기 (E0238)</b>
+<p>최상위에서 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙이거나 한 번에 계산한다(예: <code>level = if … ;;</code>). 최상위 <code>fn</code>이 부를 때 읽는 최상위 이름이 바뀔 수 있다면 함수의 결과가 호출 시점에 따라 달라지는데, 최상위 이름이 한 번만 붙으니 fung에는 그런 숨은 의존이 없다.</p>
 </div>
 <div class="box mistake"><b>파이프 오른쪽 호출의 _ (E0227)</b>
 <p>파이프 값은 늘 맨 앞 인자로 들어가므로 <code>&quot;a.txt&quot; |&gt; path.join(&quot;/tmp&quot;, _)</code>는 <code>path.join(&quot;a.txt&quot;, &quot;/tmp&quot;, _)</code>가 되어 버린다. 그래서 이 모양은 컴파일 에러다. 다른 자리에 넣으려면 람다를 쓴다: <code>&quot;a.txt&quot; |&gt; (f =&gt; path.join(&quot;/tmp&quot;, f))</code>.</p>
@@ -282,7 +277,7 @@ print(usages |&gt; filter(over(95)))</code></pre><pre class="out plain"><code>[9
 <li><code>x |&gt; f(a)</code>는 <code>f(x, a)</code>. 대상이 첫 인자라는 규칙 덕분에 파이프가 이어진다. <code>f(a, _)</code>는 부분 적용.</li>
 <li>목록 없는 반복은 재귀로 쓴다. 마지막 일이 자기 호출인 꼬리 재귀는 몇 번을 돌아도 스택을 쓰지 않는다. 언제 멈추는지부터 쓴다.</li>
 </ul>
-<p>레퍼런스: <a href="../reference/language/functions.html">함수</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/language/operators.html#pipe">파이프</a>, <a href="../reference/language/types.html">타입 표기</a>(인자와 반환값의 타입을 적어 검사하는 법), <a href="../reference/errors.html#E0204">E0204</a>, <a href="../reference/errors.html#E0227">E0227</a>. 클로저가 값을 복사하는 방법과 꼬리 호출이 프레임을 다시 쓰는 방법은 <a href="../vm/09-closures.html">함수와 클로저</a>에서 다룬다.</p>
+<p>레퍼런스: <a href="../reference/language/functions.html">함수</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/language/operators.html#pipe">파이프</a>, <a href="../reference/language/types.html">타입 표기</a>(인자와 반환값의 타입을 적어 검사하는 법), <a href="../reference/errors.html#E0238">E0238</a>, <a href="../reference/errors.html#E0227">E0227</a>. 클로저가 값을 복사하는 방법과 꼬리 호출이 프레임을 다시 쓰는 방법은 <a href="../vm/09-closures.html">함수와 클로저</a>에서 다룬다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/04-conditions-and-loops.html"><small>이전 장</small>4. 조건과 반복</a><a class="next" href="../learn/06-strings.html"><small>다음 장</small>6. 문자열 다루기</a></nav>
 </div></main>
 </div>

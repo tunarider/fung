@@ -47,6 +47,10 @@ pub fn module() -> Rc<Module> {
                 "split",
                 native_step("split", split_fn, vec![param("s"), param("pattern")]),
             ),
+            (
+                "escape",
+                super::nat::native("escape", escape_fn, vec![param("s")]),
+            ),
         ]
     });
     let mut m = Module::new("regex", "_native.regex");
@@ -54,6 +58,21 @@ pub fn module() -> Rc<Module> {
         m.set(name, Value::Native(n));
     }
     Rc::new(m)
+}
+
+/// `escape(s)`: a pattern that matches exactly `s` (D73): each run of
+/// UTF-8 escaped as the `regex` crate escapes it, each byte outside UTF-8
+/// as `(?-u:\xff)` (in Unicode mode `\xff` would be the character
+/// U+00FF, L4).
+fn escape_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
+    let mut out = String::new();
+    for chunk in nat::need_bytes("s", &a[0])?.utf8_chunks() {
+        out.push_str(&regex::escape(chunk.valid()));
+        for b in chunk.invalid() {
+            out.push_str(&format!("(?-u:\\x{b:02x})"));
+        }
+    }
+    Ok(Value::bytes(out.into_bytes()))
 }
 
 /// A compiled pattern and its group names (`""` for an unnamed group).

@@ -157,10 +157,10 @@ print(r)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode exam
 (tx, rx) = channel()
 
 total = scope(fn(s):
-  each(0..n, i =&gt; spawn(s, () =&gt; recv(rx)))
+  each(0..n, _i =&gt; spawn(s, () =&gt; recv(rx)))
   each(0..n, i =&gt; send(tx, i)!)
   n
-;;)
+;;)!
 print(total, &quot;tasks waited and finished&quot;)</code></pre><pre class="out plain"><code>20000 tasks waited and finished</code></pre></div>
 <p>새 태스크는 언제 처음 도나. 실행 스레드는 하나뿐이므로, <strong>띄운 쪽이 차례를 내놓을 때</strong>다. 다음 예에서 <code>main: spawned</code>가 먼저 찍히는 것은 그 때문이다. 본문이 <code>await(a)</code>에서 기다리기 시작해서야 <code>a</code>와 <code>b</code>가 차례로 돈다.</p>
 <div class="run"><pre><code>fn work(name, n):
@@ -172,8 +172,8 @@ r = scope(fn(s):
   a = spawn(s, () =&gt; work(&quot;a&quot;, 3))
   b = spawn(s, () =&gt; work(&quot;b&quot;, 3))
   print(&quot;main: spawned&quot;)
-  [await(a), await(b)]
-;;)
+  [await(a)!, await(b)!]
+;;)!
 print(r)</code></pre><pre class="out plain"><code>main: spawned
 a 1
 a 2
@@ -272,7 +272,7 @@ a at 2000</code></pre></div>
 <div class="run"><pre><code>hits = atom(0)
 
 scope(fn(s):
-  each(1..5, _ =&gt; spawn(s, () =&gt; each(0..500, i =&gt; swap(hits, n =&gt; n + 1))))
+  each(1..5, _ =&gt; spawn(s, () =&gt; each(0..500, _i =&gt; swap(hits, n =&gt; n + 1))))
 ;;)
 print(deref(hits))</code></pre><pre class="out plain"><code>2000</code></pre></div>
 <div class="run"><pre><code>fn noisy(n):
@@ -300,13 +300,13 @@ swap(hits, noisy)</code></pre><pre class="out err plain" data-code="1"><code>err
 <li><strong>깨어난 태스크 옮기기.</strong> 다른 태스크나 다른 스레드가 깨운 번호를 실행 대기열(<code>Ready</code>)에서 차례 큐로 옮긴다. <code>fung test</code>에서는 2와 4에서 새로 들어오는 태스크들의 순서를 씨앗으로 섞는다(<code>Runtime::shuffle_schedule</code>). 언어가 그 순서를 약속하지 않으므로, 기대는 시험을 드러내려는 것이다. 매 바퀴 한다. 계산하는 태스크가 차례를 넘기자마자 큐 끝에 다시 서므로, 큐가 빌 때만 옮기면 깨어난 태스크가 그 계산이 끝날 때까지 밀린다(실제로 있었던 버그다).</li>
 <li><strong>입출력 살피기.</strong> 소켓 등을 기다리는 태스크가 있으면, 누가 차례를 넘겼을 때와 256바퀴마다 이벤트 루프를 시간 제한 0으로 본다(13장). 한 번이 시스템 호출 하나라서 매 바퀴 하지 않는다.</li>
 <li><strong>한 차례.</strong> 큐 맨 앞의 태스크를 <code>Task</code>에 맞바꿔 넣고 <code>turn</code>. 끝나면 결과를 적고, 주차하면 기한과 함께 주차 표에, 차례를 넘겼으면 큐 끝에 넣는다.</li>
-<li><strong>할 일이 없으면.</strong> 모든 태스크가 주차했다. 그중 타이머나 바깥이 깨울 것(<code>Wake::timed</code>: <code>sleep</code>, 기한, 스레드 풀의 일, 표준 입력, 정지 채널, 소켓)이 하나도 없으면 교착이다(아래). 있으면 가장 이른 타이머까지 이벤트 루프에서 잔다.</li>
+<li><strong>할 일이 없으면.</strong> 모든 태스크가 주차했다. 그중 타이머나 바깥이 깨울 것(<code>Wake::timed</code>: <code>sleep</code>, 기한, 스레드 풀의 일, 표준 입력, 표준 출력의 자리, 정지 채널, 소켓)이 하나도 없으면 교착이다(아래). 있으면 가장 이른 타이머까지 이벤트 루프에서 잔다.</li>
 </ol>
-<p>다른 스레드(풀의 일, 표준 입력 읽기, 신호)는 fung 값을 만지지 않는다. 그들이 할 수 있는 것은 대기열에 <strong>태스크 번호</strong>를 넣거나 사건을 게시하는 것뿐이다. 대기열은 <code>Mutex</code> 뒤에 있고, 실행 스레드가 자고 있으면 이벤트 루프의 깨우개를 당긴다. 13장에서 자세히 본다.</p>
+<p>다른 스레드(풀의 일, 표준 입력 읽기, 표준 출력 쓰기, 신호)는 fung 값을 만지지 않는다. 그들이 할 수 있는 것은 대기열에 <strong>태스크 번호</strong>를 넣거나 사건을 게시하는 것뿐이다. 대기열은 <code>Mutex</code> 뒤에 있고, 실행 스레드가 자고 있으면 이벤트 루프의 깨우개를 당긴다. 13장에서 자세히 본다.</p>
 <h2 id="deadlock">교착 판정</h2>
 <p><strong>교착</strong>(deadlock)은 모든 태스크가 서로를 기다려 아무도 다시 돌 수 없는 상태다. 운영체제 스레드 런타임은 이것을 정확히 알기 어렵다. 스레드가 "잠들었다"는 것과 "곧 깨어날 것이다"를 구분하려면 모든 스레드의 상태를 한순간에 봐야 하는데, 스레드들은 그사이에도 움직인다. 그래서 "한동안 아무도 움직이지 않으면"처럼 시간 유예를 두거나, 원자 변수로 셈을 맞추는 복잡한 장치가 필요하다. fung의 0.2.0도 원자 변수로 "자는 스레드 수"를 셌다.</p>
 <p>M:1에서는 정확하다. 모든 태스크는 셋 중 하나다. 도는 중, 대기열에 있음, 주차함. 그리고 이 셋은 <strong>실행 스레드에서만</strong> 바뀐다. 그래서 대기열이 비었을 때 주차한 태스크 중 타이머나 바깥이 깨울 것이 하나도 없으면, 그것이 정확히 교착이다. 유예 시간도 원자 변수도 없이 그 자리에서 E0702를 보고하고, 프로그램의 루트를 취소하고, 종료 코드 1로 끝낸다. 깨워졌지만 아직 돌지 않은 태스크는 대기열에 있으므로 막힌 것으로 세지 않는다.</p>
-<div class="run"><pre><code>(tx, rx) = channel()
+<div class="run"><pre><code>(_tx, rx) = channel()
 
 scope(fn(s):
   spawn(s, () =&gt; recv(rx))
@@ -320,11 +320,11 @@ scope(fn(s):
  call path (innermost first):
    example.fung:5 &lt;lambda&gt;
    example.fung:3 &lt;entry&gt;
- help: this task waits to receive, but it still holds that channel's sending end itself (the global `tx`), so the channel cannot close: close it with `close(tx)` first, or leave the sending end to the producers only
+ help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only
  1 other task is waiting:
    recv at example.fung:4:22 (&lt;lambda&gt;, holds its own sending end)</code></pre></div>
 <p>주차한 태스크의 상태는 모두 힙에 있으므로, 보고는 따로 기록해 둔 것 없이 <strong>원래 있던 것을 읽는다.</strong> 스케줄러가 태스크마다 <code>Fiber</code>를 <code>Task</code>에 잠깐 맞바꿔 넣고, 런타임 에러와 같은 함수(호출 경로, 사용자 코드의 위치)로 읽은 뒤 다시 꺼낸다. 무엇을 기다리는지는 맨 위 이어 가기 상자가 어느 내장 함수의 것인지로 안다. 실행 루트는 런타임 에러처럼, 나머지는 같은 종류·위치끼리 묶어 10줄까지 보인다.</p>
-<div class="run"><pre><code>fn worker(rx) = for job in rx:
+<div class="run"><pre><code>fn worker(jobs) = for job in jobs:
   print(&quot;job&quot;, job)
 ;;
 
@@ -342,7 +342,7 @@ error[E0702]: deadlock: all tasks are waiting
  call path (innermost first):
    example.fung:6 &lt;entry&gt;
  1000 other tasks are waiting:
-   recv at example.fung:1:17 (worker, holds its own sending end) ×1000</code></pre></div>
+   recv at example.fung:1:19 (worker, holds its own sending end) ×1000</code></pre></div>
 <p>일꾼 1,000개가 <code>for job in rx</code>에서 다음 값을 기다리는데, 최상위의 <code>tx</code>가 프로그램 끝까지 살아 있어 채널이 닫히지 않는다(10장 "지역 변수의 수명": 최상위 변수는 끝까지 산다). 태스크 범위는 일꾼이 끝나기를 기다리고, 일꾼은 채널이 닫히기를 기다린다.</p>
 <h2 id="cost">비용</h2>
 <p>R단계를 마친 뒤의 측정이다(Apple M2 Max, macOS, 릴리스 빌드, 9회 중앙값; 노트 R7-scheduler의 "R단계 전체 요약").</p>
@@ -378,7 +378,7 @@ error[E0702]: deadlock: all tasks are waiting
 <div class="exercise"><b>교착 고치기</b>
 <p>위 "교착 판정" 절의 일꾼 예를 고쳐서, 일꾼 셋이 작업 1·2·3을 나눠 받고 모두 끝난 뒤 <code>all workers finished</code>가 찍히게 하자. 태스크 범위는 왜 그때까지 돌아오지 않았나?</p>
 <details><summary>풀이 보기</summary>
-<div class="run"><pre><code>fn worker(rx) = for job in rx:
+<div class="run"><pre><code>fn worker(jobs) = for job in jobs:
   print(&quot;job&quot;, job)
 ;;
 

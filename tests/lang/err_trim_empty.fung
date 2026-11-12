@@ -1,0 +1,5 @@
+# An empty `cut` is an argument error (D74).
+print(trim("xax", "x"))
+# expect: a
+print(trim("xax", ""))
+# expect-error: E0403

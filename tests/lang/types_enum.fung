@@ -5,7 +5,7 @@ fn hex(c: color) -> str = match c:
   Green => "#0f0"
   Blue  => "#00f"
 ;;
-print(hex(Green), hex('Blue))
+print(hex(Green), hex(sym("Blue")))
 # expect: #0f0 #00f
 fn area(s: Circle | Square) -> num = match s:
   Circle(r) => 3 * r * r

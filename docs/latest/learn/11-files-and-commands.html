@@ -172,7 +172,7 @@ Err({kind: 'not_found, message: &quot;cannot run `no-such-tool`: command not fou
 <div class="run"><pre><code>r = sh(&quot;printf 'a\\nERROR x\\nERROR y\\n' | grep -c ERROR&quot;)!
 print(&quot;errors:&quot;, trim(r.out))
 
-greeting = exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo \&quot;hi $WHO\&quot;&quot;], env: {WHO: &quot;ops&quot;})!
+greeting = exec([&quot;sh&quot;, &quot;-c&quot;, `echo &quot;hi $WHO&quot;`], env: {WHO: &quot;ops&quot;})!
 print(trim(greeting.out))
 
 sorted = exec([&quot;sort&quot;], stdin: &quot;pear\napple\nfig\n&quot;)!
@@ -180,13 +180,13 @@ print(lines(sorted.out))</code></pre><pre class="out plain"><code>errors: 2
 hi ops
 [&quot;apple&quot;, &quot;fig&quot;, &quot;pear&quot;]</code></pre></div>
 <h2 id="args">명령줄 인자</h2>
-<p><code>fung script.fung a b c</code>로 실행하면 스크립트 이름 뒤의 인자가 <code>args</code>에 문자열 리스트로 들어온다(2장). <code>--dir logs</code> 같은 옵션을 받으려면 <code>cli</code> 모듈의 <code>cli.parse(args)!</code>를 쓴다. 결과는 <code>Ok({flags, rest})</code>다(명령줄은 바깥 입력이라 잘못 친 명령줄, 예를 들어 같은 옵션을 두 번 준 것은 <code>Err</code>이고, <code>!</code>가 거기서 멈춘다). <code>--이름 값</code>과 <code>--이름=값</code>은 <code>flags</code>에, 나머지는 순서대로 <code>rest</code>에 간다. 값 없는 <code>--이름</code>은 <code>true</code>이고, <code>bools:</code>에 적은 이름은 다음 인자를 값으로 먹지 않는다. 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>dry_run</code>).</p>
+<p><code>fung script.fung a b c</code>로 실행하면 스크립트 이름 뒤의 인자가 <code>args</code>에 문자열 리스트로 들어온다(2장). <code>--dir logs</code> 같은 옵션을 받으려면 <code>cli</code> 모듈의 <code>cli.parse(args, bools: […], values: […])!</code>를 쓴다. 받을 옵션은 모두 적는다: 켜고 끄는 스위치는 <code>bools</code>, 값을 받는 옵션은 <code>values</code>다. 결과는 <code>Ok({flags, rest})</code>다(명령줄은 바깥 입력이라 잘못 친 명령줄, 예를 들어 목록에 없는 옵션이나 같은 옵션을 두 번 준 것은 <code>Err</code>이고, <code>!</code>가 거기서 멈춘다). <code>values</code>의 <code>--이름 값</code>과 <code>--이름=값</code>은 <code>flags</code>에 문자열로, <code>bools</code>의 <code>--이름</code>은 <code>true</code>로 들어가고, 나머지는 순서대로 <code>rest</code>에 간다. 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>dry_run</code>).</p>
 <details class="fixture"><summary>실행 방법</summary>
 <pre class="plain shell"><code>fung example.fung --dir logs --min 100 --dry-run a.log b.log</code></pre>
 </details>
 <div class="run"><pre><code>import cli
 
-opts = cli.parse(args, bools: [&quot;dry-run&quot;])!
+opts = cli.parse(args, bools: [&quot;dry-run&quot;], values: [&quot;dir&quot;, &quot;min&quot;])!
 print(opts)
 
 dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
@@ -251,7 +251,7 @@ GET /health 200</code></pre>
 import fs
 import path
 
-opts = cli.parse(args)!
+opts = cli.parse(args, values: [&quot;dir&quot;, &quot;min&quot;])!
 dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
 min_size = int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))
 
@@ -295,9 +295,9 @@ connected to db-1
 ready</code></pre>
 </details>
 <div class="run"><pre><code>import fs
-lines = fs.read_lines(&quot;app.log&quot;)!
-longest = fold(lines, &quot;&quot;, (best, l) =&gt; len(l) &gt; len(best) then l else best)
-print(len(lines), longest)</code></pre><pre class="out plain"><code>3 connected to db-1</code></pre></div>
+log = fs.read_lines(&quot;app.log&quot;)!
+longest = fold(log, &quot;&quot;, (best, l) =&gt; len(l) &gt; len(best) then l else best)
+print(len(log), longest)</code></pre><pre class="out plain"><code>3 connected to db-1</code></pre></div>
 </details>
 </div>
 <div class="exercise"><b>보고서 쓰고 다시 읽기</b>
@@ -320,7 +320,7 @@ print(trim(r.out), r.code)</code></pre><pre class="out plain"><code>hello 0</cod
 <li><code>fs.read</code>·<code>fs.read_lines</code>로 읽고, <code>fs.write</code>·<code>fs.append</code>로 쓴다. 모두 결과값이라 스크립트에서는 <code>!</code>를 붙인다.</li>
 <li><code>fs.list</code>·<code>fs.walk</code>·<code>fs.glob</code>로 파일을 찾고, <code>fs.stat</code>로 크기를 본다. 경로 계산은 <code>path</code>.</li>
 <li><code>exec([프로그램, 인자…])</code>는 쉘 없이 명령을 돌리고 <code>Ok({out, err, code})</code>를 준다. 0이 아닌 종료는 <code>Err({kind: 'exit, …})</code>. 쉘 기능이 필요할 때만 <code>sh</code>.</li>
-<li>인자는 <code>args</code>, 옵션은 <code>cli.parse(args)!</code>, 환경 변수는 <code>env(&quot;이름&quot;) ?? 기본값</code>, 표준 입력은 <code>read_lines()</code>.</li>
+<li>인자는 <code>args</code>, 옵션은 <code>cli.parse(args, bools: […], values: […])!</code>, 환경 변수는 <code>env(&quot;이름&quot;) ?? 기본값</code>, 표준 입력은 <code>read_lines()</code>.</li>
 <li>결과는 <code>print</code>, 경고와 에러는 <code>eprint</code>, 끝내는 코드는 <code>exit(n)</code>.</li>
 </ul>
 <p>함수마다의 자세한 설명은 레퍼런스의 <a href="../reference/modules/fs.html">fs</a>, <a href="../reference/modules/path.html">path</a>, <a href="../reference/modules/cli.html">cli</a>, <a href="../reference/prelude/process.html">프로세스와 환경</a>, <a href="../reference/prelude/io.html">입출력</a>, <a href="../reference/prelude/program.html">에러와 종료</a>에 있다. 명령줄 도구의 종료 코드 표는 <a href="../reference/cli.html#exit-codes">명령줄 도구</a>에 있다. 실무 예는 예제 모음의 <a href="../recipes/find-big-files.html">큰 파일 찾기</a>, <a href="../recipes/exit-codes.html">종료 코드와 stderr</a>를 보라.</p>

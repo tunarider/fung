@@ -889,10 +889,10 @@
 | print(http.get(URL + "/bad5"))
 \ no newline
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad1`: invalid Location header `http://[::1`: missing `]` in host"})
-| Err({kind: 'network, message: "cannot request `http://u:***@127.0.0.1:$PORT0/bad2`: invalid Location header `/%zz`: invalid escape `%zz`"})
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad3`: redirected to `ftp://x/y`: unsupported scheme `ftp`"})
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad4`: redirected to `http:opaque`: URL has no host"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:$PORT0/bad1`: invalid Location header `http://[::1`: missing `]` in host"})
+| Err({kind: 'invalid, message: "cannot request `http://u:***@127.0.0.1:$PORT0/bad2`: invalid Location header `/%zz`: invalid escape `%zz`"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:$PORT0/bad3`: redirected to `ftp://x/y`: unsupported scheme `ftp`"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:$PORT0/bad4`: redirected to `http:opaque`: URL has no host"})
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad5`: redirected to `http://127.0.0.1:$PORT1/gone`: connection closed before a response"})
 -- stderr
 -- exit: 0
@@ -986,7 +986,7 @@
 | Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 | Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 | Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/badhold`: invalid Location header `http://[::1`: missing `]` in host"})
+| Err({kind: 'invalid, message: "cannot request `http://127.0.0.1:$PORT0/badhold`: invalid Location header `http://[::1`: missing `]` in host"})
 | Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: ""})
 -- stderr
 -- exit: 0
@@ -1168,6 +1168,48 @@
 | User-Agent: fung/$VERSION\r
 | \r
 ==== case 12
+-- program
+| print(http.get(URL + "/r/0", redirects: 0))
+| print(http.get(URL + "/r/0", redirects: 2))
+| print(http.get(URL + "/r/0", redirects: 1))
+\ no newline
+-- stdout
+| Ok({status: 302, headers: {connection: "close", "content-length": "0", location: "/r/1"}, header_lines: [("Location", "/r/1"), ("Connection", "close"), ("Content-Length", "0")], body: ""})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/r/0`: too many redirects (limit 1)"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /r/0 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: fung/$VERSION\r
+| \r
+-- request 0.1 (escaped)
+| GET /r/0 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: fung/$VERSION\r
+| \r
+-- request 0.2 (escaped)
+| GET /r/1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: fung/$VERSION\r
+| \r
+-- request 0.3 (escaped)
+| GET /r/2 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: fung/$VERSION\r
+| \r
+-- request 0.4 (escaped)
+| GET /r/0 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: fung/$VERSION\r
+| \r
+-- request 0.5 (escaped)
+| GET /r/1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: fung/$VERSION\r
+| \r
+==== case 13
 -- program: print(http.post(URL + "/loop", "x"))
 -- stdout
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/loop`: too many redirects (limit 10)"})
@@ -1261,7 +1303,7 @@
 | \r
 | x
 \ no newline
-==== case 13
+==== case 14
 -- program
 | print(http.get("http://u:p@127.0.0.1:PORT0/start?q=1#frag"))
 | print(http.get(URL + "/start?q=1", headers: {"referer": "mine"}))
@@ -1327,7 +1369,7 @@
 | User-Agent: fung/$VERSION\r
 | Referer: \r
 | \r
-==== case 14
+==== case 15
 -- program
 | print(http.get(URL + "/slow1", timeout: 1500ms))
 | print(http.get(URL + "/slow1", timeout: 5s))
@@ -1357,7 +1399,7 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | \r
-==== case 15
+==== case 16
 -- program
 | h = {"authorization": "Bearer t", "cookie": "c=1", "cookie2": "x", "www-authenticate": "w", "proxy-authorization": "p", "proxy-authenticate": "pa", "x-other": "o"}
 | print(http.get(URL + "/port", headers: h))
@@ -1408,7 +1450,7 @@
 | User-Agent: fung/$VERSION\r
 | X-Other: o\r
 | \r
-==== case 16
+==== case 17
 -- program
 | h = {"authorization": "Bearer t", "cookie": "c=1", "content-type": "text/plain", "x-other": "o"}
 | print(http.post("http://example.test/start", "body", headers: h))

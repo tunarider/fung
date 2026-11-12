@@ -75,6 +75,7 @@
 | 1 | fn f():
 |   |        ^
 |   |
+|   note: the `fn` opened at 1:1
 -- exit: 1
 ==== commands
 -- stdout
@@ -156,6 +157,7 @@
 | 2 |   1
 |   |    ^
 |   |
+|   note: the `if` opened at 1:1
 -- exit: 1
 ==== crlf
 -- stdout

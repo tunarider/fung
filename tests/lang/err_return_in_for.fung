@@ -1,2 +1,2 @@
-for x in [1]: return x ;;
-# expect-error: E0213
+fn f(xs) = for x in xs: return x ;;
+# expect-error: E0237

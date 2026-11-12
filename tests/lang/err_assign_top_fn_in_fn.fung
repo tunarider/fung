@@ -1,0 +1,8 @@
+# Nor bind the name of another top-level fn (D38, FE47).
+fn count() = 1
+fn f():
+  count = 0
+  count
+;;
+print(f() + count())
+# expect-error: E0240

@@ -1,10 +1,10 @@
-# A slice is a `..` directly inside `[` (FE27, D7): its start and end
-# take any expression, `??` and `|>` included.
+# A slice is a `..` directly inside `[` (FE27): its start and end are the
+# operand layer of `..`, so `??` and `|>` go in parentheses (D36).
 xs = [1, 2, 3]
 a = nil
 b = nil
 fn id(x) = x
-print(xs[a ?? 1..], xs[a ?? 1..2], xs[..b ?? 2], xs[0..b ?? 2])
+print(xs[(a ?? 1)..], xs[(a ?? 1)..2], xs[..(b ?? 2)], xs[0..(b ?? 2)])
 # expect: [2, 3] [2] [1, 2] [1, 2]
-print(xs[a ?? 0..=b ?? 1], xs[1 |> id..], xs[..=2 |> id], xs[(a ?? 1)..])
+print(xs[(a ?? 0)..=(b ?? 1)], xs[(1 |> id)..], xs[..=(2 |> id)], xs[1 + 0..])
 # expect: [1, 2] [2, 3] [1, 2, 3] [2, 3]

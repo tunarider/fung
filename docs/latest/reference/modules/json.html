@@ -88,8 +88,8 @@
   <thead><tr><th>JSON</th><th>fung</th><th>비고</th></tr></thead>
   <tbody>
     <tr><td>객체 <code>{"a": 1}</code></td><td>맵 <code>{a: 1}</code></td><td>키 순서를 지킨다. 키는 문자열.</td></tr>
-    <tr><td>배열 <code>[1, 2]</code></td><td>리스트</td><td>쓸 때는 튜플도 배열이 된다.</td></tr>
-    <tr><td>문자열</td><td>문자열</td><td>쓸 때는 심볼도 문자열이 된다.</td></tr>
+    <tr><td>배열 <code>[1, 2]</code></td><td>리스트</td><td>튜플은 쓰지 않는다(리스트로 바꾼다).</td></tr>
+    <tr><td>문자열</td><td>문자열</td><td>심볼은 쓰지 않는다(<code>sym_name</code>으로 바꾼다).</td></tr>
     <tr><td>숫자 <code>42</code></td><td><code>int</code></td><td>소수점·지수가 없으면 정수(64비트).</td></tr>
     <tr><td>숫자 <code>2.5</code> <code>1e3</code></td><td><code>float</code></td><td>소수점이나 지수가 있으면 실수.</td></tr>
     <tr><td><code>true</code> <code>false</code></td><td><code>true</code> <code>false</code></td><td></td></tr>
@@ -163,19 +163,19 @@ print(events |&gt; filter(e =&gt; e.level == &quot;error&quot;) |&gt; map(e =&gt
 <p>fung 값을 JSON 텍스트로 쓴다.</p>
 <div class="sig"><code>json.stringify(x, indent = nil)</code></div>
 <h4>설명</h4>
-<p><code>x</code>를 JSON 문자열로 바꾼다. 맵·리스트·문자열·정수·실수·<code>true</code>·<code>false</code>·<code>nil</code>은 <a href="#concepts">위의 표</a>대로 그대로 가고, 튜플은 배열, 심볼은 이름 문자열(<code>'ok</code> → <code>&quot;ok&quot;</code>), 시각은 ISO 8601 문자열(<code>&quot;2026-10-04T09:05:07Z&quot;</code>)이 된다. 맵은 키 순서대로 쓴다. 실수는 늘 소수점을 붙인다(<code>1.0</code>). JSON에 대응하는 것이 없는 값(기간, 함수, 태그 <code>Ok(1)</code>, 범위 <code>0..3</code>, 채널, atom 등)은 런타임 에러 E0513이다. 기간은 <code>d / 1s</code>처럼 숫자로, 범위는 <code>map(r, x =&gt; x)</code>처럼 리스트로 바꿔서 넘긴다.</p>
-<p><code>indent</code>가 없으면(또는 <code>0</code>) 공백 없는 한 줄이다. 숫자를 주면 그 칸 수로 들여 쓴 여러 줄이 된다(사람이 읽을 파일에). 문자열은 꼭 필요한 것만 이스케이프한다: <code>&quot;</code>, <code>\</code>, U+0020 미만의 제어 문자. 한글 같은 비ASCII 글자는 그대로 둔다.</p>
+<p><code>x</code>를 JSON 문자열로 바꾼다. 받는 것은 JSON에 있는 타입뿐이다: 맵·리스트·문자열·정수·실수·<code>true</code>·<code>false</code>·<code>nil</code>이 <a href="#concepts">위의 표</a>대로 간다. 맵은 키 순서대로 쓴다. 실수는 늘 소수점을 붙인다(<code>1.0</code>). 그 밖의 값은 어디에 있든 런타임 에러 E0513이다. 무엇으로 바꿀지는 쓰는 쪽이 정한다: 심볼은 <code>sym_name(s)</code>로 문자열, 튜플은 리스트 <code>[a, b]</code>, 시각은 <a href="time.html#fn-time-format"><code>time.format(t)</code></a>로 문자열, 기간은 <code>d / 1s</code>처럼 숫자, 범위는 <code>map(r, x =&gt; x)</code>처럼 리스트로 바꿔서 넘긴다(태그 <code>Ok(1)</code>, 함수, 채널, atom도 E0513). 바꿔 주는 타입과 거절하는 타입의 선을 따로 외우지 않아도 되게 "JSON에 있는 타입만"이다.</p>
+<p><code>indent</code>가 없으면 공백 없는 한 줄이다. 숫자를 주면 그 칸 수로 들여 쓴 여러 줄이 된다(사람이 읽을 파일에). 문자열은 꼭 필요한 것만 이스케이프한다: <code>&quot;</code>, <code>\</code>, U+0020 미만의 제어 문자. 한글 같은 비ASCII 글자는 그대로 둔다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>x</code>: 바꿀 값.</li>
-<li><code>indent</code>: <code>nil</code>(한 줄) 또는 들여쓰기 칸 수(0 이상의 정수).</li>
+<li><code>indent</code>: <code>nil</code>(한 줄) 또는 들여쓰기 칸 수(1 이상의 정수).</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p>JSON 문자열.</p>
 <h4>에러</h4>
 <ul>
-<li>런타임 에러 E0513: JSON으로 바꿀 수 없는 값이 들어 있다(<code>cannot convert dur to JSON</code>).</li>
-<li>런타임 에러 E0403: <code>indent</code>가 음수다.</li>
+<li>런타임 에러 E0513: JSON으로 바꿀 수 없는 값이 들어 있다(<code>cannot convert dur to JSON</code>). 심볼·튜플·시각이면 바꾸는 법을 도움말로 보인다.</li>
+<li>런타임 에러 E0403: <code>indent</code>가 1보다 작다.</li>
 <li>런타임 에러 E0806: 결과가 1억 글자를 넘는다.</li>
 </ul>
 <h4>예제</h4>
@@ -194,11 +194,13 @@ print(json.stringify(report, indent: 2))</code></pre><pre class="out plain"><cod
   ],
   &quot;note&quot;: null
 }</code></pre></div>
-<p><strong>심볼, 튜플, 시각, 이스케이프</strong></p>
+<p><strong>심볼, 튜플, 시각은 바꿔서, 이스케이프</strong></p>
 <div class="run"><pre><code>import json
 import time
 
-print(json.stringify({status: 'ok, pair: (1, &quot;a&quot;), at: time.from_unix(0)}))
+status = 'ok
+(n, name) = (1, &quot;a&quot;)
+print(json.stringify({status: sym_name(status), pair: [n, name], at: time.format(time.from_unix(0))}))
 print(json.stringify(&quot;탭\t따옴표\&quot; 줄\n&quot;))</code></pre><pre class="out plain"><code>{&quot;status&quot;:&quot;ok&quot;,&quot;pair&quot;:[1,&quot;a&quot;],&quot;at&quot;:&quot;1970-01-01T00:00:00Z&quot;}
 &quot;탭\t따옴표\&quot; 줄\n&quot;</code></pre></div>
 <p><strong>바꿀 수 없는 값</strong></p>

@@ -44,7 +44,7 @@ const CASES: &[(&str, &str, &str)] = &[
     ),
     (
         "list prepend",
-        "xs = fold(0..40000, [], (acc, i) => [i] + acc)\nprint(len(xs), xs[0], xs[-1])",
+        "xs = fold(0..40000, [], (acc, i) => [i] + acc)\nprint(len(xs), xs[0], last(xs))",
         "40000 39999 0\n",
     ),
     (
@@ -54,7 +54,7 @@ const CASES: &[(&str, &str, &str)] = &[
     ),
     (
         "send many views of one vector",
-        "(tx, rx) = channel(1)\n(t2, r2) = channel(1)\nbig = map(0..200000, i => i) + [t2]\nvs = map(0..4000, i => big[i..])\nsend(tx, vs)\nprint(len(recv(rx)!))",
+        "(tx, rx) = channel(1)\n(t2, _r2) = channel(1)\nbig = map(0..200000, i => i) + [t2]\nvs = map(0..4000, i => big[i..])\nsend(tx, vs)\nprint(len(recv(rx)!))",
         "4000\n",
     ),
     (
@@ -94,7 +94,7 @@ const CASES: &[(&str, &str, &str)] = &[
     ),
     (
         "a list used as a stack",
-        "base = map(0..20000, x => x)\nprint(len(fold(0..20000, base, (s, i) => s[..-1] + [i])))",
+        "base = map(0..20000, x => x)\nprint(len(fold(0..20000, base, (s, i) => s[..len(s) - 1] + [i])))",
         "20000\n",
     ),
     (
@@ -103,8 +103,23 @@ const CASES: &[(&str, &str, &str)] = &[
         "7000\n",
     ),
     (
+        "grow a string",
+        "print(len(fold(0..100000, \"\", (s, _i) => s + \"x\")), len(fold(0..50000, \"\", (s, _i) => s + \"\u{ac00}\")))",
+        "100000 50000\n",
+    ),
+    (
+        "small slices of a long list",
+        "xs = map(0..50000, i => i)\nprint(fold(0..50000, 0, (n, i) => n + len(xs[i..])))",
+        "1250025000\n",
+    ),
+    (
+        "each character of a long non-ASCII string",
+        "s = repeat(\"\u{ac00}b\", 25000)\nprint(fold(0..50000, 0, (n, i) => n + byte_len(s[i])))",
+        "100000\n",
+    ),
+    (
         "walk a list and its slice",
-        "xs = map(0..200000, x => x)\nprint(fold(xs, 0, (a, x) => a + 1) + fold(xs[1..], 0, (a, x) => a + 1))",
+        "xs = map(0..200000, x => x)\nprint(fold(xs, 0, (a, _x) => a + 1) + fold(xs[1..], 0, (a, _x) => a + 1))",
         "399999\n",
     ),
 ];
@@ -172,7 +187,7 @@ fn collections_stay_linear() {
 #[test]
 fn regex_find_all_stays_linear() {
     let _serial = serial();
-    let src = "import regex\ns = repeat(\"가나다라 마바 1 \", 100000)\nms = regex.find_all(s, `\\d`)\nprint(len(s), len(ms), ms[-1].end)";
+    let src = "import regex\ns = repeat(\"가나다라 마바 1 \", 100000)\nms = regex.find_all(s, `\\d`)\nprint(len(s), len(ms), last(ms).end)";
     run(src);
     let (out, took) = run(src);
     eprintln!("regex find_all {took:?}");
@@ -224,6 +239,78 @@ fn a_long_operator_chain_compiles_in_linear_time() {
     }
 }
 
+/// A function with 40,000 locals alive at once compiles in linear time:
+/// the lifetime analysis changes one live set in place and keeps only
+/// what each statement or branch lets go, instead of a copy of the live
+/// set per statement (VM24: 30.7 s here, against about 0.1 s once).
+#[test]
+fn forty_thousand_live_locals_compile_in_linear_time() {
+    let _serial = serial();
+    let n = 40_000;
+    let mut src = String::from("fn f():\n");
+    for i in 0..n {
+        src.push_str(&format!("  v{i} = {i}\n"));
+    }
+    let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
+    src.push_str(&format!("  [{}]\n;;\nprint(len(f()))\n", names.join(", ")));
+    run_file("live", &src);
+    let (out, took) = run_file("live", &src);
+    eprintln!("40,000 live locals {took:?}");
+    assert_eq!(out, "40000\n");
+    assert!(
+        took < Duration::from_secs(1),
+        "40,000 live locals took {took:?}"
+    );
+}
+
+/// A literal nested 8,000 deep with a variable at the bottom compiles in
+/// linear time: whether each level is a constant is found in the one
+/// folding walk (VM25: each level walked all below it, 11.5 s here).
+#[test]
+fn a_deep_literal_with_a_variable_compiles_in_linear_time() {
+    let _serial = serial();
+    let items: Vec<String> = (0..20).map(|i| i.to_string()).collect();
+    let mut lit = String::from("x");
+    for _ in 0..8000 {
+        lit = format!("[{}, {lit}]", items.join(", "));
+    }
+    let src = format!("fn f(x) = len({lit})\nprint(f(1))\n");
+    run_file("nest", &src);
+    let (out, took) = run_file("nest", &src);
+    eprintln!("a literal 8,000 deep {took:?}");
+    assert_eq!(out, "21\n");
+    assert!(
+        took < Duration::from_secs(1),
+        "a literal 8,000 deep took {took:?}"
+    );
+}
+
+/// A call with 4,095 named arguments binds them in time linear in the
+/// pairs times the parameters: one pass finds and marks each slot (VM34:
+/// a scan per pair before, 28 s here).
+#[test]
+fn four_thousand_named_arguments_bind_quickly() {
+    let _serial = serial();
+    let n = 4095;
+    let params: Vec<String> = (0..n).map(|i| format!("a{i} = 0")).collect();
+    let args: Vec<String> = (0..n).rev().map(|i| format!("a{i}: {i}")).collect();
+    let names: Vec<String> = (0..n).map(|i| format!("a{i}")).collect();
+    let src = format!(
+        "fn f({}) = sum([{}])\nprint(f({}))\n",
+        params.join(", "),
+        names.join(", "),
+        args.join(", ")
+    );
+    run_file("named", &src);
+    let (out, took) = run_file("named", &src);
+    eprintln!("4,095 named arguments {took:?}");
+    assert_eq!(out, format!("{}\n", n * (n - 1) / 2));
+    assert!(
+        took < Duration::from_secs(1),
+        "4,095 named arguments took {took:?}"
+    );
+}
+
 /// `fung check` on `src`: its output and how long it took.
 fn check_file(name: &str, src: &str) -> (std::process::Output, Duration) {
     let path = std::env::temp_dir().join(format!("fung-perf-{name}-{}.fung", std::process::id()));
@@ -272,8 +359,8 @@ fn similar_names_for_many_errors_stay_linear() {
 #[test]
 fn nested_lambdas_desugar_in_linear_time() {
     let _serial = serial();
-    let params: String = (0..9_000).map(|i| format!("x{i} => ")).collect();
-    let src = format!("f = {params}x0\nprint(f(1)(2)(3) != nil)\n");
+    let params: String = (0..9_000).map(|i| format!("_x{i} => ")).collect();
+    let src = format!("f = {params}_x0\nprint(f(1)(2)(3) != nil)\n");
     check_file("lambdas", &src);
     let (out, took) = check_file("lambdas", &src);
     eprintln!("9,000 nested lambdas {took:?}");
@@ -329,7 +416,7 @@ fn fmt_aligns_a_long_run_in_linear_time() {
 #[test]
 fn twenty_thousand_waiting_tasks() {
     let _serial = serial();
-    let src = "fn worker(s):\n  (tx, rx) = channel()\n  t = spawn(s, () => recv(rx)!)\n  [tx, t]\n;;\nprint(scope(fn(s):\n  ws = map(0..20000, _ => worker(s))\n  each(ws, w => send(w[0], 1))\n  fold(ws, 0, (a, w) => a + await(w[1]))\n;;))";
+    let src = "fn worker(s):\n  (tx, rx) = channel()\n  t = spawn(s, () => recv(rx)!)\n  [tx, t]\n;;\nprint(scope(fn(s):\n  ws = map(0..20000, _ => worker(s))\n  each(ws, w => send(w[0], 1))\n  fold(ws, 0, (a, w) => a + await(w[1])!)\n;;)!)";
     let (out, took) = run(src);
     eprintln!("20,000 tasks {took:?}");
     assert_eq!(out, "20000\n");
@@ -441,7 +528,7 @@ fn threads_of(pid: u32) -> usize {
 
 /// The program of `two_thousand_connections_at_once`: its argument is
 /// the number of batches of 100 clients.
-const CONNS: &str = "import http\nfn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nbatches = parse_int(args[0])!\nn = batches * 100\n(go_tx, go_rx) = channel()\ncount = atom(0)\nh = fn(req):\n  swap(count, c => c + 1)\n  _ = recv(go_rx)\n  \"ok\"\n;;\nfn ok(r) = match r:\n  Ok(_) => 1\n  _ => 0\n;;\nsupervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  got = scope(fn(cs):\n    # in batches below the listen backlog (128 on macOS)\n    fn batch(b) = map(0..100, _ => spawn(cs, () => http.get(\"http://\" + addr + \"/\")))\n    ts = flatten(map(0..batches, fn(b):\n      t = batch(b)\n      until(() => deref(count) == (b + 1) * 100)\n      t\n    ;;))\n    print(\"ready\")\n    read_line()\n    close(go_tx)\n    fold(ts, 0, (a, t) => a + ok(await(t)))\n  ;;)\n  print(got)\n  cancel(s)\n;;, e => nil)";
+const CONNS: &str = "import http\nfn wait_for(cond) = cond() then nil else fn(): sleep(1ms); wait_for(cond) ;;()\nbatches = parse_int(args[0])!\n_n = batches * 100\n(go_tx, go_rx) = channel()\ncount = atom(0)\nh = fn(_req):\n  swap(count, c => c + 1)\n  _ = recv(go_rx)\n  \"ok\"\n;;\nfn ok(r) = match r:\n  Ok(_) => 1\n  _ => 0\n;;\nsupervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  got = scope(fn(cs):\n    # in batches below the listen backlog (128 on macOS)\n    fn batch(_b) = map(0..100, _ => spawn(cs, () => http.get(\"http://\" + addr + \"/\")))\n    ts = flatten(map(0..batches, fn(b):\n      t = batch(b)\n      wait_for(() => deref(count) == (b + 1) * 100)\n      t\n    ;;))\n    print(\"ready\")\n    read_line()\n    close(go_tx)\n    fold(ts, 0, (a, t) => a + ok(await(t)!))\n  ;;)!\n  print(got)\n  cancel(s)\n;;, _e => nil)";
 
 /// Fifty tasks wait on commands at once (R4b): no thread waits for one,
 /// so the process has only a few threads (each command had four before:
@@ -453,7 +540,7 @@ fn fifty_commands_at_once() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let src = format!(
-        "import fs\nfn until(f) = f() then nil else fn(): sleep(5ms); until(f) ;;()\nd = \"{}\"\nprint(timeout(() => scope(fn(s):\n  ts = map(0..50, i => spawn(s, () => sh(\"touch {}/$$; sleep 1\")!.code))\n  until(() => len(fs.list(d)!) == 50)\n  print(\"ready\")\n  read_line()\n  fold(ts, 0, (a, t) => a + await(t))\n;;), 20s))",
+        "import fs\nfn wait_for(cond) = cond() then nil else fn(): sleep(5ms); wait_for(cond) ;;()\nd = \"{}\"\nprint(timeout(() => scope(fn(s):\n  ts = map(0..50, _i => spawn(s, () => sh(\"touch {}/$$; sleep 1\")!.code))\n  wait_for(() => len(fs.list(d)!) == 50)\n  print(\"ready\")\n  read_line()\n  fold(ts, 0, (a, t) => a + await(t)!)\n;;)!, 20s)!)",
         dir.display(),
         dir.display()
     );
@@ -485,7 +572,7 @@ fn fifty_commands_at_once() {
 #[test]
 fn many_receivers_on_one_channel() {
     let _serial = serial();
-    let src = "(tx, rx) = channel()\nprint(scope(fn(s):\n  ts = map(0..50000, _ => spawn(s, () => recv(rx)!))\n  each(0..50000, i => send(tx, 1))\n  fold(ts, 0, (a, t) => a + await(t))\n;;))";
+    let src = "(tx, rx) = channel()\nprint(scope(fn(s):\n  ts = map(0..50000, _ => spawn(s, () => recv(rx)!))\n  each(0..50000, _i => send(tx, 1))\n  fold(ts, 0, (a, t) => a + await(t)!)\n;;)!)";
     let (out, took) = run(src);
     eprintln!("50,000 receivers on one channel {took:?}");
     assert_eq!(out, "50000\n");
@@ -500,7 +587,7 @@ fn many_receivers_on_one_channel() {
 #[test]
 fn many_awaits_on_one_task() {
     let _serial = serial();
-    let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, fn(): _ = timeout(() => await(t), 1ms); nil ;;)))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)) then 1 else 0))\n;;))";
+    let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, fn(): _ = timeout(() => await(t), 1ms); nil ;;)))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)!!) then 1 else 0))\n;;)!)";
     let (out, took) = run(src);
     eprintln!("100,000 awaits on one task {took:?}");
     assert_eq!(out, "50000\n");
@@ -509,8 +596,7 @@ fn many_awaits_on_one_task() {
 
 /// Counts the tasks that reached their wait (`ready`), so the entry
 /// cancels only once all of them wait.
-const UNTIL_ALL: &str =
-    "fn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nready = atom(0)\n";
+const UNTIL_ALL: &str = "fn wait_for(cond) = cond() then nil else fn(): sleep(1ms); wait_for(cond) ;;()\nready = atom(0)\n";
 
 /// 80,000 tasks wait to receive on one channel and are all cancelled:
 /// each wait that ends leaves the queue at O(1) (review C4: a scan of
@@ -519,7 +605,7 @@ const UNTIL_ALL: &str =
 fn many_cancelled_receivers_on_one_channel() {
     let _serial = serial();
     let src = format!(
-        "{UNTIL_ALL}(tx, rx) = channel()\nprint(scope(fn(s):\n  each(0..80000, _ => spawn(s, fn(): swap(ready, n => n + 1); recv(rx) ;;))\n  until(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
+        "{UNTIL_ALL}(_tx, rx) = channel()\nprint(scope(fn(s):\n  each(0..80000, _ => spawn(s, fn(): swap(ready, n => n + 1); recv(rx) ;;))\n  wait_for(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
     );
     let (out, took) = run(&src);
     eprintln!("80,000 cancelled receivers {took:?}");
@@ -535,7 +621,7 @@ fn many_cancelled_receivers_on_one_channel() {
 fn many_releases_that_park() {
     let _serial = serial();
     let src = format!(
-        "{UNTIL_ALL}print(scope(fn(s):\n  each(0..80000, i => spawn(s, () => with(() => i, fn(r): swap(ready, n => n + 1); sleep(10s) ;;, r => sleep(1ms))))\n  until(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
+        "{UNTIL_ALL}print(scope(fn(s):\n  each(0..80000, i => spawn(s, () => with(() => i, fn(_r): swap(ready, n => n + 1); sleep(10s) ;;, _r => sleep(1ms))))\n  wait_for(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
     );
     let (out, took) = run(&src);
     eprintln!("80,000 releases that park {took:?}");
@@ -610,7 +696,7 @@ fn deadlines_cut_long_natives() {
     let _serial = serial();
     for (what, work) in LONG_WORK {
         let src = format!(
-            "{LONG_SETUP}import time\nt0 = time.monotonic()\nr = timeout(() => {work}, 5ms)\ntook = time.monotonic() - t0\nprint(match r:\n  Err({{kind: 'timeout}}) => \"timeout\"\n  _ => \"value\"\n;;, took < 30ms)"
+            "{LONG_SETUP}t0 = time.monotonic()\nr = timeout(() => {work}, 5ms)\ntook = time.monotonic() - t0\nprint(match r:\n  Err({{kind: 'timeout}}) => \"timeout\"\n  _ => \"value\"\n;;, took < 30ms)"
         );
         let (out, _) = run_file("deadline", &src);
         assert_eq!(out, "timeout true\n", "{what}");
@@ -618,22 +704,22 @@ fn deadlines_cut_long_natives() {
 }
 
 /// Inputs that take about 50 to 300 ms each in one go (release build).
-const LONG_SETUP: &str = "import json\nrows = map(0..200000, i => {a: i, b: \"xxxxxxxx\"})\nbig = json.stringify(rows)\nxs = map(0..500000, i => (i * 7919) % 1000003)\ntext = repeat(\"word \", 1000000)\n";
+const LONG_SETUP: &str = "import json\nimport time\n_rows = map(0..200000, i => {a: i, b: \"xxxxxxxx\"})\n_big = json.stringify(_rows)\n_xs = map(0..500000, i => (i * 7919) % 1000003)\n_text = repeat(\"word \", 1000000)\n";
 
 const LONG_WORK: &[(&str, &str)] = &[
-    ("json.parse", "len(json.parse(big)!)"),
-    ("json.stringify", "len(json.stringify(rows))"),
-    ("sort", "len(sort(xs))"),
-    ("sort_by", "len(sort_by(xs, x => x))"),
-    ("unique", "len(unique(xs))"),
-    ("split", "len(split(text, \" \"))"),
-    ("join", "len(join(xs, \",\"))"),
-    ("replace", "len(replace(text, \"o\", \"00\"))"),
+    ("json.parse", "len(json.parse(_big)!)"),
+    ("json.stringify", "len(json.stringify(_rows))"),
+    ("sort", "len(sort(_xs))"),
+    ("sort_by", "len(sort_by(_xs, x => x))"),
+    ("unique", "len(unique(_xs))"),
+    ("split", "len(split(_text, \" \"))"),
+    ("join", "len(join(_xs, \",\"))"),
+    ("replace", "len(replace(_text, \"o\", \"00\"))"),
 ];
 
 /// `gap(work)`: runs `work` beside a task that sleeps 1 ms at a time and
 /// gives the longest wait between its wake-ups, in milliseconds. The
 /// ticker has started before the work does (a state, not a sleep).
-const GAP: &str = "import time\nfn gap(work) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(last, worst, first):\n    if first: send(started_tx, true) else: nil ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - last])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  work()\n  send(done_tx, true)\n  ms(await(w))\n;;)\nfn ms(d) = d / 1ms\n";
+const GAP: &str = "fn gap(job) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(prev, worst, start):\n    if start: send(started_tx, true) else: nil ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - prev])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  job()\n  send(done_tx, true)\n  ms(await(w)!)\n;;)!\nfn ms(d) = d / 1ms\n";
 
-const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(() => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)) else: nil ;;\n  cancel(s)\n;;, e => nil), 20s))\n";
+const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    _ = len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(() => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)!) else: nil ;;\n  cancel(s)\n;;, _e => nil), 20s))\n";

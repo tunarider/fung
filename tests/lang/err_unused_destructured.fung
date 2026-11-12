@@ -1,0 +1,7 @@
+# Every name of a destructuring is read, or written with `_` (D38).
+fn f():
+  (a, b) = (1, 2)
+  a
+;;
+print(f())
+# expect-error: E0239

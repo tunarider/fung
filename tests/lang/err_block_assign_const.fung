@@ -1,5 +1,4 @@
-# An inner block of a top-level fn cannot assign the file's constant: only
-# the body's outermost block binds the fn's own names (FE23).
+# A block of a top-level fn cannot assign the file's constant (FE23, D38).
 c = 1
 fn g():
   if true:

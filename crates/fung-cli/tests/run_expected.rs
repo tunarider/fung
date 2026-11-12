@@ -16,7 +16,7 @@ const CASES: &[&str] = &[
     "with(() => nil, fn(_): print([1, 2] + [3], {a: 1}, (1, \"x\"), Ok(2), 1..3, 1.5, 90m, 's, nil); exit(4) ;;, _ => print(\"bye\"))",
     "fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)\nprint(count(1000000, 0))",
     "fn d(n) = n == 0 then 0 else 1 + d(n - 1)\nprint(d(200000))",
-    "print(fold(0..3, 0, (a, x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))",
+    "print(fold(0..3, 0, (a, _x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))",
     "with(() => nil, _ => print(\"main\"), _ => fail(\"in release\"))",
     "scope(s => spawn(s, () => 1))",
 ];
@@ -62,17 +62,17 @@ const CONCURRENT: &[&str] = &[
     // task, wherever it waits; each `with` is released once.
     "with(() => nil, _ => scope(fn(s):\n  spawn(s, fn(): sleep(10ms); exit(5) ;;)\n  sleep(10s)\n  print(\"never\")\n;;), _ => print(\"bye\"))",
     "(_tx, rx) = channel()\nwith(() => nil, _ => scope(fn(s):\n  spawn(s, () => recv(rx))\n  spawn(s, fn(): sleep(10ms); exit(3) ;;)\n  recv(rx)\n;;), _ => print(\"bye\"))",
-    "scope(fn(s):\n  t = spawn(s, () => each(1..=3, x => sleep(10s)))\n  spawn(s, fn(): sleep(10ms); cancel(t) ;;)\n  print(await(t))\n;;)",
+    "scope(fn(s):\n  t = spawn(s, () => each(1..=3, _x => sleep(10s)))\n  spawn(s, fn(): sleep(10ms); cancel(t) ;;)\n  print(await(t))\n;;)",
     "scope(fn(s):\n  spawn(s, () => sleep(10s))\n  fail(\"entry\")\n;;)",
     "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms), conc.pmap([1, 2, 3], x => x * x, limit: 2), scope(s => conc.fan_in(s, []) |> map(x => x)))",
     // `tests/lang/conc_helpers.fung`.
     "import conc\n(a_tx, a) = channel(2)\n(b_tx, b) = channel(2)\neach([1, 2], x => send(a_tx, x))\nclose(a_tx)\nsend(b_tx, 3)\nclose(b_tx)\nprint(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))\nprint(conc.retry(() => Err(\"never\"), times: 2))",
-    "print(scope(fn(s):\n  ts = for i in 0..200: spawn(s, () => i) ;;\n  fold(ts, 0, (a, t) => a + await(t))\n;;))",
+    "print(scope(fn(s):\n  ts = for i in 0..200: spawn(s, () => i) ;;\n  fold(ts, 0, (a, t) => a + await(t)!)\n;;)!)",
     "scope(fn(s):\n  spawn(s, fn(): sleep(10ms); exit(4) ;;)\n  sleep(10s)\n  print(\"main\")\n;;)",
     "with(() => nil, _ => scope(fn(s):\n  spawn(s, () => each(1..=3, x => x == 2 then exit(6) else print(x)))\n  sleep(10s)\n;;), _ => print(\"h\"))",
     "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): recv(rx); exit(2) ;;)\n  with(() => nil, _ => each(1..=3, x => send(tx, x)), _ => print(\"once\"))\n;;)",
     // Standard input and processes from tasks.
-    "print(scope(fn(s):\n  ts = for _ in 0..2: spawn(s, () => read_line()) ;;\n  sort(for t in ts: await(t)! ;;)\n;;))",
+    "print(scope(fn(s):\n  ts = for _ in 0..2: spawn(s, () => read_line()) ;;\n  sort(for t in ts: await(t)!! ;;)\n;;)!)",
     "print(scope(s => await(spawn(s, () => sh(\"echo hi; sleep 0.05; echo there\")))))",
 ];
 
@@ -174,9 +174,9 @@ fn cases() -> Vec<Case> {
 
 /// How many cases there are, by kind (a case must not go missing
 /// unnoticed; change these together with the cases).
-const LANG_CASES: usize = 302;
+const LANG_CASES: usize = 421;
 const BENCH_CASES: usize = 11;
-const ALL_CASES: usize = 363;
+const ALL_CASES: usize = 482;
 
 #[test]
 fn every_case_is_counted() {
@@ -284,7 +284,7 @@ const REPEAT: usize = 50;
 
 /// How many concurrent cases there are.
 #[cfg(not(debug_assertions))]
-const CONCURRENT_CASES: usize = 66;
+const CONCURRENT_CASES: usize = 71;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.

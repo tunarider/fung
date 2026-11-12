@@ -117,7 +117,7 @@ fn whole_trees() {
 #[test]
 fn syntax_errors_point_at_the_token() {
     assert_eq!(ast("x = )"), "E0110 1:5");
-    assert_eq!(ast("d = [1, ...[2]]"), "E0110 1:9");
+    assert_eq!(ast("d = [1, ...[2]]"), "E0133 1:9");
     assert_eq!(ast("y = 1 < 2 < 3"), "E0111 1:11");
 }
 
@@ -370,8 +370,8 @@ fn fn_definitions() {
             "(program (fn h(n:int, s:str|nil=?)->bool (nil) (block true)))",
         ),
         (
-            "fn k(xs: list[int]) = xs",
-            "(program (fn k(xs:list[int]) (block xs)))",
+            "fn k(xs: list) = xs",
+            "(program (fn k(xs:list) (block xs)))",
         ),
         (
             "fn v(...rest) = rest",
@@ -610,8 +610,7 @@ fn nested_indexing_parses_in_linear_time() {
             "(program (slice xs (binary + a 1) (missing)))",
         ),
         ("xs[a..b + 1]", "(program (slice xs a (binary + b 1)))"),
-        // both ends take looser operators than `..` (FE27, D7)
-        ("xs[a..b ?? c]", "(program (slice xs a (coalesce b c)))"),
+        // an index is a whole expression; a slice's end is not (D36)
         ("xs[a ?? 0]", "(program (index xs (coalesce a 0)))"),
         (
             "xs[f(x)[0]..]",
@@ -635,15 +634,14 @@ fn a_slice_is_a_range_directly_inside_the_brackets() {
             "xs[[0..2][0]]",
             "(program (index xs (index (list (range .. 0 2)) 0)))",
         ),
-        ("xs[a ?? 1..2]", "(program (slice xs (coalesce a 1) 2))"),
+        ("xs[(a ?? 1)..2]", "(program (slice xs (coalesce a 1) 2))"),
         (
-            "xs[a ?? 1..=b ?? 2]",
+            "xs[(a ?? 1)..=(b ?? 2)]",
             "(program (slice ..= xs (coalesce a 1) (coalesce b 2)))",
         ),
-        ("xs[..b |> f]", "(program (slice xs (missing) (pipe b f)))"),
         (
-            "xs[..=b ?? 2]",
-            "(program (slice ..= xs (missing) (coalesce b 2)))",
+            "xs[..(b |> f)]",
+            "(program (slice xs (missing) (pipe b f)))",
         ),
         (
             "xs[ys[0..1]..]",
@@ -695,6 +693,12 @@ fn a_slice_end_cannot_hide_a_looser_operator() {
         ("xs[0..=a and b]", "E0125"),
         ("xs[not a..]", "E0125"),
         ("xs[a not in b..]", "E0125"),
+        // `??` and `|>` bind looser than `..` too (D36)
+        ("xs[a ?? 0..3]", "E0125"),
+        ("xs[a ?? 1..=b ?? 2]", "E0125"),
+        ("xs[..b |> f]", "E0125"),
+        ("xs[..=b ?? 2]", "E0125"),
+        ("xs[n |> half..]", "E0125"),
     ]);
     check(&[
         (
@@ -702,7 +706,7 @@ fn a_slice_end_cannot_hide_a_looser_operator() {
             "(program (slice xs (then c 0 1) 2))",
         ),
         (
-            "xs[a ?? 0..b |> f]",
+            "xs[(a ?? 0)..(b |> f)]",
             "(program (slice xs (coalesce a 0) (pipe b f)))",
         ),
     ]);
@@ -821,16 +825,6 @@ fn postfix_and_new_infix() {
             "xs[(i ?? 0)..]",
             "(program (slice xs (coalesce i 0) (missing)))",
         ),
-        // the start of an open slice is any expression (01 EBNF
-        // `[ expr ] ".."`), looser operators than `..` included
-        (
-            "xs[i ?? 0..]",
-            "(program (slice xs (coalesce i 0) (missing)))",
-        ),
-        (
-            "xs[n |> half..]",
-            "(program (slice xs (pipe n half) (missing)))",
-        ),
         ("m.name.first", "(program (field first (field name m)))"),
         ("f(1)!", "(program (unwrap ! (call f 1)))"),
         ("f(1)?", "(program (unwrap ? (call f 1)))"),
@@ -849,7 +843,7 @@ fn postfix_and_new_infix() {
         ),
         ("a + b |> f", "(program (pipe (binary + a b) f))"),
         (
-            "fs.read(p) ?? \"{}\" |> json.parse",
+            "(fs.read(p) ?? \"{}\") |> json.parse",
             r#"(program (pipe (coalesce (call (field read fs) p) "{}") (field parse json)))"#,
         ),
         ("xs\n  |> map(f)", "(program (pipe xs (call map f)))"),
@@ -1314,7 +1308,7 @@ fn least_int_folds_only_as_a_whole_operand() {
         "-9223372036854775808!",
         "-9223372036854775808?",
     ] {
-        assert_eq!(perr(src), "E0102", "{src:?}");
+        assert_eq!(perr(src), "E0135", "{src:?}");
     }
     assert_eq!(
         p("-9223372036854775808 + 1"),
@@ -1601,4 +1595,456 @@ fn common_syntax_errors_say_what_was_expected() {
         }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// FE42: a token in a headline is its first line, cut when long; its
+/// control characters are escaped by `diag::message`.
+#[test]
+fn a_token_in_a_headline_is_one_short_line() {
+    let msg = |src: &str| {
+        let d = parse(&toks_of(src)).expect_err(src);
+        crate::diag::message(&d.code, &d.args)
+    };
+    assert_eq!(
+        msg("x = 1 `raw\nline\u{1b}[2J`"),
+        "unexpected raw string `raw…`"
+    );
+    let long = format!("x = 1 \"{}\"", "a".repeat(100));
+    let m = msg(&long);
+    assert!(m.len() < 80 && m.ends_with("…`"), "{m}");
+    assert_eq!(
+        msg("x = 1 \"\u{1b}[31mred\""),
+        "unexpected string `\"\\u{1B}[31mred\"`"
+    );
+}
+
+/// FE52: a statement whose brackets close before `=` is an assignment,
+/// so the pattern's own error is reported, not the expression's; an arm
+/// head whose brackets close before `=>` likewise.
+#[test]
+fn destructuring_keeps_the_patterns_error() {
+    let msg = |src: &str| {
+        let d = parse(&toks_of(src)).expect_err(src);
+        (
+            d.code.clone(),
+            crate::diag::message(&d.code, &d.args),
+            d.help.unwrap_or_default(),
+        )
+    };
+    let (code, m, _) = msg("[a, ...b, c] = [1, 2, 3]");
+    assert!(code != "E0110" || !m.contains("`...`"), "{code} {m}");
+    let (_, m, help) = msg("(a) = 1");
+    assert!(format!("{m} {help}").contains("(p,)"), "{m} / {help}");
+    let (_, m, help) = msg("Ok((a)) = Ok(1)");
+    assert!(format!("{m} {help}").contains("(p,)"), "{m} / {help}");
+    let (_, m, help) = msg("x = match 1:\n  1 => 1\n  (a) => 2\n;;");
+    assert!(format!("{m} {help}").contains("(p,)"), "{m} / {help}");
+    // still expressions and assignments as before
+    p("[1, 2] == [1, 2]");
+    p("(a, b) = (1, 2)");
+    p("[a, b] | (a, b) = [1, 2]");
+    p("x = match 1:\n  1 => 1\n  (a,) => 2\n;;");
+}
+
+/// FE57: the code inside `${…}` is one expression; a separator after it
+/// is not taken.
+#[test]
+fn interpolation_takes_no_trailing_separator() {
+    assert_eq!(perr("\"${1;}\""), "E0110");
+    assert_eq!(perr("\"${1;2}\""), "E0110");
+}
+
+/// FE60: nested `fn` definitions count toward the nesting limit like
+/// any other block.
+#[test]
+fn nested_fn_definitions_are_bounded() {
+    big_stack(|| {
+        let nest = |n: usize| format!("{}1\n{}", "fn f():\n".repeat(n), ";;\n".repeat(n));
+        assert_eq!(perr(&nest(20_000)), "E0115");
+        p(&nest(100));
+    });
+}
+
+#[test]
+fn coalesce_and_pipe_do_not_mix_without_parentheses() {
+    // D35: either precedence would silently flip one natural reading.
+    check_errs(&[
+        ("y = x |> f ?? d", "E0127"),
+        ("y = a ?? b |> f", "E0127"),
+        ("y = a ?? b ?? c |> f", "E0127"),
+        ("y = x |> f |> g ?? d", "E0127"),
+        ("print(x |> f ?? d)", "E0127"),
+    ]);
+    // the help shows the two readings of what was written
+    let help = |src: &str| parse(&toks_of(src)).unwrap_err().help.unwrap_or_default();
+    assert!(help("y = x |> f ?? d").contains("`(x |> f) ?? d`"));
+    assert!(help("y = a ?? b |> f").contains("`(a ?? b) |> f`"));
+    check(&[
+        (
+            "y = (x |> f) ?? d",
+            "(program (assign y (coalesce (pipe x f) d)))",
+        ),
+        (
+            "y = x |> (f ?? d)",
+            "(program (assign y (pipe x (coalesce f d))))",
+        ),
+        (
+            "y = (a ?? b) |> f",
+            "(program (assign y (pipe (coalesce a b) f)))",
+        ),
+        (
+            "y = a ?? (b |> f)",
+            "(program (assign y (coalesce a (pipe b f))))",
+        ),
+        (
+            "y = a ?? b ?? c",
+            "(program (assign y (coalesce (coalesce a b) c)))",
+        ),
+    ]);
+}
+
+#[test]
+fn a_lambda_is_no_operand_without_parentheses() {
+    // FE41: a lambda is an `expr`, not an operand of any operator.
+    check_errs(&[
+        ("f = 1 + x => x * 2", "E0110"),
+        ("y = 1 |> x => x + 1 |> str", "E0110"),
+        ("f = a < x => x < 3", "E0110"),
+        ("f = 2 ** x => x", "E0110"),
+        ("f = not x => x", "E0110"),
+        ("f = -(a, b) => a", "E0110"),
+        ("f = c ?? x => x", "E0110"),
+    ]);
+    let d = parse(&toks_of("f = 1 + x => x * 2")).unwrap_err();
+    assert!(
+        d.help.as_deref().unwrap_or("").contains("parentheses"),
+        "{:?}",
+        d.help
+    );
+    check(&[
+        ("f = x => x", "(program (assign f (fn (x) (block x))))"),
+        (
+            "y = 1 |> (x => x + 1)",
+            "(program (assign y (pipe 1 (fn (x) (block (binary + x 1))))))",
+        ),
+        (
+            "y = c then x => x else (y => y)",
+            "(program (assign y (then c (fn (x) (block x)) (fn (y) (block y)))))",
+        ),
+        ("f(x => x)", "(program (call f (fn (x) (block x))))"),
+        // the arm's arrow after a guard is no lambda
+        (
+            "m = match 1: n when n > x => 1 ;;",
+            "(program (assign m (match 1 (arm (pbind n) (binary > n x) (block 1)))))",
+        ),
+    ]);
+}
+
+#[test]
+fn return_stands_as_a_statement_or_ends_a_branch() {
+    // D50, FE51: anywhere else it is E0132.
+    check_errs(&[
+        ("fn f(a):\n  x = 1 + return a\n  x\n;;", "E0132"),
+        ("fn f(a) = [a, return 2]", "E0132"),
+        ("fn f(a) = g(return a)", "E0132"),
+        ("fn f(): [return] ;;", "E0132"),
+        ("fn f(): {a: return} ;;", "E0132"),
+        ("fn f(): (return) ;;", "E0132"),
+        ("fn f(): f(return, 1) ;;", "E0132"),
+        ("fn f(a):\n  x = return a\n  x\n;;", "E0132"),
+        ("fn f(a) = a ?? return 1", "E0132"),
+        ("fn f(a) = return return a", "E0132"),
+        ("fn f(a) = not return a", "E0132"),
+    ]);
+    check(&[
+        (
+            "fn f() = return",
+            "(program (fn f() (block (return (nil)))))",
+        ),
+        (
+            "fn f(a) = a then return 1 else 2",
+            "(program (fn f(a) (block (then a (return 1) 2))))",
+        ),
+        (
+            "fn f(a):\n  x = a then 1 else return 2\n  x\n;;",
+            "(program (fn f(a) (block (assign x (then a 1 (return 2))) x)))",
+        ),
+        (
+            "fn f(a) = g(a then 1 else return)",
+            "(program (fn f(a) (block (call g (then a 1 (return (nil)))))))",
+        ),
+        (
+            "fn f(a) = [a then 1 else return]",
+            "(program (fn f(a) (block (list (then a 1 (return (nil)))))))",
+        ),
+        (
+            "fn f(a) = match a:\n  1 => return 2\n  _ => 3\n;;",
+            "(program (fn f(a) (block (match a (arm (plit 1) (nil) (block (return 2))) (arm (pwild) (nil) (block 3))))))",
+        ),
+    ]);
+}
+
+#[test]
+fn nothing_follows_a_return_statement_in_its_block() {
+    // D50: a statement after `return` in the same block never runs (E0131).
+    check_errs(&[
+        ("fn f():\n  return 1\n  print(1)\n;;", "E0131"),
+        ("fn f(): return 1; 2 ;;", "E0131"),
+        (
+            "fn f():\n  if c:\n    return\n    5\n  ;;\n  1\n;;",
+            "E0131",
+        ),
+        (
+            "fn f(x) = match x:\n  1 =>\n    return 2\n    3\n  _ => 4\n;;",
+            "E0131",
+        ),
+    ]);
+    for src in [
+        "fn f():\n  if c: return 1 ;;\n  2\n;;",
+        "fn f(x) = match x:\n  1 => return 2\n  _ => 4\n;;",
+        "fn f():\n  return 1\n;;",
+    ] {
+        p(src);
+    }
+}
+
+#[test]
+fn a_type_has_no_element_type() {
+    // D52: element types are not checked, so they are not written (E0130).
+    check_errs(&[
+        ("fn f(x: list[int]) = x", "E0130"),
+        ("fn f(x) -> map[str] = x", "E0130"),
+        ("type t = list[t] | int", "E0130"),
+        ("fn f(x: int[str]) = x", "E0130"),
+    ]);
+    p("fn f(x: list | map) -> list = x");
+}
+
+#[test]
+fn imports_come_before_the_other_statements() {
+    // D55: E0313 for an import after any other statement of the file.
+    check_errs(&[
+        ("print(1)\nimport fs", "E0313"),
+        ("import fs\nx = 1\nimport json", "E0313"),
+        ("fn f() = 1\nimport fs", "E0313"),
+        ("type t = int\nimport fs", "E0313"),
+    ]);
+    p("# a comment\n\nimport fs\nimport json (parse)\nprint(1)");
+}
+
+/// `...xs` is a call's last positional argument (D45): before the named
+/// ones, after the others, once; nowhere else.
+#[test]
+fn a_spread_is_the_last_positional_argument() {
+    for (src, want) in [
+        ("f(...xs)", "(program (call f (spread xs)))"),
+        (
+            "f(a, ...g(b), k: 1)",
+            "(program (call f a (spread (call g b)) (named k 1)))",
+        ),
+        ("f(_, ...xs)", "(program (call f (hole) (spread xs)))"),
+        ("f(...[1, 2],)", "(program (call f (spread (list 1 2))))"),
+        ("f(...xs, ys)", "E0133 1:10"),
+        ("f(...xs, ...ys)", "E0133 1:10"),
+        ("f(...xs, _)", "E0133 1:10"),
+        ("f(k: 1, ...xs)", "E0126 1:9"),
+        ("x = [...xs]", "E0133 1:6"),
+        ("x = Pair(1, ...xs)", "E0133 1:13"),
+        ("x = ...xs", "E0110 1:5"),
+    ] {
+        assert_eq!(ast(src), want, "{src:?}");
+    }
+}
+
+/// FE43: a habit from another language is named at the word or the
+/// token that shows it, with how fung writes it (`habits.rs`).
+#[test]
+fn habits_from_other_languages_get_their_help() {
+    let words = |w: &str| crate::habits::word(w).unwrap();
+    let cases: Vec<(&str, String)> = vec![
+        (
+            "if true:\n  print(1)\nelif false:\n  print(2)\n;;",
+            format!("E0134 3:1 `elif` is not a keyword in fung\nhelp: {}", words("elif")),
+        ),
+        (
+            "while true:\n  print(1)\n;;",
+            format!("E0134 1:1 `while` is not a keyword in fung\nhelp: {}", words("while")),
+        ),
+        (
+            "while(x < 3):\n  print(1)\n;;",
+            format!("E0134 1:1 `while` is not a keyword in fung\nhelp: {}", words("while")),
+        ),
+        (
+            "x = 1\nlet y = 1",
+            format!("E0134 2:1 `let` is not a keyword in fung\nhelp: {}", words("let")),
+        ),
+        (
+            "def f(x):\n  x\n;;",
+            format!("E0134 1:1 `def` is not a keyword in fung\nhelp: {}", words("def")),
+        ),
+        (
+            "function f(x):\n  x\n;;",
+            format!("E0134 1:1 `function` is not a keyword in fung\nhelp: {}", words("function")),
+        ),
+        (
+            "x = true && false",
+            format!("E0101 1:10 unexpected character \"&\"\nhelp: {}", crate::habits::operator("&&").unwrap()),
+        ),
+        (
+            "x = true || false",
+            format!("E0110 1:10 unexpected `||`\nhelp: {}", crate::habits::operator("||").unwrap()),
+        ),
+        (
+            "x = !true",
+            format!("E0110 1:5 unexpected `!`\nhelp: {}", crate::habits::operator("!").unwrap()),
+        ),
+        (
+            "fn f(x):\n  x += 1\n  x\n;;",
+            format!("E0110 2:5 unexpected `+=`\nhelp: {}", crate::habits::compound("+")),
+        ),
+        (
+            "fn f(x):\n  x *= 2\n  x\n;;",
+            format!("E0110 2:5 unexpected `*=`\nhelp: {}", crate::habits::compound("*")),
+        ),
+        (
+            "fn f(x):\n  x++\n  x\n;;",
+            format!("E0110 2:4 unexpected `++`\nhelp: {}", crate::habits::operator("++").unwrap()),
+        ),
+        (
+            "f = (a, b) -> a + b",
+            format!("E0110 1:12 unexpected `->`\nhelp: {}", crate::habits::operator("->").unwrap()),
+        ),
+        (
+            "fn f(x) { x }",
+            format!("E0110 1:9 unexpected `{{`\nhelp: {}", crate::habits::operator("{").unwrap()),
+        ),
+        (
+            "if true {\n  print(1)\n}",
+            format!(
+                "E0112 1:9 expected `:` after the if condition, found `{{`\nhelp: {}",
+                crate::habits::operator("{").unwrap()
+            ),
+        ),
+        (
+            "if true:\n  print(1)\nelse {\n  print(2)\n}",
+            format!(
+                "E0112 3:6 expected `:` or `if` after else, found `{{`\nhelp: {}",
+                crate::habits::operator("{").unwrap()
+            ),
+        ),
+        (
+            "match = 1",
+            format!("E0110 1:1 unexpected reserved word `match`\nhelp: {}", crate::habits::reserved("match")),
+        ),
+        (
+            "type = 1",
+            format!("E0110 1:1 unexpected reserved word `type`\nhelp: {}", crate::habits::reserved("type")),
+        ),
+        (
+            "x = 1\nif x = 1:\n  print(1)\n;;",
+            format!(
+                "E0112 2:6 expected `:` after the if condition, found `=`\nhelp: {}",
+                crate::habits::COMPARE
+            ),
+        ),
+        (
+            "print(x = 1)",
+            format!(
+                "E0112 1:9 expected `,` or `)`, found `=`\nnote: the `(` opened at 1:6\nhelp: {}",
+                crate::habits::NAMED_ARG
+            ),
+        ),
+        (
+            "fn f():\n  print(1)\nend",
+            "E0112 3:4 expected `;;` to close the function, found end of file\nnote: the `fn` opened at 1:1\nhelp: a block closes with `;;`; the `end` on line 3 is read as a name".to_string(),
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (src, want) in &cases {
+        let got = full_err(src);
+        if got != *want {
+            bad.push(format!("{src:?}:\n got {got}\nwant {want}"));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    // A word of the table is still a name where a name fits.
+    p("let = 1\nprint(let)");
+    p("while(1)");
+    p("x = [end, null]");
+}
+
+/// FE44: a block left open says where it was opened.
+#[test]
+fn an_unclosed_block_says_where_it_opened() {
+    for (src, want) in [
+        (
+            "fn f(x):\n  if x:\n    print(1)\n\nprint(2)",
+            "E0112 5:9 expected `;;` to close the if, found end of file\nnote: the `if` opened at 2:3\nnote: line 5 is not indented under the `if`: was the block meant to close before it?",
+        ),
+        (
+            "x = 1\nif x == 1:\n  print(1)\nelse if x == 2:\n  print(2)",
+            "E0112 5:11 expected `;;` to close the if, found end of file\nnote: the `if` opened at 2:1",
+        ),
+        (
+            "x = match 1:\n  1 => 2\n",
+            "E0112 3:1 expected `;;` to close the match, found end of file\nnote: the `match` opened at 1:5",
+        ),
+        (
+            "for x in [1]:\n  print(x)",
+            "E0112 2:11 expected `;;` to close the for, found end of file\nnote: the `for` opened at 1:1",
+        ),
+        (
+            "test \"a\":\n  assert true",
+            "E0112 2:14 expected `;;` to close the test, found end of file\nnote: the `test` opened at 1:1",
+        ),
+        (
+            "f = fn(x):\n  x",
+            "E0112 2:4 expected `;;` to close the function, found end of file\nnote: the `fn` opened at 1:5",
+        ),
+    ] {
+        assert_eq!(full_err(src), want, "{src:?}");
+    }
+}
+
+/// FE61: an error underlines the whole token it names.
+#[test]
+fn an_error_underlines_the_whole_token() {
+    for (src, len) in [
+        ("x = 1 foo", 3),
+        ("print(1,, 2)", 1),
+        ("x = [1, 2 three]", 5),
+        ("x = 1 >= ", 1),
+        ("let x = 1", 3),
+        ("x = true || false", 2),
+        ("x = 1\nmatch = 2", 5),
+    ] {
+        let mut sm = SourceMap::new();
+        let f = sm.add("t.fung", src);
+        let (toks, _) = lex(f, src).unwrap();
+        let d = parse(&toks).unwrap_err();
+        assert_eq!(d.len.max(1), len, "{src:?}: {}", d.code);
+    }
+}
+
+/// FE61: the least int folds across a line break after the minus, as a
+/// line ending in an operator continues; `as _` binds nothing.
+#[test]
+fn small_parse_diagnostics_of_the_third_review() {
+    assert_eq!(
+        p("y = (-\n9223372036854775808)"),
+        "(program (assign y -9223372036854775808))"
+    );
+    assert_eq!(
+        full_err("import \"./a\" as _"),
+        "E0112 1:17 expected a name after `as`, found name `_`\nhelp: `as _` binds nothing, so the module could not be used; give it a name"
+    );
+    // a duplicate key says where the first one is
+    assert_eq!(
+        full_err("print({a: 1, a: 2})"),
+        "E0113 1:14 duplicate key `a` in a map literal or pattern\nnote: the key `a` is first written at 1:8"
+    );
+    assert_eq!(
+        full_err("{a: x, \"a\": y} = {a: 1}"),
+        "E0113 1:8 duplicate key `a` in a map literal or pattern\nnote: the key `a` is first written at 1:2"
+    );
 }

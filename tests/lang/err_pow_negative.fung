@@ -1,0 +1,6 @@
+# An int to a negative int power has no int result (D49): write the
+# exponent as a float.
+print(2 ** -1.0, 2.0 ** -1, 2 ** 3)
+# expect: 0.5 0.5 8
+print(2 ** -1)
+# expect-error: E0524

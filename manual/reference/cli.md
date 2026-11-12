@@ -14,7 +14,7 @@ lede: 실행 파일 <code>fung</code> 하나가 실행, 검사, 테스트, 포�
     <tr><td><a href="#run"><code>fung script.fung [args…]</code></a></td><td>스크립트 실행. <code>fung run script.fung [args…]</code>와 같다.</td></tr>
     <tr><td><a href="#eval"><code>fung -e 'code' [args…]</code></a></td><td>명령줄에 적은 코드 실행.</td></tr>
     <tr><td><a href="#repl"><code>fung</code></a></td><td>REPL(대화형으로 한 줄씩 실행).</td></tr>
-    <tr><td><a href="#check"><code>fung check script.fung</code></a></td><td>실행하지 않고 문법·이름·import 검사, 경고 보이기.</td></tr>
+    <tr><td><a href="#check"><code>fung check script.fung</code></a></td><td>실행하지 않고 문법·이름·import 검사.</td></tr>
     <tr><td><a href="#test"><code>fung test [path]</code></a></td><td><code>test</code> 블록 실행.</td></tr>
     <tr><td><a href="#fmt"><code>fung fmt [--check] path…|-</code></a></td><td>코드 모양을 한 가지 스타일로 고치기.</td></tr>
     <tr><td><a href="#dump"><code>fung dump ast|core|bytecode file</code></a></td><td>컴파일의 중간 단계 보기.</td></tr>
@@ -75,7 +75,7 @@ $ ./tool.fung x
 from shebang ["x"]
 ```
 
-스크립트 파일이 없으면 `error: cannot read` 줄(경로와 이유 `no such file or directory`가 붙는다)을 쓰고 종료 코드 3으로 끝난다. 있는데 읽지 못하면(권한이 없거나 UTF-8이 아니면) 같은 꼴의 에러와 함께 2로 끝난다. 이 구분은 `check`·`dump`·`fmt`·`test`도 같다. 컴파일 에러가 하나라도 있으면 아무것도 실행하지 않고 모든 에러를 보인 뒤 2로 끝난다. 실행 중 에러는 1이다([종료 코드](#exit-codes)).
+스크립트 파일이 없으면 `error: cannot read` 줄(경로와 이유 `no such file or directory`가 붙는다)을 쓰고 종료 코드 3으로 끝난다. 있는데 읽지 못하면(권한이 없거나 UTF-8이 아니면) 같은 꼴의 에러와 함께 2로 끝난다. 이 구분은 `check`·`dump`·`fmt`·`test`도 같다. 컴파일 에러가 하나라도 있으면 아무것도 실행하지 않고 에러를 보인 뒤 2로 끝난다. 문법 에러(E01xx)는 첫 하나만 보인다. 파서가 그 뒤를 어떻게 읽어야 할지 모르기 때문이다. 문법이 맞으면 이름·import 에러(E02xx·E03xx)는 모두 모아 한꺼번에 보인다. 실행 중 에러는 1이다([종료 코드](#exit-codes)).
 
 **신호**: 실행 중 첫 Ctrl-C(SIGINT)나 SIGTERM은 **정지 요청**이다. [`stop_signal`](prelude/concurrency.html#fn-stop_signal)을 보는 코드가 없으면 프로그램을 취소하고(`with`의 정리는 돈다) 130(SIGINT)·143(SIGTERM)으로 끝난다. 보는 코드가 있으면 그 코드가 스스로 정리하고 끝낸다(예: [`http.serve`](modules/http.html#fn-http-serve)는 처리 중인 요청을 마치고 돌아온다). 두 번째 신호는 정리를 기다리지 않고 곧바로 끝낸다. 출력을 읽는 쪽이 사라지면(`fung x.fung | head -1`) 다른 셸 명령처럼 SIGPIPE로 조용히 끝난다(셸에는 141). SIGHUP(터미널이 닫힘)은 정리 없이 곧바로 129로 끝난다. REPL이 이렇게 끝나도 터미널 설정은 되돌려 놓는다.
 
@@ -129,6 +129,7 @@ error[E0204]: undefined name `nope`
 - 프롬프트는 `> `이다. 입력이 블록이나 괄호 중간에서 끝나거나 원시 문자열(`` `…` ``)이 열린 채 끝나면 `. ` 프롬프트로 이어서 받는다. 입력이 그 중간에서 끝나면(Ctrl-D, 파일의 끝) 받은 데까지를 실행하지 않고 그 문법 에러를 보인다.
 - 식을 입력하면 그 값을 리터럴 꼴로 보인다(문자열은 따옴표와 함께). 대입, `fn`, `import`, `test`, `assert`는 값을 보이지 않는다. `print(…)`는 출력한 뒤 자신의 값 `nil`을 보인다.
 - 정의(변수, 함수, `import`)는 세션 동안 남는다. 같은 이름을 다시 정의할 수 있고, 앞서 만든 함수도 새 정의를 본다.
+- 입력은 하나씩 컴파일되므로 아직 입력하지 않은 이름은 부를 수 없다: `fn g() = h()`는 `h`가 아직 없으면 E0204다(파일에서는 최상위 `fn`이 뒤에 정의된 `fn`을 부를 수 있다). 서로 부르는 두 함수는 한 입력에 `;`로 이어 쓰거나(`fn g() = h(); fn h() = 1`) 파일에 써서 `:load`로 읽는다.
 - 에러는 그 입력만 실패시키고 세션은 계속된다. 에러 위치는 `<repl>:줄:열`이고, 앞 입력에서 정의한 함수 안의 에러는 그 입력의 줄을 보인다. 한 입력 안에서 생긴 교착(deadlock, 모든 태스크가 서로를 기다림)도 그 입력만 실패시킨다. 다음 입력을 기다리는 동안 살아 있는 태스크는 교착으로 보지 않는다. 에러(모르는 `:` 명령, 읽지 못한 `:load` 포함)가 한 번이라도 났으면 세션의 종료 코드는 1이다.
 - `exit(n)`(띄운 태스크에서 부른 것도)은 세션을 코드 n으로 끝낸다. [`request_stop()`](prelude/concurrency.html#fn-request_stop)은 보는 쪽이 없으면 `exit(0)`처럼 끝낸다. 세션이 끝나면 남은 태스크는 취소된다(`with`의 정리는 돈다).
 
@@ -149,27 +150,29 @@ error[E0204]: undefined name `nope`
 
 ## 검사: `check` {#check}
 
-`fung check script.fung`은 **실행하지 않고** 컴파일만 해서 문법 에러, 없는 이름, 잘못된 `import`를 찾는다. 경고(쓰지 않는 import·지역 변수, prelude 이름을 가림)는 `check`와 `test`에서만 보인다. 서버에 올리기 전이나 편집기의 저장 훅에서 쓴다. 파일은 하나만 받고 디렉터리는 받지 않는다. `fung check -e '코드'`도 된다.
+`fung check script.fung`은 **실행하지 않고** 컴파일만 해서 문법 에러, 없는 이름, 잘못된 `import`, 부르는 함수가 정해진 호출의 인자 개수·이름(E0402·E0405~E0407), 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0240)를 찾는다. 이것들은 `run`에서도 같은 컴파일 에러다(언어에 경고는 없다). 서버에 올리기 전이나 편집기의 저장 훅에서 쓴다. 파일은 하나만 받고 디렉터리는 받지 않는다. `fung check -e '코드'`도 된다.
 
 ```shell
 $ fung check w.fung
-warning[W0101]: unused import `fs`
-  --> w.fung:1:1
+error[E0239]: unused import `fs`
+  --> w.fung:1:8
   |
 1 | import fs
-  | ^^
+  |        ^^
   |
-warning[W0103]: `len` shadows a prelude function
-  --> w.fung:6:1
+ help: remove it, or start its name with `_` if it is kept on purpose
+error[E0239]: unused variable `count`
+  --> w.fung:4:3
   |
-6 | len = 3
-  | ^^^
+4 |   count = len(xs)
+  |   ^^^^^
   |
+ help: remove it, or start its name with `_` if it is kept on purpose
 $ echo $?
-0
+2
 ```
 
-에러가 없으면(경고만 있어도) 0, 컴파일 에러가 있으면 모두 보이고 2, 파일을 읽지 못하면 3이다. 검사는 실행하지 않으므로 런타임 에러(0으로 나누기, 없는 키, 버려진 `Err`)는 찾지 못한다.
+에러가 없으면 0, 컴파일 에러가 있으면 보이고(문법 에러는 첫 하나, 이름·import 에러는 모두) 2, 파일을 읽지 못하면 3이다. 검사는 실행하지 않으므로 런타임 에러(0으로 나누기, 없는 키, 버려진 `Err`)는 찾지 못한다.
 
 ## 테스트: `test` {#test}
 
@@ -179,9 +182,9 @@ $ echo $?
 - `test` 블록이 없는 파일은 실행하지도, 목록에 올리지도 않는다.
 - 파일마다 따로 실행된다. 최상위 코드가 먼저 돌고(그 출력도 보인다), 이어서 `test` 블록이 차례로 돈다. 한 파일이 띄운 태스크는 다음 파일로 넘어가지 않는다.
 - 블록마다 `ok   파일: 이름`이나 `FAIL 파일: 이름`과 그 에러를 쓰고, 끝에 `N passed, M failed`를 쓴다.
-- 읽지 못한 파일, 컴파일하지 못한 파일은 `FAIL 파일: <load>`로 실패 하나로 센다.
+- 읽지 못한 파일, 컴파일하지 못한 파일은 `FAIL 파일: <load>`로 실패 하나로 센다. 그 에러는 표준 에러에 실패한 시험의 에러처럼 두 칸 들여 써진다.
 - 파일 안에서 `exit(n)`이 불리거나(띄운 태스크에서도) 교착이 생기면 그 파일의 나머지 블록을 건너뛰고 실패 하나로 센다. 그 `n`은 명령의 종료 코드가 되지 않는다.
-- **태스크의 순서를 섞는다.** 언어는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 약속하지 않는다. 그래서 `fung test`는 그 순서를 씨앗에서 뽑아 섞어, 순서에 기대는 시험이 언젠가 드러나게 한다(`fung run`은 섞지 않는다). 씨앗은 환경 변수 `FUNG_SCHED_SEED`(0부터 2<sup>64</sup> − 1까지의 정수, 숫자만)를 주면 그것을 쓰고, 없으면 실행마다 고른다. 정수가 아닌 값(`abc`, `-1`, 빈 값)은 사용 오류(종료 코드 3)다. 고른 씨앗은 실패가 있을 때만 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N runs the tasks in the same order again`으로 알린다. 같은 씨앗을 주면 같은 순서로 다시 돈다.
+- **태스크의 순서를 섞는다.** 언어는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 약속하지 않는다. 그래서 `fung test`는 그 순서를 씨앗에서 뽑아 섞어, 순서에 기대는 시험이 언젠가 드러나게 한다(`fung run`은 섞지 않는다). 씨앗은 환경 변수 `FUNG_SCHED_SEED`(0부터 2<sup>64</sup> − 1까지의 정수, 숫자만)를 주면 그것을 쓰고, 없으면 실행마다 고른다. 정수가 아닌 값(`abc`, `-1`, 빈 값)은 사용 오류(종료 코드 3)다. 고른 씨앗은 태스크를 띄운 파일에서 실패가 있을 때만 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N runs the tasks in the same order again`으로 알린다. 같은 씨앗을 주면 같은 순서로 다시 돈다.
 
 ```shell
 $ fung test
@@ -221,7 +224,8 @@ fn f(a, b) = a + b
 print(f(x, 2))
 ```
 
-- 파일을 그 자리에서 고치고, 고친 파일의 경로를 한 줄씩 쓴다. 이미 맞는 파일은 건드리지도 쓰지도 않는다.
+- 파일을 그 자리에서 고치고, 고친 파일의 경로를 한 줄씩 쓴다. 이미 맞는 파일은 건드리지도 쓰지도 않는다. 쓰지 못한 파일은 경로 대신 `error: cannot write` 줄만 쓴다.
+- 문자열 보간 `${…}` 안의 코드는 고치지 않는다(`"a${ 1+2 }b"`는 그대로). 줄 끝의 CRLF는 LF가 되고, 파일 맨 앞의 BOM은 지워진다.
 - 고칠 때는 [`fs.write`](modules/fs.html#fn-fs-write)처럼 옆에 임시 파일을 쓰고 이름을 바꿔 덮으므로, 도중에 죽거나 디스크가 차도 파일이 반만 남지 않는다. 권한은 그대로이고, 링크는 링크로 남는다(가리키는 파일을 고친다). 하드 링크가 여럿이거나 남의 파일이면 그 자리에 바로 쓴다.
 - 디렉터리를 주면 [`test`와 같은 규칙](#test)으로 그 아래의 `.fung` 파일을 모두 고친다: `fung fmt .`
 - `--check`는 고치지 않고 고쳐야 할 파일만 쓴다. 하나라도 있으면 종료 코드 1이라 CI에서 쓴다. 1은 그 뜻 하나다: 읽거나 쓰지 못한 파일은 2다.
@@ -269,10 +273,10 @@ fn report(jobs) = "${ratio(len(jobs), 0)}% done"
 print(report(["a", "b"]))
 ```
 
-1. **머리줄** `error[E0502]: division by zero`: 번호와 메시지. 번호로 [에러 카탈로그](errors.html)에서 뜻과 고치는 법을 찾는다. 경고는 `warning[W0101]`이다.
+1. **머리줄** `error[E0502]: division by zero`: 번호와 메시지. 번호로 [에러 카탈로그](errors.html)에서 뜻과 고치는 법을 찾는다.
 2. **위치** `--> example.fung:1:31`: 파일, 줄, 열(1부터, 글자 단위).
 3. **발췌**: 그 줄과 `^` 표시. 표시 옆에 짧은 설명이 붙기도 한다(`not found in this scope`).
-4. **호출 경로** `call path (innermost first)`(런타임 에러만): 에러가 난 함수부터 바깥으로, 각 호출의 파일·줄과 함수 이름. `<entry>`는 파일의 최상위 코드, `<lambda>`는 이름 없는 함수, `test: 이름`은 테스트 블록이다. 꼬리 호출로 사라진 단계는 `(3 tail calls elided)`처럼 수만 보인다.
+4. **호출 경로** `call path (innermost first)`(런타임 에러만): 에러가 난 함수부터 바깥으로, 각 호출의 파일·줄과 함수 이름. `<entry>`는 파일의 최상위 코드, `<lambda>`는 이름 없는 함수, `test: 이름`은 테스트 블록이다. 꼬리 호출로 사라진 단계는 `(3 tail calls elided)`처럼 수만 보인다(하나면 `(1 tail call elided)`). 태스크 안의 에러는 경로가 태스크에서 시작하므로, 그 태스크를 띄운 자리를 `note: the task was spawned at 파일:줄`로 덧붙인다.
 5. 덧붙는 줄: `help:`(고치는 방법), `note:`(관련된 다른 위치, 예: 실패한 태스크의 `scope opened at …`).
 
 ```fung run exit=1 error=E0508
@@ -311,7 +315,7 @@ $ echo $?
     <tr><td><a href="errors.html#e06"><code>E06xx</code></a></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>)</td></tr>
     <tr><td><a href="errors.html#e07"><code>E07xx</code></a></td><td>동시성(취소, 교착, 닫힌 태스크 범위, atom 규칙)</td></tr>
     <tr><td><a href="errors.html#e08"><code>E08xx</code></a></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
-    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>경고(<code>check</code>·<code>test</code>에서만): 안 쓰는 import·변수, prelude 이름 가리기</td></tr>
+    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>은퇴한 경고 번호(지금은 E0239·E0240 에러)</td></tr>
   </tbody>
 </table>
 

@@ -1,0 +1,5 @@
+# fs.write_line writes one line (D79): a newline in it is an error.
+import fs
+import path
+fs.with_temp_dir(d => fs.with_open(path.join(d, "out.txt"), f => fs.write_line(f, "a\nb"), mode: 'write)!!)!
+# expect-error: E0403
