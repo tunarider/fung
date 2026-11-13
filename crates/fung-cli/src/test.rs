@@ -239,8 +239,8 @@ fn test_file(
         return t; // a plain script: not run, not listed (08)
     }
     let rt = Runtime::with_streams(
-        Box::new(ProcessOut::stdout()),
-        Box::new(ProcessOut::stderr()),
+        crate::run::RuntimeOut::stdout(),
+        crate::run::RuntimeOut::stderr(),
         Box::new(std::io::BufReader::new(std::io::empty())),
         b.sources,
         fung_vm::vm::std_streams_apart(),

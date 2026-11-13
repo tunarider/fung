@@ -62,8 +62,8 @@ const HELP: &str = "commands:
 /// editor, anything else plain line reading.
 pub fn start() -> Out {
     let rt = Runtime::with_streams(
-        Box::new(ProcessOut::stdout()),
-        Box::new(ProcessOut::stderr()),
+        crate::run::RuntimeOut::stdout(),
+        crate::run::RuntimeOut::stderr(),
         Box::new(std::io::BufReader::with_capacity(STDIN_BUFFER, raw_stdin())),
         SourceMap::new(),
         fung_vm::vm::std_streams_apart(),

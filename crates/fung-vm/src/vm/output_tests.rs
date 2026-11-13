@@ -175,3 +175,49 @@ fn a_failed_write_fails_the_run() {
         o.err
     );
 }
+
+/// A stream whose reader has gone ends the process by SIGPIPE only after
+/// what the program wrote before to the other stream is out: written
+/// apart, the other lane's earlier lines are not lost to the death.
+#[test]
+fn a_closed_pipe_dies_after_the_other_streams_earlier_lines() {
+    static GATE: Gate = Gate::new();
+    static LOG: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    /// A reader that has gone.
+    struct Closed;
+    impl Write for Closed {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::BrokenPipe.into())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    /// A reader that reads once the gate is open: once the dying lane
+    /// waits for it, or (without that wait) once the process died.
+    struct Late;
+    impl Write for Late {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            GATE.wait();
+            LOG.lock()
+                .unwrap()
+                .push(String::from_utf8_lossy(b).into_owned());
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    super::output::die_for_tests(
+        || {
+            LOG.lock().unwrap().push("died".into());
+            GATE.open();
+        },
+        || GATE.open(),
+    );
+    let o = bounded("eprint(\"main\")\nprint(\"inner release\")", |_, _| {
+        (Box::new(Closed), Box::new(Late), true)
+    });
+    assert_eq!(o.exit, 0, "{}", o.err);
+    assert_eq!(*LOG.lock().unwrap(), ["main\n", "died"]);
+}

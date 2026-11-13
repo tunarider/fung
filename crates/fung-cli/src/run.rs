@@ -52,6 +52,37 @@ impl<W: Write> Write for ProcessOut<W> {
     }
 }
 
+/// A standard stream as the runtime's writer thread writes it: every
+/// write goes through at once, like `ProcessOut`, but a closed pipe comes
+/// back as EPIPE. The writer thread then ends the process by SIGPIPE once
+/// what the program wrote before to the other stream is out
+/// (`fung_vm::vm::output`).
+pub struct RuntimeOut<W: Write>(pub W);
+
+impl RuntimeOut<std::io::Stdout> {
+    pub fn stdout() -> Box<Self> {
+        Box::new(RuntimeOut(std::io::stdout()))
+    }
+}
+
+impl RuntimeOut<std::io::Stderr> {
+    pub fn stderr() -> Box<Self> {
+        Box::new(RuntimeOut(std::io::stderr()))
+    }
+}
+
+impl<W: Write> Write for RuntimeOut<W> {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.0.write_all(b)?;
+        self.0.flush()?;
+        Ok(b.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
 /// The status the operating system keeps of a fung exit code: its low 8
 /// bits, as the system keeps it. `exit` takes only 0..=255 (TL1), so this
 /// changes nothing a script can ask for.
@@ -66,7 +97,6 @@ pub fn status(code: i64) -> i32 {
 pub fn execute(file: &str, src: &str, args: Vec<Vec<u8>>) -> i64 {
     // Standard error is unbuffered; the runtime and the reports below
     // write to it through separate handles, in order.
-    let stdout = Box::new(ProcessOut::stdout());
     let stdin = Box::new(std::io::BufReader::with_capacity(STDIN_BUFFER, raw_stdin()));
     let stderr = &mut ProcessOut::stderr();
     let (b, errs) = Loader::default().compile(file, src, Stage::All);
@@ -79,8 +109,8 @@ pub fn execute(file: &str, src: &str, args: Vec<Vec<u8>>) -> i64 {
     // prelude's after them (see `fung_vm::boot`).
     // Written apart when they go to different places (CC15).
     let rt = Runtime::with_streams(
-        stdout,
-        Box::new(ProcessOut::stderr()),
+        RuntimeOut::stdout(),
+        RuntimeOut::stderr(),
         stdin,
         b.sources,
         fung_vm::vm::std_streams_apart(),

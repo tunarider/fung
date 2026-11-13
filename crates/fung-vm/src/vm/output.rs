@@ -29,7 +29,11 @@
 //! comes after, and nothing queued is lost at the exit. A write that
 //! failed (no space left) fails the next write to that stream, or the run
 //! at its end (E0801). A closed pipe ends the process by SIGPIPE in the
-//! writer thread (`sigpipe.rs`), as it did in the run thread.
+//! writer thread (`sigpipe.rs`), as it did in the run thread, but only
+//! once what the program wrote before to the other lane is out: every
+//! piece has a number in the order it was queued, across both lanes, so
+//! a later `print` that meets the closed pipe does not lose an earlier
+//! `eprint` still waiting in the other lane.
 //!
 //! The writer thread starts at the first write and stops when the runtime
 //! is gone. Where no thread can be made the caller writes itself, as
@@ -37,7 +41,8 @@
 
 use std::collections::VecDeque;
 use std::io::{self, Write};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError, Weak};
 
 use super::block::{WaitList, Waiter};
 use super::{Flow, Stop, Task, Wake};
@@ -67,15 +72,30 @@ pub(crate) struct Lane {
     more: Condvar,
     /// `drain` waits here for the writer thread.
     written: Condvar,
-    /// The streams; taken by the writer thread while it writes a batch
+    /// The streams; taken by the writer thread while it writes a piece
     /// (only one writes at a time: the thread, or a caller without one).
     sinks: Mutex<[Option<Box<dyn Write + Send>>; 2]>,
+    /// The next piece's number, shared by the two lanes.
+    order: Arc<AtomicU64>,
+    /// The other lane, when the streams are written apart.
+    other: OnceLock<Weak<Lane>>,
+}
+
+/// Bytes queued for one stream: the writes numbered `first..=last`,
+/// queued one after the other with nothing queued between them.
+struct Piece {
+    which: Std,
+    bytes: Vec<u8>,
+    first: u64,
+    last: u64,
 }
 
 struct LaneState {
-    /// What was queued, in order, a piece per stream in a row.
-    queue: VecDeque<(Std, Vec<u8>)>,
-    /// Bytes queued and not yet written (the batch being written
+    /// What was queued, in order.
+    queue: VecDeque<Piece>,
+    /// The number of the piece being written, if one is.
+    writing: Option<u64>,
+    /// Bytes queued and not yet written (the piece being written
     /// included).
     pending: usize,
     /// Tasks waiting for room.
@@ -107,15 +127,15 @@ impl Output {
         stderr: Box<dyn Write + Send>,
         apart: bool,
     ) -> Output {
+        let order = Arc::new(AtomicU64::new(0));
         if apart {
-            Output {
-                lanes: [
-                    Lane::new([Some(stdout), None]),
-                    Lane::new([None, Some(stderr)]),
-                ],
-            }
+            let out = Lane::new([Some(stdout), None], order.clone());
+            let err = Lane::new([None, Some(stderr)], order);
+            let _ = out.other.set(Arc::downgrade(&err));
+            let _ = err.other.set(Arc::downgrade(&out));
+            Output { lanes: [out, err] }
         } else {
-            let one = Lane::new([Some(stdout), Some(stderr)]);
+            let one = Lane::new([Some(stdout), Some(stderr)], order);
             Output {
                 lanes: [one.clone(), one],
             }
@@ -167,10 +187,11 @@ impl Drop for Output {
 }
 
 impl Lane {
-    fn new(sinks: [Option<Box<dyn Write + Send>>; 2]) -> Arc<Lane> {
+    fn new(sinks: [Option<Box<dyn Write + Send>>; 2], order: Arc<AtomicU64>) -> Arc<Lane> {
         Arc::new(Lane {
             state: Mutex::new(LaneState {
                 queue: VecDeque::new(),
+                writing: None,
                 pending: 0,
                 waiting: WaitList::default(),
                 failed: [None, None],
@@ -182,6 +203,8 @@ impl Lane {
             more: Condvar::new(),
             written: Condvar::new(),
             sinks: Mutex::new(sinks),
+            order,
+            other: OnceLock::new(),
         })
     }
 
@@ -193,6 +216,7 @@ impl Lane {
             return true;
         }
         let mut s = lock(&self.state);
+        let n = self.order.fetch_add(1, Ordering::Relaxed);
         if !s.started {
             s.started = true;
             s.inline = self.start().is_err();
@@ -202,15 +226,28 @@ impl Lane {
         if s.inline || s.closed {
             drop(s);
             let r = write_to(&mut lock(&self.sinks), which, &bytes);
-            if let Err(e) = r {
-                lock(&self.state).failed[which as usize].get_or_insert(e);
+            match r {
+                // Does not come back, but in a test that records it.
+                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => self.die_after_earlier(n),
+                Err(e) => {
+                    lock(&self.state).failed[which as usize].get_or_insert(e);
+                }
+                Ok(()) => {}
             }
             return true;
         }
         s.pending += bytes.len();
         match s.queue.back_mut() {
-            Some((w, b)) if *w == which => b.extend_from_slice(&bytes),
-            _ => s.queue.push_back((which, bytes)),
+            Some(p) if p.which == which && p.last + 1 == n => {
+                p.bytes.extend_from_slice(&bytes);
+                p.last = n;
+            }
+            _ => s.queue.push_back(Piece {
+                which,
+                bytes,
+                first: n,
+                last: n,
+            }),
         }
         if s.idle {
             s.idle = false;
@@ -241,6 +278,32 @@ impl Lane {
         lock(&self.state).failed[which as usize].take()
     }
 
+    /// Waits until every piece numbered below `n` is written.
+    fn written_before(&self, n: u64) {
+        #[cfg(test)]
+        if let Some((_, waiting)) = *lock(&TEST_DIE) {
+            waiting();
+        }
+        let mut s = lock(&self.state);
+        while s
+            .writing
+            .or_else(|| s.queue.front().map(|p| p.first))
+            .is_some_and(|first| first < n)
+        {
+            s = self.written.wait(s).unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+
+    /// A write to a stream whose reader has gone (EPIPE), numbered `n`:
+    /// once the other lane has written what was queued before it, the
+    /// process ends by SIGPIPE.
+    fn die_after_earlier(&self, n: u64) {
+        if let Some(other) = self.other.get().and_then(Weak::upgrade) {
+            other.written_before(n);
+        }
+        die_by_sigpipe();
+    }
+
     /// Waits until everything queued is written.
     fn drain(&self) {
         let mut s = lock(&self.state);
@@ -261,11 +324,11 @@ impl Lane {
             .map(drop)
     }
 
-    /// The writer thread: takes everything queued, writes it in order,
-    /// wakes the tasks waiting for room once there is, and again.
+    /// The writer thread: writes what was queued, a piece at a time in
+    /// order, and wakes the tasks waiting for room once there is.
     fn write_on(&self) {
         loop {
-            let batch = {
+            let piece = {
                 let mut s = lock(&self.state);
                 while s.queue.is_empty() {
                     if s.closed {
@@ -274,30 +337,29 @@ impl Lane {
                     s.idle = true;
                     s = self.more.wait(s).unwrap_or_else(PoisonError::into_inner);
                 }
-                std::mem::take(&mut s.queue)
+                let p = s.queue.pop_front().expect("a piece");
+                s.writing = Some(p.first);
+                p
             };
-            let mut n = 0;
-            let mut failed = Vec::new();
-            {
-                let mut sinks = lock(&self.sinks);
-                for (which, bytes) in batch {
-                    n += bytes.len();
-                    if let Err(e) = write_to(&mut sinks, which, &bytes) {
-                        failed.push((which, e));
-                    }
+            let r = match write_to(&mut lock(&self.sinks), piece.which, &piece.bytes) {
+                // Does not come back, but in a test that records it.
+                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {
+                    self.die_after_earlier(piece.first);
+                    Ok(())
                 }
-            }
+                r => r,
+            };
             let mut s = lock(&self.state);
-            for (which, e) in failed {
-                s.failed[which as usize].get_or_insert(e);
+            if let Err(e) = r {
+                s.failed[piece.which as usize].get_or_insert(e);
             }
-            s.pending -= n;
+            s.writing = None;
+            s.pending -= piece.bytes.len();
             if s.pending <= ROOM {
                 s.waiting.wake_all();
             }
-            if s.pending == 0 {
-                self.written.notify_all();
-            }
+            // `drain` and the other lane's `written_before` wait here.
+            self.written.notify_all();
         }
     }
 }
@@ -313,6 +375,34 @@ fn write_to(
         Some(w) => w.write_all(bytes).and_then(|()| w.flush()),
         None => Ok(()),
     }
+}
+
+/// Ends the process by SIGPIPE (`sigpipe::die`); a test records it.
+fn die_by_sigpipe() {
+    #[cfg(test)]
+    if let Some((record, _)) = *lock(&TEST_DIE) {
+        record();
+        return;
+    }
+    crate::sigpipe::die();
+}
+
+/// Set by a test: what a death by SIGPIPE does instead, and what a lane
+/// does as it starts to wait for the other lane's earlier pieces.
+#[cfg(test)]
+static TEST_DIE: Mutex<Option<TestDie>> = Mutex::new(None);
+
+/// A test's death by SIGPIPE: what it records, and what it does as the
+/// dying lane starts to wait.
+#[cfg(test)]
+type TestDie = (fn(), fn());
+
+/// Makes a death by SIGPIPE call `record` instead (a test's own stream
+/// that fails with EPIPE), and calls `waiting` when the dying lane starts
+/// to wait for the other lane.
+#[cfg(test)]
+pub(crate) fn die_for_tests(record: fn(), waiting: fn()) {
+    *lock(&TEST_DIE) = Some((record, waiting));
 }
 
 #[cfg(test)]
