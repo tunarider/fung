@@ -1223,7 +1223,7 @@ fn handle_text_quotes_as_a_fung_literal() {
 print([h], h)"#,
     );
     let q = format!(
-        "{}/\\u{{1}}é\\t\\\"\\\\\\${{\\u{{7F}}\\u{{A0}}\\u{{E000}}\\u{{E0001}}",
+        "{}/\\u{{1}}é\\t\\\"\\\\\\${{\\u{{7f}}\\u{{a0}}\\u{{e000}}\\u{{e0001}}",
         d.text()
     );
     assert_eq!(

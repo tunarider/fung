@@ -32,6 +32,23 @@ impl<'a> Parser<'a> {
     /// statement, not an expression (01), so `x = y = 1` is a syntax error.
     pub(super) fn statement(&mut self) -> PResult<Node> {
         let t = self.peek();
+        // A line that begins with `-` after a statement's line would not
+        // continue that line: the statement before is dropped, and this
+        // one is its own negated value (D85). The first statement of a
+        // file or a body, and one after `;`, has no line to continue.
+        if t.kind == Kind::Minus && self.i > 0 && self.toks[self.i - 1].kind == Kind::Newline {
+            let before = self.toks[..self.i]
+                .iter()
+                .rev()
+                .find(|t| t.kind != Kind::Newline)
+                .map(|t| t.kind);
+            if !matches!(
+                before,
+                None | Some(Kind::Colon | Kind::FatArrow | Kind::Semi)
+            ) {
+                return Err(err("E0136", t.pos, Vec::new()));
+            }
+        }
         match t.kind {
             Kind::KwType => return self.type_alias(),
             Kind::KwImport => return self.import_stmt(),
@@ -87,6 +104,9 @@ impl<'a> Parser<'a> {
         };
         if pattern_start && let Some(n) = self.try_destructure()? {
             return Ok(n);
+        }
+        if t.kind == Kind::KwFn && self.kind_after() == Kind::Tag {
+            return Err(super::tag_as_name(&self.toks[self.i + 1]));
         }
         if t.kind == Kind::KwFn && self.kind_after() == Kind::Name {
             self.next();
@@ -170,6 +190,8 @@ impl<'a> Parser<'a> {
         let then_b = self.body(t.pos)?;
         let else_b = if self.at(Kind::KwElse) {
             let e = self.next();
+            // A line ending in `else` goes on (01 rule 1, FE66).
+            self.skip_newlines_after_operator();
             if self.at(Kind::KwIf) {
                 self.if_chain()?
             } else if self.at(Kind::Colon) {

@@ -1770,7 +1770,15 @@ fn _query_pairs(raw):
     return nil
   ;;
   decoded = map(pieces, _query_pair)
-  any(decoded, p => p == nil) then nil else filter(decoded, p => p != ())
+  any(decoded, p => p == nil) then nil else filter(decoded, _is_pair)
+;;
+
+# Whether a decoded piece is a (name, value) pair, not the () of an
+# empty piece: a pattern, because tuples of different sizes are of
+# different types and do not compare (D87).
+fn _is_pair(p) = match p:
+  () => false
+  _  => true
 ;;
 
 # One piece as (name, value), () when it is empty, nil for a bad

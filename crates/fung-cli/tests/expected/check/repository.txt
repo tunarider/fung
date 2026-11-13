@@ -170,14 +170,7 @@
 ==== check tests/lang/_lib/greet.fung
 -- stdout
 -- stderr
-| error[E0239]: unused variable `version`
-|   --> tests/lang/_lib/greet.fung:4:1
-|   |
-| 4 | version = 2
-|   | ^^^^^^^
-|   |
-|  help: remove it, or start its name with `_` if it is kept on purpose
--- exit: 2
+-- exit: 0
 ==== check tests/lang/_lib/my-lib.fung
 -- stdout
 -- stderr
@@ -290,10 +283,6 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/eq_sym_str_pairs.fung
--- stdout
--- stderr
--- exit: 0
 ==== check tests/lang/eq_types.fung
 -- stdout
 -- stderr
@@ -396,14 +385,14 @@
 ==== check tests/lang/err_assign_top_name_in_fn.fung
 -- stdout
 -- stderr
-| error[E0205]: cannot reassign `limit` here: it was defined outside this block
+| error[E0205]: cannot assign to `limit` here: it is bound outside this block
 |   --> tests/lang/err_assign_top_name_in_fn.fung:5:3
 |   |
 | 5 |   limit = 5
 |   |   ^^^^^
 |   |
 |   note: `limit` is a top-level name bound on line 3
-|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+|  help: a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== check tests/lang/err_atom_effect.fung
 -- stdout
@@ -454,14 +443,14 @@
 ==== check tests/lang/err_block_assign_const.fung
 -- stdout
 -- stderr
-| error[E0205]: cannot reassign `c` here: it was defined outside this block
+| error[E0205]: cannot assign to `c` here: it is bound outside this block
 |   --> tests/lang/err_block_assign_const.fung:5:5
 |   |
 | 5 |     c = 2
 |   |     ^
 |   |
 |   note: `c` is a top-level name bound on line 2
-|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+|  help: a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== check tests/lang/err_block_leak.fung
 -- stdout
@@ -477,7 +466,24 @@
 ==== check tests/lang/err_bool.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0505]: expected bool, got int
+|   --> tests/lang/err_bool.fung:1:7
+|   |
+| 1 | print(1 and true)
+|   |       ^
+|   |
+-- exit: 2
+==== check tests/lang/err_bracket_missing_comma.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `,` or `]`, found `-`
+|   --> tests/lang/err_bracket_missing_comma.fung:6:3
+|   |
+| 6 |   -1
+|   |   ^
+|   |
+|   note: the `[` opened at 4:6
+-- exit: 2
 ==== check tests/lang/err_call_count_static.fung
 -- stdout
 -- stderr
@@ -568,7 +574,13 @@
 ==== check tests/lang/err_cond_not_bool.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0505]: expected bool, got int
+|   --> tests/lang/err_cond_not_bool.fung:1:4
+|   |
+| 1 | if 1: print(2) ;;
+|   |    ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_convert.fung
 -- stdout
 -- stderr
@@ -613,6 +625,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_discard_fung_builtin.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `take(…)` is computed and discarded
+|   --> tests/lang/err_discard_fung_builtin.fung:5:1
+|   |
+| 5 | take(xs, 2)
+|   | ^^^^
+|   |
+|  help: `take` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== check tests/lang/err_discard_list_each.fung
 -- stdout
 -- stderr
@@ -625,6 +648,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_discard_map.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `map(…)` is computed and discarded
+|   --> tests/lang/err_discard_map.fung:7:1
+|   |
+| 7 | map(xs, x => print(x))
+|   | ^^^
+|   |
+|  help: `map` computes a value with its function; use the value, or run the function for its effects with `each` or a `for` statement
+-- exit: 2
 ==== check tests/lang/err_discard_on_fail.fung
 -- stdout
 -- stderr
@@ -634,6 +668,14 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_discard_stmt.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_div_inexact.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_div_inexact_const.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -763,17 +805,6 @@
 |   |
 |  help: call it, or assign it to a name
 -- exit: 2
-==== check tests/lang/err_effect_free_minus.fung
--- stdout
--- stderr
-| error[E0234]: the value of `a` is computed and discarded
-|   --> tests/lang/err_effect_free_minus.fung:4:3
-|   |
-| 4 |   a
-|   |   ^
-|   |
-|  help: the next line starts with `-`, so it is a new statement; to continue this expression, end this line with `-`
--- exit: 2
 ==== check tests/lang/err_effect_free_name.fung
 -- stdout
 -- stderr
@@ -856,22 +887,6 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_eq_fn.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_eq_sym_str_compared.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_eq_types.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_eq_types_nested.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_eq_types_tag.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -984,14 +999,14 @@
 ==== check tests/lang/err_global_from_fn.fung
 -- stdout
 -- stderr
-| error[E0205]: cannot reassign `x` here: it was defined outside this block
+| error[E0205]: cannot assign to `x` here: it is bound outside this block
 |   --> tests/lang/err_global_from_fn.fung:3:3
 |   |
 | 3 |   x = 2
 |   |   ^
 |   |
 |   note: `x` is a top-level name bound on line 1
-|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+|  help: a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== check tests/lang/err_group_key.fung
 -- stdout
@@ -1161,10 +1176,10 @@
 -- stdout
 -- stderr
 | error[E0240]: `len` hides a prelude function
-|   --> tests/lang/err_hide_param_prelude.fung:2:6
+|   --> tests/lang/err_hide_param_prelude.fung:3:7
 |   |
-| 2 | fn f(len) = len + 1
-|   |      ^^^
+| 3 | fn _f(len) = len + 1
+|   |       ^^^
 |   |
 |  help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
@@ -1190,28 +1205,6 @@
 |   |      ^^^^^
 |   |
 |   note: `limit` is a top-level name bound on line 3
-|  help: a visible name means one thing: give the new one a name of its own
--- exit: 2
-==== check tests/lang/err_hide_top_assign_prelude.fung
--- stdout
--- stderr
-| error[E0240]: `max` hides a prelude function
-|   --> tests/lang/err_hide_top_assign_prelude.fung:2:1
-|   |
-| 2 | max = 3
-|   | ^^^
-|   |
-|  help: a visible name means one thing: give the new one a name of its own
--- exit: 2
-==== check tests/lang/err_hide_top_fn_prelude.fung
--- stdout
--- stderr
-| error[E0240]: `len` hides a prelude function
-|   --> tests/lang/err_hide_top_fn_prelude.fung:2:4
-|   |
-| 2 | fn len(x) = 99
-|   |    ^^^
-|   |
 |  help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
 ==== check tests/lang/err_hole.fung
@@ -1291,22 +1284,15 @@
 ==== check tests/lang/err_import_twice.fung
 -- stdout
 -- stderr
-| error[E0309]: name `fs` is already bound to a module
+| error[E0309]: `fs` is already imported or bound to a module
 |   --> tests/lang/err_import_twice.fung:2:8
 |   |
 | 2 | import fs
 |   |        ^^
 |   |
+|  help: it is imported above: give that import the alias and the names you need, `import m as x (a, b)`
 -- exit: 2
 ==== check tests/lang/err_in.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_in_range_types.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_in_types.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1427,6 +1413,17 @@
 |   |                                     ^^^^^^
 |   |
 |  help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+-- exit: 2
+==== check tests/lang/err_line_starts_minus.fung
+-- stdout
+-- stderr
+| error[E0136]: a statement after another cannot begin its line with `-`
+|   --> tests/lang/err_line_starts_minus.fung:6:3
+|   |
+| 6 |   -2
+|   |   ^
+|   |
+|  help: to continue the line before, end that line with the `-`; a negative value on a line of its own is written in parentheses: `(-x)`
 -- exit: 2
 ==== check tests/lang/err_list_limit_flatten.fung
 -- stdout
@@ -1621,7 +1618,13 @@
 ==== check tests/lang/err_nil_arith.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0501]: cannot add nil and int
+|   --> tests/lang/err_nil_arith.fung:1:11
+|   |
+| 1 | print(nil + 1)
+|   |           ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_no_match.fung
 -- stdout
 -- stderr
@@ -1760,12 +1763,13 @@
 ==== check tests/lang/err_param_bare_tag.fung
 -- stdout
 -- stderr
-| error[E0112]: expected a name or a destructuring pattern, found tag `Red`
+| error[E0225]: `Red` starts with an uppercase letter, so it is a tag and cannot name a variable
 |   --> tests/lang/err_param_bare_tag.fung:2:6
 |   |
 | 2 | fn f(Red) = 1
-|   |      ^
+|   |      ^^^ this is a tag
 |   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
 ==== check tests/lang/err_pipe_coalesce.fung
 -- stdout
@@ -1807,7 +1811,13 @@
 ==== check tests/lang/err_pipe_quoted_symbol.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0401]: cannot call a value of type sym
+|   --> tests/lang/err_pipe_quoted_symbol.fung:5:12
+|   |
+| 5 | print(1 |> 'red)
+|   |            ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_pipe_tag_hole.fung
 -- stdout
 -- stderr
@@ -1919,24 +1929,38 @@
 ==== check tests/lang/err_reassign_fn.fung
 -- stdout
 -- stderr
-| error[E0209]: cannot reassign `f`: it is a function or an imported name
-|   --> tests/lang/err_reassign_fn.fung:2:1
+| error[E0238]: cannot bind `f` again: a name is bound once
+|   --> tests/lang/err_reassign_fn.fung:3:1
 |   |
-| 2 | f = 2
+| 3 | f = 2
 |   | ^
 |   |
+|   note: `f` is first bound on line 2
+|  help: give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)
 -- exit: 2
 ==== check tests/lang/err_reassign_outer.fung
 -- stdout
 -- stderr
-| error[E0205]: cannot reassign `total` here: it was defined outside this block
-|   --> tests/lang/err_reassign_outer.fung:2:10
+| error[E0205]: cannot assign to `total` here: it is bound outside this block
+|   --> tests/lang/err_reassign_outer.fung:4:10
 |   |
-| 2 | if true: total = total + 1 ;;
+| 4 | if true: total = total + 1 ;;
 |   |          ^^^^^
 |   |
-|   note: `total` is a top-level name bound on line 1
-|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+|   note: `total` is a top-level name bound on line 3
+|  help: a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+-- exit: 2
+==== check tests/lang/err_rebind_local.fung
+-- stdout
+-- stderr
+| error[E0238]: cannot bind `n` again: a name is bound once
+|   --> tests/lang/err_rebind_local.fung:10:3
+|    |
+| 10 |   n = n * 2
+|    |   ^
+|    |
+|   note: `n` is first bound on line 9
+|  help: give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)
 -- exit: 2
 ==== check tests/lang/err_regex.fung
 -- stdout
@@ -2114,6 +2138,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_sort_mixed_rows.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_spawn_closed_scope.fung
 -- stdout
 -- stderr
@@ -2161,7 +2189,13 @@
 ==== check tests/lang/err_str_int.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0501]: cannot add str and int
+|   --> tests/lang/err_str_int.fung:1:11
+|   |
+| 1 | print("a" + 1)
+|   |           ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_string_backslash_at_line_end.fung
 -- stdout
 -- stderr
@@ -2196,14 +2230,6 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_sym_name.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_sym_str_eq.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_sym_str_nested.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -2358,14 +2384,14 @@
 ==== check tests/lang/err_top_reassign.fung
 -- stdout
 -- stderr
-| error[E0238]: cannot bind `n` again: a top-level name is bound once
+| error[E0238]: cannot bind `n` again: a name is bound once
 |   --> tests/lang/err_top_reassign.fung:6:1
 |   |
 | 6 | n = n + 1
 |   | ^
 |   |
 |   note: `n` is first bound on line 4
-|  help: give the new value a name of its own, or compute it in one expression (`x = if … ;;`, `fold`)
+|  help: give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)
 -- exit: 2
 ==== check tests/lang/err_top_return.fung
 -- stdout
@@ -2397,7 +2423,13 @@
 ==== check tests/lang/err_type.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0501]: cannot add int and bool
+|   --> tests/lang/err_type.fung:1:9
+|   |
+| 1 | print(1 + true)
+|   |         ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_types_enum.fung
 -- stdout
 -- stderr
@@ -2439,10 +2471,6 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_unique_fn.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/err_unique_types.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -2546,22 +2574,11 @@
 ==== check tests/lang/err_unused_top_level.fung
 -- stdout
 -- stderr
-| error[E0239]: unused variable `total`
-|   --> tests/lang/err_unused_top_level.fung:2:1
+| error[E0239]: unused variable `half`
+|   --> tests/lang/err_unused_top_level.fung:5:3
 |   |
-| 2 | total = 3
-|   | ^^^^^
-|   |
-|  help: remove it, or start its name with `_` if it is kept on purpose
--- exit: 2
-==== check tests/lang/err_unused_written_only.fung
--- stdout
--- stderr
-| error[E0239]: unused variable `x`
-|   --> tests/lang/err_unused_written_only.fung:3:3
-|   |
-| 3 |   x = 1
-|   |   ^
+| 5 |   half = total // 2
+|   |   ^^^^
 |   |
 |  help: remove it, or start its name with `_` if it is kept on purpose
 -- exit: 2
@@ -2675,6 +2692,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/interface_names.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/json.fung
 -- stdout
 -- stderr
@@ -2688,6 +2709,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/keyword_names.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/line_continuation_brackets.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -2907,6 +2932,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/sym_upper_shown.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/symbols.fung
 -- stdout
 -- stderr
@@ -3020,6 +3049,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/write.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/zip_receiver.fung
 -- stdout
 -- stderr
 -- exit: 0

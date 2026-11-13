@@ -1,0 +1,4 @@
+# The same for a quotient of two literals: it is not folded into a
+# rounded constant (VA41).
+print(1 / 9007199254740993)
+# expect-error: E0523

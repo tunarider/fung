@@ -35,10 +35,20 @@ fn _receive(rx, n, acc) = n <= 0 then acc else match recv(rx):
   Err(_) => acc
 ;;
 
+# One side of a zip, as a list or a range. A receiving end gives no more
+# than a list on the other side can pair (D105): what comes after stays
+# in the channel. Beside a range or another receiving end, which say
+# nothing of how many, it is read to its close.
+fn _zip_side(a, b) = match type_of(a):
+  'range    => a
+  'receiver => type_of(b) == 'list then _receive(a, len(b), []) else _list(a, "zip the elements of")
+  _         => _list(a, "zip the elements of")
+;;
+
 # A range is cut to the other side's length before it becomes a list.
 fn zip(xs, ys):
-  left = type_of(xs) == 'range then xs else _list(xs, "zip the elements of")
-  right = type_of(ys) == 'range then _upto(ys, len(left)) else _list(ys, "zip the elements of")
+  left = _zip_side(xs, ys)
+  right = _upto(_zip_side(ys, left), len(left))
   cut = _upto(left, len(right))
   n = min([len(cut), len(right)])
   for i in 0..n: (cut[i], right[i]) ;;
@@ -88,14 +98,16 @@ fn contains(c, x) = x in c
 # ---- Strings --------------------------------------------------------
 
 # The padding that brings s up to n characters, cycling pad. repeat
-# builds just enough copies (never more than missing + len(pad) chars).
+# builds whole copies and then the part of one that is left, never more
+# than the padding itself (VA57: a pad that fills to the string limit).
 # An empty pad, or a width that is not a non-negative int, is E0403, as
 # for a native (_r.pad, _arg.count).
 fn _padding(s, n, pad):
   _arg.count("n", n)
   _r.pad(pad)
   missing = n - len(s)
-  missing <= 0 then "" else repeat(pad, missing // len(pad) + 1)[..missing]
+  width = len(pad)
+  missing <= 0 then "" else repeat(pad, missing // width) + pad[..missing % width]
 ;;
 
 fn pad_left(s: str, n: int, pad: str = " ") = _padding(s, n, pad) + s

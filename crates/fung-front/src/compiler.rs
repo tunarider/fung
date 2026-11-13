@@ -50,8 +50,6 @@ struct Compiler<'a> {
     /// The operators that fold to a constant, by node number
     /// (`fold::constants`).
     folds: &'a HashMap<u32, Const>,
-    /// A return type annotation disables tail calls (03).
-    has_ret: bool,
     /// Where this frame's locals hand over (MOVELOCAL) and let go of
     /// (CLEARLOCAL) their values (`moves::lives`, 03: 값의 수명): the
     /// compiler only looks them up.
@@ -87,7 +85,6 @@ pub fn compile(
         opts,
         lines: &lines,
         folds: &folds,
-        has_ret: true,
         lives: moves::lives(&res.core, opts.tests, false),
         stubs: Vec::new(),
         ret_pos: res.core.pos,
@@ -105,12 +102,11 @@ pub fn compile(
     c.emit_stubs();
     c.proto.thread_jumps();
     c.proto.check_operands()?;
-    // A debug build checks every program it makes (VM22): what the VM
-    // takes on trust is an internal error here instead of a panic or a
-    // wrong value there.
-    if cfg!(debug_assertions)
-        && let Err(v) = crate::bytecode::verify(&c.proto)
-    {
+    // Every program is checked before it runs, in a release build too
+    // (VM22, VM41): what the VM takes on trust is an internal error here,
+    // before anything has run, instead of a panic or a wrong value there.
+    // One pass over the code; it does not show in a program's start.
+    if let Err(v) = crate::bytecode::verify(&c.proto) {
         return Err(internal(res.core.pos, format!("compiler: {v}")));
     }
     Ok(c.proto)
@@ -263,6 +259,7 @@ fn binary_op(op: &str) -> Option<Op> {
         ">" => Op::Gt,
         "<=" => Op::Le,
         ">=" => Op::Ge,
+        "in" => Op::In,
         _ => return None,
     })
 }
@@ -478,7 +475,7 @@ impl Compiler<'_> {
                     return self.op(n, tail);
                 }
             }
-            Head::If => return self.if_expr(n, tail),
+            Head::If | Head::Then => return self.if_expr(n, tail),
             // An interpolation of literals is folded (VM31).
             Head::Concat => {
                 if let Some(c) = self.folds.get(&n.id) {
@@ -529,11 +526,17 @@ impl Compiler<'_> {
         if name == crate::tree::BOOL_CHECK && makes_bool(&n.kids[0]) {
             return self.expr(&n.kids[0], tail);
         }
-        self.kids(n)?;
-        if name == "in" {
-            self.proto.emit(Op::In, 0, n.pos);
-            return Ok(());
+        // The right side of `and`/`or` in tail position is a tail call
+        // (D97): the frame takes the bool check along to where the value
+        // is returned, as it takes a return type's (D44).
+        if name == crate::tree::BOOL_CHECK
+            && tail
+            && n.kids[0].head == Head::Call
+            && !self.is_dbg_call(&n.kids[0])
+        {
+            return self.call_checked(&n.kids[0], true, Some(n.pos));
         }
+        self.kids(n)?;
         let op = if n.kids.len() == 2 {
             binary_op(name)
         } else {
@@ -582,7 +585,11 @@ impl Compiler<'_> {
         let pos = self.start_pos(k);
         self.enter(&k.kids[1]);
         self.expr(&k.kids[1], false)?;
-        self.proto.emit(Op::Pop, 0, pos);
+        // A body that ends the frame (`if c: return e ;;`) leaves no
+        // value to drop (VM46).
+        if !self.proto.ends_closed() {
+            self.proto.emit(Op::Pop, 0, pos);
+        }
         self.patch_all(&to_end);
         Ok(())
     }
@@ -706,7 +713,7 @@ impl Compiler<'_> {
 
     /// Returns the value on the stack, checked against the return type.
     pub(super) fn emit_return(&mut self, pos: Pos) {
-        if self.has_ret && self.proto.return_type >= 0 {
+        if self.proto.return_type >= 0 {
             let rt = self.proto.return_type as usize;
             self.proto.emit(Op::CheckReturn, rt, pos);
         }

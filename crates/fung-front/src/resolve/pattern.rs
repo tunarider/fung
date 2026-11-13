@@ -102,12 +102,16 @@ impl Resolver<'_> {
                     return n.clone();
                 }
                 // Each alternative binds the same names once; start every
-                // alternative from the names seen before the `|`.
-                let kids = n
-                    .kids
-                    .iter()
-                    .map(|alt| self.bind_pat(alt, mode, &mut seen.clone()))
-                    .collect();
+                // alternative from the names seen before the `|`, by
+                // taking out what the one before added (FE75).
+                let added: Vec<&String> = first.iter().filter(|n| !seen.contains(*n)).collect();
+                let mut kids = Vec::with_capacity(n.kids.len());
+                for alt in &n.kids {
+                    kids.push(self.bind_pat(alt, mode, seen));
+                    for name in &added {
+                        seen.remove(*name);
+                    }
+                }
                 seen.extend(first);
                 Node::new(Head::Palt, n.pos, kids)
             }
@@ -192,13 +196,18 @@ impl Resolver<'_> {
     /// value of: one after an alternative that matches everything, or the
     /// same alternative written again (FE61).
     fn dead_alternatives(&mut self, alt: &Node) {
-        for (i, a) in alt.kids.iter().enumerate().skip(1) {
-            let earlier = &alt.kids[..i];
-            let what = if earlier.iter().any(matches_all) {
+        // one pass: what the earlier ones are is kept as it goes (FE75)
+        let mut takes_all = false;
+        let mut written: HashSet<String> = HashSet::new();
+        for a in &alt.kids {
+            let text = a.to_string();
+            let what = if takes_all {
                 "an alternative before it matches everything"
-            } else if earlier.iter().any(|e| e.to_string() == a.to_string()) {
+            } else if written.contains(&text) {
                 "it repeats an alternative before it"
             } else {
+                takes_all = matches_all(a);
+                written.insert(text);
                 continue;
             };
             self.errs
@@ -209,13 +218,14 @@ impl Resolver<'_> {
 
     /// E0235 at an arm whose pattern is a literal an earlier arm without a
     /// guard already matches (alone or as an alternative): it never runs
-    /// (D51). Literals are the same as written: `1` and `1.0` are not.
+    /// (D51). Numbers are the same by value, as `match` compares them:
+    /// `1.0` after `1` never runs (FE70).
     fn repeated_literals(&mut self, arms: &[Node]) {
         let mut seen: HashMap<String, u32> = HashMap::new();
         for arm in arms {
             let pat = &arm.kids[0];
             if is_literal(pat)
-                && let Some(line) = seen.get(&pat.to_string())
+                && let Some(line) = seen.get(&literal_key(pat))
             {
                 let what =
                     format!("never runs: the arm on line {line} matches the same literal first");
@@ -232,9 +242,21 @@ impl Resolver<'_> {
                 _ => std::slice::from_ref(pat),
             };
             for a in alts.iter().filter(|a| is_literal(a)) {
-                seen.entry(a.to_string()).or_insert(a.pos.line);
+                seen.entry(literal_key(a)).or_insert(a.pos.line);
             }
         }
+    }
+}
+
+/// What a literal pattern matches, as a key: a number by its value (an
+/// int and the float of the same value are one, and so are 0.0 and
+/// -0.0), anything else as it is written.
+fn literal_key(p: &Node) -> String {
+    match &p.lit {
+        Lit::Int(i) => format!("n{i}"),
+        Lit::Float(f) if f.fract() == 0.0 && f.abs() < 9.0e18 => format!("n{}", *f as i64),
+        Lit::Float(f) => format!("n{f:?}"),
+        _ => p.to_string(),
     }
 }
 

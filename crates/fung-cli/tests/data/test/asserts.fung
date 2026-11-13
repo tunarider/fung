@@ -20,7 +20,7 @@ test "an Err at the end is discarded":
   send(tx, 1)
 ;;
 test "a list of Errs at the end":
-  for _x in [1]: fails("in a list") ;;
+  [fails("in a list")]
 ;;
 test "an if at the end":
   if false: print(1) ;;

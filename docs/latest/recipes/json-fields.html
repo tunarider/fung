@@ -134,21 +134,13 @@ search   stopped     0/0   core</code></pre></div>
 <li><code>for [name, state, ready, team] in rows</code>: <code>for</code>의 변수 자리에도 패턴을 쓴다. 칸 네 개를 이름으로 받는다.</li>
 </ul>
 <div class="box mistake"><b>JSON 값과 심볼 비교하기</b>
-<p>fung에서는 상태 같은 이름을 <code>'running</code> 같은 심볼로 쓰는 일이 많다. 그런데 JSON·파일·명령 출력에서 온 값은 언제나 <strong>문자열</strong>이다. 둘을 <code>==</code>로 비교하면 조용히 거짓이 되는 대신 E0517로 멈춘다. 문자열끼리 비교하거나, 문자열을 <code>sym(s)</code>로 바꿔서 비교한다.</p>
+<p>fung에서는 상태 같은 이름을 <code>'running</code> 같은 심볼로 쓰는 일이 많다. 그런데 JSON·파일·명령 출력에서 온 값은 언제나 <strong>문자열</strong>이다. 둘을 <code>==</code>로 비교하면 늘 거짓이다: 타입이 다른 값은 같지 않다. 문자열끼리 비교하거나, 문자열을 <code>sym(s)</code>로 바꿔서 비교한다.</p>
 <div class="run"><pre><code>import json
 
 svc = json.parse(`{&quot;name&quot;: &quot;api&quot;, &quot;state&quot;: &quot;running&quot;}`)!
 print(svc.state == &quot;running&quot;, sym(svc.state) == 'running)
-print(svc.state == 'running)</code></pre><pre class="out err plain" data-code="1"><code>true true
-error[E0517]: cannot compare values of different types: &quot;running&quot; (str) and 'running (sym)
-  --&gt; example.fung:5:17
-  |
-5 | print(svc.state == 'running)
-  |                 ^
-  |
- call path (innermost first):
-   example.fung:5 &lt;entry&gt;
- help: a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
+print(svc.state == 'running)</code></pre><pre class="out plain"><code>true true
+false</code></pre></div>
 </div>
 <h2 id="vary">응용</h2>
 <ul>
@@ -158,7 +150,7 @@ error[E0517]: cannot compare values of different types: &quot;running&quot; (str
 <li><strong>여러 페이지</strong>: 응답의 <code>next</code>가 다음 주소를 가리키면 <a href="pagination.html">페이지 넘기며 모두 받기</a>처럼 끝까지 따라간다.</li>
 <li><strong>여러 API 동시에</strong>: 지역마다 API가 따로 있으면 <code>conc.pmap(urls, fetch)</code>로 한 번에 받는다.</li>
 </ul>
-<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/09-errors.html">9장 에러</a>, <a href="../learn/07-collections.html">7장 컬렉션</a>. 레퍼런스: <a href="../reference/modules/json.html#fn-json-parse"><code>json.parse</code></a>, <a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a>, <a href="../reference/prelude/maps.html#fn-get"><code>get</code></a>, <a href="../reference/prelude/convert.html#fn-type_of"><code>type_of</code></a>, <a href="../reference/prelude/convert.html#fn-sym"><code>sym</code></a>, <a href="../reference/language/values.html">비교와 동일성</a>, <a href="../reference/errors.html#E0517">E0517</a>.</p>
+<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/09-errors.html">9장 에러</a>, <a href="../learn/07-collections.html">7장 컬렉션</a>. 레퍼런스: <a href="../reference/modules/json.html#fn-json-parse"><code>json.parse</code></a>, <a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a>, <a href="../reference/prelude/maps.html#fn-get"><code>get</code></a>, <a href="../reference/prelude/convert.html#fn-type_of"><code>type_of</code></a>, <a href="../reference/prelude/convert.html#fn-sym"><code>sym</code></a>, <a href="../reference/language/values.html">비교와 동일성</a>.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/unreachable-servers.html"><small>이전</small>실패·무응답 서버만 알리기</a><a class="next" href="../recipes/check-urls.html"><small>다음</small>URL 여러 개 상태 동시에 확인하기</a></nav>
 </div></main>
 </div>

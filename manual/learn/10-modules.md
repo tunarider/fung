@@ -91,14 +91,13 @@ fn shout(s) = upper(s) + "!"
 ```
 
 ```fung run
-import "./textutil" as tu
-import "./textutil" (slug)
+import "./textutil" as tu (slug)
 
 print(tu.shout("hi"))
 print(slug("Hello World"))
 ```
 
-같은 모듈을 여러 번 import해도(여러 파일에서 가져와도) 그 파일은 처음 한 번만 읽어서 실행한다. 그 뒤로는 만들어 둔 모듈을 그대로 나눠 쓴다.
+한 파일은 같은 모듈을 한 번만 import한다(두 번 쓰면 E0309: 별칭과 이름 목록은 한 `import`에 함께 쓴다). 여러 파일이 같은 모듈을 가져와도 그 파일은 처음 한 번만 읽어서 실행한다. 그 뒤로는 만들어 둔 모듈을 그대로 나눠 쓴다.
 
 ## 무엇이 공개되는가 {#public}
 

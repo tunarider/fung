@@ -228,3 +228,51 @@ fn both_if(flag):
 ;;
 print(both_if(true), both_if(false))
 # expect: [1] []
+
+# A match whose arms all return still reads its subject first: a subject
+# read again after the match is not let go before it (VM37).
+fn handle(kind, x):
+  n = if x > 0:
+    x
+  else:
+    match kind:
+      'a => return 0
+      _  => return -1
+    ;;
+  ;;
+  (kind, n)
+;;
+print(handle('b, 1), handle('b, 0), handle('a, 0))
+# expect: ('b, 1) -1 0
+
+# `not` of a condition's `and` swaps where its two paths go; the path
+# that skips the right side still lets go of what only that side read
+# (VM38).
+fn sent(tx):
+  send(tx, 1)!
+  true
+;;
+fn negated(flag):
+  (tx, rx) = channel(1)
+  if not (flag and sent(tx)):
+    for x in rx: x ;;
+  else:
+    []
+  ;;
+;;
+print(negated(false), negated(true))
+# expect: [] []
+
+# A parameter read last by a later parameter's default is let go as the
+# body starts (VM39).
+fn drained(tx, rx, ok = sent(tx)):
+  print(ok)
+  for x in rx: x ;;
+;;
+fn start():
+  (tx, rx) = channel(1)
+  drained(tx, rx)
+;;
+print(start())
+# expect: true
+# expect: [1]

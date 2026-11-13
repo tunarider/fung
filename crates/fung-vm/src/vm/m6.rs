@@ -1,12 +1,12 @@
 //! The M6 instructions: ASSERT and TEST and the test block registry. The
 //! `dbg` native lives in the prelude (`prelude::dbg`).
 
-use fung_front::bytecode::Op;
+use fung_front::bytecode::{Cmp, Op};
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::{Runtime, Stop, Task, at, discarded, err, internal};
-use crate::value::{Value, compare, eq, index, type_name};
+use crate::value::{Value, eq, index, type_name};
 
 /// One registered test block: its name, the function to run and where
 /// the block stands.
@@ -45,23 +45,20 @@ impl Runtime {
     }
 }
 
-/// Applies an assert's comparison operator (08); `in` and `not_in` test
-/// membership like the IN instruction.
-fn compare_by(op: &str, l: &Value, r: &Value) -> Result<bool, Diag> {
+/// Applies an assert's comparison as the operator itself would (08,
+/// VM45): the same function answers, with the same help.
+fn compare_by(op: Cmp, l: &Value, r: &Value) -> Result<bool, Diag> {
+    let ordered = |test: fn(std::cmp::Ordering) -> bool| super::ordered(l, r).map(test);
     match op {
-        "==" => return eq(l, r),
-        "!=" => return eq(l, r).map(|e| !e),
-        "in" => return index::contains(r, l),
-        "not_in" => return index::contains(r, l).map(|found| !found),
-        _ => {}
+        Cmp::Eq => eq(l, r),
+        Cmp::Ne => eq(l, r).map(|e| !e),
+        Cmp::In => index::contains(r, l),
+        Cmp::NotIn => index::contains(r, l).map(|found| !found),
+        Cmp::Lt => ordered(std::cmp::Ordering::is_lt),
+        Cmp::Gt => ordered(std::cmp::Ordering::is_gt),
+        Cmp::Le => ordered(std::cmp::Ordering::is_le),
+        Cmp::Ge => ordered(std::cmp::Ordering::is_ge),
     }
-    let c = compare(l, r)?;
-    Ok(match op {
-        "<" => c.is_lt(),
-        ">" => c.is_gt(),
-        "<=" => c.is_le(),
-        _ => c.is_ge(),
-    })
 }
 
 impl Task<'_> {
@@ -71,7 +68,7 @@ impl Task<'_> {
         match op {
             Op::Assert => {
                 let a = &proto.asserts[arg];
-                if a.op.is_empty() {
+                let Some((cmp, op_at)) = a.cmp else {
                     return match self.pop() {
                         Value::Bool(true) => Ok(()),
                         Value::Bool(false) => {
@@ -79,10 +76,12 @@ impl Task<'_> {
                         }
                         v => Err(err("E0505", pos, vec![Arg::Str(type_name(&v))])),
                     };
-                }
+                };
                 let r = self.pop();
                 let l = self.pop();
-                if !compare_by(&a.op, &l, &r).map_err(|d| at(d, pos))? {
+                // A comparison that cannot be made fails where the
+                // operator is, as it does outside an assert.
+                if !compare_by(cmp, &l, &r).map_err(|d| at(d, op_at))? {
                     let mut d = error("E0807", pos, vec![Arg::Str(a.text.clone())]);
                     if !a.left.is_empty() {
                         d.notes

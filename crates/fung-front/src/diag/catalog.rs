@@ -142,6 +142,12 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0134", "`%s` is not a keyword in fung", "", ""],
     ["E0135", "number %q is out of range", "", ""],
     [
+        "E0136",
+        "a statement after another cannot begin its line with `-`",
+        "",
+        "to continue the line before, end that line with the `-`; a negative value on a line of its own is written in parentheses: `(-x)`",
+    ],
+    [
         "E0204",
         "undefined name `%s`",
         "not found in this scope",
@@ -149,9 +155,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0205",
-        "cannot reassign `%s` here: it was defined outside this block",
+        "cannot assign to `%s` here: it is bound outside this block",
         "",
-        "a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`",
+        "a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`",
     ],
     [
         "E0206",
@@ -165,6 +171,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "local functions can only call themselves; move both functions to the top level",
     ],
+    // not raised since it was merged into E0238 (D88)
     [
         "E0209",
         "cannot reassign `%s`: it is a function or an imported name",
@@ -311,9 +318,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0238",
-        "cannot bind `%s` again: a top-level name is bound once",
+        "cannot bind `%s` again: a name is bound once",
         "",
-        "give the new value a name of its own, or compute it in one expression (`x = if … ;;`, `fold`)",
+        "give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)",
     ],
     [
         "E0239",
@@ -332,6 +339,18 @@ const CATALOG: &[[&str; 4]] = &[
         "this alternative never matches: %s",
         "",
         "remove it",
+    ],
+    [
+        "E0242",
+        "the test %q checks nothing: its body is empty",
+        "",
+        "give it an `assert`, or remove it",
+    ],
+    [
+        "E0243",
+        "`??` after %s: it is never nil or a result, so the right side is never used",
+        "",
+        "remove the `??`, or put it after the value that can be missing",
     ],
     [
         "E0301",
@@ -361,7 +380,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "import it under another name: `import fs as m`",
     ],
-    ["E0309", "name `%s` is already bound to a module", "", ""],
+    [
+        "E0309",
+        "`%s` is already imported or bound to a module",
+        "",
+        "",
+    ],
     ["E0310", "`%s` is internal; %s", "", ""],
     ["E0311", "import must be at the top level", "", ""],
     ["E0312", "cannot read module `%s`: %s", "", ""],
@@ -413,6 +437,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "",
     ],
+    // not raised since values of different types compare unequal (D91)
     [
         "E0517",
         "cannot compare values of different types: %s and %s",

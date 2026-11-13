@@ -90,25 +90,25 @@ module http request(method, url, body=?, headers=?, timeout=?, max_body=?, redir
 module http serve(addr, handler, ready=?, drain=?, reuse_port=?)
 module http url_decode(s) pure
 module http url_encode(s) pure
-prelude fung contains(c, x)
-prelude fung drop(xs, n)
+prelude fung contains(c, x) pure
+prelude fung drop(xs, n) pure
 prelude fung env(name) pure
 prelude fung env_all() pure
 prelude fung exec(cmd, cwd=?, env=?, stdin=?)
-prelude fung first(xs)
-prelude fung is_empty(x)
-prelude fung is_err(x)
-prelude fung is_ok(x)
+prelude fung first(xs) pure
+prelude fung is_empty(x) pure
+prelude fung is_err(x) pure
+prelude fung is_ok(x) pure
 prelude fung iterate(x, f, n)
-prelude fung last(xs)
-prelude fung pad_left(s, n, pad=?)
-prelude fung pad_right(s, n, pad=?)
+prelude fung last(xs) pure
+prelude fung pad_left(s, n, pad=?) pure
+prelude fung pad_right(s, n, pad=?) pure
 prelude fung sh(cmd, cwd=?, env=?, stdin=?)
-prelude fung take(xs, n)
+prelude fung take(xs, n) pure
 prelude fung until(x, f, pred)
-prelude fung zip(xs, ys)
-prelude native all(xs, f)
-prelude native any(xs, f)
+prelude fung zip(xs, ys) pure
+prelude native all(xs, f) pure
+prelude native any(xs, f) pure
 prelude native args
 prelude native atom(x) pure
 prelude native await(t)
@@ -126,14 +126,14 @@ prelude native eprint(...args)
 prelude native ewrite(s)
 prelude native exit(code=?)
 prelude native fail(...args)
-prelude native filter(xs, f)
-prelude native find(xs, f)
+prelude native filter(xs, f) pure
+prelude native find(xs, f) pure
 prelude native flatten(xs) pure
 prelude native float(x) pure
-prelude native fold(xs, init, f)
+prelude native fold(xs, init, f) pure
 prelude native from_bytes(xs) pure
 prelude native get(m, k, default=?) pure
-prelude native group_by(xs, f)
+prelude native group_by(xs, f) pure
 prelude native index_of(s, sub) pure
 prelude native int(x) pure
 prelude native is_utf8(s) pure
@@ -142,7 +142,7 @@ prelude native keys(m) pure
 prelude native len(x) pure
 prelude native lines(s) pure
 prelude native lower(s) pure
-prelude native map(xs, f)
+prelude native map(xs, f) pure
 prelude native max(xs) pure
 prelude native merge(a, b) pure
 prelude native min(xs) pure
@@ -167,7 +167,7 @@ prelude native send(tx, x)
 prelude native send_now(tx, x)
 prelude native sleep(d)
 prelude native sort(xs) pure
-prelude native sort_by(xs, f)
+prelude native sort_by(xs, f) pure
 prelude native spawn(s, f)
 prelude native split(s, sep) pure
 prelude native starts_with(s, prefix) pure
@@ -182,7 +182,7 @@ prelude native timeout(f, d)
 prelude native trim(s, cut=?) pure
 prelude native trim_left(s, cut=?) pure
 prelude native trim_right(s, cut=?) pure
-prelude native try_map(xs, f)
+prelude native try_map(xs, f) pure
 prelude native type_of(x) pure
 prelude native unique(xs) pure
 prelude native upper(s) pure

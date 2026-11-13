@@ -237,29 +237,49 @@ fn write_excerpt(b: &mut String, d: &Diag, raw: &str) {
 
     let width = |s: &str| crate::unicode::display_width(&visible(s));
     // the lexer counts columns after a leading BOM (zero columns on screen)
-    let chars: Vec<char> = line
-        .strip_prefix('\u{feff}')
-        .unwrap_or(line)
-        .chars()
-        .collect();
-    let at = (d.pos.col as usize).saturating_sub(1).min(chars.len());
+    let line = line.strip_prefix('\u{feff}').unwrap_or(line);
+    // Only the part of the line the excerpt can show is taken apart
+    // (FE75): a long line with many errors is not copied for each.
+    let want = (d.pos.col as usize).saturating_sub(1);
+    let reach = want
+        .saturating_add(d.len.max(1))
+        .saturating_add(3 * EXCERPT_CONTEXT)
+        .max(EXCERPT_WHOLE + 1);
+    // `chars` holds the line's characters from `base` on, `total` is how
+    // many the line has.
+    let (base, chars, total): (usize, Vec<char>, usize) = if line.is_ascii() {
+        let from = want.min(line.len()).saturating_sub(EXCERPT_CONTEXT);
+        let from = if line.len() <= EXCERPT_WHOLE { 0 } else { from };
+        let to = reach.min(line.len());
+        (from, line[from..to].chars().collect(), line.len())
+    } else {
+        let part: Vec<char> = line.chars().take(reach).collect();
+        let n = if part.len() < reach {
+            part.len()
+        } else {
+            line.chars().count()
+        };
+        (0, part, n)
+    };
+    let part =
+        |from: usize, to: usize| -> String { chars[from - base..to - base].iter().collect() };
+    let at = want.min(total);
     let len = d.len.max(1);
-    let end = (at + len).min(chars.len());
+    let end = (at + len).min(total);
     // A window of the line around the place, `…` where it is cut (FE53):
     // a line of megabytes would print megabytes, twice.
-    let (lo, under_end, hi) = if chars.len() <= EXCERPT_WHOLE {
-        (0, end, chars.len())
+    let (lo, under_end, hi) = if total <= EXCERPT_WHOLE {
+        (0, end, total)
     } else {
         let under_end = end.min(at + 2 * EXCERPT_CONTEXT);
-        let hi = (under_end + EXCERPT_CONTEXT).min(chars.len());
+        let hi = (under_end + EXCERPT_CONTEXT).min(total);
         (at.saturating_sub(EXCERPT_CONTEXT), under_end, hi)
     };
     let cut_lo = if lo > 0 { "\u{2026}" } else { "" };
-    let cut_hi = if hi < chars.len() { "\u{2026}" } else { "" };
-    let window: String = chars[lo..hi].iter().collect();
-    let shown = format!("{cut_lo}{}{cut_hi}", visible(&window));
-    let before: String = chars[lo..at].iter().collect();
-    let under: String = chars[at..under_end].iter().collect();
+    let cut_hi = if hi < total { "\u{2026}" } else { "" };
+    let shown = format!("{cut_lo}{}{cut_hi}", visible(&part(lo, hi)));
+    let before = part(lo, at);
+    let under = part(at, under_end);
     let col = width(cut_lo) + width(&before);
     // past the line's end (an end of input) the carets count characters
     let past = if under_end == end { at + len - end } else { 0 };
@@ -529,7 +549,7 @@ mod tests {
     fn quote_uses_fung_literals() {
         assert_eq!(quote("a\tb\"c "), "\"a\\tb\\\"c \"");
         assert_eq!(quote("\u{0}"), "\"\\u{0}\"");
-        assert_eq!(quote("\u{A0}"), "\"\\u{A0}\"");
+        assert_eq!(quote("\u{A0}"), "\"\\u{a0}\"");
         assert_eq!(quote("\u{7}"), "\"\\u{7}\"");
         assert_eq!(quote("${x}"), "\"\\${x}\"");
         assert_eq!(quote("한"), "\"한\"");

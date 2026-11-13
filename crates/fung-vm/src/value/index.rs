@@ -321,12 +321,9 @@ pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
         Value::Range(r) => match x {
             Value::Int(i) => Ok(r.contains(*i)),
             Value::Float(f) => Ok(whole_int(*f).is_some_and(|i| r.contains(i))),
-            Value::Nil => Ok(false),
-            // A range holds ints: another type is `==`'s error (D40).
-            _ => {
-                super::compare::check_element(x, &Value::Int(r.start))?;
-                Ok(false)
-            }
+            // A range holds ints: a value of another type is not among
+            // them (D91).
+            _ => Ok(false),
         },
         _ => Err(err("E0512", vec![Arg::Str(type_name(c))])),
     }

@@ -4,7 +4,7 @@ café = 2
 print(नमस्ते + café)
 # expect: 3
 print(Été, type_of(Été))
-# expect: 'Été 'sym
+# expect: Été 'sym
 # Names are normalized (NFC): the composed and decomposed spellings are one name.
 print(café, sym("café") == 'café)
 # expect: 2 true

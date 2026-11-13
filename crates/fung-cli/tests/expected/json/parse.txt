@@ -92,7 +92,7 @@
 | Ok("<>& \u{2028}\u{2029}")
 ==== "\"\\ud83d\\ude00 \\u00e9 \\/ \\b\\f\\n\\r\\t \\\" \\\\\""
 -- out
-| Ok("😀 é / \u{8}\u{C}\n\r\t \" \\")
+| Ok("😀 é / \u{8}\u{c}\n\r\t \" \\")
 ==== "\"\\ud800\""
 -- out
 | Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unpaired surrogate"})
@@ -113,7 +113,7 @@
 | Ok("é한😀")
 ==== "\"\u{7f}\""
 -- out
-| Ok("\u{7F}")
+| Ok("\u{7f}")
 ==== ""
 -- out
 | Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected end of input"})
@@ -125,10 +125,10 @@
 | Ok(1)
 ==== "\u{feff}1"
 -- out
-| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected character '\\u{FEFF}'"})
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected character '\\u{feff}'"})
 ==== "\u{a0}1"
 -- out
-| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected character '\\u{A0}'"})
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected character '\\u{a0}'"})
 ==== "{bad}"
 -- out
 | Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: expected a string for an object key"})

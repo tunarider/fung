@@ -388,11 +388,11 @@ fn is_digit(c: Option<char>) -> bool {
 }
 
 fn is_ident_start(c: Option<char>) -> bool {
-    c.is_some_and(|c| c == '_' || unicode::is_name_start(c))
+    c.is_some_and(|c| c == '_' || (unicode::is_name_start(c) && !unicode::is_invisible(c)))
 }
 
 fn is_ident_part(c: Option<char>) -> bool {
-    c.is_some_and(unicode::is_name_continue)
+    c.is_some_and(|c| unicode::is_name_continue(c) && !unicode::is_invisible(c))
 }
 
 /// The kind of a word (NFC) the lexer reads as one identifier: a
@@ -723,6 +723,38 @@ mod tests {
                 Bang
             ]
         );
+    }
+
+    /// A digit its base does not have is a malformed number, not one out
+    /// of range (FE71).
+    #[test]
+    fn a_digit_outside_the_base_is_malformed() {
+        for src in ["0b12", "0o89", "0b1f"] {
+            assert_eq!(lex_src(src).unwrap_err().code, "E0102", "{src}");
+        }
+        assert_eq!(lex_src("0xffffffffffffffffff").unwrap_err().code, "E0135");
+    }
+
+    /// A character that shows nothing is not part of a name (D102): two
+    /// names that look the same would be different variables.
+    #[test]
+    fn invisible_characters_are_not_part_of_a_name() {
+        for c in [
+            '\u{200c}',
+            '\u{200d}',
+            '\u{034f}',
+            '\u{fe0f}',
+            '\u{e0100}',
+            '\u{180b}',
+            '\u{3164}',
+        ] {
+            let d = lex_src(&format!("a{c} = 1")).unwrap_err();
+            assert_eq!((d.code.as_str(), d.pos.col), ("E0101", 2), "{c:?}");
+            let d = lex_src(&format!("x = 'a{c}")).unwrap_err();
+            assert_eq!(d.code, "E0101", "{c:?}");
+        }
+        // A combining mark shows: it stays part of the name.
+        assert!(lex_src("cafe\u{301} = 1").is_ok());
     }
 
     #[test]

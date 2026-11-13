@@ -1,0 +1,6 @@
+# A symbol that starts with an uppercase letter is shown as it is
+# written, as a tag without values (D103): `'Red` is not source.
+print(Red, [Red, 'green], sym("Blue"), str(Red), "${Red}")
+# expect: Red [Red, 'green] Blue Red Red
+print(type_of(Circle(1)), {color: Red})
+# expect: Circle {color: Red}

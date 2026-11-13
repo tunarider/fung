@@ -82,7 +82,7 @@ fn blocking_spawning_and_other_atoms_are_effects() {
         ("eprint(1)", "eprint"),
         ("dbg(1)", "dbg"),
         ("1 |> dbg", "dbg"),
-        ("[1] |> map(dbg)", "dbg"),
+        ("_ = [1] |> map(dbg)", "dbg"),
     ] {
         let src = format!(
             "(_tx, rx) = channel()\na = atom(1)\nb = atom(2)\n_both = [rx, b]\nswap(a, fn(x): {body}; x ;;)"
@@ -272,8 +272,8 @@ fn atom_is_a_type_name() {
 fn iterating_a_channel_in_f_is_an_effect() {
     for body in [
         "for y in ch:\n    _ = y\n  ;;",
-        "map(ch, y => y)",
-        "fold(ch, 0, (acc, y) => acc + y)",
+        "_ = map(ch, y => y)",
+        "_ = fold(ch, 0, (acc, y) => acc + y)",
     ] {
         let src = format!(
             "(tx, ch) = channel(3)\nsend(tx, 5)\nclose(tx)\na = atom(0)\nsupervise(s => spawn(s, () => swap(a, fn(x):\n  {body}\n  x + 1\n;;)), e => print(e.message))\nprint(recv(ch), deref(a))"

@@ -1,0 +1,8 @@
+# A builtin that takes a function and computes a value from it is no
+# statement either (D90): `map` builds a list to drop it. A pass for its
+# effects alone is `each` or a `for` statement.
+xs = [1, 2]
+each(xs, x => print(x))
+for x in xs: print(x) ;;
+map(xs, x => print(x))
+# expect-error: E0234

@@ -42,7 +42,7 @@ pub struct Pattern {
     /// Tag args, Tuple/List items, Map values, Alt alternatives.
     pub kids: Vec<Pattern>,
     /// Map: keys parallel to `kids`.
-    pub keys: Vec<String>,
+    pub keys: Vec<Vec<u8>>,
     /// List: `None` = exact length; Wild ignores the rest; Bind binds it.
     pub rest: Option<Box<Pattern>>,
 }
@@ -101,7 +101,11 @@ impl fmt::Display for Pattern {
                     if i > 0 {
                         f.write_str(", ")?;
                     }
-                    write!(f, "{k}: {v}")?;
+                    // as written when it is text; quoted when it is not
+                    match std::str::from_utf8(k) {
+                        Ok(k) => write!(f, "{k}: {v}")?,
+                        Err(_) => write!(f, "{}: {v}", crate::consts::quote_bytes(k))?,
+                    }
                 }
                 f.write_str("}")
             }

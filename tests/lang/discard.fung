@@ -34,7 +34,8 @@ fn value(v) = v
 value(Ok(1))
 nil
 value([Ok(1), 2])
-map([1, 2], x => Ok(x))
+fn oks() = map([1, 2], x => Ok(x))
+oks()
 each([1], x => [Ok(x)])
 fn names(items): for x in items: "n${x}" ;; ;;
 print(names([1, 2]))

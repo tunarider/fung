@@ -1,0 +1,6 @@
+# A builtin that only computes is no statement, whether it is written in
+# Rust or in fung (VA47): `take` gives a new list and leaves `xs` alone.
+xs = [1, 2, 3]
+print(take(xs, 2))
+take(xs, 2)
+# expect-error: E0234

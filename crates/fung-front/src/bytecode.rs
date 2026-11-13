@@ -10,9 +10,7 @@ mod tests;
 mod verify;
 
 pub use disasm::disassemble;
-pub use op::{
-    Effect, Flow, Info, Instr, MAX_OPERAND, Op, Operand, decode_call, decode_slot_type, encode_call,
-};
+pub use op::{Effect, Flow, Info, Instr, MAX_OPERAND, Op, Operand};
 pub use pattern::{PatKind, Pattern};
 pub use verify::{Verified, Violation, verify};
 
@@ -34,14 +32,28 @@ pub struct Param {
 }
 
 /// The source of one assert statement: the whole expression and, for a
-/// top-level comparison, each side's text ("" for a literal side) and the
-/// operator.
+/// top-level comparison, each side's text ("" for a literal side), the
+/// operator and where it is written (its errors point there, as the
+/// operator's own do, VM45).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Assert {
     pub text: String,
     pub left: String,
     pub right: String,
-    pub op: String,
+    pub cmp: Option<(Cmp, Pos)>,
+}
+
+/// The comparison an assert splits to show both sides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cmp {
+    Eq,
+    Ne,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    In,
+    NotIn,
 }
 
 /// A compiled function body ("prototype"): code, its constant pool, one
@@ -257,6 +269,8 @@ impl Proto {
         };
         let what = match operand {
             _ if op == Op::Concat => "parts in one string",
+            _ if op.info().effect == Effect::Called => "arguments",
+            Operand::Local if op == Op::CheckType || op == Op::JumpIfSet => "parameters",
             Operand::Const => "constants in a function",
             Operand::Count => "items in one literal",
             Operand::Local => "local variables in a function",
@@ -264,11 +278,9 @@ impl Proto {
             Operand::Proto => "functions in a function",
             Operand::Captured => "captured values in a function",
             Operand::Pattern => "patterns in a function",
-            Operand::Type | Operand::SlotType => "type annotations in a function",
+            Operand::Type => "type annotations in a function",
             Operand::Assert => "asserts in a function",
-            Operand::None | Operand::Target | Operand::Call | Operand::Flags => {
-                "instructions in a function"
-            }
+            Operand::None | Operand::Target | Operand::Flags => "instructions in a function",
         };
         Err(crate::diag::error(
             "E0230",

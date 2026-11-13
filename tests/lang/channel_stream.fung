@@ -36,4 +36,4 @@ print(take(c, 2), first(c), recv(c), first(c))
 send(d_tx, 1); send(d_tx, 2); close(d_tx)
 t = supervise(s => spawn(s, () => map(d, 3)), _ => nil)!
 print(type_of(await(t)), recv(d))
-# expect: 'Err Ok(1)
+# expect: Err Ok(1)

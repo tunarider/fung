@@ -246,7 +246,7 @@ print(shapes)
 print(shapes |&gt; map(area))
 print(type_of(Rect(2, 5)), Circle(1) == Circle(1))</code></pre><pre class="out plain"><code>[Circle(1), Rect(2, 5), Square(3)]
 [3.14, 10, 9]
-'Rect true</code></pre></div>
+Rect true</code></pre></div>
 <p>괄호 없이 쓴 태그 <code>Red</code>는 심볼이다(대문자로 시작하는 심볼은 따옴표 없이 이렇게만 쓴다). 몇 가지 중 하나를 고르는 값(열거형, enumeration)에 쓴다. 9장의 <code>Ok</code>와 <code>Err</code>도 특별한 문법이 아니라 이런 태그다.</p>
 <div class="run"><pre><code>fn hex(color) = match color:
   Red   =&gt; &quot;#ff0000&quot;

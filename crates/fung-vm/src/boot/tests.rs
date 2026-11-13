@@ -365,10 +365,6 @@ fn commands_that_cannot_run_are_errs() {
             "Err({kind: 'permission, message: \"cannot run `/etc`: permission denied\"})\n",
         ),
         (
-            "print(exec([\"\"]))",
-            "Err({kind: 'invalid, message: \"cannot run ``: empty command name\"})\n",
-        ),
-        (
             "print(exec([\"ls\"], cwd: \"/nonexistent\"))",
             "Err({kind: 'not_found, message: \"cannot run `ls`: working directory `/nonexistent`: no such file or directory\"})\n",
         ),

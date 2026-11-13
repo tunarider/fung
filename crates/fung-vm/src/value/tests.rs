@@ -361,9 +361,12 @@ fn tuple_tag_range_forms() {
     let t = |a, b| Value::tuple(vec![Value::Int(a), Value::Int(b)]);
     assert!(equal(&t(1, 2), &t(1, 2)) && !equal(&t(1, 2), &t(1, 3)));
     assert_eq!(compare(&t(1, 2), &t(1, 3)).unwrap(), Ordering::Less);
+    // A tuple's size is part of its type (D87).
     assert_eq!(
-        compare(&t(1, 2), &Value::tuple(vec![Value::Int(1)])).unwrap(),
-        Ordering::Greater
+        compare(&t(1, 2), &Value::tuple(vec![Value::Int(1)]))
+            .unwrap_err()
+            .code,
+        "E0501"
     );
 }
 
@@ -1604,37 +1607,40 @@ fn deep_values_compare_and_hash_without_recursion() {
                 Err("E0501".to_string())
             );
         }
-        // A symbol meeting a string at the bottom is E0517 (`eq`).
+        // A symbol meeting a string at the bottom: not equal (D91).
         let sym = deep(DEEP, Value::Sym(intern("x")), in_list);
         let st = deep(DEEP, s("x"), in_list);
-        assert_eq!(eq(&sym, &st).map_err(|d| d.code), Err("E0517".to_string()));
+        assert_eq!(eq(&sym, &st).map_err(|d| d.code), Ok(false));
     });
 }
 
-/// D40, D62: `eq` refuses a pair of different types where it compares
-/// one (numbers of either kind are one type, `nil` meets anything, a
-/// tag's type is its name) and two functions; `equal` (patterns) only
-/// says no. A function has no hash either.
+/// D91, D62: values of different types are not equal, at the top and
+/// inside collections alike; `eq` refuses only two functions, which have
+/// no equality and no hash either.
 #[test]
-fn eq_refuses_pairs_of_different_types() {
+fn eq_says_false_for_different_types_and_refuses_functions() {
     let list = |xs: Vec<Value>| Value::List(Rc::new(List::new(xs)));
     let int = Value::Int;
     let code = |a: &Value, b: &Value| eq(a, b).map_err(|d| d.code);
     assert_eq!(code(&int(1), &Value::Float(1.0)), Ok(true));
     assert_eq!(code(&Value::Nil, &int(1)), Ok(false));
     assert_eq!(code(&s("1"), &Value::Nil), Ok(false));
-    assert_eq!(code(&int(1), &s("1")), Err("E0517".to_string()));
+    assert_eq!(code(&int(1), &s("1")), Ok(false));
     assert_eq!(
         code(&list(vec![int(1)]), &Value::tuple(vec![int(1)])),
-        Err("E0517".to_string())
+        Ok(false)
     );
     assert_eq!(
         code(&list(vec![int(1), s("a")]), &list(vec![int(2), int(3)])),
         Ok(false)
     );
     assert_eq!(
+        code(&list(vec![int(1), s("a")]), &list(vec![int(2), s("b")])),
+        Ok(false)
+    );
+    assert_eq!(
         code(&list(vec![int(1), s("a")]), &list(vec![int(1), int(3)])),
-        Err("E0517".to_string())
+        Ok(false)
     );
     let tag = |n: &str, x: Value| {
         Value::Tag(Rc::new(crate::value::Tag {
@@ -1646,7 +1652,7 @@ fn eq_refuses_pairs_of_different_types() {
     // Tagged values are one type: names that differ are just unequal.
     assert_eq!(code(&tag("Ok", int(1)), &tag("Err", int(1))), Ok(false));
     assert_eq!(code(&tag("Circle", int(1)), &tag("Ok", int(1))), Ok(false));
-    assert_eq!(code(&tag("Ok", int(1)), &int(1)), Err("E0517".to_string()));
+    assert_eq!(code(&tag("Ok", int(1)), &int(1)), Ok(false));
     assert!(!equal(&int(1), &s("1")));
     let f = Value::Native(
         crate::prelude::core()
@@ -1666,16 +1672,21 @@ fn eq_refuses_pairs_of_different_types() {
     );
 }
 
-/// What the walks keep (L9): `compare` stops at the first difference and
-/// reports the first pair that does not compare; maps equal and hash
+/// What the walks keep (L9): `compare` answers with the first difference
+/// and reports the first pair that does not compare, before it or after
+/// (D87); maps equal and hash
 /// alike whatever their order; a shared collection equals itself.
 #[test]
 fn the_walks_keep_their_rules() {
     let list = |xs: Vec<Value>| Value::List(Rc::new(List::new(xs)));
     let int = Value::Int;
     assert_eq!(
-        compare(&list(vec![int(1), s("a")]), &list(vec![int(2), int(3)])).map_err(|d| d.code),
+        compare(&list(vec![int(1), s("a")]), &list(vec![int(2), s("b")])).map_err(|d| d.code),
         Ok(Ordering::Less)
+    );
+    assert_eq!(
+        compare(&list(vec![int(1), s("a")]), &list(vec![int(2), int(3)])).map_err(|d| d.code),
+        Err("E0501".to_string())
     );
     let e = compare(&list(vec![int(1), s("a")]), &list(vec![int(1), int(3)])).unwrap_err();
     assert_eq!(e.code, "E0501");

@@ -94,7 +94,7 @@
 <pre class="plain"><code>enum Value {
     Int(i64), Float(f64), Bool(bool), Nil, Dur(i64),   ← 칸에 바로 들어감
     Sym(Sym),                                          ← 전역 인턴 표의 번호
-    Str(Rc&lt;String&gt;), List(Rc&lt;List&gt;), Map(Rc&lt;Map&gt;),     ← 힙의 객체를 가리킴
+    Str(Rc&lt;Text&gt;), List(Rc&lt;List&gt;), Map(Rc&lt;Map&gt;),       ← 힙의 객체를 가리킴
     Tuple(..), Tag(..), Range(..), Closure(..), Module(..), Time(..),
     Native(&amp;'static Native),                           ← 내장 함수: 계수 없는 참조
     Task(..), Scope(..), Sender(..), Receiver(..), Atom(..),
@@ -227,7 +227,7 @@ print(m, m2)</code></pre><pre class="out plain"><code>[1, 2, 3] [1, 2, 3, 4]
 <p>깊이는 log₃₂ n이다. 100만 개여도 4단계라 바꿀 때마다 노드 4개만 새로 만든다. 32 = 2⁵라서 인덱스나 해시를 5비트씩 잘라 "몇 번째 가지"를 비트 연산으로 바로 구한다. 노드 하나가 포인터 32개라 캐시에도 잘 맞는다. Clojure가 실험으로 정한 값을 여러 언어가 그대로 쓴다.</p>
 <p>Rust에서는 길의 노드마다 <code>Rc::make_mut</code>를 부른다(<code>value/pvec.rs</code>). 그 노드의 계수가 1이면, 곧 아무도 옛 버전을 쥐고 있지 않으면 <strong>제자리에서</strong> 고친다. 누가 쥐고 있으면 그 노드만 복사한다. 같은 코드가 "혼자 쓰는 누적값"과 "옛 버전이 살아 있는 값"을 둘 다 처리한다. 2번 길이 공짜로 붙은 셈이다.</p>
 <ul>
-<li><strong>리스트</strong>는 Clojure의 PersistentVector를 앞으로도 자라게 한 것이다. 마지막 32개 이하는 트리 밖의 <code>tail</code> 배열에, 처음 32개 이하는 <code>head</code> 배열에 따로 두어서, 끝이나 앞에 붙이기가 대부분 그 배열만 고치는 일이다. 큰 리스트는 <code>{벡터, 시작, 끝}</code> <strong>보기</strong>이기도 해서, <code>xs[1..]</code>이나 <code>[x, ...rest]</code>는 같은 벡터를 가리키며 범위만 다른 보기를 상수 시간에 만든다. 잘라 낸 조각이 바탕의 1/4보다 작으면 복사해서 떼어 낸다. 작은 조각이 큰 원본을 메모리에 붙잡아 두지 않게 하려는 것이다(<code>value/list.rs</code>).</li>
+<li><strong>리스트</strong>는 Clojure의 PersistentVector를 앞으로도 자라게 한 것이다. 마지막 32개 이하는 트리 밖의 <code>tail</code> 배열에, 처음 32개 이하는 <code>head</code> 배열에 따로 두어서, 끝이나 앞에 붙이기가 대부분 그 배열만 고치는 일이다. 큰 리스트는 <code>{벡터, 시작, 끝}</code> <strong>보기</strong>이기도 해서, <code>xs[1..]</code>이나 <code>[x, ...rest]</code>는 같은 벡터를 가리키며 범위만 다른 보기를 상수 시간에 만든다. 잘라 낸 조각이 바탕의 1/4보다 작으면 보기로 두지 않고 떼어 낸다: 32개 이하면 복사하고, 더 크면 트리를 O(log n)에 잘라 자기 원소가 든 잎만 가진 벡터로 만든다. 작은 조각이 큰 원본을 메모리에 붙잡아 두지 않게 하려는 것이다(<code>value/list.rs</code>).</li>
 <li><strong>맵</strong>은 키의 해시를 5비트씩 끊어 내려가는 HAMT(Hash Array Mapped Trie, <code>value/hamt.rs</code>)다. 그런데 HAMT는 해시 순서라 넣은 순서를 모르고, fung 맵은 넣은 순서대로 순회·출력해야 한다. 그래서 "넣은 순서의 항목 벡터 + 키에서 위치로 가는 HAMT 색인" 두 구조를 짝지었다(<code>value/omap.rs</code>). Python 3.7 이후의 <code>dict</code>가 순서 배열과 해시 색인으로 넣은 순서를 지키는 것과 같은 생각을 영속 구조로 옮긴 것이다.</li>
 <li><strong>작은 것은 평평하게.</strong> 스크립트의 컬렉션은 대부분 작다. 리스트는 32개, 맵은 16개 이하면 평범한 배열로 두고 넘을 때만 트리로 바꾼다(<code>SMALL_MAX</code>, <code>SMALL_MAP_MAX</code>). 경계값은 fung 스크립트로 재서 정했다. 읽기는 경계 16·32·64 어디서도 차이가 없었고(명령 하나를 해석하는 비용이 몇 ns 차이를 덮는다), 맵은 16으로 낮추니 48개짜리 맵 만들기가 빨라졌다.</li>
 </ul>
@@ -239,7 +239,7 @@ print(len(counts), counts[&quot;k42&quot;])
 print(len(items), items[19999])</code></pre><pre class="out plain"><code>5000 4
 20000 19999</code></pre></div>
 <p>이 정도는 디버그 빌드에서도 순식간이다. 릴리스 빌드의 성능 시험(<code>crates/fung-cli/tests/perf.rs</code>)이 이런 모양 다섯을 2만 개로 돌려 0.3초를 넘으면 실패하므로, 구현이 n²로 돌아가면 바로 드러난다.</p>
-<p><strong>남은 n².</strong> 문자열은 <code>Rc&lt;String&gt;</code>이라 <code>acc + s</code>가 매번 새 문자열을 만든다. 긴 문자열을 쌓을 때는 리스트에 모아 <code>join</code>한다. 리스트 <strong>앞에</strong> 붙이기(<code>[x] + acc</code>)도 매번 전체를 복사하므로, 뒤에 붙인 뒤 <code>reverse</code>한다.</p>
+<p><strong>남은 n².</strong> 문자열을 <strong>앞에</strong> 붙여 쌓는 것(<code>s + acc</code>)은 매번 전체를 복사한다. 뒤에 붙이는 <code>acc + s</code>와 보간 <code>&quot;${acc}…&quot;</code>은 홀로 쥔 문자열을 제자리에서 늘리므로 쌓아도 선형이다(리스트의 <code>acc + [x]</code>와 같은 원리). 리스트는 앞·뒤 어느 쪽에 붙여도 상각 O(1)이다. 문자열을 앞에 붙여 가야 하면 조각을 리스트에 모아 <code>reverse</code>하고 <code>join</code>한다.</p>
 <h2 id="lifetime">지역 변수의 수명</h2>
 <p>참조 계수는 해제 시점이 정확하다. 그러면 "언제 마지막 손잡이가 사라지는가"가 곧 의미가 된다. 특히 채널은 보내는 끝의 마지막 사본이 사라질 때 <strong>닫힌다</strong>(14장). 그런데 지역 변수가 함수가 끝날 때까지 값을 쥐고 있으면, 그 함수 안에서 그 채널을 끝까지 읽는 코드는 영원히 기다린다.</p>
 <p>그래서 컴파일러는 "이 지역 변수가 뒤에서 다시 읽히는가"를 보고, 아니면 칸을 비우는 명령 <code>CLEARLOCAL</code>을 넣는다(설계 03 "값의 수명", 2026-10-20 검토 L7). 넣는 곳은 셋이다. 문장이 끝난 뒤, 가지가 시작할 때(다른 가지에서만 읽히는 변수, <code>match</code>의 주제와 가드만 읽은 변수), 클로저가 붙잡은 것이 마지막 읽기면 그 <code>CLOSURE</code> 바로 뒤(2026-11-11 점검 VM19). 함수 본문이든 가지 안이든, 진입 파일의 블록 안이든 같다(2026-11-08 점검 VM1·VM2).
@@ -262,8 +262,8 @@ print(total(&quot;x.log&quot;))</code></pre><pre class="out dump plain"><code>$ 
 0002  8:1   CONST        0    ; &lt;fn print&gt;
 0003  8:7   LOADGLOBAL   0    ; total
 0004  8:13  CONST        1    ; &quot;x.log&quot;
-0005  8:12  CALL         1    ; 1 positional, 0 named
-0006  8:6   CALL         1    ; 1 positional, 0 named
+0005  8:12  CALL         1 0    ; 1 positional, 0 named
+0006  8:6   CALL         1 0    ; 1 positional, 0 named
 0007  8:1   POP
 0008  8:1   CONST        2    ; nil
 0009  1:1   RETURN
@@ -276,18 +276,18 @@ print(total(&quot;x.log&quot;))</code></pre><pre class="out dump plain"><code>$ 
 0004  3:3   STORELOCAL   2
 0005  4:3   CONST        1    ; &lt;fn print&gt;
 0006  4:9   MOVELOCAL    0
-0007  4:8   CALL         1    ; 1 positional, 0 named
+0007  4:8   CALL         1 0    ; 1 positional, 0 named
 0008  4:3   POP
 0009  5:3   CONST        2    ; &lt;fn sum&gt;
 0010  5:7   MOVELOCAL    2
-0011  5:12  CALL         0    ; 0 positional, 0 named
-0012  5:6   TAILCALL     1    ; 1 positional, 0 named
+0011  5:12  CALL         0 0    ; 0 positional, 0 named
+0012  5:6   TAILCALL     1 0    ; 1 positional, 0 named
 
 == &lt;lambda&gt; ==
 0000  3:17  CONST        0    ; &lt;fn map&gt;
 0001  3:21  LOADCAPTURED 0
 0002  3:28  CONST        1    ; &lt;fn len&gt;
-0003  3:20  TAILCALL     2    ; 2 positional, 0 named</code></pre></div>
+0003  3:20  TAILCALL     2 0    ; 2 positional, 0 named</code></pre></div>
 <p><code>total</code>의 0003번이 <code>names</code>(슬롯 1)를 비운다. 람다가 <code>names</code>를 붙잡은 것은 복사라 칸에 값이 남는데, 그것이 마지막 읽기이므로 <code>CLOSURE</code> 바로 뒤에 놓는다.
 <code>path</code>(슬롯 0)와 <code>sizes</code>(슬롯 2)는 마지막 읽기가 <code>MOVELOCAL</code>(아래 절)이라 칸이 이미 비었으므로, 따로 비우지 않는다. 채널 쪽에서 보면 이렇다.</p>
 <div class="run"><pre><code>fn numbers(n) = scope(fn(s):
@@ -311,7 +311,7 @@ print(drain(false))</code></pre><pre class="out dump plain"><code>$ fung dump by
 == drain ==
 0000  2:14  CONST        0    ; &lt;fn channel&gt;
 0001  2:22  CONST        1    ; 1
-0002  2:21  CALL         1    ; 1 positional, 0 named
+0002  2:21  CALL         1 0    ; 1 positional, 0 named
 0003  2:3   MATCHORFAIL  0    ; ($1, $2)
 0004  3:6   MOVELOCAL    0
 0005  3:6   JUMPIFFALSE  11
@@ -319,12 +319,12 @@ print(drain(false))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0007  4:5   CONST        2    ; &lt;fn send&gt;
 0008  4:10  MOVELOCAL    1
 0009  4:14  CONST        1    ; 1
-0010  4:9   TAILCALL     2    ; 2 positional, 0 named
+0010  4:9   TAILCALL     2 0    ; 2 positional, 0 named
 0011  5:3   CLEARLOCAL   1
 0012  6:5   CONST        3    ; &lt;fn map&gt;
 0013  6:14  MOVELOCAL    2
 0014  6:5   CLOSURE      0    ; &lt;lambda&gt;
-0015  6:5   TAILCALL     2    ; 2 positional, 0 named</code></pre></div>
+0015  6:5   TAILCALL     2 0    ; 2 positional, 0 named</code></pre></div>
 <p>규칙의 나머지 둘도 알아 두자. <strong>한 번도 읽지 않는 변수는 함수가 돌아올 때까지 산다.</strong> <code>_watch = stop_signal()</code>처럼 쥐고 있는 것 자체가 뜻인 값을 위해서다(Rust의 <code>let _guard</code>와 같은 관용구). <strong>최상위 변수는 프로그램 끝까지 산다.</strong> 최상위 <code>fn</code>이 언제든 읽을 수 있기 때문이다(9장).</p>
 <h3 id="move">마지막 읽기는 값을 넘긴다</h3>
 <p>칸을 비우는 것만으로는 부족한 곳이 있다. <code>put(m, k, v)</code>를 부르면 인자가 맵을 하나 쥐는데, 변수 <code>m</code>도 그 문장이 끝날 때까지 같은 맵을 쥔다. 참조 계수가 2이니 <code>put</code>은 맵을 홀로 쥐었다고 볼 수 없어서 길의 노드를 복사한다. <code>fold</code>로 맵을 쌓으면 원소마다 이 복사가 일어난다.</p>
@@ -336,11 +336,11 @@ print(m)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode exam
 0001  1:11  CONST        1    ; 0..3
 0002  1:16  CONST        2    ; {}
 0003  1:20  CLOSURE      0    ; &lt;lambda&gt;
-0004  1:9   CALL         3    ; 3 positional, 0 named
+0004  1:9   CALL         3 0    ; 3 positional, 0 named
 0005  1:1   STOREGLOBAL  0    ; m
 0006  2:1   CONST        3    ; &lt;fn print&gt;
 0007  2:7   LOADGLOBAL   0    ; m
-0008  2:6   CALL         1    ; 1 positional, 0 named
+0008  2:6   CALL         1 0    ; 1 positional, 0 named
 0009  2:1   POP
 0010  2:1   CONST        4    ; nil
 0011  1:1   RETURN
@@ -352,7 +352,7 @@ print(m)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode exam
 0003  1:41  LOADLOCAL    1
 0004  1:37  CONCAT       2
 0005  1:46  MOVELOCAL    1
-0006  1:33  TAILCALL     3    ; 3 positional, 0 named</code></pre></div>
+0006  1:33  TAILCALL     3 0    ; 3 positional, 0 named</code></pre></div>
 <p><code>&lt;lambda&gt;</code>에서 <code>m</code>(슬롯 0)은 한 번 읽히니 <code>MOVELOCAL 0</code>이다. <code>i</code>(슬롯 1)는 두 번 읽히는데, 보간 안의 첫 읽기는 뒤에 또 읽히니 <code>LOADLOCAL 1</code>(복사), 인자로 가는 둘째가 <code>MOVELOCAL 1</code>이다. 가지(<code>if</code>·<code>??</code>)는 가지마다 따로 보고, <code>match</code>의 주제와 가드는 갈래마다 다시 읽힐 수 있어 넘기지 않는다. 클로저가 붙잡는 것은 복사다.</p>
 <p>넘겨준 값은 그 문장이 끝나기 전에도 놓일 수 있다. 받은 쪽이 놓으면 그만이기 때문이다.</p>
 <div class="run"><pre><code>fn drop_it(_x) = nil

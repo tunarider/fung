@@ -20,23 +20,32 @@ pub fn equal(a: &Value, b: &Value) -> bool {
     walk(a, b, false).unwrap_or(false)
 }
 
-/// The one walk behind `equal` and `eq`. With `strict`, each pair the
-/// walk compares must be of one type (D40: numbers of either kind count
-/// as one, and `nil` meets anything), else E0517; two functions are
-/// E0501 (D62). The check and the comparison are one step, so they stop
-/// at the same pair (VA8, VA22).
+/// The one walk behind `equal` and `eq`. Values of different types are
+/// not equal (D91). With `strict`, two functions the walk compares are
+/// E0501 (D62): they have no equality. The check and the comparison are
+/// one step, so they stop at the same pair (VA8, VA22).
 fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
     if !(is_collection(a) && is_collection(b)) {
         return leaf(a, b, strict);
     }
     let mut open: Vec<Pairs<'_>> = Vec::new();
+    // The pairs of shared collections already walked (VA44): the walk
+    // stops at the first difference, so a pair met again is equal, and
+    // two values that share their parts many times over are walked once
+    // per part, not once per path to it.
+    let mut walked = Walked::default();
     let mut next = Some((a, b));
     loop {
+        // A shared collection equals itself without a look inside,
+        // unless the look would find a function: `==` on functions is an
+        // error whether or not the two sides share their storage, which
+        // a program cannot see (VA43).
         if let Some((a, b)) = next.take()
-            && !same_object(a, b)
+            && !(same_object(a, b) && !(strict && a.holds_fn()))
+            && walked.first_time(a, b)
         {
             if strict {
-                check_types(a, b)?;
+                check_fns(a, b)?;
             }
             match kids(a, b) {
                 Kids::Pairs(p) => open.push(p),
@@ -62,67 +71,35 @@ fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
     }
 }
 
+/// Two tuples of different sizes met in an order comparison (D87): a
+/// tuple's size is fixed, so there is no order between them.
+fn tuple_sizes(a: &Value, b: &Value) -> Diag {
+    compare_error(a, b)
+        .with_help("tuples of different sizes are different types: a tuple's size is fixed")
+}
+
 /// `==` on two values that are not both collections.
 fn leaf(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
     if strict {
-        check_types(a, b)?;
+        check_fns(a, b)?;
     }
     Ok(equal_leaf(a, b))
 }
 
-/// Whether `==` may compare `a` and `b` (D40, D62): values of one type
-/// (an int and a float are both numbers; tagged values are one type), or
-/// `nil` on either side, but never two functions.
-fn check_types(a: &Value, b: &Value) -> Result<(), Diag> {
-    if matches!(a, Value::Nil) || matches!(b, Value::Nil) {
-        return Ok(());
-    }
+/// Functions have no equality (D62): two of them met by `==` are E0501.
+/// Any other two values compare: those of different types are not
+/// equal, like any two different values (D91).
+fn check_fns(a: &Value, b: &Value) -> Result<(), Diag> {
     if is_fn(a) && is_fn(b) {
         return Err(compare_error(a, b).with_help(
             "functions have no equality; compare a name or a value that stands for each",
         ));
     }
-    if same_type(a, b) {
-        return Ok(());
-    }
-    let shown = |v: &Value| format!("{} ({})", crate::vm::shown_value(v), super::type_name(v));
-    let d = fung_front::diag::error(
-        "E0517",
-        super::arith::no_pos(),
-        vec![
-            fung_front::diag::Arg::Str(shown(a)),
-            fung_front::diag::Arg::Str(shown(b)),
-        ],
-    );
-    Err(if sym_str_pair(a, b) {
-        d.with_help("a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`")
-    } else {
-        d
-    })
+    Ok(())
 }
 
 fn is_fn(v: &Value) -> bool {
     matches!(v, Value::Closure(_) | Value::Native(_))
-}
-
-/// Whether `a` and `b` are of one type as `==` sees it (D40): `type_of`
-/// gives them one name, numbers of either kind counting as one and
-/// tagged values too, whatever their names (`Ok(1) == Err(1)` is
-/// `false`, not an error: a tag's name is part of its value).
-fn same_type(a: &Value, b: &Value) -> bool {
-    match (a, b) {
-        (Value::Int(_) | Value::Float(_), Value::Int(_) | Value::Float(_)) => true,
-        (Value::Tag(_), Value::Tag(_)) => true,
-        (Value::Closure(_) | Value::Native(_), Value::Closure(_) | Value::Native(_)) => true,
-        _ => std::mem::discriminant(a) == std::mem::discriminant(b),
-    }
-}
-
-fn sym_str_pair(a: &Value, b: &Value) -> bool {
-    matches!(
-        (a, b),
-        (Value::Sym(_), Value::Str(_)) | (Value::Str(_), Value::Sym(_))
-    )
 }
 
 /// `==` on two values that are not two collections of one kind.
@@ -223,11 +200,11 @@ fn kids<'a>(a: &'a Value, b: &'a Value) -> Kids<'a> {
     }
 }
 
-/// `==` and `!=` as programs see them (02): `equal`, except that a pair
-/// of different types anywhere the comparison looks (inside lists,
-/// tuples, tags and maps too) is E0517 (D40: never equal, and almost
-/// always a value that came from outside as a string), and two functions
-/// are E0501 (D62). Patterns keep `equal`.
+/// `==` and `!=` as programs see them (02): `equal`, except that two
+/// functions anywhere the comparison looks (inside lists, tuples, tags
+/// and maps too) are E0501 (D62). Values of different types are not
+/// equal, like any two different values (D91; E0517, which D40 made of
+/// them, is retired). Patterns keep `equal`.
 pub fn eq(a: &Value, b: &Value) -> Result<bool, Diag> {
     walk(a, b, true)
 }
@@ -248,7 +225,8 @@ fn same_object(a: &Value, b: &Value) -> bool {
 /// `< > <= >=` for numbers, strings (code point order), durations, times, lists
 /// and tuples, lexicographic (a shorter prefix is smaller). Anything else
 /// is E0501, from the first pair of items that do not compare, naming
-/// their types. Lists and tuples are walked with an explicit stack (L9).
+/// their types; two tuples of different sizes do not compare. Lists and
+/// tuples are walked with an explicit stack (L9).
 pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
     if !matches!(
         (a, b),
@@ -258,56 +236,93 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
     }
     // Each open pair: what is left of both, and their lengths.
     let mut open: Vec<(Items<'_>, Items<'_>, usize, usize)> = Vec::new();
-    // Collections already compared with themselves (VA36): such a pair is
-    // equal unless some item does not compare, and that stopped the walk
-    // the first time; a value shared many times is walked once.
-    let mut walked: HashSet<*const ()> = HashSet::new();
+    // The pairs of shared collections already compared (VA36, VA44): a
+    // pair that did not compare stopped the walk the first time, and what
+    // it added to the answer the first time is all it can add; a value
+    // shared many times is walked once.
+    let mut walked = Walked::default();
     let mut next = Some((a, b));
+    // The answer is the first difference, but the walk goes on to the end
+    // of what the two sides line up (D87): a pair that does not compare
+    // is an error wherever it stands, not only before the first
+    // difference.
+    let mut found = Ordering::Equal;
     loop {
         if let Some((a, b)) = next.take()
-            && self_pair(a, b).is_none_or(|p| walked.insert(p))
+            && walked.first_time(a, b)
         {
             match (a, b) {
-                (Value::Tuple(x), Value::Tuple(y)) => open.push((
-                    Items::Slice(x.iter()),
-                    Items::Slice(y.iter()),
-                    x.len(),
-                    y.len(),
-                )),
+                (Value::Tuple(x), Value::Tuple(y)) => {
+                    if x.len() != y.len() {
+                        return Err(tuple_sizes(a, b));
+                    }
+                    open.push((
+                        Items::Slice(x.iter()),
+                        Items::Slice(y.iter()),
+                        x.len(),
+                        y.len(),
+                    ));
+                }
                 (Value::List(x), Value::List(y)) => open.push((
                     Items::List(x.iter()),
                     Items::List(y.iter()),
                     x.len(),
                     y.len(),
                 )),
-                _ => match compare_leaf(a, b)? {
-                    Ordering::Equal => {}
-                    o => return Ok(o),
-                },
+                _ => found = found.then(compare_leaf(a, b)?),
             }
         }
         let Some((x, y, xn, yn)) = open.last_mut() else {
-            return Ok(Ordering::Equal);
+            return Ok(found);
         };
         match (x.next(), y.next()) {
             (Some(p), Some(q)) => next = Some((p, q)),
             _ => {
-                let o = (*xn).cmp(yn);
+                found = found.then((*xn).cmp(yn));
                 open.pop();
-                if o != Ordering::Equal {
-                    return Ok(o);
-                }
             }
         }
     }
 }
 
-/// The collection `a` and `b` both are, when they are the same list or
-/// tuple.
-fn self_pair(a: &Value, b: &Value) -> Option<*const ()> {
-    match (a, b) {
-        (Value::List(x), Value::List(y)) if Rc::ptr_eq(x, y) => Some(Rc::as_ptr(x).cast()),
-        (Value::Tuple(x), Value::Tuple(y)) if Rc::ptr_eq(x, y) => Some(Rc::as_ptr(x).cast()),
+/// How many pairs a walk looks at before it starts to remember them: a
+/// small comparison (a `sort`'s, of two short tuples) pays nothing for
+/// the memory, and what a long walk met before it began to remember is
+/// walked at most once more.
+const REMEMBER_AFTER: u32 = 64;
+
+/// The pairs of shared collections a walk has been through.
+#[derive(Default)]
+struct Walked {
+    steps: u32,
+    pairs: HashSet<(*const (), *const ())>,
+}
+
+impl Walked {
+    /// Whether the walk has not been through the pair `a`, `b` since it
+    /// began to remember. Only a pair of collections something else holds
+    /// too can be met twice (a collection with one holder is reached by
+    /// one path).
+    #[inline]
+    fn first_time(&mut self, a: &Value, b: &Value) -> bool {
+        if self.steps < REMEMBER_AFTER {
+            self.steps += 1;
+            return true;
+        }
+        match (shared(a), shared(b)) {
+            (Some(x), Some(y)) => self.pairs.insert((x, y)),
+            _ => true,
+        }
+    }
+}
+
+/// The address of a collection with more than one holder.
+fn shared(v: &Value) -> Option<*const ()> {
+    match v {
+        Value::List(x) if Rc::strong_count(x) > 1 => Some(Rc::as_ptr(x).cast()),
+        Value::Tuple(x) if Rc::strong_count(x) > 1 => Some(Rc::as_ptr(x).cast()),
+        Value::Tag(x) if Rc::strong_count(x) > 1 => Some(Rc::as_ptr(x).cast()),
+        Value::Map(x) if Rc::strong_count(x) > 1 => Some(Rc::as_ptr(x).cast()),
         _ => None,
     }
 }
@@ -364,17 +379,153 @@ fn cmp_int_float(i: i64, f: f64) -> Ordering {
 /// A hash that agrees with `equal` (P1, `unique`): equal values hash
 /// alike. An int and the float of the same value hash as the int; a map
 /// hashes its entries in any order; a shared object hashes its address.
-/// A symbol hashes as the string of its name, so the two meet in one
-/// bucket and `eq` reports them (E0517) as `in` does.
+/// A symbol hashes as the string of its name does; the two are not
+/// equal, which a shared bucket does not change.
 ///
 /// Walked with an explicit stack (L9). A map's entries are each hashed
-/// on a hasher of their own and summed; meanwhile the hasher the map
-/// belongs to waits in its frame. A function has no equality, so no hash
-/// either: E0501, as `==` gives (D62).
+/// on a hasher of their own and summed. A collection three levels deep
+/// or more (`deep`) is hashed on a hasher of its own and adds that hash
+/// to the one it is in, which waits in its frame; a shallower one (a
+/// record of plain values and flat lists, the common case) goes straight
+/// into the hasher it is in. The hash of a deep collection with more
+/// than one holder is kept by its address, so a value that shares its
+/// parts many times over is hashed once per part (VA44): what is not
+/// kept is at most two levels of items below something that is. How deep
+/// a value is does not depend on who else holds it, so equal values
+/// still hash alike. A function has no equality, so no hash either:
+/// E0501, as `==` gives (D62).
 pub fn hash_value(v: &Value, h: &mut DefaultHasher) -> Result<(), Diag> {
     if !is_collection(v) {
         return hash_leaf(v, h);
     }
+    // The common case, a record of plain values and flat lists, needs
+    // none of what follows.
+    if !deep(v) {
+        return hash_shallow(v, h);
+    }
+    enum Items2<'a> {
+        Seq(Items<'a>),
+        Map {
+            entries: super::MapIter<'a>,
+            len: usize,
+            sum: u64,
+            /// An entry is being hashed on the current hasher.
+            in_entry: bool,
+            /// The map's own hasher, while an entry is hashed.
+            own: DefaultHasher,
+        },
+    }
+    struct Open<'a> {
+        items: Items2<'a>,
+        /// The hasher the collection's hash goes to; `None` for one
+        /// hashed straight into the hasher it is in.
+        outer: Option<DefaultHasher>,
+        /// Where to keep the hash, for a shared collection.
+        keep: Option<*const ()>,
+    }
+    let mut known: std::collections::HashMap<*const (), u64> = std::collections::HashMap::new();
+    // As `Walked`: a small value is hashed without the memory.
+    let mut steps = 0u32;
+    let mut cur = std::mem::take(h);
+    let mut open: Vec<Open<'_>> = Vec::new();
+    let mut next = Some(v);
+    loop {
+        if let Some(v) = next.take() {
+            let nested = deep(v);
+            let keep = if steps < REMEMBER_AFTER {
+                steps += 1;
+                None
+            } else if nested {
+                shared(v)
+            } else {
+                None
+            };
+            if let Some(done) = keep.and_then(|p| known.get(&p)) {
+                (13u8, *done).hash(&mut cur);
+            } else if is_collection(v) {
+                let outer = nested.then(|| std::mem::replace(&mut cur, DefaultHasher::new()));
+                let items = match v {
+                    Value::List(l) => {
+                        (7u8, l.len()).hash(&mut cur);
+                        Items2::Seq(Items::List(l.iter()))
+                    }
+                    Value::Tuple(t) => {
+                        (8u8, t.len()).hash(&mut cur);
+                        Items2::Seq(Items::Slice(t.iter()))
+                    }
+                    Value::Tag(t) => {
+                        (9u8, t.name.name(), t.args.len()).hash(&mut cur);
+                        Items2::Seq(Items::Slice(t.args.iter()))
+                    }
+                    Value::Map(m) => Items2::Map {
+                        entries: m.iter(),
+                        len: m.len(),
+                        sum: 0,
+                        in_entry: false,
+                        own: std::mem::take(&mut cur),
+                    },
+                    _ => unreachable!("a collection"),
+                };
+                open.push(Open { items, outer, keep });
+            } else {
+                hash_leaf(v, &mut cur)?;
+            }
+        }
+        let Some(top) = open.last_mut() else {
+            *h = cur;
+            return Ok(());
+        };
+        let done = match &mut top.items {
+            Items2::Seq(items) => match items.next() {
+                Some(x) => {
+                    next = Some(x);
+                    false
+                }
+                None => true,
+            },
+            Items2::Map {
+                entries,
+                len,
+                sum,
+                in_entry,
+                own,
+            } => {
+                if std::mem::take(in_entry) {
+                    *sum = sum.wrapping_add(std::mem::take(&mut cur).finish());
+                }
+                match entries.next() {
+                    Some((k, x)) => {
+                        cur = DefaultHasher::new();
+                        k.hash(&mut cur);
+                        *in_entry = true;
+                        next = Some(x);
+                        false
+                    }
+                    None => {
+                        cur = std::mem::take(own);
+                        (11u8, *len, *sum).hash(&mut cur);
+                        true
+                    }
+                }
+            }
+        };
+        if done {
+            let top = open.pop().expect("an open collection");
+            if let Some(outer) = top.outer {
+                let hash = std::mem::replace(&mut cur, outer).finish();
+                if let Some(p) = top.keep {
+                    known.insert(p, hash);
+                }
+                (13u8, hash).hash(&mut cur);
+            }
+        }
+    }
+}
+
+/// `hash_value` of a collection less than three levels deep: straight
+/// into `h`, a map's entries each on a hasher of their own and summed
+/// while the hasher the map belongs to waits in its frame.
+fn hash_shallow(v: &Value, h: &mut DefaultHasher) -> Result<(), Diag> {
     enum Open<'a> {
         Seq(Items<'a>),
         Map {
@@ -454,10 +605,24 @@ pub fn hash_value(v: &Value, h: &mut DefaultHasher) -> Result<(), Diag> {
     }
 }
 
+/// Whether `v` holds a collection that holds a collection.
+fn deep(v: &Value) -> bool {
+    fn any(v: &Value, test: fn(&Value) -> bool) -> bool {
+        match v {
+            Value::List(l) => l.iter().any(test),
+            Value::Tuple(t) => t.iter().any(test),
+            Value::Tag(t) => t.args.iter().any(test),
+            Value::Map(m) => m.iter().any(|(_, x)| test(x)),
+            _ => false,
+        }
+    }
+    any(v, |x| any(x, is_collection))
+}
+
 /// `hash_value` of a value that holds no other.
 fn hash_leaf(v: &Value, h: &mut DefaultHasher) -> Result<(), Diag> {
     if is_fn(v) {
-        return check_types(v, v);
+        return check_fns(v, v);
     }
     match v {
         Value::Int(i) => (0u8, *i).hash(h),
@@ -491,10 +656,4 @@ fn hash_leaf(v: &Value, h: &mut DefaultHasher) -> Result<(), Diag> {
         }
     }
     Ok(())
-}
-
-/// Whether `in` may look for `x` among `c`'s elements, which are all of
-/// `c`'s type (`in` on a range: its ints, D40).
-pub(crate) fn check_element(x: &Value, of: &Value) -> Result<(), Diag> {
-    check_types(x, of)
 }

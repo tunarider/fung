@@ -583,7 +583,7 @@ mod tests {
             bind_pos: p(),
             bind_len: 2,
         };
-        assert_eq!(im.to_string(), "\"a\\u{7}\\u{A0}b\"");
+        assert_eq!(im.to_string(), "\"a\\u{7}\\u{a0}b\"");
     }
 
     #[test]

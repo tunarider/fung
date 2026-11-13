@@ -253,7 +253,9 @@ pub fn div(a: &Value, b: &Value) -> Result<Value, Diag> {
         return div_dur(*d, b);
     }
     let (x, y) = match numeric("divide", a, b)? {
-        Num::Ints(x, y) => (x as f64, y as f64),
+        // Float arithmetic like the mixed operators: an int a float
+        // cannot hold is not rounded on the way in (VA41, D48).
+        Num::Ints(x, y) => (exact_float(x)?, exact_float(y)?),
         Num::Floats(x, y) => (x, y),
     };
     if y == 0.0 {

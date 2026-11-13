@@ -45,6 +45,10 @@ pub(super) struct Scope {
     /// The names of the fns this block defines (`fn a() …`): a second
     /// one is E0210 (FE61).
     pub(super) fns: HashSet<String>,
+    /// The names of this block sure to hold a known function (a local
+    /// `fn`, or the callee a partial application keeps): a call of one
+    /// is checked as a top-level fn's is (FE65).
+    pub(super) sigs: HashMap<String, (String, super::call::Sig)>,
 }
 
 impl Scope {
@@ -58,6 +62,7 @@ impl Scope {
             used: HashSet::new(),
             param: HashSet::new(),
             fns: HashSet::new(),
+            sigs: HashMap::new(),
         }
     }
 }
@@ -73,6 +78,8 @@ pub(super) struct FnScope {
     pub(super) captures: Vec<Capture>,
     pub(super) cap_index: HashMap<String, usize>,
     pub(super) self_name: String,
+    /// The parameters of a named local fn, for its calls of itself.
+    pub(super) self_sig: Option<super::call::Sig>,
     /// The synthetic lambda of a `for`: `return` and `?` inside are
     /// E0237 (D42).
     pub(super) for_body: bool,

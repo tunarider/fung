@@ -16,7 +16,7 @@ lede: fung의 EBNF.
 
 program     = { sep } { import { sep } } { stmt { sep } } .   (* import는 다른 문장보다 먼저: E0313 *)
 body        = { sep } { stmt { sep } } .
-sep         = NEWLINE | ";" .
+sep         = NEWLINE | ";" .                       (* 앞 문장의 다음 줄을 `-`로 시작하는 문장은 E0136 *)
 block       = ":" body ";;" .
 
 stmt        = fn_def | type_alias | test_block | assert | assign | return | expr .
@@ -95,7 +95,7 @@ pat_term    = "_" | NAME | [ "-" ] ( INT | FLOAT | DURATION ) | PLAIN_STRING | S
             | "(" ")" | "(" pattern "," [ pattern { "," pattern } [ "," ] ] ")"
             | "[" [ pat_item { "," pat_item } [ "," ] ] "]"
             | "{" [ pat_entry { "," pat_entry } [ "," ] ] "}" .
-pat_item    = pattern | "..." [ NAME | "_" ] .       (* ...는 맨 끝에만 *)
+pat_item    = pattern | "..." [ NAME ] .             (* ...는 맨 끝에만, 이름 없는 나머지는 ... 하나(..._는 E0112) *)
 pat_entry   = ( key_name | PLAIN_STRING ) ":" pattern | NAME .   (* {line, col}; 대문자 축약은 E0225 *)
 
 destructure = d_term { "|" d_term } .               (* 대입·for·매개변수의 패턴: 맨 바깥에 리터럴 없음(E0112) *)

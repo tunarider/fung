@@ -253,9 +253,10 @@ fn reassigning_outer_name_in_block_is_e0205() {
     assert_eq!(arg0(&errs[0]), "total");
     assert_eq!(errs[0].len, 5);
     assert_eq!((errs[0].pos.line, errs[0].pos.col), (2, 10));
-    // Block-local names may be reassigned inside their own block.
-    ok("if true: n = 1; n = n + 1; print(n) ;;");
-    // And a local may not be reassigned from a nested block either.
+    // A block's own name is bound once too (D88).
+    let (_, errs) = res("if true: n = 1; n = n + 1; print(n) ;;");
+    assert_eq!(codes(&errs), vec!["E0238"]);
+    // And a local may not be bound again from a nested block either.
     let (_, errs) = res("if true: n = 1; if true: n = 2 ;; ;;");
     assert_eq!(codes(&errs), vec!["E0205"]);
 }
@@ -446,13 +447,13 @@ fn local_named_fn_uses_self_and_rejects_later_siblings() {
 fn fn_scope_errors() {
     let cases = [
         ("fn f() = 1\nfn f() = 2", "E0210"),
-        ("fn f() = 1\nf = 2", "E0209"),
+        ("fn f() = 1\nf = 2", "E0238"),
         // A top-level fn cannot bind a constant's name, not even in its
         // outermost block (D38 reverses 11-10 D4).
         ("x = 1\nfn f(): x = 2; x ;;", "E0205"),
         ("x = 1\nfn f():\n  y = x\n  x = 2\n  y\n;;", "E0205"),
         ("x = 1\n_f = fn():\n  x = 2\n  x\n;;", "E0205"), // an anonymous fn created after x sees it
-        ("fn f(a): g = () => a; a = 2; g ;;", ""),        // same scope rebinding is fine
+        ("fn f(a): g = () => a; a = 2; g ;;", "E0238"),   // a name is bound once (D88)
         ("return 1", "E0211"),
         ("if true: return 1 ;;", "E0211"),
         ("fn f(a: integer) = a", "E0212"),
@@ -483,7 +484,7 @@ fn fn_scope_errors() {
             "E0205",
         ),
         (
-            "c = 1\nfn g():\n  y = if true:\n    c = 2\n    c\n  ;;\n  y\n;;",
+            "c = 1\nfn g():\n  y = if true:\n    c = 2\n    c\n  else:\n    0\n  ;;\n  y\n;;",
             "E0205",
         ),
         // A `for` or an arm cannot hide the constant either (D38).
@@ -495,10 +496,10 @@ fn fn_scope_errors() {
             "c = 1\nfn g(x):\n  y = match x: c => c ;;\n  (y, c)\n;;",
             "E0240",
         ),
-        // A block's own name may still be rebound in that block.
+        // A block's own name is bound once (D88).
         (
             "fn g():\n  if true:\n    v = 1\n    v = v + 1\n    print(v)\n  ;;\n  0\n;;",
-            "",
+            "E0238",
         ),
         // `return` in a parameter default would return from the call
         // before the body runs (FE38); a test body is a function body.
@@ -672,7 +673,7 @@ fn reassigning_an_imported_name_notes_where_it_is_imported() {
         },
     );
     let (_, errs) = resolve_with("import \"./lib/m\" (x)\nx = 0\nprint(x)", &["print"], &opts);
-    assert_eq!(codes(&errs), vec!["E0209"]);
+    assert_eq!(codes(&errs), vec!["E0238"]);
     assert_eq!(errs[0].notes, ["note: `x` is imported on line 1"]);
 }
 
@@ -726,12 +727,14 @@ fn match_arms_shadow_and_scope() {
 }
 
 #[test]
-fn an_arm_can_rebind_its_own_names() {
+fn an_arm_binds_its_names_once() {
     // 03: an arm's names are new names in the arm's block, like a `for`
-    // variable, so the arm may rebind them.
-    ok("_x = match 1: v => v = v + 1; v ;;");
-    ok("for v in [1]: v = v * 10; v ;;");
-    // An outer name is still E0205, and arm names still do not leak.
+    // variable; like every name they are bound once (D88).
+    let (_, errs) = res("_x = match 1: v => v = v + 1; v ;;");
+    assert_eq!(codes(&errs), vec!["E0238"]);
+    let (_, errs) = res("for v in [1]: v = v * 10; v ;;");
+    assert_eq!(codes(&errs), vec!["E0238"]);
+    // An outer name is still E0205, and arm names do not leak.
     let (_, errs) = res("y = 1\nmatch 1: v => y = 2; print(v) ;;");
     assert_eq!(codes(&errs), vec!["E0205"]);
     let (_, errs) = res("match 1: v => w = v; print(w) ;;\nprint(w)");
@@ -766,7 +769,7 @@ fn for_body_return_and_question_outside_fn() {
         ("fn f(xs) = xs |> map(x => g(x?))", "E0237"),
         ("fn f(xs) = map(xs, fn(x): x? ;;)", ""), // anonymous fn: may return
         ("fn f(xs) = map(xs, f: x => x?)", "E0237"),
-        ("fn f(xs) = map(xs, g: x => x?)", "E0237"), // whatever the callee
+        ("fn f(xs) = map(xs, f: x => x?)", "E0237"), // whatever the callee
         ("fn f(xs) = filter(xs, x => x?)", "E0237"),
         ("fn f(map, xs) = map(xs, x => x?)", "E0237"),
         (
@@ -785,7 +788,13 @@ fn for_body_return_and_question_outside_fn() {
         ("x = _", "E0215"),
     ];
     for (src, want) in cases {
-        let (_, errs) = resolve_with(src, M4_PRELUDE, &Options::default());
+        // `core_of` keeps the last value, as the REPL does: a `for` there
+        // is a `map`, not a discarded one.
+        let opts = Options {
+            keep_value: true,
+            ..Options::default()
+        };
+        let (_, errs) = resolve_with(src, M4_PRELUDE, &opts);
         assert_eq!(first_code(&not_hiding(&errs)), want, "{src:?}: {errs:?}");
     }
 }
@@ -824,9 +833,9 @@ fn top_level_fns_see_names_assigned_once() {
         "{:?}",
         errs[0].notes
     );
-    // A block's own names may still be bound again inside it.
+    // A block's own names are bound once as well (D88).
     let (_, errs) = res("fn f():\n  x = 1\n  x = x + 1\n  x\n;;\nprint(f())");
-    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(codes(&errs), vec!["E0238"]);
     // A lambda is still made where it stands: top-down.
     let (_, errs) = res("f = () => x\nx = 1");
     assert_eq!(first_code(&errs), "E0204");
@@ -973,13 +982,14 @@ fn import_errors() {
         ("import fs\nfs = 1", "E0308"),
         ("import fs\nfn fs() = 1", "E0308"),
         ("import fs\nfn f(fs) = fs", "E0308"),
-        ("import fs\nfor fs in [1]: fs ;;", "E0308"),
+        ("import fs\nxs = for fs in [1]: fs ;;\nprint(xs)", "E0308"),
         ("import fs\nmatch 1: fs => fs ;;", "E0308"),
         ("fn f():\n  import fs\n  1\n;;", "E0311"),
-        ("import \"./lib/x\" (a)\na = 2", "E0209"), // listed names are constants (plan decision 4)
+        ("import \"./lib/x\" (a)\na = 2", "E0238"), // listed names are constants (plan decision 4)
         ("import \"./lib/x\" (a)\nfn g() = a", ""), // and hoisted fns see them
         ("import \"./lib/x\" (a)\nprint(a, x)", "E0204"), // the module name is not bound when only names are listed
-        ("fn map(xs) = xs\nprint(map(1))", "E0240"),      // prelude names cannot be hidden (D38)
+        ("fn f():\n  map = 1\n  map\n;;", "E0240"), // a local cannot hide a prelude name (D38)
+        ("fn map(xs) = xs\nprint(map(1))", ""), // a public top-level name can: the file's interface (D86)
     ];
     for (src, want) in cases {
         let (_, errs) = resolve_m5(src, false);
@@ -1139,16 +1149,18 @@ fn unused_and_hiding_names() {
         ("fn f(a, b = a) = b", &[]), // read by a later default
         ("f = x => 1\nprint(f)", &["E0239:x"]),
         ("print(for x in [1]: 2 ;;)", &["E0239:x"]),
-        ("x = 1", &["E0239:x"]), // the entry's top level counts as local
+        ("x = 1", &[]), // a public top-level name is the file's interface (D86)
+        ("if true:\n  y = 1\n;;", &["E0239:y"]), // a block's name at the top level is a local
         ("_x = 1", &[]),
         ("fn f() = 1", &[]), // a top-level fn is not a variable
         ("fn f():\n  (a, b) = (1, 2)\n  a\n;;", &["E0239:b"]),
         ("fn f():\n  (a, _b) = (1, 2)\n  a\n;;", &[]),
         ("fn f(v) = match v: (a, _) => 1 ;;", &["E0239:a"]),
         ("fn f(v) = match v: x when x > 0 => 1; _ => 0 ;;", &[]),
-        ("fn map(xs) = xs", &["E0240:map"]),
-        ("len = 1\nprint(len)", &["E0240:len"]),
-        ("fn f(len) = len", &["E0240:len"]),
+        // A private top-level name and a private fn's parameter are no
+        // interface: they cannot take a prelude name (D86).
+        ("fn _f():\n  map = 1\n  map\n;;", &["E0240:map"]),
+        ("fn _f(len) = len", &["E0240:len"]),
         ("fn f(v) = match v: map => map ;;", &["E0240:map"]),
         ("fn f(v) = match v: v => v ;;", &["E0240:v"]),
         ("fn f(v) = map([1], v => v)", &["E0240:v"]),
@@ -1163,8 +1175,7 @@ fn unused_and_hiding_names() {
         ("c = 1\nfn f(c) = c\nprint(c)", &["E0240:c"]),
         ("import fs (read)\nfn f(read) = read", &["E0240:read"]),
         ("fn f():\n  x = 1\n  fn g() = x\n  g()\n;;", &[]), // read by a nested fn counts
-        ("fn f():\n  x = 1\n  x = 2\n  x\n;;", &[]),        // reassigned then read
-        ("fn f():\n  x = 1\n  x = 2\n  3\n;;", &["E0239:x"]), // written, never read
+        ("fn f():\n  x = 1\n  x = 2\n  x\n;;", &["E0238:x"]), // bound once (D88)
         ("fn f():\n  x = 1\n  h = () => x\n  h()\n;;", &[]), // a lambda's read counts
         ("x = 1\ntest \"t\":\n  assert x == 1\n;;", &[]),
         ("x = 1\nfn f() = x", &[]), // read by a top-level fn
@@ -1208,6 +1219,27 @@ fn unused_and_hiding_names() {
         name_errors_of("fn get(m):\n  len = 1\n  [m, len]\n;;", &lib),
         ["E0240:len"],
         "a local of a public fn is no interface"
+    );
+    // The rule is the file's own, however the file is loaded (D86): the
+    // same holds when the file is the entry, so a library can be checked
+    // and tested by itself.
+    for src in [
+        "fn map(xs) = xs\nlen = 1",
+        "fn get(m, len = 1) = [m, len]",
+        "max_size = 10\nfn double(n) = n * 2",
+    ] {
+        assert_eq!(
+            name_errors_of(src, &Options::default()),
+            [] as [&str; 0],
+            "{src:?}"
+        );
+    }
+    assert_eq!(
+        name_errors_of(
+            "fn _get(m, len = 1) = [m, len]\nx = 1\n_y = 2",
+            &Options::default()
+        ),
+        ["E0240:len"]
     );
     // The REPL keeps every top-level name and import for later inputs.
     let mut repl_opts = repl(&[], true);
@@ -1266,6 +1298,23 @@ fn values_used_must_not_be_nil() {
         ("test \"t\":\n  if true: print(1) ;;\n;;", &[]),
         ("x = if false: 1 else: nil ;;", &[]),
         ("x = true then 1 else nil", &[]),
+        // `then … else` always has its else, whatever its branches turn
+        // into (a match on a call, a partial application): FE63.
+        ("x = true then match print(1): _ => 1 ;; else nil", &[]),
+        ("x = true then print(_, 1) else nil", &[]),
+        ("x = false then nil else match print(1): _ => 1 ;;", &[]),
+        // Its branches are operands: used, as statements too, the same
+        // whether the match is on a name or a call.
+        (
+            "true then match print(1): 1 => if true: print(1) ;; ;; else nil\n1",
+            &["E0223"],
+        ),
+        (
+            "y = 1\ntrue then match y: 1 => if true: print(1) ;; ;; else nil\n1",
+            &["E0223"],
+        ),
+        ("true then match print(1): 1 => 5 ;; else print(2)\n1", &[]),
+        ("y = 1\ntrue then match y: 1 => 5 ;; else print(2)\n1", &[]),
         (
             "fn f():\n  x = if true:\n    y = 1\n    y\n  else: 0 ;;\n  x\n;;",
             &[],
@@ -1332,10 +1381,11 @@ fn name_errors_carry_positions_and_spans() {
         .map(|e| (e.code.as_str(), e.pos.line, e.pos.col, e.len))
         .collect();
     assert_eq!(at, [("E0240", 2, 3, 3)]);
-    let (_, errs) = resolve_with("fn len(_x) = 1", &["len"], &Options::default());
+    let src = "fn f():\n  fn len(_x) = 1\n  len(0)\n;;";
+    let (_, errs) = resolve_with(src, &["len"], &Options::default());
     assert_eq!(
         (errs[0].code.as_str(), errs[0].pos.col, errs[0].len),
-        ("E0240", 4, 3),
+        ("E0240", 6, 3),
         "at the fn's name, not at `fn`"
     );
     let (_, errs) = resolve_with(
@@ -1419,7 +1469,7 @@ fn repl_redefinition_in_one_input() {
         ..Options::default()
     };
     for (src, plain) in [
-        ("fn f() = 1\nf = 2\nf", "E0209"),
+        ("fn f() = 1\nf = 2\nf", "E0238"),
         ("import fs\nfs = 1\nfs", "E0308"),
         ("import fs\nimport fs\nfs.exists", "E0309"),
         ("fn f() = 1\nfn f() = 2\nf()", "E0210"),
@@ -1491,7 +1541,7 @@ fn question_in_a_lambda_given_to_pmap() {
         ("import conc\nfn f(xs) = conc.pmap(xs, x => x?)", "E0237"),
         ("import conc (pmap)\nfn f(xs) = pmap(xs, x => x?)", "E0237"),
         ("import conc\nfn f(xs) = conc.race([() => g()?])", "E0237"),
-        ("import conc\nfn f(xs) = conc.race([fn(): g()? ;;])", ""),
+        ("import conc\nfn f(_xs) = conc.race([fn(): g()? ;;])", ""),
     ] {
         let (_, errs) = resolve_with(src, M4_PRELUDE, &opts);
         assert_eq!(first_code(&not_hiding(&errs)), want, "{src:?}: {errs:?}");
@@ -1542,7 +1592,7 @@ fn deep_blocks_resolve_in_linear_time() {
 fn effect_free_values_must_not_be_discarded() {
     let cases: &[(&str, &[&str])] = &[
         ("x = 1\nx\nprint(x)", &["E0234"]),
-        ("x = 1\n- x\nprint(x)", &["E0234"]),
+        ("x = 1; -x\nprint(x)", &["E0234"]),
         ("print(1, _)\nprint(2)", &["E0234"]),
         ("x = 1\nx == 1\nprint(x)", &["E0234"]),
         ("x => x\nprint(1)", &["E0234"]),
@@ -1570,7 +1620,6 @@ fn effect_free_values_must_not_be_discarded() {
         ("match 1: _ => 2 ;;\nprint(1)", &["E0234"]),
         ("for x in [1]: x ;;\nprint(1)", &["E0234"]),
         ("test \"t\":\n  x = 1\n  x == 1\n;;", &["E0234"]),
-        ("fn f(x):\n  x\n  - 2\n;;", &["E0234"]),
         // Not effect-free, or not discarded.
         ("print(1)\nprint(2)", &[]),
         ("x = 1\ny = x + 1\nassert y == 2\nprint(y)", &[]),
@@ -1601,11 +1650,6 @@ fn effect_free_values_must_not_be_discarded() {
         ("fn g() = 1\ng\nprint(1)", "to call it, add `()`: `g()`"),
         ("x = 1\nx == 2\nprint(1)", "did you mean `=`?"),
         ("print(1, _)\nprint(1)", "a call with `_` makes a function"),
-        (
-            "x = 1\n- x",
-            "a line that starts with `-` is a new statement",
-        ),
-        ("fn f(a):\n  a\n  - 2\n;;", "the next line starts with `-`"),
         (
             "test \"t\":\n  x = 1\n  x == 1\n;;",
             "did you mean `assert` before it?",
@@ -1865,4 +1909,223 @@ fn module_member_diagnostics() {
     );
     let (_, errs) = resolve_m5("import \"./lib/x\" (_p)\nprint(_p)", false);
     assert_eq!(errs, ["E0304"]);
+}
+
+/// A name is bound once, wherever it is bound (D88): a second binding in
+/// the same block is E0238 for a variable and a local fn alike, in any
+/// order (E0209 is retired into it). A visible outer name is not bound
+/// again either: E0205 where it is written as an assignment to a
+/// variable, the usual counter in a loop, and E0240 otherwise.
+#[test]
+fn a_name_is_bound_once() {
+    let cases: &[(&str, &[&str])] = &[
+        ("fn f(x):\n  y = x\n  y = y + 1\n  y\n;;", &["E0238:y"]),
+        (
+            "fn f():\n  (a, b) = (1, 2)\n  (a, b) = (b, a)\n  a + b\n;;",
+            &["E0238:a", "E0238:b"],
+        ),
+        ("fn f():\n  fn g() = 1\n  g = 2\n  g\n;;", &["E0238:g"]),
+        ("fn f():\n  g = 2\n  fn g() = g\n  g()\n;;", &["E0238:g"]),
+        ("fn f(x):\n  x = x + 1\n  x\n;;", &["E0238:x"]),
+        (
+            "fn f(c):\n  if c:\n    v = 1\n    v = 2\n    print(v)\n  ;;\n  nil\n;;",
+            &["E0238:v"],
+        ),
+        // A visible outer variable assigned in a block: E0205.
+        (
+            "fn f():\n  t = 0\n  if true:\n    t = t + 1\n    print(t)\n  ;;\n  t\n;;",
+            &["E0205:t"],
+        ),
+        ("c = 1\nfn f():\n  c = 2\n  c\n;;\nprint(c)", &["E0205:c"]),
+        ("fn g() = 1\ng = 2", &["E0238:g"]),
+        // Each block binds its own names; a pattern's alternatives bind
+        // one name once.
+        (
+            "fn f(c):\n  if c:\n    v = 1\n    print(v)\n  else:\n    v = 2\n    print(v)\n  ;;\n  nil\n;;",
+            &[],
+        ),
+        ("fn f(r):\n  Ok(x) | Err(x) = r\n  x\n;;", &[]),
+        ("fn f(x):\n  y = x + 1\n  z = y * 2\n  z\n;;", &[]),
+    ];
+    for (src, want) in cases {
+        assert_eq!(name_errors_of(src, &Options::default()), *want, "{src:?}");
+    }
+    // The REPL binds a top-level name again; a block there does not.
+    let repl_opts = repl(&[], true);
+    assert_eq!(name_errors_of("x = 1\nx = 2", &repl_opts), [] as [&str; 0]);
+    assert_eq!(
+        name_errors_of("fn f():\n  y = 1\n  y = 2\n  y\n;;", &repl_opts),
+        ["E0238:y"]
+    );
+}
+
+/// Three checks of the fourth review: a module is imported once in a
+/// file (D96), a test block has something in it (D100), and a builtin
+/// type's name is written in lowercase (D101).
+#[test]
+fn one_import_a_test_with_a_body_and_lowercase_types() {
+    let mut imports = BTreeMap::new();
+    imports.insert(
+        "fs".to_string(),
+        ModuleInfo {
+            key: "fs".into(),
+            name: "fs".into(),
+            exports: names(&["read"]),
+            ..Default::default()
+        },
+    );
+    let opts = Options {
+        imports,
+        ..Options::default()
+    };
+    let code = |src: &str| {
+        let (_, errs) = resolve_with(src, &["print"], &opts);
+        codes(&errs)
+    };
+    assert_eq!(
+        code("import fs\nimport fs as f2\nprint(fs.read, f2.read)"),
+        ["E0309"]
+    );
+    assert_eq!(
+        code("import fs (read)\nimport fs\nprint(fs.read, read)"),
+        ["E0309"]
+    );
+    assert_eq!(code("import fs\nprint(fs.read)"), [] as [&str; 0]);
+    assert_eq!(code("test \"nothing\": ;;"), ["E0242"]);
+    assert_eq!(code("test \"something\": assert true ;;"), [] as [&str; 0]);
+    for (src, hint) in [
+        ("fn f(x: Int) = x", "`int`"),
+        ("fn f(x) -> String = x", "`str`"),
+        ("fn f(x: List | Nil) = x", "`list`"),
+        ("type t = Bool", "`bool`"),
+    ] {
+        let (_, errs) = resolve_with(src, &["print"], &opts);
+        assert_eq!(first_code(&errs), "E0212", "{src}");
+        assert!(help(&errs[0]).contains(hint), "{src}: {errs:?}");
+    }
+    // A tag of another name is still a type.
+    assert_eq!(code("fn f(c: Red | Circle) = c"), [] as [&str; 0]);
+}
+
+/// What the types of literals settle is an error before the program
+/// runs, with the number the run would give (D99): a literal called, a
+/// literal that is no bool where a bool goes, an operator over two
+/// literals it has no meaning for, and `??` after a literal that is
+/// never nil or a result.
+#[test]
+fn literal_type_errors_are_caught_at_compile_time() {
+    for (src, want) in [
+        ("x = 1(2)", "E0401"),
+        ("x = \"a\"(2)", "E0401"),
+        ("x = nil()", "E0401"),
+        ("x = not 1", "E0505"),
+        ("x = 1 then 2 else 3", "E0505"),
+        ("x = if \"a\": 1 else: 2 ;;", "E0505"),
+        ("x = 1 and true", "E0505"),
+        ("x = true or nil", "E0505"),
+        ("x = 1 + \"a\"", "E0501"),
+        ("x = \"a\" - \"b\"", "E0501"),
+        ("x = true * 2", "E0501"),
+        ("x = nil < 1", "E0501"),
+        ("x = \"a\" < 1", "E0501"),
+        ("x = 1 ?? 2", "E0243"),
+        ("x = \"a\" ?? \"b\"", "E0243"),
+        ("x = [1] ?? []", "E0243"),
+        // Values decide these: left to the run.
+        ("x = 1 // 0", ""),
+        ("x = 9223372036854775807 + 1", ""),
+        ("x = 1 + 2.5", ""),
+        ("x = \"a\" + \"b\"", ""),
+        ("x = \"a\" < \"b\"", ""),
+        ("x = 1 == \"a\"", ""),
+        ("x = 1s * 2", ""),
+        ("x = nil ?? 2", ""),
+        ("x = print(1) ?? 2", ""),
+    ] {
+        let (_, errs) = res(src);
+        assert_eq!(first_code(&errs), want, "{src:?}: {errs:?}");
+    }
+}
+
+/// Small resolve fixes of the fourth review: a module's top level takes
+/// no `_ = e` (FE69), a number literal an earlier arm matches is found by
+/// its value (FE70), and the errors come in source order (FE73).
+#[test]
+fn small_resolve_fixes() {
+    let (_, errs) = resolve_with("_ = print(1)\nx = 2", &["print"], &m5_opts(true));
+    assert_eq!(codes(&errs), ["E0306"]);
+    let (_, errs) = resolve_with("(a, b) = (1, 2)", &["print"], &m5_opts(true));
+    assert_eq!(codes(&errs), [] as [&str; 0]);
+    for src in [
+        "fn f(x) = match x: 1 => 1; 1.0 => 2; _ => 0 ;;",
+        "fn f(x) = match x: 0.0 => 1; -0.0 => 2; _ => 0 ;;",
+        "fn f(x) = match x: 2.0 | 3 => 1; 2 => 2; _ => 0 ;;",
+    ] {
+        let (_, errs) = res(src);
+        assert_eq!(codes(&errs), ["E0235"], "{src}");
+    }
+    let (_, errs) = res("fn f(x) = match x: 1 => 1; 1.5 => 2; _ => 0 ;;");
+    assert_eq!(codes(&errs), [] as [&str; 0]);
+    let (_, errs) = res(
+        "print(aa)\nfn f() = bb\nx = if true: 1 ;;\nprint(cc, x)\nfn g() = dd\n1 + 2\nprint(1)",
+    );
+    let lines: Vec<u32> = errs.iter().map(|e| e.pos.line).collect();
+    assert_eq!(lines, [1, 2, 3, 4, 5, 6], "{errs:?}");
+}
+
+/// A partial application and a call of a local fn are checked when the
+/// file is compiled, as any call of a known function is (FE65).
+#[test]
+fn partial_applications_and_local_fns_are_checked() {
+    let cases = [
+        (
+            "fn add(a, b) = a + b\nloc = add(1, 2, _)\nprint(loc)",
+            "E0402",
+        ),
+        (
+            "fn add(a, b) = a + b\nloc = add(_, zz: 1)\nprint(loc)",
+            "E0406",
+        ),
+        (
+            "fn f():\n  fn loc(a) = a\n  loc(1, 2)\n;;\nprint(f)",
+            "E0402",
+        ),
+        ("fn f():\n  fn loc(a) = a\n  loc()\n;;\nprint(f)", "E0407"),
+        (
+            "fn f():\n  fn loc(a) = a\n  w = () => loc(1, 2)\n  w\n;;\nprint(f)",
+            "E0402",
+        ),
+        (
+            "fn f():\n  fn loc(a) = a == 0 then 0 else loc(a - 1, 1)\n  loc(1)\n;;\nprint(f)",
+            "E0402",
+        ),
+        (
+            "fn f():\n  fn loc(a) = a\n  loc(_, 1)\n;;\nprint(f)",
+            "E0402",
+        ),
+        // what is right stays right
+        (
+            "fn add(a, b) = a + b\nloc = add(1, _)\nprint(loc(2), add(_, b: 1))",
+            "",
+        ),
+        (
+            "fn f():\n  fn loc(a, b = 1) = a + b\n  loc(1) + loc(1, 2) + loc(a: 1)\n;;\nprint(f)",
+            "",
+        ),
+        // a parameter of the same name is not the fn around it
+        (
+            "fn f():\n  fn loc(a) = a\n  w = loc => loc(1, 2)\n  w(loc)\n;;\nprint(f)",
+            "E0240",
+        ),
+        ("fn f(k):\n  loc = k(1, _)\n  loc\n;;\nprint(f)", ""),
+    ];
+    for (src, want) in cases {
+        let (_, errs) = resolve_with(src, M4_PRELUDE, &Options::default());
+        let got = codes(&errs);
+        if want.is_empty() {
+            assert!(got.is_empty(), "{src}: {errs:?}");
+        } else {
+            assert_eq!(got, [want], "{src}: {errs:?}");
+        }
+    }
 }

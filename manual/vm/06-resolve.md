@@ -107,9 +107,9 @@ fn label(n):
 print(label(12))
 ```
 
-"오른쪽을 먼저"에는 다른 효과도 있다. `x = x + 1`에서 오른쪽의 `x`는 대입하기 **전의** `x`다. 블록 안에서 같은 이름에 다시 대입하면 같은 칸을 다시 쓴다. (파일 최상위에서는 이름을 한 번만 묶는다. 다시 묶으면 E0238이다.)
+이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름을 다시 묶으면, 파일 최상위에서든 함수 안에서든 E0238이다. 이름 해석이 지금 블록의 표에서 그 이름을 찾았다는 것이 곧 에러다.
 
-```dump core
+```fung run exit=2 error=E0238
 fn bump():
   x = 1
   x = x + 1
@@ -172,7 +172,7 @@ for l in events:
 print(count)
 ```
 
-판정 방법은 간단하다. 대입을 만나면 지금 블록의 표를 본다. 있으면 같은 칸에 다시 대입. 없는데 바깥 스코프 어딘가에 있으면 `E0205`. 어디에도 없으면 새 이름이다.
+판정 방법은 간단하다. 대입을 만나면 지금 블록의 표를 본다. 있으면 `E0238`(이름은 한 번만 묶인다). 없는데 바깥 스코프 어딘가에 있으면 `E0205`. 어디에도 없으면 새 이름이다.
 
 이름 해석은 **에러를 하나 찾아도 멈추지 않는다**. 파일 끝까지 훑으며 모든 에러를 모아 한꺼번에 보고한다.
 
@@ -215,7 +215,7 @@ print(count)
 - `crates/fung-front/src/resolve.rs`: 입구 `resolve(core, prelude, opts)`가 `Resolved`(바뀐 트리, 메인 프레임의 칸 수 `num_locals`, 전역 이름 목록 `globals`)나 에러 목록을 돌려준다.
   - `Resolver::root_block`: 파일 최상위. `fn`을 먼저 모아 전역 번호를 붙이는 끌어올리기, 최상위 이름(모두 한 번만 묶임)의 칸을 미리 잡는 `Resolver::declare_consts`.
   - `Resolver::name`(이름 읽기와 `E0204`·`E0206`·`E0208`), `Resolver::lookup`(찾는 순서), `Resolver::capture_from`(바깥 함수에서 붙잡기).
-  - `Resolver::let_`(오른쪽 먼저), `Resolver::bind_new`(`E0205`·`E0209` 판정), `Resolver::bind_here`(전역 칸 또는 슬롯 배정).
+  - `Resolver::let_`(오른쪽 먼저), `Resolver::bind_new`(`E0238`·`E0205`·`E0240` 판정), `Resolver::bind_here`(전역 칸 또는 슬롯 배정).
   - `Resolver::push_block`·`Resolver::pop_block`: 블록 스코프를 쌓고 버리며, 버릴 때 슬롯 번호를 되돌린다.
 - `crates/fung-front/src/resolve/scope.rs`: 심볼 테이블. `Binding`(전역인가, 번호, 상수인가), 블록 스코프 `Scope`, 함수 스코프 `FnScope`와 `FnScope::alloc_slot`.
 - `crates/fung-front/src/resolve/similar.rs`: 비슷한 이름 찾기 `similar`, `edit_budget`, `edit_distance`.

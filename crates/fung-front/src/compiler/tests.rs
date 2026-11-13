@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 use crate::builtins::builtins;
-use crate::bytecode::{Op, PatKind, disassemble, encode_call};
+use crate::bytecode::{Cmp, Op, PatKind, disassemble};
 use crate::consts::Const;
 use crate::desugar::desugar;
 use crate::diag::Arg;
@@ -165,7 +165,7 @@ fn compile_unary_and_comparison() {
     assert_eq!(ops(&comp("not (1 < 2)")), "CONST(0) CONST(1) LT NOT RETURN");
     assert_eq!(ops(&comp("-1")), "CONST(0) RETURN");
     assert_eq!(
-        ops(&comp("a = 1\n-a")),
+        ops(&comp("a = 1; -a")),
         "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) NEG RETURN"
     );
 }
@@ -264,9 +264,14 @@ fn compile_literals_and_concat() {
 
 #[test]
 fn jump_if_false_carries_condition_position() {
-    let p = comp("1 and true");
+    let p = comp("x = 1\nx and true");
     // JUMPIFFALSE points at the condition (col 1), not the operator (col 3)
-    assert_eq!(p.pos[1].col, 1);
+    let at = p
+        .code
+        .iter()
+        .position(|i| i.op() == Op::JumpIfFalse)
+        .expect("a jump");
+    assert_eq!((p.pos[at].line, p.pos[at].col), (2, 1));
 }
 
 // ---- functions ----
@@ -290,10 +295,10 @@ fn compile_function_proto_and_closure() {
 fn compile_defaults_and_type_checks() {
     let p = comp("fn f(a: int, b = a * 2) -> num = a + b");
     let f = &p.protos[0];
-    // JUMPIFSET skips the default expression and its store (index 6).
+    // JUMPIFSET skips the default expression and its store (index 5).
     assert_eq!(
         ops(f),
-        "LOADLOCAL(1) JUMPIFSET(6) LOADLOCAL(0) CONST(0) MUL STORELOCAL(1) CHECKTYPE(0) MOVELOCAL(0) MOVELOCAL(1) ADD CHECKRETURN(1) RETURN"
+        "JUMPIFSET(5) LOADLOCAL(0) CONST(0) MUL STORELOCAL(1) CHECKTYPE(0) MOVELOCAL(0) MOVELOCAL(1) ADD CHECKRETURN(1) RETURN"
     );
     assert_eq!(f.types, [vec!["int".to_string()], vec!["num".to_string()]]);
     assert_eq!(f.return_type, 1);
@@ -402,24 +407,30 @@ fn compile_captures_self_and_named_args() {
     let p = comp("fn f(a, b = 2) = [a, b]\nf(1, b: 3)");
     // Stack at the call: f, 1, 'b, 3 — the name symbol is constant 1.
     let got = ops(&p);
-    let want = format!("CONST(1) CONST(2) CALL({})", encode_call(1, 1));
-    assert!(got.contains(&want), "named call: {got}");
+    let want = "CONST(1) CONST(2) CALL(1)";
+    assert!(got.contains(want), "named call: {got}");
     assert_eq!(p.consts[1], Const::Sym("b".into()));
 }
 
+/// Arguments and parameters have the limit of every other count, an
+/// operand's 24 bits (VM43): the 4,095 of a packed operand is gone.
 #[test]
-fn too_many_arguments_or_parameters_is_a_compile_error() {
-    let args = vec!["1"; 4096].join(", ");
-    let err = compile_err(&format!("print({args})")).unwrap_err();
-    assert_eq!(err.code, "E0230");
-    assert_eq!(err.args, [Arg::Str("arguments".into()), Arg::Int(4095)]);
-    assert_eq!((err.pos.line, err.pos.col), (1, 6));
-    let names: Vec<String> = (0..4096).map(|i| format!("_p{i}")).collect();
-    let err = compile_err(&format!("fn f({}) = 1", names.join(", "))).unwrap_err();
-    assert_eq!(err.code, "E0230");
-    assert_eq!(err.args, [Arg::Str("parameters".into()), Arg::Int(4095)]);
-    let ok = vec!["1"; 4095].join(", ");
-    assert!(compile_err(&format!("print({ok})")).is_ok());
+fn many_arguments_and_parameters_compile() {
+    let args = vec!["1"; 5000].join(", ");
+    let p = comp(&format!("print({args})"));
+    let call = p.code.iter().find(|i| i.op() == Op::Call).unwrap();
+    assert_eq!((call.arg(), call.b()), (5000, 0));
+    let names: Vec<String> = (0..5000).map(|i| format!("_p{i}")).collect();
+    assert!(compile_err(&format!("fn f({}) = 1", names.join(", "))).is_ok());
+    let named: Vec<String> = (0..5000).map(|i| format!("_p{i}: 1")).collect();
+    assert!(
+        compile_err(&format!(
+            "fn f({}) = 1\nprint(f({}))",
+            names.join(", "),
+            named.join(", ")
+        ))
+        .is_ok()
+    );
 }
 
 #[test]
@@ -620,15 +631,18 @@ fn compile_assert() {
     // literal sides are blank
     let a = &p.asserts[0];
     assert_eq!(
-        (&*a.text, &*a.left, &*a.right, &*a.op),
-        ("f(1) == 2", "f(1)", "", "==")
+        (&*a.text, &*a.left, &*a.right, a.cmp.map(|c| (c.0, c.1.col))),
+        ("f(1) == 2", "f(1)", "", Some((Cmp::Eq, 13)))
     );
     let a = &compile_opts("assert ok(1)", false).asserts[0];
-    assert_eq!((&*a.text, &*a.op), ("ok(1)", ""));
+    assert_eq!((&*a.text, a.cmp), ("ok(1)", None));
     let p = compile_opts("fn g(x):\n  assert x > 0\n  x\n;;", false);
     // an assert inside a fn uses that proto's table
     let a = &p.protos[0].asserts[0];
-    assert_eq!((&*a.text, &*a.left, &*a.op), ("x > 0", "x", ">"));
+    assert_eq!(
+        (&*a.text, &*a.left, a.cmp.map(|c| c.0)),
+        ("x > 0", "x", Some(Cmp::Gt))
+    );
 }
 
 #[test]
@@ -844,7 +858,20 @@ test \"t\": assert 1 < 2 ;;
 _c = not (1 < 2) and -1 > 0 or false
 n = 2
 print(\"x\" == \"x\", 2.0 / n, 7 // n, 7 % n, n ** 3, 1 != n, 1 <= n, 1 >= n); 1 + 2 * 3";
-    assert_eq!(bytecode(src), include_str!("testdata/functions.txt"));
+    same_as_file(&bytecode(src), "functions.txt");
+}
+
+/// Compares a dump with `testdata/<name>`; `FUNG_UPDATE_TESTDATA=1`
+/// rewrites the file after a deliberate change.
+fn same_as_file(got: &str, name: &str) {
+    let path = format!(
+        "{}/src/compiler/testdata/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    if std::env::var_os("FUNG_UPDATE_TESTDATA").is_some() {
+        std::fs::write(&path, got).unwrap();
+    }
+    assert_eq!(got, std::fs::read_to_string(&path).unwrap(), "{name}");
 }
 
 #[test]
@@ -861,7 +888,7 @@ _r = match xs:
 m = {a: 1}
 print(m.a, xs[1..], xs[..=2], xs[0], 0..=3, 1 in xs, Ok(1)!, nil ?? 1, 'sym, 1h); print(1)
 dbg(1)";
-    assert_eq!(bytecode(src), include_str!("testdata/data.txt"));
+    same_as_file(&bytecode(src), "data.txt");
 }
 
 /// `args` is the prelude's one plain value: the program's argument list,
@@ -874,7 +901,7 @@ fn prelude_args_is_a_constant_of_its_own() {
          0000  1:1   CONST        0    ; <fn print>\n\
          0001  1:7   CONST        1    ; args\n\
          0002  1:13  CONST        2    ; <fn take>\n\
-         0003  1:6   CALL         2    ; 2 positional, 0 named\n\
+         0003  1:6   CALL         2 0    ; 2 positional, 0 named\n\
          0004  1:1   POP\n\
          0005  1:20  CONST        1    ; args\n\
          0006  1:1   RETURN\n"
@@ -991,9 +1018,20 @@ fn body_starts_after_the_defaults_prologue() {
     let f = &p.protos[0];
     assert_eq!(
         ops(f),
-        "LOADLOCAL(1) JUMPIFSET(4) CONST(0) STORELOCAL(1) LOADLOCAL(2) JUMPIFSET(8) CONST(1) STORELOCAL(2) MOVELOCAL(0) MOVELOCAL(1) ADD MOVELOCAL(2) ADD RETURN"
+        "JUMPIFSET(3) CONST(0) STORELOCAL(1) JUMPIFSET(6) CONST(1) STORELOCAL(2) MOVELOCAL(0) MOVELOCAL(1) ADD MOVELOCAL(2) ADD RETURN"
     );
-    assert_eq!(f.body, 8);
+    assert_eq!(f.body, 6);
     let g = &comp("fn g(a) = a\nprint(g(1))").protos[0];
     assert_eq!(g.body, 0);
+}
+
+/// An `if` statement whose body returns leaves no POP no path reaches
+/// (VM46).
+#[test]
+fn a_returning_if_statement_drops_nothing() {
+    let p = comp("fn f(c, x):\n  if c: return x ;;\n  0\n;;\nprint(f)");
+    let f = &p.protos[0];
+    assert!(!ops(f).contains("POP"), "{}", ops(f));
+    let p = comp("fn f(c, x):\n  if c: print(x) ;;\n  0\n;;\nprint(f)");
+    assert!(ops(&p.protos[0]).contains("POP"));
 }

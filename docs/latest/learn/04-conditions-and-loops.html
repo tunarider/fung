@@ -85,7 +85,7 @@ true false</code></pre></div>
 <ul>
 <li>문자열은 사전 순서로 비교한다. 정확히는 글자의 유니코드 번호 순서라서, 대문자가 소문자보다 앞이다.</li>
 <li><code>1..10</code>은 1부터 10 <strong>앞까지</strong>의 정수 범위다. 10까지 넣으려면 <code>1..=10</code>이라고 쓴다.</li>
-<li>타입이 다른 값은 <code>==</code>로도 비교할 수 없다. <code>1 == &quot;1&quot;</code>은 에러(E0517)다: 다른 타입의 값은 결코 같지 않으니, 그런 비교는 거의 늘 실수다(파일에서 읽은 <code>&quot;8080&quot;</code>을 수 <code>8080</code>과 견주는 것처럼). 예외는 둘이다. 정수와 실수는 숫자로 비교해서 <code>1 == 1.0</code>은 참이고, <code>nil</code>은 무엇과도 비교할 수 있다(<code>x == nil</code>). 크기 비교 <code>&lt;</code>도 타입이 다르면 에러다.</li>
+<li>타입이 다른 값은 같지 않다. <code>1 == &quot;1&quot;</code>은 <code>false</code>다. 파일에서 읽은 <code>&quot;8080&quot;</code>을 수 <code>8080</code>과 견주면 늘 거짓이니, 바깥에서 온 값은 먼저 바꾼다(<code>int(s) == 8080</code>). 정수와 실수는 둘 다 수라서 <code>1 == 1.0</code>은 참이다. 크기 비교 <code>&lt;</code>는 다르다: 문자열과 수 사이에는 순서가 없으므로 타입이 다르면 에러다.</li>
 <li>비교는 이어 쓸 수 없다. <code>0 &lt; x &lt; 10</code>은 E0111 에러이고, <code>0 &lt; x and x &lt; 10</code>이라고 쓴다.</li>
 </ul>
 <p>질문을 엮을 때는 <code>and</code>, <code>or</code>, <code>not</code>을 쓴다. <code>and</code>는 왼쪽이 거짓이면 오른쪽을 아예 계산하지 않는다(<code>or</code>는 왼쪽이 참이면). 그래서 아래처럼 "0이 아닐 때만 나눈다"를 한 줄로 쓸 수 있다.</p>

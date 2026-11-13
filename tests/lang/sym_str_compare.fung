@@ -1,5 +1,5 @@
-# == between values of different types is an error (D40, see
-# err_eq_types*), except numbers and nil. Patterns are not comparisons.
+# A symbol is not a string: the two are never equal (D91, see eq_types).
+# Patterns test the type as well.
 print(nil == 0, 'a == 'a, "a" == "a", 1 == 1.0)
 # expect: false true true true
 print('a in ['a, 'b], "x" in ["x"], 2 in [1, 2])

@@ -57,6 +57,35 @@ pub fn is_name_start(c: char) -> bool {
     contains(ranges("name_start"), c)
 }
 
+/// A character that shows nothing: the Unicode property
+/// Default_Ignorable_Code_Point (joiners, variation selectors, fillers,
+/// format controls). Several of them may continue an identifier by
+/// UAX #31, but a name with one looks the same as the name without it
+/// and is another name, so no name or symbol holds one (D102). The
+/// ranges are the property's, from DerivedCoreProperties.txt.
+pub fn is_invisible(c: char) -> bool {
+    matches!(
+        c as u32,
+        0x00AD
+            | 0x034F
+            | 0x061C
+            | 0x115F..=0x1160
+            | 0x17B4..=0x17B5
+            | 0x180B..=0x180F
+            | 0x200B..=0x200F
+            | 0x202A..=0x202E
+            | 0x2060..=0x206F
+            | 0x3164
+            | 0xFE00..=0xFE0F
+            | 0xFEFF
+            | 0xFFA0
+            | 0xFFF0..=0xFFF8
+            | 0x1BCA0..=0x1BCA3
+            | 0x1D173..=0x1D17A
+            | 0xE0000..=0xE0FFF
+    )
+}
+
 /// May continue a name: `XID_Continue` (UAX #31), which holds the
 /// combining marks, digits and `_`.
 pub fn is_name_continue(c: char) -> bool {

@@ -1,6 +1,0 @@
-# == between values of different types is an error (D40): an outside
-# value is a string, and `env("PORT") == 8080` would be silently false.
-print(1 == 1.0)
-# expect: true
-print("8080" == 8080)
-# expect-error: E0517

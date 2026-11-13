@@ -148,7 +148,9 @@ impl Parser<'_> {
     /// inside them it is whitespace (01).
     pub(super) fn tag_expr(&mut self) -> PResult<Node> {
         let t = self.next();
-        if !self.at(Kind::LParen) {
+        // The `(` of a tag's values is on the tag's line, like a call's,
+        // inside brackets too (D85): `[Red⏎ (1)]` is a missing comma.
+        if self.toks[self.i].kind != Kind::LParen {
             return Ok(Node::leaf(Head::BareTag, t.pos, Lit::Str(t.text.clone())));
         }
         let n = self.call_args(Node::with_lit(

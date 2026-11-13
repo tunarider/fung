@@ -10,4 +10,4 @@ Ok(v) = Ok(2)
 print(v)
 # expect: 2
 print({HOME: Red})
-# expect: {HOME: 'Red}
+# expect: {HOME: Red}

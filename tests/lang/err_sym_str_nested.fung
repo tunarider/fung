@@ -1,3 +1,0 @@
-# Inside a list too, and for `in`.
-print('a in ["a", "b"])
-# expect-error: E0517

@@ -1,8 +1,8 @@
-# Calls that may do something stay statements (D39): a function that
-# takes a function, an effect, a user function, and `_ =` on purpose.
+# Calls that may do something stay statements (D39): `each`, an effect,
+# a user function, and `_ =` on purpose. (`map` is no statement, D90.)
 each([1], x => print(x))
 # expect: 1
-map([2], x => print(x))
+_ = map([2], x => print(x))
 # expect: 2
 fn show(x) = print(x)
 show(3)

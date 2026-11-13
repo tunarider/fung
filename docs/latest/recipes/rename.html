@@ -140,14 +140,14 @@ skip: Server List.csv -&gt; server-list.csv (already exists)
 <div class="run"><pre><code>n = 0
 for f in [&quot;a.txt&quot;, &quot;b.txt&quot;]:
   n = n + 1  # E0205
-;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot reassign `n` here: it was defined outside this block
+;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot assign to `n` here: it is bound outside this block
   --&gt; example.fung:3:3
   |
 3 |   n = n + 1  # E0205
   |   ^
   |
   note: `n` is a top-level name bound on line 1
- help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
+ help: a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
 <p>위 스크립트처럼 반복의 결과를 리스트로 모은 다음 <code>filter</code>·<code>len</code>으로 세거나, 누적이 필요하면 <code>fold</code>를 쓴다. 왜 이렇게 정했는지는 <a href="../learn/03-values-and-names.html">배우기 3장</a>에 있다.</p>
 </div>
 <h2 id="vary">응용</h2>

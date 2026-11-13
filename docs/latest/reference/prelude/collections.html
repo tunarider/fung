@@ -279,7 +279,7 @@ print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&q
 <li>맵: <code>x</code>가 키인가(값이 아니다). 키는 문자열이므로 <code>x</code>도 문자열이어야 한다.</li>
 <li>문자열: <code>x</code>가 부분 문자열인가. 빈 문자열은 언제나 들어 있다.</li>
 </ul>
-<p>심볼과 문자열을 견주면 E0517이다(<code>contains(['a], &quot;a&quot;)</code>). 외부에서 온 문자열은 <a href="convert.html#fn-sym"><code>sym</code></a>으로 바꿔서 찾는다.</p>
+<p>심볼과 문자열은 같지 않다(<code>contains(['a], &quot;a&quot;)</code>는 <code>false</code>). 외부에서 온 문자열은 <a href="convert.html#fn-sym"><code>sym</code></a>으로 바꿔서 찾는다.</p>
 <p>연산자 <code>in</code>이 있는데 함수를 따로 두는 것은 파이프(<code>xs |&gt; contains(x)</code>)와 함수를 넘기는 자리(<code>filter(xss, xs =&gt; contains(xs, x))</code>)에서 쓰려는 것이다. 조건에서는 <code>x in c</code>가 읽기 쉽다.</p>
 <h4>매개변수</h4>
 <ul>
@@ -291,7 +291,6 @@ print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&q
 <h4>에러</h4>
 <ul>
 <li>맵에서 문자열이 아닌 키를 찾으면 E0514(<code>cannot use a value of type int as a map key</code>), 문자열에서 문자열이 아닌 값을 찾으면 런타임 에러 E0501(<code>cannot search str and int</code>).</li>
-<li>심볼과 문자열을 견주면 E0517.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>세 가지 뜻</strong></p>
@@ -328,7 +327,7 @@ dev refused</code></pre></div>
 <h4>에러</h4>
 <ul>
 <li><code>xs</code>가 문자열·맵·튜플 등이면 런타임 에러 E0506(<code>cannot iterate over str</code>).</li>
-<li><code>f</code>가 함수가 아니면 E0403, 인자 수가 맞지 않으면 E0407.</li>
+<li><code>f</code>가 함수가 아니면 E0403. <code>f</code>가 받는 인자 수가 맞지 않으면 여느 호출처럼 E0407(모자람: <code>(a, b) =&gt; …</code>)이나 E0402(넘침: <code>() =&gt; …</code>).</li>
 <li>결과가 1억 개를 넘으면 E0806.</li>
 </ul>
 <h4>예제</h4>
@@ -715,7 +714,7 @@ print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) =&gt; v))</code></pre><
 <h4>돌려주는 값</h4>
 <p>리스트.</p>
 <h4>에러</h4>
-<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506. 원소의 타입이 다르면 E0517, 함수가 있으면 E0501.</p>
+<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506. 함수가 있으면 E0501. 타입이 다른 원소는 서로 다른 값이다(<code>unique([1, &quot;1&quot;])</code>은 둘 다 남긴다).</p>
 <h4>예제</h4>
 <p><strong>중복 빼기</strong></p>
 <div class="run"><pre><code>print(unique([1, 2, 1, 3, 2]), unique([1, 1.0]), unique([[1], [1], [2]]))</code></pre><pre class="out plain"><code>[1, 2, 3] [1] [[1], [2]]</code></pre></div>
@@ -798,7 +797,7 @@ print(pairs(counts) |&gt; map(((code, xs)) =&gt; &quot;${code}: ${len(xs)}&quot;
 <p>두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.</p>
 <div class="sig"><code>zip(xs, ys)</code></div>
 <h4>설명</h4>
-<p><code>zip([a, b], [x, y])</code>는 <code>[(a, x), (b, y)]</code>다. 길이가 다르면 짧은 쪽에 맞추고 남는 원소는 버린다. 범위는 짧은 쪽 길이만큼만 리스트로 만드므로 아주 큰 범위와 짝지어도 된다. 튜플은 패턴으로 꺼낸다: <code>for (name, ip) in zip(names, ips):</code>. 번호를 붙일 때는 범위와 짝짓는다.</p>
+<p><code>zip([a, b], [x, y])</code>는 <code>[(a, x), (b, y)]</code>다. 길이가 다르면 짧은 쪽에 맞추고 남는 원소는 버린다. 받는 끝은 다른 쪽이 리스트면 그 길이만큼만 받는다: 그 뒤의 값은 채널에 남는다(다른 쪽이 범위나 받는 끝이면 닫힐 때까지 받는다). 범위는 짧은 쪽 길이만큼만 리스트로 만드므로 아주 큰 범위와 짝지어도 된다. 튜플은 패턴으로 꺼낸다: <code>for (name, ip) in zip(names, ips):</code>. 번호를 붙일 때는 범위와 짝짓는다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>, <code>ys</code>: 리스트, 범위, 받는 끝.</li>

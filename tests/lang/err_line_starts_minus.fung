@@ -1,0 +1,10 @@
+# A statement that follows another does not begin its line with `-`: it
+# would not continue the line above (that would be `a - 2` with the `-`
+# ending that line) but drop its value and stand in its place (D85).
+fn f(a):
+  double(a)
+  -2
+;;
+fn double(n) = n * 2
+print(f(5))
+# expect-error: E0136

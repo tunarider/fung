@@ -21,6 +21,9 @@ fn duration_unit(s: &str) -> Option<(u8, i64)> {
 /// The help of E0135 for an int literal (FE61).
 pub(crate) const INT_RANGE: &str = "an int holds -9223372036854775808 to 9223372036854775807";
 
+/// The help of E0135 for a duration literal too long.
+const DUR_RANGE: &str = "a duration holds up to 2562047h47m16.854775807s";
+
 /// The help of E0135 for a float literal too large.
 const FLOAT_RANGE: &str = "a float holds up to about 1.8e308";
 
@@ -248,6 +251,10 @@ impl Lexer<'_> {
             .collect();
         // The magnitude of the least int is a token in every base, as in
         // decimal: only a preceding minus makes it valid (FE31).
+        // A digit the base does not have (`0b12`) is a malformed number.
+        if text.chars().any(|c| c.to_digit(base).is_none()) {
+            return Err(self.err("E0102", p, &self.src[start..self.off]));
+        }
         match u64::from_str_radix(&text, base) {
             Ok(n) if n <= i64::MIN.unsigned_abs() => {
                 let raw = self.src[start..self.off].to_string();
@@ -318,11 +325,12 @@ impl Lexer<'_> {
                     "a duration is counted in whole nanoseconds; this part rounds to 0",
                 ));
             }
+            // Well formed and too long: out of range, as an int is (FE71).
             if ns >= I64_LIMIT || ns > (i64::MAX - total) as f64 {
-                return Err(self.bad_number("E0105", p, start));
+                return Err(self.bad_number("E0135", p, start).with_help(DUR_RANGE));
             }
             let Some(sum) = total.checked_add(ns as i64) else {
-                return Err(self.bad_number("E0105", p, start));
+                return Err(self.bad_number("E0135", p, start).with_help(DUR_RANGE));
             };
             total = sum;
             prev_rank = rank;
@@ -474,6 +482,8 @@ mod tests {
             ("9223372036854775809", "E0135"),
             ("99999999999999999999", "E0135"),
             ("1e400", "E0135"),
+            ("9999999999h", "E0135"),
+            ("2562047h48m", "E0135"),
             ("1e", "E0102"),
             ("1h30", "E0105"),
             ("30m1h", "E0105"),
@@ -610,8 +620,8 @@ mod tests {
             "2562047h47m17s",
         ] {
             match lex_src(src) {
-                Err(d) => assert_eq!(d.code, "E0105", "{src}"),
-                Ok(_) => panic!("{src}: expected E0105"),
+                Err(d) => assert_eq!(d.code, "E0135", "{src}"),
+                Ok(_) => panic!("{src}: expected E0135"),
             }
         }
         assert_eq!(one("2562047h").dur, 2562047 * H);

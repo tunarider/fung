@@ -18,13 +18,6 @@
 |   |   ^^^^
 |   |
 |  help: remove it, or start its name with `_` if it is kept on purpose
-| error[E0239]: unused variable `value`
-|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:10:1
-|    |
-| 10 | value = helper()
-|    | ^^^^^
-|    |
-|  help: remove it, or start its name with `_` if it is kept on purpose
 -- exit: 2
 ==== check crates/fung-cli/tests/data/check/block_value.fung
 -- stdout
@@ -121,31 +114,18 @@
 ==== check crates/fung-cli/tests/data/check/no_false_positives.fung
 -- stdout
 -- stderr
--- exit: 0
+| error[E0238]: cannot bind `x` again: a name is bound once
+|   --> crates/fung-cli/tests/data/check/no_false_positives.fung:29:3
+|    |
+| 29 |   x = x + 1
+|    |   ^
+|    |
+|   note: `x` is first bound on line 28
+|  help: give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)
+-- exit: 2
 ==== check crates/fung-cli/tests/data/check/shadow.fung
 -- stdout
 -- stderr
-| error[E0240]: `map` hides a prelude function
-|   --> crates/fung-cli/tests/data/check/shadow.fung:3:4
-|   |
-| 3 | fn map(xs) = xs
-|   |    ^^^
-|   |
-|  help: a visible name means one thing: give the new one a name of its own
-| error[E0240]: `filter` hides a prelude function
-|   --> crates/fung-cli/tests/data/check/shadow.fung:5:9
-|   |
-| 5 | fn uses(filter, keys = 1) = filter
-|   |         ^^^^^^
-|   |
-|  help: a visible name means one thing: give the new one a name of its own
-| error[E0240]: `keys` hides a prelude function
-|   --> crates/fung-cli/tests/data/check/shadow.fung:5:17
-|   |
-| 5 | fn uses(filter, keys = 1) = filter
-|   |                 ^^^^
-|   |
-|  help: a visible name means one thing: give the new one a name of its own
 | error[E0240]: `sort` hides a prelude function
 |   --> crates/fung-cli/tests/data/check/shadow.fung:8:3
 |   |
@@ -159,13 +139,6 @@
 | 13 |   first => first
 |    |   ^^^^^
 |    |
-|  help: a visible name means one thing: give the new one a name of its own
-| error[E0240]: `len` hides a prelude function
-|   --> crates/fung-cli/tests/data/check/shadow.fung:4:1
-|   |
-| 4 | len = 1
-|   | ^^^
-|   |
 |  help: a visible name means one thing: give the new one a name of its own
 | error[E0240]: `sum` hides a prelude function
 |   --> crates/fung-cli/tests/data/check/shadow.fung:16:15
@@ -225,10 +198,10 @@
 |   |
 |  help: remove it, or start its name with `_` if it is kept on purpose
 | error[E0239]: unused variable `t`
-|   --> crates/fung-cli/tests/data/check/unused_vars.fung:10:3
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:10:10
 |    |
 | 10 |   [h, ...t] = [1, 2, 3]
-|    |   ^
+|    |          ^
 |    |
 |  help: remove it, or start its name with `_` if it is kept on purpose
 | error[E0239]: unused variable `y`
@@ -246,10 +219,10 @@
 |    |
 |  help: remove it, or start its name with `_` if it is kept on purpose
 | error[E0239]: unused variable `rest`
-|   --> crates/fung-cli/tests/data/check/unused_vars.fung:18:3
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:18:10
 |    |
 | 18 |   [_, ...rest]                      => 3
-|    |   ^^^^
+|    |          ^^^^
 |    |
 |  help: remove it, or start its name with `_` if it is kept on purpose
 | error[E0239]: unused variable `unused_v`

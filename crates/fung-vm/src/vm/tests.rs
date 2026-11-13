@@ -470,7 +470,7 @@ fn variables_blocks_and_literals() {
             "print(\"a\" + \"b\", \"a\" == \"a\", \"a\" < \"b\")",
             "ab true true\n",
         ),
-        // A symbol meeting a string is E0517 (02, L10); other types: false.
+        // A symbol is not a string: not equal (D91).
         ("print('ok, 'ok == 'ok, 'ok == nil)", "'ok true false\n"),
         (
             "print(1h30m, 500ms + 1.5s, 2 * 30s, 1m / 4, 30s < 1m)",
@@ -480,7 +480,7 @@ fn variables_blocks_and_literals() {
         ("print(-9223372036854775808)", "-9223372036854775808\n"),
         ("print(9007199254740993 == 9007199254740992.0)", "false\n"),
         ("print(\"${\"q\"}\", \"${'s}\", \"${1.0}\")", "q 's 1.0\n"),
-        ("fn f():\n  x = 1\n  x = 2\n  x\n;;\nprint(f())", "2\n"),
+        ("fn f():\n  x = 1\n  y = 2\n  x + y\n;;\nprint(f())", "3\n"),
     ];
     for (src, want) in cases {
         let (out, err, code) = run_src(src);
@@ -592,14 +592,15 @@ fn functions_run() {
 #[test]
 fn closures_capture_by_value() {
     outputs(&[
-        // copied when f was made, like a local
+        // a local: copied when f was made, and kept after its frame
+        // is gone (a name is bound once, D88, so nothing can show the
+        // copy apart from a shared variable)
         (
-            "fn g():\n  x = 1\n  f = () => x\n  x = 2\n  f()\n;;\nprint(g())",
+            "fn g():\n  x = 1\n  f = () => x\n  f()\n;;\nprint(g())",
             "1\n",
         ),
-        // a local: copied when f was made
         (
-            "fn mk():\n  x = 1\n  f = () => x\n  x = 2\n  f()\n;;\nprint(mk())",
+            "fn mk():\n  x = 1\n  () => x\n;;\nf = mk()\nprint(f())",
             "1\n",
         ),
         (
@@ -797,13 +798,13 @@ fn errors_inside_lambdas_called_by_natives_carry_call_paths() {
         "{err}"
     );
     // A calling-convention error of the lambda points at the native's call.
-    let (_, err, _) = run_src("fold([1], 0, (a) => a)");
+    let (_, err, _) = run_src("_ = fold([1], 0, (a) => a)");
     assert_eq!(
         err,
-        "error[E0402]: the function takes 1 argument(s), got 2\n  --> -e:1:5\n  |\n1 | fold([1], 0, (a) => a)\n  |     ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
+        "error[E0402]: the function takes 1 argument(s), got 2\n  --> -e:1:9\n  |\n1 | _ = fold([1], 0, (a) => a)\n  |         ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
     // exit inside a lambda ends the program with its code.
-    let (out, err, code) = run_src("fold([1], 0, (_a, _b) => exit(3))\nprint(1)");
+    let (out, err, code) = run_src("_ = fold([1], 0, (_a, _b) => exit(3))\nprint(1)");
     assert_eq!((out.as_str(), err.as_str(), code), ("", "", 3));
 }
 
@@ -1030,6 +1031,27 @@ fn closures_print_and_compare() {
         err.starts_with("error[E0501]: cannot compare fn and fn"),
         "{err}"
     );
+    // The answer does not depend on whether the two sides share their
+    // storage (VA43): a list compared with itself still meets its
+    // function, in a small value and in one the nodes remember.
+    for src in [
+        "f = x => x\na = [f]\nb = a\nprint(a == b)",
+        "f = x => x\na = [f]\nb = a\nprint(a in [b])",
+        "f = x => x\na = {k: (1, Ok(f))}\nb = a\nprint([a] == [b])",
+        "a = map(0..5000, i => i) + [print]\nb = a\nprint(a == b)",
+        "a = map(0..5000, i => [i, len])\nb = a\nprint(a != b)",
+    ] {
+        let (out, err, _) = run_src(src);
+        assert!(
+            err.starts_with("error[E0501]: cannot compare fn and fn"),
+            "{src}: {out}{err}"
+        );
+    }
+    // A shared value that holds no function is still equal to itself.
+    let (out, err, _) = run_src(
+        "a = map(0..5000, i => [i, \"x\"])\nb = a\nc = {k: (1, Ok(nil))}\nd = c\nprint(a == b, c == d)",
+    );
+    assert_eq!(out, "true true\n", "{err}");
 }
 
 #[test]
@@ -1345,4 +1367,200 @@ fn closures_that_capture_nothing_are_made_once() {
         let o = testutil::exec_with_prelude(src, p);
         assert_eq!(o.value.as_deref(), Some(want), "{src}");
     }
+}
+
+/// Values of different types are not equal: `==`, `!=` and `in` say so
+/// with `false`, like any other pair of different values (D91; E0517 is
+/// retired). Functions alone have no equality (D62). An order is another
+/// matter: there is none between a string and an int, so `<` and the
+/// functions that order their elements still fail, and they look at
+/// every pair, whatever the values (D87).
+#[test]
+fn values_of_different_types_are_not_equal() {
+    let (out, err, _) = run_src(
+        "print(\"8080\" == 8080, 'ok == \"ok\", 1 != \"1\", Ok(1) == 1, [1] == (1,))\n\
+         print([1, 'a] == [1, \"a\"], [1, \"a\"] == [2, 3], {a: 1} == {a: \"1\"})\n\
+         print((1, 2) == (1, 2, 3), 1 == 1.0, nil == 1, 0..3 == [0, 1, 2])\n\
+         print(1 in [1, \"a\"], \"a\" in [1, \"a\"], \"x\" in [1, 2], \"1\" in 0..3)\n\
+         print(unique([1, \"1\", 1, 'a, \"a\"]), contains([1, 2], \"1\"))",
+    );
+    assert_eq!(
+        out,
+        "false false true false false\n\
+         false false false\n\
+         false true false false\n\
+         true true false false\n\
+         [1, \"1\", 'a, \"a\"] false\n",
+        "{err}"
+    );
+    for (src, want) in [
+        // functions have no equality
+        ("f = x => x\nprint([f] == [f])", "E0501"),
+        ("f = x => x\nprint(f in [f])", "E0501"),
+        // no order between values of different types, wherever they stand
+        ("print(\"a\" < 1)", "E0501"),
+        ("print([1, \"a\"] < [2, 1])", "E0501"),
+        ("print((1, 2) < (1, 2, 3))", "E0501"),
+        ("print(sort([[1, \"a\"], [2, 2]]))", "E0501"),
+        ("print(sort([3, 1, \"a\"]))", "E0501"),
+        ("print(sort_by([1, 2], x => [x, print]))", "E0501"),
+        ("print(max([[1, nil], [2, nil]]))", "E0501"),
+        (
+            "print([1, \"a\"] < [2, \"b\"], sort([[2, \"b\"], [1, \"a\"]]))",
+            "",
+        ),
+    ] {
+        let (out, err, _) = run_src(src);
+        let got = err
+            .split_once("error[")
+            .and_then(|(_, rest)| rest.split(']').next())
+            .unwrap_or("");
+        assert_eq!(got, want, "{src}: {out}{err}");
+    }
+}
+
+/// A call on the right of `and`/`or` in tail position is a tail call
+/// (D97): the frame takes the bool check along, as it takes a return
+/// type's (D44), so the two operators recurse as deep as `then … else`.
+#[test]
+fn the_right_side_of_and_or_is_a_tail_call() {
+    let (out, err, _) = run_src(
+        "fn allpos(i) = i == 0 or (i > 0 and allpos(i - 1))\n\
+         fn even(n) = n == 0 or odd(n - 1)\n\
+         fn odd(n) = n != 0 and even(n - 1)\n\
+         print(allpos(300000), even(300000), odd(300000))",
+    );
+    assert_eq!(out, "true true false\n", "{err}");
+    // The check still runs, where the operator stands, however deep the
+    // value comes from.
+    let (_, err, _) = run_src(
+        "fn count(i) = i == 0 then 5 else count(i - 1)\n\
+         fn bad(i) = i < 0 or count(i)\n\
+         print(bad(1000))",
+    );
+    assert!(
+        err.starts_with("error[E0505]: expected bool, got int\n  --> -e:2:27"),
+        "{err}"
+    );
+    // With a return type too: both checks go along.
+    let (out, err, _) = run_src(
+        "fn down(i) -> bool = i == 0 or down2(i - 1)\n\
+         fn down2(i) -> bool = i == 0 or down(i - 1)\n\
+         print(down(200001))",
+    );
+    assert_eq!(out, "true\n", "{err}");
+}
+
+/// `index_of` finds what `in` finds (D107): bytes, so a match that
+/// starts inside a character is found too, at that character's index.
+#[test]
+fn index_of_finds_what_in_finds() {
+    let (out, err, _) = run_src(
+        "print(\"\\xa9\" in \"é\", index_of(\"é\", \"\\xa9\"), index_of(\"aé\", \"\\xa9\"))\n\
+         print(index_of(\"참치김밥\", \"김\"), index_of(\"abc\", \"x\"), \"x\" in \"abc\")",
+    );
+    assert_eq!(out, "true 0 1\n2 nil false\n", "{err}");
+}
+
+/// Small fixes of the fourth review's value layer.
+#[test]
+fn small_value_fixes() {
+    // VA57: a pad that fills exactly to the string limit is no error.
+    let (out, err, _) = run_src(
+        "print(len(pad_left(\"\", 100000000)), len(pad_right(\"x\", 100000000, \"abc\")), pad_left(\"7\", 4, \"ab\"), pad_right(\"7\", 5, \"ab\"))",
+    );
+    assert_eq!(out, "100000000 100000000 aba7 7abab\n", "{err}");
+    // VA45: a shown string reads back as source: `$` before a name or
+    // `{` is escaped, and `\u{…}` is written in lowercase.
+    let (out, err, _) = run_src("print([\"a\\$b\", \"\\${a}\", \"\\$_x\", \"\\$5\", \"\\u{1b}\"])");
+    assert_eq!(
+        out, "[\"a\\$b\", \"\\${a}\", \"\\$_x\", \"$5\", \"\\u{1b}\"]\n",
+        "{err}"
+    );
+    // VA42: a duration a float cannot hold exactly is not rounded on its
+    // way into float arithmetic.
+    for src in [
+        "x = 2600h + 0.000001ms\nprint(x * 1.0)",
+        "x = 2600h + 0.000001ms\nprint(x / 2.0)",
+    ] {
+        let (_, err, _) = run_src(src);
+        assert!(err.starts_with("error[E0523]"), "{src}: {err}");
+    }
+    let (out, err, _) = run_src("print(1h * 1.5, 3s / 2.0, (2600h + 0.000001ms) * 2)");
+    assert_eq!(out, "1h30m 1s500ms 5200h0.000002ms\n", "{err}");
+    // VA58: an empty command name is the code's mistake, like an empty
+    // command list.
+    let (_, err, _) = run_src("print(exec([\"\"]))");
+    assert!(err.starts_with("error[E0403]"), "{err}"); // FE74: a map pattern takes the keys a map literal takes.
+    let (out, err, _) = run_src(
+        "m = {\"\\xff\": 1, a: 2}\n{\"\\xff\": x, a: y} = m\nprint(x, y, match m: {\"\\xfe\": _} => 0; {\"\\xff\": v} => v ;;)",
+    );
+    assert_eq!(out, "1 2 1\n", "{err}");
+}
+
+/// FE65: a partial application of a builtin and a call of a local fn are
+/// refused before anything runs.
+#[test]
+fn partials_and_local_fns_are_checked_before_running() {
+    for (src, code) in [
+        ("print(\"ran\")\ng = len(_, 1, 2)\nprint(g)", "E0402"),
+        (
+            "print(\"ran\")\nfn f(xs) = map(xs, str(_, 2))\nprint(f([1]))",
+            "E0402",
+        ),
+        (
+            "fn f():\n  fn g(a) = a\n  print(\"ran\")\n  g(1, 2)\n;;\nprint(f())",
+            "E0402",
+        ),
+    ] {
+        let (out, err, _) = run_src(src);
+        assert_eq!(out, "", "{src}");
+        assert!(err.starts_with(&format!("error[{code}]")), "{src}: {err}");
+    }
+    let (out, err, _) =
+        run_src("fn add(a, b) = a + b\ng = add(1, _)\nprint(g(2), map([1, 2], add(_, b: 10)))");
+    assert_eq!(out, "3 [11, 12]\n", "{err}");
+}
+
+/// VA44: two values that share their parts many times over are compared
+/// and hashed once per part, not once per path.
+#[test]
+fn shared_parts_are_walked_once() {
+    let (out, err, _) = run_src(
+        "x = fold(0..200, [1], (acc, _i) => [acc, acc])\n\
+         y = fold(0..200, [1], (acc, _i) => [acc, acc])\n\
+         z = fold(0..200, [2], (acc, _i) => [acc, acc])\n\
+         print(x == y, x == z, x < z, x <= y, len(unique([x, y, z])), x in [z, y])\n\
+         t = fold(0..200, (1,), (acc, _i) => Pair(acc, {a: acc}))\n\
+         u = fold(0..200, (1,), (acc, _i) => Pair(acc, {a: acc}))\n\
+         print(t == u, len(unique([t, u])), match t: Pair(_, _) => 1 ;;)",
+    );
+    assert_eq!(out, "true false true true 2 true\ntrue 1 1\n", "{err}");
+    // What is equal hashes alike, shared or not.
+    let (out, err, _) = run_src(
+        "a = [1, 2]\nprint(len(unique([[a, a], [[1, 2], [1, 2]], ([1, 2], a), ([1, 2], [1, 2])])))",
+    );
+    assert_eq!(out, "2\n", "{err}");
+}
+
+/// VM47: a top-level fn holds its module's global table and is held by
+/// it; the runtime empties the tables as it ends, so the ring is freed.
+#[test]
+fn the_globals_ring_is_freed_with_the_runtime() {
+    let Ok(s) = crate::testutil::setup(
+        "big = repeat(\"x\", 1000)\nfn f() = big\nfn g() = f\nprint(len(g()()))",
+        crate::testutil::Opts::default(),
+    ) else {
+        panic!("compile");
+    };
+    assert!(s.rt.run().is_ok());
+    let tables: Vec<_> =
+        s.rt.world()
+            .globals
+            .iter()
+            .map(std::rc::Rc::downgrade)
+            .collect();
+    assert!(!tables.is_empty());
+    drop(s);
+    assert!(tables.iter().all(|t| t.upgrade().is_none()));
 }

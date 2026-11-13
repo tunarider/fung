@@ -71,7 +71,8 @@ desugar의 출력. 컴파일러는 이것만 안다.
 |------|----|------|
 | `(do e…)` | 순서대로, 마지막 값 | 블록 본문 |
 | `(let 패턴 e)` | 대입 | `x = e`, 구조 분해 |
-| `(if c a b)` | 조건 | `if`/`else if` 체인, `then … else`, `and`/`or` (단락 평가) |
+| `(if c a b)` | 조건 | `if`/`else if` 체인, `and`/`or` (단락 평가) |
+| `(then c a b)` | 조건 연산자 | `c then a else b`. 컴파일은 `if`와 같지만 가지가 늘 쓰이는 값이라 값 자리 검사가 블록 `if`와 다르게 본다(FE63, 2026-11-13) |
 | `(fn 이름 인자표 본문)` | 함수 | `fn` 정의, 람다, 익명 함수, `_` 부분 적용, `for`의 본문 |
 | `(call f 인자… (named 이름 e)…)` | 호출 | 호출, `x \|> f(a)` → `(call f x a)`, `for` → `(call map xs (fn …))`(버려지는 자리면 `each`, 01) |
 | `(op 연산자 a b)` | 원시 연산 | 산술·비교·`in`·`..`. 연산자는 값이 아니다 (`fold(xs, 0, +)` 없음, 람다로 쓴다) |
@@ -107,7 +108,7 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
   `Closure{원형, 붙잡은 값}`, `Native`, `Module`, `Task`, `Scope`, `Sender`, `Receiver`, `Atom`, `File`, `Conn`, `Listener`. 상자가 필요한 것은 `Rc`로 공유하고 참조 계수로 회수한다
   (긴 구조의 연쇄 해제는 재귀가 아니라 반복).
   가비지 컬렉터가 없으므로 고리가 생기지 않게 한다: 불변 값은 고리를 만들 수 없고, 나중에 값을 받는 칸(채널 버퍼·태스크 결과)은 고리를 닫는 그 순간에 E0709로, atom은 E0708로 막는다(05, L7). 모듈 전역 ↔ 클로저 고리만 런타임 끝에 끊는다.
-- **값을 훑는 Rust 코드는 값의 모양을 따라 재귀하지 않는다** (L9, 2026-10-28): 출력(`value/format.rs`), `==`·E0517 검사·순서 비교·해시(`value/compare.rs`),
+- **값을 훑는 Rust 코드는 값의 모양을 따라 재귀하지 않는다** (L9, 2026-10-28): 출력(`value/format.rs`), `==`·순서 비교·해시(`value/compare.rs`),
   해제(`release.rs`), 변하는 값 훑기, JSON은 명시적 스택(힙의 `Vec`)으로 돈다. Rust의 스택 넘침은 잡을 수 있는 에러가 아니라 강제 종료(134)이기 때문이다.
   출력은 한 버퍼에 이어 써서 깊이에 선형이다. 컨테이너가 아닌 값은 스택 없이 곧바로 처리한다(흔한 경우의 비용을 지킴).
 - 모든 연산이 새 값을 돌려준다. M9까지는 단순 복사, M10부터 리스트·맵은 영속 자료구조.
@@ -252,13 +253,16 @@ print(fiels)
   각 테스트는 사례 수도 단언한다. 일부러 동작을 바꾼 뒤에는 `FUNG_EXPECTED=bless cargo test -p fung-cli --test <이름>`(fung-vm의 기대 출력은 라이브러리 단위 테스트라 이름으로 거른다: `FUNG_EXPECTED=bless cargo test -p fung-vm runs_match_the_expected_output`)으로 다시 쓰고 diff를 검토한다.
   형식은 `crates/fung-cli/tests/common/expected.rs` 머리 주석.
 - 명세 파일 `spec/builtins.txt`·`spec/errors.txt`는 Rust 표에서 생성하고 테스트가 코드와 같은지 지킨다(`FUNG_UPDATE_SPEC=1 cargo test spec_file`로 갱신).
-- **바이트코드 검증기**(`crates/fung-front/src/bytecode/verify.rs`, VM22): 디버그 빌드의 컴파일러가 스스로 돌리고, `crates/fung-front/tests/verify.rs`가 릴리스 빌드에서도 저장소의 모든 프로그램(언어 테스트·예제·벤치마크·내장 모듈·매뉴얼 펜스)에 돌린다.
+- **바이트코드 검증기**(`crates/fung-front/src/bytecode/verify.rs`, VM22): 컴파일러가 만든 프로그램마다 스스로 돌리고(릴리스 빌드도, VM41 2026-11-13: 걸리면 실행 전에 E0801), `crates/fung-front/tests/verify.rs`가 저장소의 모든 프로그램(언어 테스트·예제·벤치마크·내장 모듈·매뉴얼 펜스)에 돌린다.
 - **변이 시험**(`crates/fung-front/tests/fuzz.rs`, TL9): 저장소의 모든 `.fung`(`tests/lang`·`examples`·`extras`·`bench`·`crates/fung-cli/tests/data`)을 씨앗으로, 고정 씨앗의 xorshift 생성기(크레이트 없이)가
   바이트 뒤집기, 토큰 삭제·복제·교환, 자르기, 구두점·키워드·떠도는 글자(제어 문자·BOM·결합 문자 등) 넣기, 다른 파일 조각 붙이기, 공백·주석·줄바꿈·끝 쉼표 넣기, 줄 지우기·되풀이를 한 번에 1~3개 겹쳐 변이를 만든다.
   변이는 실행하지 않고 앞단을 프로세스 안에서 직접 불러(`Loader::compile`·`format`, `catch_unwind`) 네 속성을 본다: (1) 렉서·파서·desugar·resolve·컴파일러·포매터가 패닉하지 않는다,
   (2) 포매터 출력이 다시 포맷해도 같고 같은 트리로 파싱되며, 컴파일되는 변이면 포맷 전후의 코어 트리(`dump core`)가 같다, (3) 컴파일된 원형은 검증기를 통과한다, (4) 두 번 컴파일하면 바이트코드가 같다.
   기본 2000건(디버그 약 5초, 릴리스 약 1초), `FUNG_FUZZ_CASES`·`FUNG_FUZZ_SEED`로 더 길게·다른 씨앗으로 돌린다. 실패하면 씨앗·다시 돌리는 환경 변수·조각을 지워 줄인 변이 소스를 보인다.
   변이를 앞단만 돌리는 이유: 실행까지 하면 무한 루프·파일 쓰기·네트워크 같은 부작용을 막아야 하고, 앞단의 패닉·비결정성·포맷 불변식은 실행 없이 드러난다.
+- **생성형 시험**(`crates/fung-vm/src/vm/gen_tests.rs`, VM41): 문법을 아는 고정 씨앗 생성기가 컴파일되는 작은 프로그램을 만들고(문장·값 자리의 가지, 가드·대안·리스트 패턴의 `match`, `??`, `and`·`or`·`not` 조건,
+  붙잡는 람다, 다시 대입, 가지 안의 `return`, 꼬리 호출, 반환 타입), 컴파일러의 장치를 쓰지 않는 기준 해석기가 말하는 출력·에러와 견준다. 변이 시험은 있던 프로그램을 깨뜨릴 뿐 돌리지 않아,
+  새 모양의 올바른 프로그램을 틀리게 컴파일하는 버그(VM37)를 놓쳤다. 기본 1,500개(`FUNG_GEN_CASES`·`FUNG_GEN_SEED`), 70% 넘게 컴파일되어 돌아야 한다.
 
 ## 참고 자료
 

@@ -1,0 +1,9 @@
+# Inside brackets a newline is space between items, but it does not join
+# two lines into one expression (D85): a missing comma is an error, not
+# `[1 - 1]`.
+xs = [
+  1
+  -1
+]
+print(xs)
+# expect-error: E0112

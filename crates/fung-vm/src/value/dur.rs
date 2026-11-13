@@ -18,6 +18,13 @@ fn round_to_dur(r: f64) -> Result<Value, Diag> {
     Ok(Value::Dur(r as i64))
 }
 
+/// A duration's nanoseconds as a float for arithmetic with one, when a
+/// float holds them exactly (past 2^53 ns, about 104 days, not every
+/// count does); otherwise E0523, as for an int (D48, VA42).
+fn exact_float(d: i64) -> Result<f64, Diag> {
+    super::arith::exact_float(d)
+}
+
 /// Multiplies a duration by a number, rejecting overflow.
 pub(super) fn scale_dur(d: i64, n: &Value) -> Result<Value, Diag> {
     let f = match n {
@@ -25,7 +32,7 @@ pub(super) fn scale_dur(d: i64, n: &Value) -> Result<Value, Diag> {
         Value::Float(x) => *x,
         _ => return Err(type_error("multiply", "dur", &type_name(n))),
     };
-    round_to_dur((d as f64 * f).round())
+    round_to_dur((exact_float(d)? * f).round())
 }
 
 /// Divides a duration by a number. An int divisor divides exactly and
@@ -41,7 +48,7 @@ pub(super) fn div_dur(d: i64, n: &Value) -> Result<Value, Diag> {
     if f == 0.0 {
         return Err(divzero());
     }
-    round_to_dur((d as f64 / f).round())
+    round_to_dur((exact_float(d)? / f).round())
 }
 
 /// `d / n` for `n != 0`, in i128 so that nothing wraps.

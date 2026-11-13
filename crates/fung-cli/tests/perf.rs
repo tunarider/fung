@@ -723,3 +723,15 @@ const LONG_WORK: &[(&str, &str)] = &[
 const GAP: &str = "fn gap(job) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(prev, worst, start):\n    if start: send(started_tx, true) else: nil ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - prev])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  job()\n  send(done_tx, true)\n  ms(await(w)!)\n;;)!\nfn ms(d) = d / 1ms\n";
 
 const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    _ = len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(() => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)!) else: nil ;;\n  cancel(s)\n;;, _e => nil), 20s))\n";
+
+/// VA46: text built up by interpolation grows in place like `acc + s`:
+/// the first part is the accumulator, handed over by its last read.
+#[test]
+fn interpolation_builds_text_in_linear_time() {
+    let _serial = serial();
+    let src = "s = fold(0..200000, \"\", (acc, i) => \"${acc}line ${i};\")\nprint(len(s))";
+    run(src);
+    let (out, took) = run(src);
+    assert_eq!(out, "2288890\n");
+    assert!(took < LIMIT, "{took:?}");
+}

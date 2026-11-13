@@ -171,8 +171,20 @@ impl Desugarer {
                 let a = self.walk(&n.kids[0])?;
                 Ok(Node::with_lit(Head::Op, n.pos, n.lit.clone(), vec![a]))
             }
+            // `c then a else b` is an operator: its branches are operands,
+            // used whatever becomes of its value (01), and it stays apart
+            // from a block `if` in the core tree, so that nothing has to
+            // tell the two by what their branches turned into (FE63).
+            Head::Then => {
+                let kids = n
+                    .kids
+                    .iter()
+                    .map(|k| self.walk(k))
+                    .collect::<Result<_, _>>()?;
+                Ok(Node::with_lit(Head::Then, n.pos, n.lit.clone(), kids))
+            }
             // The condition is used; the branches are discarded with the if.
-            Head::Then | Head::If => {
+            Head::If => {
                 let mut kids = vec![self.walk(&n.kids[0])?];
                 for k in &n.kids[1..] {
                     kids.push(if discard {
@@ -200,8 +212,9 @@ impl Desugarer {
             Head::Test => {
                 // A test block is a function made where it stands (08): it
                 // copies the variables visible at that point and can fail on
-                // its own.
-                let body = self.walk(&n.kids[0])?;
+                // its own. `fung test` drops what it returns (an Err there
+                // is E0606), so its body is discarded to its last item.
+                let body = self.walk_discarded(&n.kids[0])?;
                 let info = blank_info(&format!("test: {}", lit_str(n)), n.pos);
                 let f = Node::with_lit(Head::Fn, n.pos, Lit::Fn(Box::new(info)), vec![body]);
                 Ok(Node::with_lit(Head::Test, n.pos, n.lit.clone(), vec![f]))
@@ -927,7 +940,7 @@ mod tests {
                 "(do (if c (do (let x 1)) (do 2)))",
             ),
             ("if c: 1 ;;", "(do (if c (do 1) (nil)))"),
-            ("c then 1 else 2", "(do (if c 1 2))"),
+            ("c then 1 else 2", "(do (then c 1 2))"),
             ("\"a${x}b\"", "(do (concat \"a\" x \"b\"))"),
             ("nil", "(do (nil))"),
             ("'ok", "(do 'ok)"),
@@ -935,7 +948,7 @@ mod tests {
             ("\"plain\"", "(do \"plain\")"),
             (
                 "c then a and b else d",
-                "(do (if c (if a (op bool b) false) d))",
+                "(do (then c (if a (op bool b) false) d))",
             ),
         ]);
     }
@@ -1080,6 +1093,13 @@ mod tests {
         assert_eq!(
             core("test \"a\":\n  assert f() == 1\n;;"),
             "(do (test \"a\" (fn test: a() (do (assert (op == (call f) 1))))))"
+        );
+        // `fung test` drops what a test block returns, so its last item
+        // is discarded like the items before it: a `for` there is a pass
+        // for its effects, not a list (D90).
+        assert_eq!(
+            core("test \"a\":\n  for x in xs: g(x) ;;\n;;"),
+            "(do (test \"a\" (fn test: a() (do (call (prelude each) xs (fn (x) (do (call g x))))))))"
         );
     }
 

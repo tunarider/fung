@@ -1,21 +1,10 @@
 //! Calls and function bodies (09. 호출 규약).
 
 use super::{Compiler, lit_str};
-use crate::bytecode::{Op, Param, Proto, encode_call};
+use crate::bytecode::{Op, Param, Proto};
 use crate::consts::Const;
-use crate::diag::{Arg, Diag, error};
+use crate::diag::Diag;
 use crate::tree::{Head, Lit, Node};
-
-/// What the 12-bit CALL operand fields and CHECKTYPE packing hold.
-const MAX_ARGS: usize = 4095;
-
-fn too_many(n: &Node, what: &str) -> Diag {
-    error(
-        "E0230",
-        n.pos,
-        vec![Arg::Str(what.into()), Arg::Int(MAX_ARGS as i64)],
-    )
-}
 
 impl Compiler<'_> {
     /// Compiles `(call f pos… (named k e)…)`: callee, positional arguments,
@@ -23,6 +12,18 @@ impl Compiler<'_> {
     /// CALL — or TAILCALL in tail position. A spread `...xs` (the last
     /// positional) is its list, which CALLSPREAD lays out (D45).
     pub(super) fn call(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
+        self.call_checked(n, tail, None)
+    }
+
+    /// `call`, for a tail call whose value must be a bool (`bool_at`: the
+    /// place of the `and`/`or` it is the right side of, D97): the frame
+    /// takes that check along, as it takes a return type's.
+    pub(super) fn call_checked(
+        &mut self,
+        n: &Node,
+        tail: bool,
+        bool_at: Option<crate::source::Pos>,
+    ) -> Result<(), Diag> {
         if self.is_dbg_call(n) {
             return self.dbg_args(n);
         }
@@ -43,14 +44,14 @@ impl Compiler<'_> {
             }
             self.expr(k, false)?;
         }
-        if positional > MAX_ARGS || named > MAX_ARGS {
-            return Err(too_many(n, "arguments"));
-        }
         // A function with a return type reuses its frame for every tail
         // call too: the frame takes the check along, to run when it
         // returns (D44). A call to itself needs none: its own check runs
         // where its self calls end (03).
-        if tail && self.has_ret && n.kids[0].head != Head::SelfFn {
+        if let Some(at) = bool_at {
+            self.proto.emit(Op::TailCheckBool, 0, at);
+        }
+        if tail && self.proto.return_type >= 0 && n.kids[0].head != Head::SelfFn {
             let rt = self.proto.return_type as usize;
             self.proto.emit(Op::TailCheck, rt, self.ret_pos);
         }
@@ -60,7 +61,9 @@ impl Compiler<'_> {
             (false, true) => Op::CallSpread,
             (true, true) => Op::TailCallSpread,
         };
-        self.proto.emit(op, encode_call(positional, named), n.pos);
+        // A count past an operand's 24 bits is E0230 (`check_operands`),
+        // the limit of every count (VM43).
+        self.proto.emit_with(op, positional, named, n.pos);
         Ok(())
     }
 
@@ -73,7 +76,7 @@ impl Compiler<'_> {
         self.emit_const(Const::Str(arg.text(self.opts.source).to_string()), arg.pos);
         let place = format!("{}:{}", self.opts.file, n.pos.line);
         self.emit_const(Const::Str(place), n.pos);
-        self.proto.emit(Op::Call, encode_call(3, 0), n.pos);
+        self.proto.emit(Op::Call, 3, n.pos);
         Ok(())
     }
 
@@ -86,9 +89,6 @@ impl Compiler<'_> {
         let Lit::Fn(info) = &n.lit else {
             return Err(super::internal(n.pos, "compiler: fn without FnInfo".into()));
         };
-        if info.params.len() > MAX_ARGS {
-            return Err(too_many(n, "parameters"));
-        }
         let mut child = Proto {
             name: info.name.clone(),
             num_locals: info.num_locals,
@@ -111,7 +111,6 @@ impl Compiler<'_> {
             child.return_type = child.add_type(type_names(r)) as i32;
         }
         let mut cc = Compiler {
-            has_ret: child.return_type >= 0,
             proto: child,
             prelude: self.prelude,
             opts: self.opts,
@@ -132,8 +131,7 @@ impl Compiler<'_> {
             if !cc.proto.params[i].has_default {
                 continue;
             }
-            cc.proto.emit(Op::LoadLocal, i, n.pos);
-            let skip = cc.proto.emit(Op::JumpIfSet, 0, n.pos);
+            let skip = cc.proto.emit_with(Op::JumpIfSet, 0, i, n.pos);
             cc.expr(&n.kids[di], false)?;
             di += 1;
             cc.proto.emit(Op::StoreLocal, i, n.pos);
@@ -144,10 +142,24 @@ impl Compiler<'_> {
             let ty = cc.proto.params[i].ty;
             if ty >= 0 {
                 cc.proto
-                    .emit(Op::CheckType, i | (ty as usize) << 12, info.params[i].pos);
+                    .emit_with(Op::CheckType, i, ty as usize, info.params[i].pos);
             }
         }
 
+        // A parameter whose last read was in a default lets go here, once
+        // its type is checked: the defaults are outside the body's
+        // lifetimes, and a call that gave every argument skips them, so
+        // this is the first place both paths pass (VM39). A parameter
+        // nothing reads is kept until the frame returns (03).
+        let mut read = std::collections::BTreeSet::new();
+        for d in &n.kids[..di] {
+            super::local_reads(d, &mut read);
+        }
+        for i in read {
+            if i < cc.proto.params.len() && !cc.lives.live_at_start.contains(&i) {
+                cc.proto.emit(Op::ClearLocal, i, n.pos);
+            }
+        }
         let body = n.kids.last().expect("fn has a body");
         cc.block(body, true)?;
         cc.end_tail(body.pos);

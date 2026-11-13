@@ -1,4 +1,5 @@
-# A parameter cannot hide a prelude function (D38).
-fn f(len) = len + 1
-print(f(1))
+# A private fn's parameter is no interface: it cannot hide a prelude
+# function (D38, D86).
+fn _f(len) = len + 1
+print(_f(1))
 # expect-error: E0240

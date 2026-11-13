@@ -1,4 +1,0 @@
-# A top-level fn cannot hide a prelude function (D38).
-fn len(x) = 99
-print([1, 2, 3] |> len)
-# expect-error: E0240

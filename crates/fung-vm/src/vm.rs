@@ -32,6 +32,8 @@ mod failure;
 #[cfg(test)]
 mod failure_tests;
 mod frame;
+#[cfg(test)]
+mod gen_tests;
 mod link;
 mod m4;
 #[cfg(test)]
@@ -95,7 +97,7 @@ pub use atom::Atom;
 #[cfg(test)]
 pub(crate) use atom::effect_names;
 #[cfg(test)]
-pub(crate) use atom::{EFFECTS, PURE, has_no_effect, is_listed};
+pub(crate) use atom::{CALLING_FUNG, EFFECTS, PURE, PURE_FUNG, has_no_effect, is_listed};
 pub(crate) use atom::{
     make as atom_make, read as atom_read, reset as atom_reset, run_swap as atom_swap,
 };
@@ -206,6 +208,12 @@ fn unwrap_first(d: Diag, operands: &[&Value]) -> Diag {
     } else {
         d
     }
+}
+
+/// The order of two values for `<`, `>`, `<=`, `>=`, wherever the
+/// comparison is written (an `assert` splits its own, VM45).
+fn ordered(a: &Value, b: &Value) -> Result<Ordering, Diag> {
+    value::compare(a, b).map_err(|d| unwrap_first(d, &[a, b]))
 }
 
 /// E0606 for an `Err` that a statement discarded, alone or in a list
@@ -821,13 +829,26 @@ impl<'rt> Task<'rt> {
         let r = if utf8 {
             let mut s = String::with_capacity(size);
             let mut ascii = true;
-            for part in self
+            // A first part that is a string is the text the others are
+            // added to, as in `x + y`: one no other value holds grows in
+            // place, so `"${acc}…"` in a loop copies `acc` only when its
+            // room runs out (VA46; its last read handed it over).
+            let mut head: Option<Rc<value::Text>> = None;
+            for (i, part) in self
                 .fiber
                 .stack
                 .drain(start..)
                 .map(|p| p.expect("CONCAT of an unassigned slot"))
+                .enumerate()
             {
                 refuse(&part)?;
+                if i == 0
+                    && n > 1
+                    && let Value::Str(t) = part
+                {
+                    head = Some(t);
+                    continue;
+                }
                 match &part {
                     Value::Str(t) => {
                         ascii &= t.is_ascii();
@@ -846,7 +867,11 @@ impl<'rt> Task<'rt> {
                 }
             }
             value::check_chars(s.as_bytes()).map_err(|d| at(d, pos))?;
-            Value::Str(Rc::new(value::Text::ascii(s, ascii)))
+            let rest = value::Text::ascii(s, ascii);
+            match head {
+                Some(h) => value::add_text(h, &rest).map_err(|d| at(d, pos))?,
+                None => Value::Str(Rc::new(rest)),
+            }
         } else {
             let mut s = Vec::with_capacity(size);
             for part in self
@@ -915,9 +940,7 @@ impl<'rt> Task<'rt> {
         let a = self.pop();
         let c = match (&a, &b) {
             (Value::Int(x), Value::Int(y)) => x.cmp(y),
-            _ => {
-                value::compare(&a, &b).map_err(|d| at(unwrap_first(d, &[&a, &b]), self.here(fi)))?
-            }
+            _ => ordered(&a, &b).map_err(|d| at(d, self.here(fi)))?,
         };
         self.push(Value::Bool(test(c)));
         Ok(())
@@ -1040,7 +1063,7 @@ impl<'rt> Task<'rt> {
                         return Ok(Ran::Yielded(None));
                     }
                     let tail = matches!(op, Op::TailCall | Op::TailCallSpread);
-                    let (mut npos, nnamed) = fung_front::bytecode::decode_call(arg);
+                    let (mut npos, nnamed) = (arg, code.b());
                     if matches!(op, Op::CallSpread | Op::TailCallSpread) {
                         npos = self.spread_args(npos, nnamed, fi)?;
                     }
@@ -1072,12 +1095,12 @@ impl<'rt> Task<'rt> {
                     self.push(Value::Closure(c));
                 }
                 Op::JumpIfSet => {
-                    if self.fiber.stack.pop().flatten().is_some() {
+                    if self.fiber.stack[base + code.b()].is_some() {
                         self.fiber.frames[fi].ip = arg;
                     }
                 }
                 Op::CheckType => {
-                    let (slot, ti) = (arg & 0xFFF, arg >> 12);
+                    let (slot, ti) = (arg, code.b());
                     let v = self.fiber.stack[base + slot]
                         .as_ref()
                         .expect("CHECKTYPE on an unassigned slot");
@@ -1094,7 +1117,8 @@ impl<'rt> Task<'rt> {
                         ));
                     }
                 }
-                Op::TailCheck => self.tail_check(fi, ip, arg),
+                Op::TailCheck => self.tail_check(fi, arg),
+                Op::TailCheckBool => self.tail_check_bool(fi),
                 Op::CheckReturn => {
                     let v = self.top();
                     let p = &self.fiber.frames[fi].proto();
@@ -1110,7 +1134,8 @@ impl<'rt> Task<'rt> {
                     }
                 }
                 Op::LoadLocal => {
-                    // Copies an empty slot too: JUMPIFSET reads it.
+                    // The verifier lets no read of an empty slot through;
+                    // one that slipped by is E0801 where the value is used.
                     let v = self.fiber.stack[base + arg].as_ref().map(copy_value);
                     self.fiber.stack.push(v);
                 }

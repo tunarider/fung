@@ -1,0 +1,7 @@
+# The functions that order their elements check every one against the
+# first before they start (D87): rows whose second fields do not compare
+# are an error even when the first fields alone would settle the order.
+print(sort([[2, "b"], [1, "a"]]))
+# expect: [[1, "a"], [2, "b"]]
+print(sort([[1, "a"], [2, 2]]))
+# expect-error: E0501

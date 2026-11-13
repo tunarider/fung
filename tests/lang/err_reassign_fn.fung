@@ -1,3 +1,4 @@
+# A name is bound once: a fn's name is no exception (D88).
 fn f() = 1
 f = 2
-# expect-error: E0209
+# expect-error: E0238

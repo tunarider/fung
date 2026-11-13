@@ -1,0 +1,10 @@
+# `/` is float arithmetic, so an int that a float cannot hold exactly is
+# an error there as in the other operators (VA41, D48): the quotient is
+# not computed from a silently rounded operand.
+fn third(n) = n / 3
+print(7 / 2, 9007199254740992 / 2, third(9))
+# expect: 3.5 4503599627370496.0 3.0
+print(9007199254740993 // 3, third(float(9007199254740993)))
+# expect: 3002399751580331 3002399751580330.5
+print(third(9007199254740993))
+# expect-error: E0523

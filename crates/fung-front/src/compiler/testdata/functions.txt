@@ -5,7 +5,7 @@
 0003  8:1   STOREGLOBAL  1    ; h
 0004  9:8   LOADGLOBAL   1    ; h
 0005  9:10  CONST        0    ; Ok(1)
-0006  9:9   CALL         1    ; 1 positional, 0 named
+0006  9:9   CALL         1 0    ; 1 positional, 0 named
 0007  9:20  CONST        1    ; 2
 0008  9:1   ASSERT       0    ; h(Ok(1)) == 2
 0009  10:8  CONST        2    ; true
@@ -49,7 +49,7 @@
 0047  14:67 CONST        3    ; 1
 0048  14:72 LOADGLOBAL   3    ; n
 0049  14:69 GE
-0050  14:6  CALL         8    ; 8 positional, 0 named
+0050  14:6  CALL         8 0    ; 8 positional, 0 named
 0051  14:1  POP
 0052  14:78 CONST        10    ; 7
 0053  1:1   RETURN
@@ -63,13 +63,13 @@
 0005  4:3   CONST        0    ; <fn each>
 0006  4:12  CONST        1    ; [1]
 0007  4:3   CLOSURE      2    ; <lambda>
-0008  4:3   CALL         2    ; 2 positional, 0 named
+0008  4:3   CALL         2 0    ; 2 positional, 0 named
 0009  4:3   POP
 0010  5:21  CONST        2    ; (1, [2])
 0011  5:3   MATCHORFAIL  0    ; ($3, [$4, ...])
 0012  6:10  MOVELOCAL    1
 0013  6:15  CONST        3    ; 2
-0014  6:14  TAILCALL     1    ; 1 positional, 0 named
+0014  6:14  TAILCALL     1 0    ; 1 positional, 0 named
 
 == loop ==
 0000  2:16  LOADLOCAL    0
@@ -82,7 +82,7 @@
 0007  2:40  MOVELOCAL    0
 0008  2:44  CONST        1    ; 1
 0009  2:42  SUB
-0010  2:39  TAILCALL     1    ; 1 positional, 0 named
+0010  2:39  TAILCALL     1 0    ; 1 positional, 0 named
 
 == <lambda> ==
 0000  3:13  MOVELOCAL    0
@@ -93,7 +93,7 @@
 == <lambda> ==
 0000  4:17  CONST        0    ; <fn print>
 0001  4:23  MOVELOCAL    0
-0002  4:22  TAILCALL     1    ; 1 positional, 0 named
+0002  4:22  TAILCALL     1 0    ; 1 positional, 0 named
 
 == h ==
 0000  8:18  MOVELOCAL    0

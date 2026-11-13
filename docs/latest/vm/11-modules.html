@@ -189,15 +189,15 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0009  6:9   FIELD        4    ; exists
 0010  6:17  LOADGLOBAL   1    ; base
 0011  6:22  CONST        5    ; &quot;/tmp/nothing-here&quot;
-0012  6:21  CALL         1    ; 1 positional, 0 named
-0013  6:16  CALL         1    ; 1 positional, 0 named
-0014  6:6   CALL         1    ; 1 positional, 0 named
+0012  6:21  CALL         1 0    ; 1 positional, 0 named
+0013  6:16  CALL         1 0    ; 1 positional, 0 named
+0014  6:6   CALL         1 0    ; 1 positional, 0 named
 0015  6:1   POP
 0016  7:1   CONST        3    ; &lt;fn print&gt;
 0017  7:7   LOADGLOBAL   2    ; double
 0018  7:14  CONST        6    ; 21
-0019  7:13  CALL         1    ; 1 positional, 0 named
-0020  7:6   CALL         1    ; 1 positional, 0 named
+0019  7:13  CALL         1 0    ; 1 positional, 0 named
+0020  7:6   CALL         1 0    ; 1 positional, 0 named
 0021  7:1   POP
 0022  7:1   CONST        7    ; nil
 0023  1:1   RETURN

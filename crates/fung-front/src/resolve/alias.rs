@@ -84,6 +84,24 @@ impl Resolver<'_> {
             self.expanded.insert(name.to_string(), out.clone());
             return out;
         }
+        // `Int` would be a tag's name, and a value of type int never
+        // that tag: the builtin types are written in lowercase (D101).
+        let lower = name.to_lowercase();
+        let builtin = match lower.as_str() {
+            "string" => "str",
+            "integer" => "int",
+            "boolean" => "bool",
+            l => l,
+        };
+        if is_tag_name(name) && is_builtin_type(builtin) {
+            if self.reported.insert(name.to_string()) {
+                self.errs
+                    .push(name_error("E0212", t.pos, name).with_help(&format!(
+                        "the builtin types are written in lowercase: `{builtin}`"
+                    )));
+            }
+            return Vec::new();
+        }
         if is_builtin_type(name) || is_tag_name(name) {
             return vec![TypeTerm::plain(name, t.pos)];
         }

@@ -194,7 +194,7 @@ fn leaf_text(v: &Value) -> String {
         Value::Bool(b) => b.to_string(),
         Value::Nil => "nil".into(),
         Value::Str(s) => quote_bytes(s),
-        Value::Sym(s) => format!("'{}", s.name()),
+        Value::Sym(s) => fung_front::consts::symbol(s.name()),
         Value::Dur(d) => format_dur(*d),
         Value::Time(t) => t.iso(),
         Value::Range(r) => {

@@ -212,3 +212,26 @@ fn parameter_patterns_run() {
         ("fn f((a, _b)) = a\nf(x: 1)", "E0406"),
     ]);
 }
+
+/// An assert's comparison fails as the operator does (VM45): at the
+/// operator, with its help.
+#[test]
+fn an_asserts_comparison_is_the_operators() {
+    let assert = exec("assert parse_int(\"1\") < 1", Opts::default());
+    let plain = exec("x = parse_int(\"1\") < 1\nprint(x)", Opts::default());
+    for o in [&assert, &plain] {
+        assert_eq!(o.code, "E0501");
+        assert!(
+            o.err.contains("unwrap it with `!` or `?` first"),
+            "{}",
+            o.err
+        );
+    }
+    assert!(
+        assert.err.contains("-e:1:23") || assert.err.contains(":1:23"),
+        "{}",
+        assert.err
+    );
+    let o = exec("assert 1 in 5", Opts::default());
+    assert!(o.err.contains(":1:10"), "{}", o.err);
+}

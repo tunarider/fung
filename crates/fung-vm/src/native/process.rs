@@ -67,6 +67,18 @@ fn exec_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
             ],
         ));
     }
+    // An empty name is the code's mistake too, like an empty list or an
+    // empty `cwd` (VA58).
+    if argv[0].is_empty() {
+        return Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("cmd"),
+                nat::s("a list that starts with the command's name"),
+                nat::s("an empty name"),
+            ],
+        ));
+    }
     run_command(t, argv, &a)
 }
 

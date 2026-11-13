@@ -35,8 +35,8 @@ later()
   <li>기본값은 호출할 때마다 왼쪽부터 평가되고, 앞 인자를 참조할 수 있다. 기본값과 <code>...rest</code>는 <code>fn</code>과 익명 <code>fn(…):</code>에서 쓴다(람다 <code>=&gt;</code>에는 없다).</li>
   <li>호출할 때 위치 인자 뒤에 이름 붙인 인자를 쓴다: <code>exec(cmd, cwd: dir)</code>. 내장 함수와 람다도 똑같다(<code>f = (a, b) =&gt; a - b</code>이면 <code>f(b: 1, a: 10)</code>은 9).</li>
   <li>호출의 마지막 위치 인자 자리에 <code>...xs</code>를 하나 쓰면 리스트나 범위 <code>xs</code>의 원소가 그 자리부터의 위치 인자가 된다: <code>f(a, ...xs, k: v)</code>. 다른 위치 인자 앞, 리스트 리터럴(<code>[a, ...xs]</code>는 <code>[a] + xs</code>로), 태그의 값에는 쓸 수 없다(E0133). 리스트·범위가 아닌 값을 펼치면 런타임 에러 E0506.</li>
-  <li>인자 개수가 맞지 않거나(E0402·E0407), 같은 인자를 위치와 이름으로 두 번 주거나(E0405), 모르는 이름이면(E0406) 에러다. 호출 대상이 컴파일 때 정해지면(가려지지 않은 최상위 <code>fn</code>, prelude 함수, import한 모듈의 함수) 컴파일 때 같은 번호와 문구로 잡고, 그 밖(변수에 든 함수 값, 펼친 인자의 개수)은 호출할 때 잡는다.</li>
-  <li>매개변수는 본문의 지역 이름이다. 보이는 바깥 이름(바깥 지역, 최상위 이름, import한 이름, prelude 함수)과 같은 이름이면 E0240이고, 본문과 뒤 매개변수의 기본값 어디서도 읽지 않으면 E0239다(<a href="scope.html">변수와 스코프</a>). 받기만 하는 매개변수는 <code>_</code>로 시작한다: <code>on_fail: _e =&gt; nil</code>. 람다·<code>for</code>·<code>match</code> 패턴이 묶는 이름도 같다.</li>
+  <li>인자 개수가 맞지 않거나(E0402·E0407), 같은 인자를 위치와 이름으로 두 번 주거나(E0405), 모르는 이름이면(E0406) 에러다. 호출 대상이 컴파일 때 정해지면(가려지지 않은 최상위 <code>fn</code>, 블록 안의 <code>fn</code>, prelude 함수, import한 모듈의 함수, 그리고 이들의 부분 적용 <code>f(a, _)</code>) 컴파일 때 같은 번호와 문구로 잡고, 그 밖(변수에 든 함수 값, 펼친 인자의 개수)은 호출할 때 잡는다.</li>
+  <li>매개변수는 본문의 지역 이름이다. 보이는 바깥 이름(바깥 지역, 최상위 이름, import한 이름, prelude 함수)과 같은 이름이면 E0240이고(공개 최상위 <code>fn</code>의 매개변수만은 prelude 함수와 같은 이름일 수 있다, <a href="modules.html">모듈</a>), 본문과 뒤 매개변수의 기본값 어디서도 읽지 않으면 E0239다(<a href="scope.html">변수와 스코프</a>). 받기만 하는 매개변수는 <code>_</code>로 시작한다: <code>on_fail: _e =&gt; nil</code>. 람다·<code>for</code>·<code>match</code> 패턴이 묶는 이름도 같다.</li>
   <li>매개변수 자리에 구조 분해 패턴(<code>_</code>, 튜플, 리스트, 맵, 태그)을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>. <code>fn</code>과 람다가 같고, 대입·<code>for</code>와 같은 <a href="match.html">구조 분해 패턴</a>이라 맨 바깥의 리터럴(<code>(1) =&gt; …</code>, 인자 없는 태그 <code>fn f(Red)</code>)은 매개변수가 될 수 없다(E0112, 값으로 고르려면 <code>match</code>).</li>
 </ul>
 
@@ -96,7 +96,7 @@ fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
 print(count(1_000_000, 0))
 ```
 
-<p>꼬리가 아닌 것: 연산자의 피연산자(<code>1 + f()</code>), <code>f()!</code>·<code>f()?</code>·<code>f() ?? b</code>, 다른 호출의 인자, <code>and</code>·<code>or</code>의 오른쪽. 반환 타입을 적은 함수도 같다: 꼬리 호출은 프레임을 재사용하고, 프레임이 그 함수의 반환값 검사를 이어받아 프레임이 돌아올 때 한다(검사가 실패하면 E0404가 반환 타입을 적은 함수를 가리킨다). 이어받은 검사가 이미 있으면 다시 쌓지 않으므로 서로 부르는 함수도 일정한 공간에서 돈다. 꼬리가 아닌 재귀는 깊이 100,000에서 "stack overflow" 에러다.</p>
+<p><code>return f()</code>의 호출, <code>a ?? f()</code>의 오른쪽, <code>a and f()</code>·<code>a or f()</code>의 오른쪽도 꼬리 위치면 꼬리 호출이다(<code>and</code>·<code>or</code>의 오른쪽은 bool이어야 하는데, 그 검사는 프레임이 이어받아 값이 돌아올 때 한다). 꼬리가 아닌 것: 연산자의 피연산자(<code>1 + f()</code>), <code>f()!</code>·<code>f()?</code>·<code>f() ?? b</code>의 왼쪽, 다른 호출의 인자. 반환 타입을 적은 함수도 꼬리 호출을 한다: 꼬리 호출은 프레임을 재사용하고, 프레임이 그 함수의 반환값 검사를 이어받아 프레임이 돌아올 때 한다(검사가 실패하면 E0404가 반환 타입을 적은 함수를 가리킨다). 이어받은 검사가 이미 있으면 다시 쌓지 않으므로 서로 부르는 함수도 일정한 공간에서 돈다. 꼬리가 아닌 재귀는 깊이 100,000에서 "stack overflow" 에러다.</p>
 
 ```fung run
 fn even(n) -> bool = n == 0 then true else odd(n - 1)

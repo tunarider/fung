@@ -167,15 +167,14 @@ error = tagger(&quot;ERROR&quot;)
 print(warn(&quot;disk 91%&quot;))
 print([&quot;timeout&quot;, &quot;refused&quot;] |&gt; map(error))</code></pre><pre class="out plain"><code>[WARN] disk 91%
 [&quot;[ERROR] timeout&quot;, &quot;[ERROR] refused&quot;]</code></pre></div>
-<p>fung의 클로저 규칙은 하나다. <strong>함수는 만들어질 때 보이는 변수의 값을 복사한다.</strong> 나중에 그 이름에 다른 값을 대입해도(함수 본문 같은 블록 안에서는 같은 이름에 다시 대입할 수 있다), 함수가 가진 값은 그대로다.</p>
+<p>fung의 클로저 규칙은 하나다. <strong>함수는 만들어질 때 보이는 변수의 값을 가진다.</strong> 이름은 한 번만 묶이고 값은 바뀌지 않으므로, 함수가 가진 값은 언제 불러도 그대로다.</p>
 <div class="run"><pre><code>fn targets(names):
   suffix = &quot;.log&quot;
   is_target = name =&gt; ends_with(name, suffix)
-  suffix = &quot;.txt&quot;
   filter(names, is_target)
 ;;
 print(targets([&quot;app.log&quot;, &quot;notes.txt&quot;]))</code></pre><pre class="out plain"><code>[&quot;app.log&quot;]</code></pre></div>
-<p><code>is_target</code>이 만들어질 때 <code>suffix</code>는 <code>&quot;.log&quot;</code>였으므로, 그 뒤에 <code>suffix</code>가 바뀌어도 <code>is_target</code>은 계속 <code>.log</code>를 찾는다. 값이 바뀌지 않는 언어라서 "그때의 값"과 "지금의 값"이 섞일 일이 없다.</p>
+<p><code>is_target</code>은 만들어질 때의 <code>suffix</code>, 곧 <code>&quot;.log&quot;</code>를 가지고 다닌다. <code>targets</code>가 끝난 뒤에 불려도 같다. 같은 이름에 다른 값을 다시 붙일 수 없으므로(E0238) "그때의 값"과 "지금의 값"이 섞일 일이 없다.</p>
 <h3 id="top-level">최상위 함수가 볼 수 있는 이름</h3>
 <p>위 규칙을 최상위 <code>fn</code>에 적용하면 결론이 하나 나온다. 최상위 <code>fn</code>은 프로그램 시작 <strong>전에</strong> 만들어지므로, 그때는 복사할 변수가 아직 없다. 그래서 최상위 <code>fn</code>이 볼 수 있는 파일의 이름은 다음뿐이다.</p>
 <ul>
@@ -233,7 +232,7 @@ liftoff</code></pre></div>
 <p><strong>정의</strong>는 "이런 계산이 있다"고 적어 두는 것이고, <strong>호출</strong>은 그 계산을 실제로 하는 것이다. <code>fn percent(used, total) = …</code>의 <code>used</code>와 <code>total</code>이 매개변수(빈칸의 이름)이고, <code>percent(45, 50)</code>의 <code>45</code>와 <code>50</code>이 인자(빈칸에 넣은 값)다. 정의만 하고 부르지 않으면 아무 일도 일어나지 않는다.</p>
 </div>
 <div class="box mistake"><b>최상위에서 이름 다시 쓰기 (E0238)</b>
-<p>최상위에서 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙이거나 한 번에 계산한다(예: <code>level = if … ;;</code>). 최상위 <code>fn</code>이 부를 때 읽는 최상위 이름이 바뀔 수 있다면 함수의 결과가 호출 시점에 따라 달라지는데, 최상위 이름이 한 번만 붙으니 fung에는 그런 숨은 의존이 없다.</p>
+<p>이미 붙인 이름에 다시 대입하면 최상위에서도 함수 안에서도 E0238이다. 바뀐 값에는 새 이름을 붙이거나 한 번에 계산한다(예: <code>level = if … ;;</code>). 최상위 <code>fn</code>이 부를 때 읽는 최상위 이름이 바뀔 수 있다면 함수의 결과가 호출 시점에 따라 달라지는데, 최상위 이름이 한 번만 붙으니 fung에는 그런 숨은 의존이 없다.</p>
 </div>
 <div class="box mistake"><b>파이프 오른쪽 호출의 _ (E0227)</b>
 <p>파이프 값은 늘 맨 앞 인자로 들어가므로 <code>&quot;a.txt&quot; |&gt; path.join(&quot;/tmp&quot;, _)</code>는 <code>path.join(&quot;a.txt&quot;, &quot;/tmp&quot;, _)</code>가 되어 버린다. 그래서 이 모양은 컴파일 에러다. 다른 자리에 넣으려면 람다를 쓴다: <code>&quot;a.txt&quot; |&gt; (f =&gt; path.join(&quot;/tmp&quot;, f))</code>.</p>

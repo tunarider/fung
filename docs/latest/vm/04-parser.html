@@ -173,12 +173,12 @@ mul():
   |
  help: split it with `and`: a &lt; b and b &lt; c</code></pre>
 <h2 id="newlines">줄바꿈은 파서가 정한다</h2>
-<p>3장에서 렉서는 줄바꿈을 <code>Newline</code> 토큰으로 넘겼다. 파서는 세 규칙으로 그 토큰을 문장 끝으로 볼지 공백으로 볼지 정한다(설계 문서 01).</p>
+<p>3장에서 렉서는 줄바꿈을 <code>Newline</code> 토큰으로 넘겼다. 파서는 두 규칙으로 식이 다음 줄로 이어지는지 정한다(설계 문서 01). 괄호 안에서도 밖에서도 같은 규칙이다.</p>
 <ol>
-<li><strong>괄호 안의 줄바꿈은 공백이다.</strong> 파서는 지금 열린 괄호의 깊이를 세다가(<code>nest</code>), 깊이가 0보다 크면 앞보기에서 <code>Newline</code>을 건너뛴다.</li>
 <li><strong>연산자로 끝난 줄은 이어진다.</strong> 연산자를 읽은 직후에는 줄바꿈을 건너뛴다.</li>
 <li><strong>다음 줄이 이어짐 전용 토큰으로 시작하면 이어진다.</strong> <code>|&gt;</code> <code>.</code> <code>??</code> <code>and</code> <code>or</code> <code>then</code> <code>else</code>. 이 토큰들은 문장을 시작할 수 없으므로 모호하지 않다.</li>
 </ol>
+<p>괄호 안의 줄바꿈은 <strong>원소 사이와 괄호 옆에서</strong> 공백이다. 파서는 지금 열린 괄호의 깊이를 세다가(<code>nest</code>), 깊이가 0보다 크면 원소를 읽기 시작할 때와 쉼표·닫는 괄호를 기다릴 때의 앞보기에서 <code>Newline</code>을 건너뛴다. 그러나 식을 읽는 도중 다음 연산자를 찾는 앞보기(<code>peek_infix</code>)는 괄호 안에서도 줄바꿈을 건너뛰지 않는다. 건너뛰면 쉼표를 빠뜨린 <code>[1⏎ -1]</code>이 말없이 <code>[1 - 1]</code>이 되기 때문이다. 같은 까닭으로, 앞 문장의 다음 줄을 <code>-</code>로 시작하는 문장은 에러(E0136)다.</p>
 <div class="run"><pre><code>xs = [1, 2, 3]
 total = xs
   |&gt; map(x =&gt; x * 2)

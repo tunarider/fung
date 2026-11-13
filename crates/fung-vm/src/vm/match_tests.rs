@@ -96,7 +96,7 @@ fn destructuring_assignment() {
         ),
         ("Ok(text) = Ok(\"hi\")\nprint(text)", "hi\n"),
         (
-            "fn f():\n  (a, b) = (1, 2)\n  (a, b) = (b, a)\n  a - b\n;;\nprint(f())",
+            "fn f():\n  (a, b) = (1, 2)\n  (c, d) = (b, a)\n  c - d\n;;\nprint(f())",
             "1\n",
         ),
     ]);

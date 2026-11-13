@@ -48,7 +48,8 @@ fung의 코어는 겉 트리와 **같은 모양**(균일 트리, 4장)이다. �
   <tbody>
     <tr><td><code>(do e…)</code></td><td>순서대로 실행, 값은 마지막 것</td><td>파일 전체(<code>program</code>), 블록(<code>block</code>)</td></tr>
     <tr><td><code>(let 대상 e)</code></td><td>대입</td><td><code>x = e</code>, 구조 분해 <code>(a, b) = e</code></td></tr>
-    <tr><td><code>(if c a b)</code></td><td>조건</td><td><code>if</code>/<code>else if</code>, <code>then … else</code>, <code>and</code>, <code>or</code></td></tr>
+    <tr><td><code>(if c a b)</code></td><td>조건</td><td><code>if</code>/<code>else if</code>, <code>and</code>, <code>or</code></td></tr>
+    <tr><td><code>(then c a b)</code></td><td>조건 연산자</td><td><code>c then a else b</code></td></tr>
     <tr><td><code>(fn 이름 매개변수 본문)</code></td><td>함수</td><td><code>fn</code> 정의, 람다 <code>=&gt;</code>, 익명 함수, <code>_</code> 부분 적용, <code>for</code>의 본문</td></tr>
     <tr><td><code>(call f 인자…)</code></td><td>호출</td><td>호출, 파이프 <code>|&gt;</code>, <code>for</code></td></tr>
     <tr><td><code>(op 연산자 a b)</code></td><td>원시 연산</td><td>산술, 비교, <code>in</code>, <code>not</code>, 단항 <code>-</code></td></tr>
@@ -107,10 +108,11 @@ print(false and (1 / 0 == 1))
 
 `1 / 0`이 있지만 에러가 나지 않는다. 실행되지 않았기 때문이다.
 
-`(op bool b)`는 "b가 불(bool)이 아니면 에러"라는 검사다. fung은 조건 자리에 `true`·`false`만 받는다. `if`의 조건 `a`는 VM의 점프 명령이 검사하지만, 가지로 실행된 `b`의 값은 따로 검사해야 한다. 그래서 `true and 1`은 실행 시점의 `E0505`다.
+`(op bool b)`는 "b가 불(bool)이 아니면 에러"라는 검사다. fung은 조건 자리에 `true`·`false`만 받는다. `if`의 조건 `a`는 VM의 점프 명령이 검사하지만, 가지로 실행된 `b`의 값은 따로 검사해야 한다. 그래서 오른쪽이 불이 아니면 실행 시점의 `E0505`다. (리터럴을 바로 쓴 `true and 1`은 타입이 이미 드러나 있어 컴파일할 때 같은 번호로 잡힌다.)
 
 ```fung run exit=1 error=E0505
-print(true and 1)
+one = 1
+print(true and one)
 ```
 
 ### 파이프: 평범한 호출로 {#pipe}
@@ -164,7 +166,7 @@ n = 3
 print("hi ${name}", n > 2 then "big" else "small")
 ```
 
-`interp`는 `concat`이 되었다. 8장에서 이것은 `CONCAT` 명령 하나가 된다. `then`은 블록 `if`와 똑같은 `(if c a b)`다. 한 줄 조건과 여러 줄 조건이 코어에서는 구별되지 않는다.
+`interp`는 `concat`이 되었다. 8장에서 이것은 `CONCAT` 명령 하나가 된다. `then`은 코어에서도 `(then c a b)`로 남는다. 컴파일러는 블록 `if`와 똑같은 점프로 옮기지만, 값 자리 검사는 둘을 다르게 본다: `then … else`는 연산자라 두 가지가 늘 쓰이는 값이고 `else`가 반드시 있으며, 블록 `if`는 문장으로 쓰면 가지의 값이 버려지고 `else`가 없을 수 있다. 가지가 풀린 모양으로 둘을 가리면 틀리므로(가지가 `match`나 부분 적용이면 `do`가 된다) 이름을 남긴다.
 
 ### `_` 부분 적용: 숨은 변수와 람다 {#partial}
 

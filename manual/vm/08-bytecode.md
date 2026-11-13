@@ -59,7 +59,7 @@ print(1 + a * 3)
 
 ## 명령 하나의 생김새 {#encoding}
 
-fung의 명령 하나는 **고정 폭 단어 하나**다. 8비트가 명령의 종류(opcode), 24비트가 피연산자(operand)다. 피연산자가 둘 필요한 몇 명령(`MATCH`·`TAG`·`MAP`)은 둘째 24비트 피연산자를 더 쓴다(아래).
+fung의 명령 하나는 **고정 폭 단어 하나**다. 8비트가 명령의 종류(opcode), 24비트가 피연산자(operand)다. 피연산자가 둘 필요한 몇 명령(`MATCH`·`TAG`·`MAP`, 호출, `CHECKTYPE`·`JUMPIFSET`)은 둘째 24비트 피연산자를 더 쓴다(아래).
 
 ```plain
  31        24 23                                 0
@@ -70,9 +70,9 @@ fung의 명령 하나는 **고정 폭 단어 하나**다. 8비트가 명령의 �
  CONST 5  =  명령 0번(CONST) | 피연산자 5
 ```
 
-8비트면 명령을 256가지까지 둘 수 있고, fung은 지금 58가지를 쓴다. 24비트면 피연산자로 1,600만 남짓(16,777,215)까지 적을 수 있어서 상수 번호, 슬롯 번호, 점프할 명령 번호에 충분하다. 그래도 넘는 함수(프로그램이 만든 거대한 코드)는 잘라 담지 않고 컴파일 에러 E0230으로 멈춘다. 명령을 풀 때는 비트 연산 둘(오른쪽으로 24칸 밀기, 아래 24비트 걸러내기)이면 된다. 다만 VM은 실행할 때마다 풀지 않는다. 함수 원형을 VM에 들여올 때(링크, `vm/link.rs`) 명령 목록을 `{명령 종류, 둘째 피연산자, 피연산자}`의 배열로 한 번 풀어 두고, 실행 루프는 그 필드를 읽기만 한다. 명령 종류 1바이트 뒤의 빈 3바이트에 둘째 피연산자를 담아 명령 하나가 8바이트 그대로다.
+8비트면 명령을 256가지까지 둘 수 있고, fung은 지금 59가지를 쓴다. 24비트면 피연산자로 1,600만 남짓(16,777,215)까지 적을 수 있어서 상수 번호, 슬롯 번호, 점프할 명령 번호에 충분하다. 그래도 넘는 함수(프로그램이 만든 거대한 코드)는 잘라 담지 않고 컴파일 에러 E0230으로 멈춘다. 명령을 풀 때는 비트 연산 둘(오른쪽으로 24칸 밀기, 아래 24비트 걸러내기)이면 된다. 다만 VM은 실행할 때마다 풀지 않는다. 함수 원형을 VM에 들여올 때(링크, `vm/link.rs`) 명령 목록을 `{명령 종류, 둘째 피연산자, 피연산자}`의 배열로 한 번 풀어 두고, 실행 루프는 그 필드를 읽기만 한다. 명령 종류 1바이트 뒤의 빈 3바이트에 둘째 피연산자를 담아 명령 하나가 8바이트 그대로다.
 
-피연산자에 작은 수 두 개가 필요한 명령은 24비트를 나눠 쓴다. `CALL`은 아래 12비트에 위치 인자 수, 그 위 12비트에 이름 인자 수를 담는다. 역어셈블 출력의 `; 1 positional, 0 named`가 그것을 풀어 보인 것이다. 둘 다 큰 수일 수 있으면 둘째 피연산자를 쓴다. `MATCH`는 패턴이 맞지 않을 때 갈 명령 번호와 패턴 번호, `TAG`는 값의 수와 이름 상수, `MAP`은 값의 수와 키 목록 상수다(2026-11-11 점검 VM29·VM30·VM32). 역어셈블 출력은 둘째 피연산자를 첫째 뒤에 적는다(`MATCH 8 0`).
+수가 둘 필요한 명령은 둘째 피연산자를 쓴다. `CALL`·`TAILCALL`·`CALLSPREAD`·`TAILCALLSPREAD`는 위치 인자 수와 이름 인자 수(역어셈블 출력의 `; 1 positional, 0 named`), `MATCH`는 패턴이 맞지 않을 때 갈 명령 번호와 패턴 번호, `TAG`는 값의 수와 이름 상수, `MAP`은 값의 수와 키 목록 상수, `CHECKTYPE`은 매개변수 칸과 타입 번호, `JUMPIFSET`은 갈 명령 번호와 매개변수 칸이다(2026-11-11 점검 VM29·VM30·VM32, 2026-11-13 점검 VM42·VM43). 한 피연산자의 24비트를 둘로 쪼개 쓰는 명령은 없다: 쪼개면 그 명령만의 작은 한도(전에는 인자 4,095개)가 생긴다. 역어셈블 출력은 둘째 피연산자를 첫째 뒤에 적는다(`MATCH 8 0`).
 
 명령은 무리로 나눠 보면 다음과 같다.
 
@@ -84,7 +84,7 @@ fung의 명령 하나는 **고정 폭 단어 하나**다. 8비트가 명령의 �
     <tr><td>접근</td><td><code>INDEX</code> <code>SLICE</code> <code>FIELD</code></td></tr>
     <tr><td>변수</td><td><code>LOADLOCAL</code> <code>MOVELOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code> <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
     <tr><td>흐름</td><td><code>JUMP</code> <code>JUMPIFFALSE</code> <code>JUMPIFTRUE</code> <code>JUMPIFSET</code></td></tr>
-    <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>CALLSPREAD</code> <code>TAILCALLSPREAD</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code> <code>TAILCHECK</code></td></tr>
+    <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>CALLSPREAD</code> <code>TAILCALLSPREAD</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code> <code>TAILCHECK</code> <code>TAILCHECKBOOL</code></td></tr>
     <tr><td>결과값</td><td><code>UNWRAPABORT</code>(<code>!</code>) <code>UNWRAPTEST</code>(<code>?</code>) <code>COALESCE</code>(<code>??</code>)</td></tr>
     <tr><td>패턴</td><td><code>MATCH</code> <code>MATCHORFAIL</code> <code>NOMATCH</code></td></tr>
     <tr><td>기타</td><td><code>IMPORT</code> <code>ASSERT</code> <code>TEST</code></td></tr>
@@ -189,7 +189,7 @@ VM의 심장은 반복문 하나다.
 ```plain
 반복:
   f = 맨 위 프레임
-  명령 = f.proto.code[f.ip]      (링크 때 풀어 둔 {종류, 피연산자})
+  명령 = f.closure.code[f.ip]    (링크 때 풀어 둔 {종류, 피연산자})
   f.ip = f.ip + 1
   명령의 종류에 따라:
     CONST     → 상수 풀[피연산자]를 올린다
@@ -282,29 +282,30 @@ print(report([3, 4, 5]))
 
 VM은 컴파일러가 만든 바이트코드를 믿고 돈다. 명령마다 "피연산자가 상수 표 안에 있는가", "스택에 값이 충분한가", "읽는 칸에 값이 있는가"를 묻지 않는다. 묻지 않으니 빠르지만, 컴파일러가 약속을 어기면 VM이 패닉하거나(`VM stack underflow`) 엉뚱한 곳의 코드를 돈다.
 
-그래서 디버그 빌드의 컴파일러는 만든 프로그램마다 **바이트코드 검증기**(`bytecode::verify`)를 돌린다. JVM이 클래스 파일을 실을 때 하는 검증과 같은 생각이다. 검사는 다섯이다.
+그래서 컴파일러는 만든 프로그램마다, 실행하기 전에 **바이트코드 검증기**(`bytecode::verify`)를 돌린다. 코드를 한 번 훑는 일이라 프로그램의 시작 시간에 드러나지 않는다. JVM이 클래스 파일을 실을 때 하는 검증과 같은 생각이다. 검사는 여섯이다.
 
-1. 피연산자가 그 명령이 가리키는 표(상수, 칸, 전역, 자식 함수, 패턴…) 안에 있다.
+1. 피연산자가 그 명령이 가리키는 표(상수, 칸, 전역, 자식 함수, 패턴…) 안에 있고, VM이 거기서 읽을 종류다: `FIELD`·`IMPORT`·`TEST`의 상수는 문자열, `TAG`의 이름은 심볼, `MAP`의 키 목록은 값의 수만큼의 문자열이다. 패턴이 묶는 칸과 전역이 있고, 펼침 호출에는 펼칠 리스트가 있다.
 2. 점프는 같은 함수 안의 **앞**으로만 간다(반복문이 없는 언어라 뒤로 가는 점프가 없다).
-3. 어느 길도 코드 끝에서 떨어지지 않는다. 모든 길이 `RETURN`·`TAILCALL`·`NOMATCH`로 끝난다.
+3. 어느 길도 코드 끝에서 떨어지지 않는다. 모든 길이 `RETURN`·`TAILCALL`·`TAILCALLSPREAD`·`NOMATCH`로 끝난다.
 4. 스택이 모자라지 않고, 두 길이 만나는 곳에서 스택 높이가 같다.
-5. 지역 칸을 읽을 때(`LOADLOCAL`·`MOVELOCAL`·`CHECKTYPE`·클로저의 붙잡기) 그 칸이 **모든 길에서** 차 있다. 값 대신 "찼음/비었을 수 있음"만 들고 코드를 한 번 따라가는 추상 실행이다.
+5. 지역 칸을 읽을 때(`LOADLOCAL`·`MOVELOCAL`·`CHECKTYPE`·클로저의 붙잡기) 그 칸이 **모든 길에서** 차 있다. 값 대신 "찼음/비었을 수 있음"만 들고 코드를 한 번 따라가는 추상 실행이다. 칸이 비었는지 묻는 명령은 `JUMPIFSET` 하나이고, 기본값이 있는 매개변수의 칸만 묻는다(기본값 서두).
+6. 인자를 모두 준 호출이 시작하는 자리(기본값 서두의 뒤)가 함수 안에 있고, 거기서 스택이 비어 있다. 그 길에서는 서두가 채운 칸이 차 있지 않다.
 
 점프가 모두 앞으로 가므로, 명령을 순서대로 한 번 훑으면 어떤 명령에 이르기 전에 그리로 오는 모든 길을 이미 본다. 그래서 고정점을 찾는 반복 없이 한 번에 끝난다. 덤으로 함수의 최대 스택 높이가 나온다.
 
-명령마다의 사실(이름, 피연산자가 무엇을 가리키는지, 스택에서 몇 개를 꺼내고 몇 개를 넣는지, 다음에 어디로 가는지)은 `op.rs`의 표 하나(`instructions!`)에 모여 있고, 역어셈블러와 검증기가 같은 표를 읽는다. 검증에 걸리면 디버그 빌드는 내부 에러(E0801)를 낸다. 시험은 저장소의 모든 fung 코드(언어 시험, 예제, 내장 모듈, 이 매뉴얼의 예제)를 릴리스 빌드에서도 검증한다.
+명령마다의 사실(이름, 피연산자가 무엇을 가리키는지, 스택에서 몇 개를 꺼내고 몇 개를 넣는지, 다음에 어디로 가는지)은 `op.rs`의 표 하나(`instructions!`)에 모여 있고, 역어셈블러와 검증기가 같은 표를 읽는다. 검증에 걸리면 아무것도 실행하지 않고 내부 에러(E0801)를 낸다: 컴파일러의 버그가 실행 중의 패닉이나 틀린 값이 아니라 실행 전의 에러가 된다. 시험은 저장소의 모든 fung 코드(언어 시험, 예제, 내장 모듈, 이 매뉴얼의 예제)를 검증하고, 무작위로 만든 프로그램을 기준 해석기와 견준다(`crates/fung-vm/src/vm/gen_tests.rs`).
 
 ## 코드에서 찾아보기 {#source}
 
-- `crates/fung-front/src/bytecode/op.rs`: 명령 표 `instructions!`가 만드는 명령 종류 `Op`(번호는 표의 자리), 명령마다의 사실 `Info`(피연산자의 뜻 `Operand`, 스택 효과 `Effect`, 흐름 `Flow`), 명령 단어 `Instr`(`Instr::new`, `Instr::with`, `Instr::op`, `Instr::arg`, 둘째 피연산자 `Instr::b`와 그 뜻 `Op::second`), `CALL` 피연산자를 싸고 푸는 `encode_call`·`decode_call`, 이름 `Op::name`. VM은 링크 때 `Instr`를 `vm/link.rs`의 `Code`(`op`·`arg` 필드와 `Code::b`, 8바이트)로 한 번 푼다.
+- `crates/fung-front/src/bytecode/op.rs`: 명령 표 `instructions!`가 만드는 명령 종류 `Op`(번호는 표의 자리), 명령마다의 사실 `Info`(피연산자의 뜻 `Operand`, 스택 효과 `Effect`, 흐름 `Flow`), 명령 단어 `Instr`(`Instr::new`, `Instr::with`, `Instr::op`, `Instr::arg`, 둘째 피연산자 `Instr::b`와 그 뜻 `Op::second`), 이름 `Op::name`. VM은 링크 때 `Instr`를 `vm/link.rs`의 `Code`(`op`·`arg` 필드와 `Code::b`, 8바이트)로 한 번 푼다.
 - `crates/fung-front/src/bytecode.rs`: 함수 원형 `Proto`와 `Proto::emit`(명령과 위치를 함께 넣는다), `Proto::patch`(점프를 나중에 채운다), `Proto::thread_jumps`(점프로 가는 점프 고치기), `Proto::add_const`(같은 상수 다시 쓰기).
 - `crates/fung-front/src/bytecode/disasm.rs`: `disassemble`, 곧 `fung dump bytecode`의 출력.
-- `crates/fung-front/src/bytecode/verify.rs`: 바이트코드 검증기 `verify`(위 다섯 검사, 최대 스택 높이 `Verified::max_stack`).
+- `crates/fung-front/src/bytecode/verify.rs`: 바이트코드 검증기 `verify`(위 여섯 검사, 최대 스택 높이 `Verified::max_stack`).
 - `crates/fung-front/src/compiler.rs`: `compile`과 `Compiler::block`(문장, `POP`, `CLEARLOCAL`), `Compiler::expr`(코어 형태마다 명령 내기), `Compiler::op`, `Compiler::if_expr`(점프 둘), `Compiler::let_stmt`. 함수와 호출은 `crates/fung-front/src/compiler/fn_.rs`의 `Compiler::function`과 `Compiler::call`.
 - `crates/fung-vm/src/vm/link.rs`: 원형을 실행용 `RtProto`로 바꾸며 상수를 실제 값으로 채우는 `link`.
-- `crates/fung-vm/src/vm.rs`: `Task`(값 스택 `stack`과 프레임 목록 `frames`)와 실행 루프 `Task::step_loop`, 정수 빠른 길 `Task::binary`.
-- `crates/fung-vm/src/vm/frame.rs`: `Frame { closure, ip, base, tail_calls, … }`(원형은 `proto()`, 전역 표는 `globals()`로 클로저에서 읽는다).
-- `crates/fung-vm/src/vm/call.rs`: `Task::call_op`(인자가 그 자리에서 슬롯이 되는 빠른 길), `Task::enter`, `Task::push_frame`, `Task::ret_with`(`RETURN`).
+- `crates/fung-vm/src/vm.rs`: `Task`와 그 실행 상태 `Fiber`(값 스택 `stack`과 프레임 목록 `frames`), 실행 루프 `Task::step_loop`, 정수 빠른 길 `Task::binary`.
+- `crates/fung-vm/src/vm/frame.rs`: `Frame { closure, ip, base, floor, tail_calls, entry, extra }`(원형은 `proto()`, 전역 표는 `globals()`로 클로저에서 읽는다).
+- `crates/fung-vm/src/vm/call.rs`: `Task::call_op`(인자가 그 자리에서 슬롯이 되는 빠른 길), `Task::push_frame`, `Task::ret_with`(`RETURN`).
 
 :::exercise 점프 따라가기
 아래 함수의 바이트코드를 예상해 보자. `then … else`가 두 번 겹쳐 있으니 `JUMPIFFALSE`가 두 개 나올 것이다. 가지 끝에는 `JUMP`와 `RETURN` 중 무엇이 나올까? 각 점프가 몇 번 명령으로 가는지 적은 뒤 확인하자.
@@ -336,7 +337,7 @@ print(grade(95), grade(85), grade(10))
 
 - 스택 머신의 명령은 스택 맨 위의 값을 꺼내 계산하고 결과를 올린다. 컴파일러는 트리를 자식 먼저 걸으며 명령을 낸다.
 - 레지스터 머신은 명령이 칸 번호를 직접 말한다. 명령 수는 줄지만 컴파일러가 복잡해진다.
-- fung 명령은 고정 폭 한 단어(8비트 명령 + 24비트 피연산자, 몇 명령은 둘째 피연산자)이고, 58가지다.
+- fung 명령은 고정 폭 한 단어(8비트 명령 + 24비트 피연산자, 몇 명령은 둘째 피연산자)이고, 59가지다.
 - 함수마다 원형(`Proto`)이 하나: 명령 목록, 상수 풀, 명령마다 위치, 슬롯 수, 매개변수 표, 자식 원형들.
 - VM은 반복문 하나로 명령을 가져와 실행한다. 프레임마다 `base`가 있고, 슬롯 n은 `stack[base + n]`이다. 인자는 그 자리에서 슬롯이 된다.
 - `if`는 `JUMPIFFALSE`(`or`·`not`은 `JUMPIFTRUE`도)와 `JUMP`로 펴지고(꼬리 자리의 가지와 `RETURN`으로 가는 점프는 `RETURN`), 점프 위치는 나중에 채운다. 수만으로 된 계산은 컴파일러가 미리 접는다.

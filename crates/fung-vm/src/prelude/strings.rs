@@ -425,8 +425,9 @@ fn index_of_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
             }
             match found {
                 Some(m) if self.at == m => Ok(Some(Value::Int(self.chars as i64))),
-                // inside a character: search on from the next one
-                Some(_) => Ok(None),
+                // It starts inside a character, the last one counted:
+                // what `in` finds, at that character's index (D107).
+                Some(_) => Ok(Some(Value::Int(self.chars as i64 - 1))),
                 None if window == s.len() => Ok(Some(Value::Nil)),
                 None => Ok(None),
             }

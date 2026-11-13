@@ -81,7 +81,7 @@
 |   error[E0606]: discarded Err: "in a list"
 |     --> crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   23 |   for _x in [1]: fails("in a list") ;;
+|   23 |   [fails("in a list")]
 |      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)
@@ -278,7 +278,7 @@
 |   error[E0606]: discarded Err: "in a list"
 |     --> crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   23 |   for _x in [1]: fails("in a list") ;;
+|   23 |   [fails("in a list")]
 |      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)
@@ -413,7 +413,7 @@
 |   error[E0606]: discarded Err: "in a list"
 |     --> crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   23 |   for _x in [1]: fails("in a list") ;;
+|   23 |   [fails("in a list")]
 |      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)
@@ -568,7 +568,7 @@
 |   error[E0606]: discarded Err: "in a list"
 |     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:23:3
 |      |
-|   23 |   for _x in [1]: fails("in a list") ;;
+|   23 |   [fails("in a list")]
 |      |   ^ this value is discarded
 |      |
 |     note: element 1 of the discarded list (of 1)

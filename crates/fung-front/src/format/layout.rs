@@ -116,7 +116,7 @@ fn split_arm_head(toks: &[Tok]) -> bool {
 
 /// Decides every code line's indent, then gives comment lines the indent
 /// of the code line that follows them (inside a closer's block when that
-/// line closes one), or of the last code line after it.
+/// line closes one); the ones after the last code line are not indented.
 pub(super) fn layout(lines: &mut [Line]) {
     let mut l = Layouter {
         stack: Vec::new(),
@@ -132,11 +132,9 @@ pub(super) fn layout(lines: &mut [Line]) {
         l.consume(ln);
         l.end_line(ln);
     }
-    let mut next = lines
-        .iter()
-        .rev()
-        .find(|ln| !ln.toks.is_empty())
-        .map_or(0, |ln| ln.indent);
+    // After the last code line every block is closed and no statement
+    // goes on: a comment there is not part of a continued one (FE76).
+    let mut next = 0;
     for ln in lines.iter_mut().rev() {
         if !ln.toks.is_empty() {
             next = ln.indent;

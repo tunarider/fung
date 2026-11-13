@@ -121,7 +121,16 @@ impl Sig {
             .filter(|a| a.head == Head::Named)
             .map(lit_str)
             .collect();
-        let slot_of = |k: &str| self.params[..fixed].iter().position(|p| p.name == k);
+        // Each name is looked up in a table made once, and what the names
+        // fill is marked once: a call with many named arguments is checked
+        // in linear time.
+        let slots: std::collections::HashMap<&str, usize> = self.params[..fixed]
+            .iter()
+            .enumerate()
+            .rev()
+            .map(|(i, p)| (p.name.as_str(), i))
+            .collect();
+        let slot_of = |k: &str| slots.get(k).copied();
         if spread {
             let k = named.iter().find(|k| slot_of(k).is_none())?;
             return Some(no_such(name, k, pos));
@@ -137,6 +146,7 @@ impl Sig {
             ];
             return Some(error("E0402", pos, args));
         }
+        let mut filled = vec![false; fixed];
         for k in &named {
             let Some(i) = slot_of(k) else {
                 return Some(no_such(name, k, pos));
@@ -144,10 +154,11 @@ impl Sig {
             if i < npos {
                 return Some(error("E0405", pos, vec![Arg::Str(k.to_string())]));
             }
+            filled[i] = true;
         }
-        for i in npos.min(fixed)..fixed {
-            let p = &self.params[i];
-            if p.default || named.iter().any(|k| slot_of(k) == Some(i)) {
+        let unfilled = self.params[..fixed].iter().zip(&filled).enumerate();
+        for (i, (p, filled)) in unfilled.skip(npos.min(fixed)) {
+            if p.default || *filled {
                 continue;
             }
             // a parameter with no name in the source (`$`) by its place
@@ -225,18 +236,41 @@ impl Resolver<'_> {
         Node::with_lit(n.head, n.pos, n.lit.clone(), kids)
     }
 
+    /// The known function the name `callee` holds in the block that binds
+    /// it, looking outward through the enclosing functions as a read
+    /// does: a local `fn` (itself, inside its body), or what a partial
+    /// application keeps (FE65). A name is bound once (D88), so the block
+    /// that binds it says what it is.
+    fn block_sig(&self, callee: &Node) -> Option<(String, Sig)> {
+        if callee.head != Head::Name {
+            return None;
+        }
+        let name = lit_str(callee);
+        for f in self.fns.iter().rev() {
+            if let Some(i) = f.innermost(name) {
+                return f.blocks[i].sigs.get(name).cloned();
+            }
+            if f.self_name == name {
+                return f.self_sig.clone().map(|sig| (name.to_string(), sig));
+            }
+        }
+        None
+    }
+
     /// The name and parameters of the function `callee` (as written) is
     /// sure to be, resolved to `got`: a top-level fn of the file or a
     /// member an import bound by name (`global_sigs`), a prelude
     /// function, or `m.f` of an imported module `m`.
-    fn known_callee(&self, callee: &Node, got: &Node) -> Option<(String, Sig)> {
+    pub(super) fn known_callee(&self, callee: &Node, got: &Node) -> Option<(String, Sig)> {
         match got.head {
             Head::Global => {
                 let crate::tree::Lit::Int(i) = got.lit else {
                     return None;
                 };
-                self.global_sigs.get(&(i as usize)).cloned()
+                let top = self.global_sigs.get(&(i as usize)).cloned();
+                top.or_else(|| self.block_sig(callee))
             }
+            Head::Local | Head::Captured | Head::SelfFn => self.block_sig(callee),
             Head::Prelude => {
                 let name = lit_str(got);
                 let list = self.builtins().prelude_signature(name)?;

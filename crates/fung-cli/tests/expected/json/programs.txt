@@ -362,7 +362,7 @@
 -- exit: 0
 ==== "import json\nimport time\n_imports = [json, time]\nn = 1000… (184 bytes, 44f7b1b8be88e16a)
 -- stdout
-| 'Ok
+| Ok
 -- stderr
 -- exit: 0
 ==== "import json\nimport time\n_imports = [json, time]\nn = 1000… (168 bytes, b97f93f428e7e54b)

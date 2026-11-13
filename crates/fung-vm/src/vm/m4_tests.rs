@@ -70,7 +70,7 @@ fn collections_run() {
         ),
         (
             "print(type_of(Circle(3)), type_of(Red), type_of([]), type_of(0..1))",
-            "'Circle 'sym 'list 'range\n",
+            "Circle 'sym 'list 'range\n",
         ),
         (
             "fn area(_s: Circle | Rect) = 1\nprint(area(Circle(3)))",
@@ -142,7 +142,7 @@ fn partial_evaluates_fixed_args_once() {
 fn result_operators() {
     check_out(&[
         (
-            "print(Ok(1)!, Ok(2) ?? 0, nil ?? 3, Err(\"e\") ?? 4, 5 ?? 6)",
+            "five = 5\nprint(Ok(1)!, Ok(2) ?? 0, nil ?? 3, Err(\"e\") ?? 4, five ?? 6)",
             "1 2 3 4 5\n",
         ),
         (

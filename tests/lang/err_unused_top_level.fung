@@ -1,4 +1,8 @@
-# The entry file's top level counts as local: its unread names are errors (D38).
+# A name bound in a block at the top level is a local of that block: unread,
+# it is an error (D38). A top-level name itself is the file's interface (D86).
 total = 3
-print(1)
+if total > 1:
+  half = total // 2
+  print(1)
+;;
 # expect-error: E0239

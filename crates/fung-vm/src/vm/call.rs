@@ -4,7 +4,6 @@
 
 use std::rc::Rc;
 
-use fung_front::bytecode::decode_call;
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
@@ -272,22 +271,32 @@ impl Task<'_> {
 
     /// TAILCHECK at `ip` of frame `fi`: the frame takes the return check
     /// `types[ty]` of the function it runs along into the tail call that
-    /// follows (D44). A call to the very closure the frame runs needs
-    /// none: its own check runs where it returns.
+    /// follows (D44). A check the frame carries already is not taken
+    /// again (VM44): two functions that call each other in a loop make
+    /// no new one each time round.
     #[inline(never)]
-    pub(super) fn tail_check(&mut self, fi: usize, ip: usize, ty: usize) {
+    pub(super) fn tail_check(&mut self, fi: usize, ty: usize) {
         let f = &self.fiber.frames[fi];
-        let call = f.proto().code[ip + 1];
-        let (npos, nnamed) = decode_call(call.arg as usize);
-        let callee_at = self.fiber.stack.len() - npos - 2 * nnamed - 1;
-        if let Some(Value::Closure(c)) = &self.fiber.stack[callee_at]
-            && Rc::ptr_eq(c, &f.closure)
-        {
+        if f.has_check(f.proto(), ty) {
             return;
         }
         let check = Check {
             proto: f.proto().clone(),
-            ty,
+            ty: Some(ty),
+            pos: self.here(fi),
+        };
+        self.fiber.frames[fi].add_check(check);
+    }
+
+    /// TAILCHECKBOOL of frame `fi`: the frame takes along the check that
+    /// the value of the tail call that follows is a bool, the right side
+    /// of an `and`/`or` (D97). A call to the frame's own closure needs
+    /// it too: nothing else checks that value.
+    #[inline(never)]
+    pub(super) fn tail_check_bool(&mut self, fi: usize) {
+        let check = Check {
+            proto: self.fiber.frames[fi].proto().clone(),
+            ty: None,
             pos: self.here(fi),
         };
         self.fiber.frames[fi].add_check(check);
@@ -303,7 +312,15 @@ impl Task<'_> {
         let f = self.fiber.frames.last().expect("a frame");
         let checks = f.extra.as_ref().map_or(&[][..], |x| &x.checks[..]);
         for c in checks.iter().rev() {
-            let t = &c.proto.types[c.ty];
+            let Some(ty) = c.ty else {
+                if !matches!(v, Value::Bool(_)) {
+                    let mut d = error("E0505", c.pos, vec![Arg::Str(type_name(v))]);
+                    d.call_path = self.call_path();
+                    return Err(Stop::Error(Box::new(d)));
+                }
+                continue;
+            };
+            let t = &c.proto.types[ty];
             if !t.matches(v) {
                 let mut d = error(
                     "E0404",

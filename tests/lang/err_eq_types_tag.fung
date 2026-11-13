@@ -1,6 +1,0 @@
-# Tagged values are one type (D40): two of them compare, and differ when
-# their names do. A tag and a value of another type are an error.
-print(Ok(1) == Ok(2), Ok(1) == Err(1), Circle(1) != Square(1))
-# expect: false false true
-print(Ok(1) == 1)
-# expect-error: E0517

@@ -563,7 +563,8 @@ fn a_big_lists_items_are_copied_a_piece_at_a_time() {
 /// `sort` builds its result on what is left of a step's budget (L6): the
 /// last merge and the result's first items were one piece and a half
 /// (1.9 ms for half a million items). Counted by running it (every step
-/// a piece in the unit tests): 60,000 items park 43 times, after 8 parks
+/// a piece in the unit tests; the check of every key against the first,
+/// D87, is 4 more): 60,000 items park 43 times, after 8 parks
 /// of copying them (the natural merge sort's run finding and insertion
 /// sorting need fewer comparisons than merging from pairs, VA23); 1,000
 /// are one step.
@@ -573,7 +574,7 @@ fn sort_builds_its_result_on_the_pieces_budget() {
         out(
             "fn sorted(n):\n  xs = map(0..n, i => (i * 7919) % 1000003)\n  p = parks()\n  ys = sort(xs)\n  (len(ys), parks() - p)\n;;\nprint(sorted(60000), sorted(1000))"
         ),
-        ("(60000, 51) (1000, 0)\n".into(), "".into())
+        ("(60000, 55) (1000, 0)\n".into(), "".into())
     );
 }
 

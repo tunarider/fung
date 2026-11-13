@@ -137,7 +137,7 @@ fn parse_errors_name_the_place() {
         ("", 1, 1, end.clone()),
         ("  ", 1, 3, end.clone()),
         // A byte order mark is not whitespace; it is one character.
-        ("\u{feff}1", 1, 1, ch("\\u{FEFF}")),
+        ("\u{feff}1", 1, 1, ch("\\u{feff}")),
         (r#"{"a": [1, {"b": }]}"#, 1, 17, ch("}")),
         (
             "{\"a\":\n  1\n  \"b\": 2}",

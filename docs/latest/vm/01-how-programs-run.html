@@ -118,8 +118,8 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0002  2:1   CONST        0    ; &lt;fn print&gt;
 0003  2:7   LOADGLOBAL   0    ; double
 0004  2:14  CONST        1    ; 21
-0005  2:13  CALL         1    ; 1 positional, 0 named
-0006  2:6   CALL         1    ; 1 positional, 0 named
+0005  2:13  CALL         1 0    ; 1 positional, 0 named
+0006  2:6   CALL         1 0    ; 1 positional, 0 named
 0007  2:1   POP
 0008  2:1   CONST        2    ; nil
 0009  1:1   RETURN
@@ -214,7 +214,7 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
 0005  2:15  CONST        3    ; 3
 0006  2:13  MUL
 0007  2:9   ADD
-0008  2:6   CALL         1    ; 1 positional, 0 named
+0008  2:6   CALL         1 0    ; 1 positional, 0 named
 0009  2:1   POP
 0010  2:1   CONST        4    ; nil
 0011  1:1   RETURN</code></pre></div>

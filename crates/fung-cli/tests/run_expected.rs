@@ -174,9 +174,9 @@ fn cases() -> Vec<Case> {
 
 /// How many cases there are, by kind (a case must not go missing
 /// unnoticed; change these together with the cases).
-const LANG_CASES: usize = 421;
+const LANG_CASES: usize = 419;
 const BENCH_CASES: usize = 11;
-const ALL_CASES: usize = 482;
+const ALL_CASES: usize = 480;
 
 #[test]
 fn every_case_is_counted() {
@@ -284,7 +284,7 @@ const REPEAT: usize = 50;
 
 /// How many concurrent cases there are.
 #[cfg(not(debug_assertions))]
-const CONCURRENT_CASES: usize = 71;
+const CONCURRENT_CASES: usize = 72;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.

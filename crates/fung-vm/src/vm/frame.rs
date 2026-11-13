@@ -51,7 +51,9 @@ pub(super) struct Extra {
 /// reported at `pos` (where that function's value is returned).
 pub(super) struct Check {
     pub proto: Rc<RtProto>,
-    pub ty: usize,
+    /// The return type to check, or `None` for the bool that the right
+    /// side of an `and`/`or` must be (D97).
+    pub ty: Option<usize>,
     pub pos: fung_front::source::Pos,
 }
 
@@ -117,6 +119,18 @@ impl Frame {
     #[inline(always)]
     pub fn has_checks(&self) -> bool {
         self.extra.as_ref().is_some_and(|x| !x.checks.is_empty())
+    }
+
+    /// Whether the frame carries the check `types[ty]` of `proto`
+    /// already: every check runs on the frame's value, so taking it again
+    /// would add nothing (VM44).
+    #[inline(always)]
+    pub fn has_check(&self, proto: &Rc<RtProto>, ty: usize) -> bool {
+        self.extra.as_ref().is_some_and(|x| {
+            x.checks
+                .iter()
+                .any(|c| c.ty == Some(ty) && Rc::ptr_eq(&c.proto, proto))
+        })
     }
 
     /// Takes `c` along: one check per place, the latest last (D44).

@@ -116,11 +116,11 @@ print(r)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode exam
 0001  1:1   STOREGLOBAL  0    ; double
 0002  3:5   CONST        0    ; &lt;fn scope&gt;
 0003  3:11  CLOSURE      1    ; &lt;lambda&gt;
-0004  3:10  CALL         1    ; 1 positional, 0 named
+0004  3:10  CALL         1 0    ; 1 positional, 0 named
 0005  3:1   STOREGLOBAL  1    ; r
 0006  4:1   CONST        1    ; &lt;fn print&gt;
 0007  4:7   LOADGLOBAL   1    ; r
-0008  4:6   CALL         1    ; 1 positional, 0 named
+0008  4:6   CALL         1 0    ; 1 positional, 0 named
 0009  4:1   POP
 0010  4:1   CONST        2    ; nil
 0011  1:1   RETURN
@@ -136,13 +136,13 @@ print(r)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode exam
 0001  3:22  CONST        1    ; &lt;fn spawn&gt;
 0002  3:28  MOVELOCAL    0
 0003  3:31  CLOSURE      0    ; &lt;lambda&gt;
-0004  3:27  CALL         2    ; 2 positional, 0 named
-0005  3:21  TAILCALL     1    ; 1 positional, 0 named
+0004  3:27  CALL         2 0    ; 2 positional, 0 named
+0005  3:21  TAILCALL     1 0    ; 1 positional, 0 named
 
 == &lt;lambda&gt; ==
 0000  3:37  LOADGLOBAL   0
 0001  3:44  CONST        0    ; 21
-0002  3:43  TAILCALL     1    ; 1 positional, 0 named</code></pre></div>
+0002  3:43  TAILCALL     1 0    ; 1 positional, 0 named</code></pre></div>
 <p><code>spawn</code>이 하는 일은 운영체제 스레드를 만드는 것이 아니다. <strong><code>Fiber</code>라는 구조체 하나</strong>를 만들어 대기열에 넣을 뿐이다(<code>crates/fung-vm/src/vm.rs</code>). <code>Fiber</code>에는 태스크가 이어 가는 데 필요한 모든 것이 들어 있다.</p>
 <ul>
 <li>값 스택(<code>stack</code>)과 프레임(<code>frames</code>): 9장에서 본 그것이다.</li>

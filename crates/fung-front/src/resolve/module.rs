@@ -30,12 +30,36 @@ impl Resolver<'_> {
                 .push(error("E0301", n.pos, vec![str_arg(&im.spec)]));
             return Node::new(Head::Nil, n.pos, vec![]);
         };
+        // A module is imported once in a file (D96): a second import of
+        // it, under another name or for more names, says nothing new.
+        // The names are still bound, so that the rest of the file is
+        // checked against them.
+        let again = self.imports.contains(&info.key) && !self.opts.redefine;
         self.imports.push(info.key.clone());
         let mod_name = if im.alias.is_empty() && im.names.is_none() {
             info.name.as_str()
         } else {
             im.alias.as_str()
         };
+        if again {
+            let (pos, len) = if mod_name.is_empty() {
+                (n.pos, 6)
+            } else {
+                (im.bind_pos, im.bind_len)
+            };
+            self.errs.push(
+                name_error("E0309", pos, &info.name)
+                    .span(len)
+                    .with_help("it is imported above: give that import the alias and the names you need, `import m as x (a, b)`"),
+            );
+        }
+        // The same name again is that one error, not a second.
+        let bound_again = again
+            && self
+                .root_scope()
+                .names
+                .get(mod_name)
+                .is_some_and(|b| b.module);
         if !mod_name.is_empty() {
             let target = if im.is_path {
                 format!("\"{}\"", im.spec)
@@ -44,12 +68,13 @@ impl Resolver<'_> {
             };
             self.module_specs.insert(mod_name.to_string(), target);
         }
-        let mut kids = vec![
-            match self.bind_module(mod_name, im.bind_pos, im.bind_len, info) {
-                Some(b) => ref_node(n.pos, b),
-                None => Node::new(Head::Nil, n.pos, vec![]),
-            },
-        ];
+        let mut kids = vec![match (!bound_again)
+            .then(|| self.bind_module(mod_name, im.bind_pos, im.bind_len, info))
+            .flatten()
+        {
+            Some(b) => ref_node(n.pos, b),
+            None => Node::new(Head::Nil, n.pos, vec![]),
+        }];
         for (i, name) in im.names.iter().flatten().enumerate() {
             let pos = im.name_pos[i];
             let e = if name.starts_with('_') {
@@ -138,13 +163,13 @@ impl Resolver<'_> {
     }
 
     /// Binds a listed import name as a constant global: hoisted fns see
-    /// it, nothing may reassign it (E0209).
+    /// it, and like every name it is bound once (E0238).
     fn bind_const(&mut self, name: &str, pos: Pos) -> Option<Binding> {
         if let Some(b) = self.root_scope().names.get(name).copied() {
             let e = if b.module {
                 self.shadow_error(name, pos)
             } else {
-                name_error("E0209", pos, name)
+                name_error("E0238", pos, name)
             };
             self.errs.push(e);
             return None;

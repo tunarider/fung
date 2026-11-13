@@ -23,9 +23,11 @@ fn a_module_body_runs_once_and_keeps_its_globals() {
         "_loaded = print(\"loaded\")\nfn twice(x) = x * 2\n",
     )
     .unwrap();
+    // Two files import it (one file imports a module once, D96).
+    std::fs::write(dir.join("mid.fung"), "import \"./lib\"\nfn again() = lib\n").unwrap();
     std::fs::write(
         dir.join("main.fung"),
-        "import \"./lib\"\nimport \"./lib\" as again\nprint(lib.twice(21), again.twice(1), lib == again)\n",
+        "import \"./lib\"\nimport \"./mid\"\nprint(lib.twice(21), mid.again().twice(1), lib == mid.again())\n",
     )
     .unwrap();
     let (out, err, code) = run_file(&dir.join("main.fung"));

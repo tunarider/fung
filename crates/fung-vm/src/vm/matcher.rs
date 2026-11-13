@@ -30,7 +30,7 @@ pub enum RtPattern {
     },
     /// `{k: p, …}`: other keys are ignored.
     Map {
-        keys: Vec<String>,
+        keys: Vec<Vec<u8>>,
         kids: Vec<RtPattern>,
     },
     /// `p | p`

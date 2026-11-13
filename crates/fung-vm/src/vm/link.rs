@@ -198,14 +198,14 @@ mod tests {
         assert_eq!(std::mem::size_of::<super::Code>(), 8);
         let mut p = fung_front::bytecode::Proto::default();
         p.code = vec![
-            Instr::new(Op::Call, 4097),
+            Instr::with(Op::Call, 1, 1),
             Instr::with(Op::Match, 9, 0xAB_CDEF),
         ];
         p.pos = vec![crate::vm::no_pos(); 2];
         let p = super::link(&p, &super::Prelude::default());
         assert_eq!(
             (p.code[0].op, p.code[0].arg, p.code[0].b()),
-            (Op::Call, 4097, 0)
+            (Op::Call, 1, 1)
         );
         assert_eq!(
             (p.code[1].op, p.code[1].arg, p.code[1].b()),

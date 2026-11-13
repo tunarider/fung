@@ -311,6 +311,10 @@ impl State<'_> {
             return Err(e("E0301", vec![s(spec)]));
         }
         if let Some(public) = spec.strip_prefix("_native.") {
+            if !from_stdlib && !self.l.builtins().modules.contains_key(spec) {
+                // not a bridge at all: `_native._native.fs` (FE74)
+                return Err(e("E0301", vec![s(spec)]));
+            }
             if !from_stdlib {
                 // What wraps the bridge: its module, or the prelude.
                 let hint = match public {
@@ -357,6 +361,20 @@ impl State<'_> {
         self.load_module(spec, spec, &file, pos, true, &mut || Ok(src.to_string()))
     }
 
+    /// The clean path of `path` when it names the file `path` names, else
+    /// `path` with its `..` kept (FE68): past a symbolic link, `link/..`
+    /// is the directory above what the link names, as the system opens it,
+    /// not the one the link stands in.
+    fn same_file_clean(&self, path: &str) -> String {
+        let short = clean(path);
+        let as_written = keep_parents(path);
+        if (self.l.file_id)(&as_written) == (self.l.file_id)(&short) {
+            short
+        } else {
+            as_written
+        }
+    }
+
     /// Resolves a relative or absolute path against the importing file's
     /// directory (04), or the working directory for `-e`.
     fn load_file(&mut self, im: &Import, pos: Pos, from_key: &str) -> Result<ModuleInfo, Errs> {
@@ -365,14 +383,19 @@ impl State<'_> {
             path.push_str(".fung");
         }
         let key = if path.starts_with('/') {
-            clean(&path)
+            self.same_file_clean(&path)
         } else {
             let dir = if from_key.starts_with('/') {
                 dir_of(from_key)
             } else {
                 ".".to_string()
             };
-            abs_key(&format!("{dir}/{path}"))
+            let joined = format!("{dir}/{path}");
+            let joined = match (joined.starts_with('/'), cwd()) {
+                (false, Some(wd)) => format!("{wd}/{joined}"),
+                _ => joined,
+            };
+            self.same_file_clean(&joined)
         };
         // The binding is a name, so it is NFC like the names that use it;
         // it comes from the path as written here.
@@ -381,7 +404,8 @@ impl State<'_> {
         // seen before keeps the key it was first loaded under.
         let id = (self.l.file_id)(&key).unwrap_or_else(|| key.clone());
         let key = self.keys.entry(id).or_insert(key).clone();
-        if key == self.entry_key && from_key != key {
+        // from itself too: that is no cycle through other files (FE74)
+        if key == self.entry_key {
             return Err(vec![error("E0307", pos, vec![])]);
         }
         if !crate::lexer::is_name(&name) && im.alias.is_empty() && im.names.is_none() {
@@ -510,6 +534,15 @@ fn clean(path: &str) -> String {
         (false, true) => ".".into(),
         (false, false) => joined,
     }
+}
+
+/// `path` without its `.` and empty elements; every `..` stays.
+fn keep_parents(path: &str) -> String {
+    let parts: Vec<&str> = path
+        .split('/')
+        .filter(|p| !p.is_empty() && *p != ".")
+        .collect();
+    format!("/{}", parts.join("/"))
 }
 
 fn dir_of(path: &str) -> String {
@@ -684,6 +717,27 @@ mod tests {
         );
     }
 
+    /// `link/..` is above what the link names, as the system opens it
+    /// (FE68); without a link the path is shown clean.
+    #[test]
+    fn a_parent_past_a_link_is_the_systems() {
+        let dir = Scratch::new("link-parent");
+        std::fs::create_dir_all(dir.0.join("d1/sub")).unwrap();
+        std::fs::write(dir.0.join("x.fung"), "n = \"here\"\n").unwrap();
+        std::fs::write(dir.0.join("d1/x.fung"), "n = \"d1\"\n").unwrap();
+        std::os::unix::fs::symlink("d1/sub", dir.0.join("lnk")).unwrap();
+        let entry = dir.0.join("main.fung").to_string_lossy().into_owned();
+        let l = Loader::default();
+        let (b, errs) = l.compile(&entry, "import \"./lnk/../x\"\nprint(x.n)", Stage::All);
+        assert!(errs.is_empty(), "{:?}", codes(&errs));
+        let got: Vec<_> = b.modules.iter().filter(|m| m.name == "x").collect();
+        assert!(got[0].key.ends_with("/lnk/../x.fung"), "{}", got[0].key);
+        let (b, errs) = l.compile(&entry, "import \"./d1/../x\"\nprint(x.n)", Stage::All);
+        assert!(errs.is_empty(), "{:?}", codes(&errs));
+        let got: Vec<_> = b.modules.iter().filter(|m| m.name == "x").collect();
+        assert!(!got[0].key.contains(".."), "{}", got[0].key);
+    }
+
     /// A module is one file, however a path names it (04, FE5): through
     /// a symbolic link, or with other letter case on a file system that
     /// ignores it, it is loaded once and shares its state. Each import
@@ -701,7 +755,13 @@ mod tests {
         }
         src.push_str("print(lib.n, lib2.n)\n");
         let (b, errs) = Loader::default().compile(&entry, &src, Stage::All);
-        assert!(errs.is_empty(), "{:?}", codes(&errs));
+        // One module, so the later imports of it are imports of a module
+        // the file has already (D96).
+        assert!(
+            !errs.is_empty() && codes(&errs).iter().all(|c| *c == "E0309"),
+            "{:?}",
+            codes(&errs)
+        );
         let users: Vec<_> = b
             .modules
             .iter()
@@ -712,12 +772,6 @@ mod tests {
             1,
             "{:?}",
             b.modules.iter().map(|m| &m.key).collect::<Vec<_>>()
-        );
-        let p = b.proto.unwrap();
-        assert!(
-            p.global_names.iter().any(|g| g == "lib2"),
-            "{:?}",
-            p.global_names
         );
         // The entry file through a link is still the entry (E0307).
         std::fs::write(dir.0.join("main.fung"), &src).unwrap();
@@ -823,6 +877,9 @@ mod tests {
         assert_eq!(*keys.last().unwrap(), "fs");
         assert!(b.modules.last().unwrap().proto.as_ref().unwrap().builtin);
 
+        // What is no bridge is not found, whatever it starts with (FE74).
+        let (_, errs) = l.compile("-e", "import _native._native.fs", Stage::All);
+        assert_eq!(codes(&errs), ["E0301"]);
         let (_, errs) = l.compile("-e", "import _native.fs", Stage::All);
         assert_eq!(codes(&errs), ["E0310"]);
         // the hint names what wraps the bridge, not a module that is not there
@@ -854,10 +911,7 @@ mod tests {
         let main = "import \"./b\"\nprint(b.y)";
         set_files(&[
             ("/p/a.fung", "x = 1"),
-            (
-                "/p/b.fung",
-                "import \"./a\" (x)\nimport \"./a\" as am\ny = x + am.x",
-            ),
+            ("/p/b.fung", "import \"./a\" as am (x)\ny = x + am.x"),
             ("/p/main.fung", main),
         ]);
         let (b, errs) = l.compile("/p/main.fung", main, Stage::All);
@@ -982,7 +1036,7 @@ mod tests {
         let l = mem_loader();
         let cases = [
             ("/p/main.fung", "E0302"),
-            ("/p/self.fung", "E0302"),
+            ("/p/self.fung", "E0307"),
             ("/p/entry.fung", "E0307"),
             ("/p/usebad.fung", "E0305"),
             ("/p/usebad2.fung", ""),
@@ -1084,7 +1138,7 @@ mod tests {
         set_files(&[("/p/lib/x.fung", "a = 1"), ("/p/main.fung", main)]);
         let (b, errs) = mem_loader().compile("/p/main.fung", main, Stage::All);
         assert_eq!(codes(&errs), ["E0309"]);
-        assert!(first_msg(&b, &errs).contains("already bound to a module"));
+        assert!(first_msg(&b, &errs).contains("already imported or bound to a module"));
     }
 
     // Brief examples

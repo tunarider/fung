@@ -18,12 +18,12 @@ server = scope(fn(s):
   server = spawn(s, () => http.serve("127.0.0.1:0", handle, ready: addr => send(port_tx, addr)))
   base = "http://" + recv(port)!
 
-  r = http.get("${base}/health")!
-  print(r.status, r.headers["content-type"], json.parse(r.body)!.ok)
-  r = http.post("${base}/echo?x=1", "hello")!
-  print(r.status, r.body, r.headers["content-type"])
-  r = http.get("${base}/nowhere")!
-  print(r.status, r.body)
+  health = http.get("${base}/health")!
+  print(health.status, health.headers["content-type"], json.parse(health.body)!.ok)
+  echo = http.post("${base}/echo?x=1", "hello")!
+  print(echo.status, echo.body, echo.headers["content-type"])
+  missing = http.get("${base}/nowhere")!
+  print(missing.status, missing.body)
   print(deref(hits))
   cancel(server)
   server

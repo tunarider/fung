@@ -1,7 +1,6 @@
 fn mk():
   x = 1
   f = () => x
-  x = 2
   f()
 ;;
 print(mk())

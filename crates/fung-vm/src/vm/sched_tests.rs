@@ -553,7 +553,7 @@ fn a_deadlock_report_shows_where_the_tasks_wait() {
 #[test]
 fn a_deadlock_report_names_the_function_and_the_release() {
     let o = exec(
-        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): take(rx, 1); nil ;;)\n  spawn(s, () => with(() => nil, _ => nil, _ => recv(rx)))\n  spawn(s, fn(): (tx, _rx) = channel(); send(tx, 1) ;;)\n  spawn(s, () => take(rx, 1))\n;;)",
+        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): _ = take(rx, 1); nil ;;)\n  spawn(s, () => with(() => nil, _ => nil, _ => recv(rx)))\n  spawn(s, fn(): (tx, _rx) = channel(); send(tx, 1) ;;)\n  spawn(s, () => take(rx, 1))\n;;)",
         Opts::default(),
     );
     let (_, others) = o
@@ -565,7 +565,7 @@ fn a_deadlock_report_names_the_function_and_the_release() {
         lines[..3],
         // `rx`'s sending end is a global, which every task holds (L7).
         [
-            "   recv in take at -e:3:22 (<lambda>, holds its own sending end)",
+            "   recv in take at -e:3:26 (<lambda>, holds its own sending end)",
             "   recv at -e:4:53 (<lambda>, in release, holds its own sending end)",
             "   send at -e:5:45 (<lambda>)",
         ],

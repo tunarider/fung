@@ -228,9 +228,6 @@
 | 1 | print("a" + 1)
 |   |           ^
 |   |
-|  call path (innermost first):
-|    <repl>:1   <entry>
-|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
 ==== an imported module's error
 -- stdout

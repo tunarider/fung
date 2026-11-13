@@ -1,3 +1,0 @@
-# Where == does compare a symbol with a string, it is E0517 (VA8).
-print([1, 'a] == [1, "a"])
-# expect-error: E0517

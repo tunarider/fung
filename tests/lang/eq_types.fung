@@ -1,12 +1,20 @@
-# == across types (D40): numbers compare across int and float, nil
-# compares with anything, the rest of the same type only.
-print(1 == 1.0, nil == 1, 1 != nil, [1, nil] == [1, 2], Ok(1) == Ok(1))
-# expect: true false true false true
-print(nil in [1, 2], 1.0 in 0..3, nil in 0..3, 2 in [1, 2])
-# expect: false true false true
-# == stops at the first difference, so a pair after it is not compared.
-print([1, 'a] == [2, "a"], {x: 'a} == {y: "a"})
-# expect: false false
+# Values of different types are not equal: `==`, `!=` and `in` answer
+# false, at the top and inside lists, maps, tuples and tags alike (D91).
+# Numbers compare across int and float.
+print(1 == 1.0, "8080" == 8080, 'ok == "ok", nil == 1, 1 != "1")
+# expect: true false false false true
+print([1, 'a] == [1, "a"], [1, "a"] == [2, 3], {a: 1} == {a: "1"}, [1] == (1,))
+# expect: false false false false
+print(Ok(1) == Ok(2), Ok(1) == Err(1), Ok(1) == 1, (1, 2) == (1, 2, 3))
+# expect: false false false false
+print(1 in [1, "a"], "a" in [1, "a"], 'a in ["a", "b"], "a" in 0..3, nil in 0..3)
+# expect: true true false false false
+print(unique([1, 1.0, nil, nil, "1", 'a, "a"]))
+# expect: [1, nil, "1", 'a, "a"]
+# A value that came from outside is a string: convert it to compare.
+import_like = "8080"
+print(int(import_like) == 8080, sym("ok") == 'ok)
+# expect: true true
 # A literal pattern tests the type: a value of another type does not match.
 fn kind(x) = match x:
   1   => "one"

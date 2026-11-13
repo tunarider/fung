@@ -32,4 +32,4 @@ back = json.parse(json.stringify(rows))!
 print(back == rows, len(json.stringify(rows, indent: 2)) > len(json.stringify(rows)))
 # expect: true true
 print(json.parse("[1, 2") |> type_of, json.parse(repeat("[", 20) + repeat("]", 20)) |> type_of)
-# expect: 'Err 'Ok
+# expect: Err Ok

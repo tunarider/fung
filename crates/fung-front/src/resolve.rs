@@ -124,9 +124,9 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
     // binding that hides): it is reported once the rest is fixed (D38).
     if r.errs.iter().any(|e| e.code != "E0239") {
         r.errs.retain(|e| e.code != "E0239");
-    } else {
-        r.errs.sort_by_key(|e| (e.pos.line, e.pos.col));
     }
+    // In source order, whichever pass found them (FE73).
+    r.errs.sort_by_key(|e| (e.pos.line, e.pos.col));
     if !r.errs.is_empty() {
         return Err(r.errs);
     }
@@ -138,10 +138,11 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         })
         .cloned()
         .collect();
+    let exported: std::collections::HashSet<&String> = exports.iter().collect();
     let sigs = r
         .global_sigs
         .iter()
-        .filter(|(i, _)| exports.contains(&r.globals[**i]))
+        .filter(|(i, _)| exported.contains(&r.globals[**i]))
         .map(|(i, (_, sig))| (r.globals[*i].clone(), sig.clone()))
         .collect();
     Ok(Resolved {
@@ -410,7 +411,10 @@ impl Resolver<'_> {
             kids.push(Node::new(Head::Let, k.pos, vec![ref_node(k.pos, b), f]));
         }
         for k in rest {
-            if self.opts.library && k.head != Head::Let && k.head != Head::Test {
+            // `_ = e` keeps no value either: it is a bare statement under
+            // another spelling (FE69).
+            let discards = k.head == Head::Let && k.kids[0].head == Head::Pwild;
+            if self.opts.library && ((k.head != Head::Let && k.head != Head::Test) || discards) {
                 // At the statement's start, not a call's `(` (FE29).
                 self.errs.push(error("E0306", k.start_pos(), vec![]));
                 continue;
@@ -572,6 +576,8 @@ impl Resolver<'_> {
         match self.bind_new(name, at, false) {
             Some(b) => {
                 self.cur_block().fns.insert(name.to_string());
+                let known = (name.to_string(), call::Sig::of(fn_info(n)));
+                self.cur_block().sigs.insert(name.to_string(), known);
                 Node::new(Head::Let, n.pos, vec![ref_node(n.pos, b), f])
             }
             None => f,
@@ -597,34 +603,30 @@ impl Resolver<'_> {
     }
 
     /// Binds a name in the current block for an assignment (`assign`) or
-    /// a local fn: rebinding in the same block reuses the storage; a
-    /// hoisted fn is E0209; a visible outer name is E0205 or E0240 (D38).
-    /// Returns `None` when the binding is an error.
+    /// a local fn. A name is bound once (D88): a second binding in the
+    /// block is E0238, whatever the two are (a variable, a fn, an imported
+    /// name), and a visible outer name is E0240 (D38). Only the REPL's
+    /// top level binds a name again. Returns `None` when the binding is
+    /// an error.
     fn bind_new(&mut self, name: &str, pos: Pos, assign: bool) -> Option<Binding> {
         if let Some(b) = self.cur_block().names.get(name).copied() {
-            if b.module && !self.opts.redefine {
+            let again = self.cur_block().file && self.opts.redefine;
+            if b.module && !again {
                 let e = self.shadow_error(name, pos);
                 self.errs.push(e);
                 return None;
             }
-            if b.constant && !self.opts.redefine {
-                let mut e = name_error("E0209", pos, name);
-                // An imported name: the note says where (FE33).
-                if self.import_bound.contains_key(name)
-                    && let Some(at) = self.fns[0].blocks[0].pos.get(name)
-                {
-                    e.notes
-                        .push(format!("note: `{name}` is imported on line {}", at.line));
-                }
-                self.errs.push(e);
-                return None;
-            }
-            if self.cur_block().file && !self.opts.redefine {
-                // A top-level name is bound once (D53).
+            // What desugar names itself it may bind as it needs.
+            if !again && !crate::tree::is_hidden(name) {
                 let mut e = name_error("E0238", pos, name);
-                if let Some(at) = self.fns[0].blocks[0].pos.get(name) {
+                if let Some(at) = self.cur_block().pos.get(name).copied() {
+                    let how = if self.cur_block().file && self.import_bound.contains_key(name) {
+                        "imported"
+                    } else {
+                        "first bound"
+                    };
                     e.notes
-                        .push(format!("note: `{name}` is first bound on line {}", at.line));
+                        .push(format!("note: `{name}` is {how} on line {}", at.line));
                 }
                 self.errs.push(e);
                 return None;
@@ -704,8 +706,21 @@ impl Resolver<'_> {
             let pat = self.bind_pattern(target, mode);
             return Node::new(Head::Let, n.pos, vec![pat, rhs]);
         }
+        // The callee a partial application keeps in a hidden variable is
+        // still the function it was written as (FE65).
+        let kept = match crate::tree::is_hidden(lit_str(target)) {
+            true => self.known_callee(&n.kids[1], &rhs),
+            false => None,
+        };
         let lhs = match self.bind_new(lit_str(target), target.pos, true) {
-            Some(b) => ref_node(target.pos, b),
+            Some(b) => {
+                if let Some(known) = kept {
+                    self.cur_block()
+                        .sigs
+                        .insert(lit_str(target).to_string(), known);
+                }
+                ref_node(target.pos, b)
+            }
             None => target.clone(),
         };
         Node::new(Head::Let, n.pos, vec![lhs, rhs])

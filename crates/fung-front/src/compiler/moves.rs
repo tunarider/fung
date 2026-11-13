@@ -48,7 +48,9 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::m4::always_matches;
-use super::{Logic, is_if_without_else, is_statement, lit_index, lit_str, local_reads, logic};
+use super::{
+    Logic, is_if_without_else, is_not_of_bool, is_statement, lit_index, lit_str, local_reads, logic,
+};
 use crate::tree::{CaptureKind, Head, Lit, Node};
 
 /// What the walks learn about one frame's code, by node number.
@@ -70,6 +72,9 @@ pub(super) struct Lives {
     /// The always-matching `name =>` arms that move the subject, a local
     /// nothing reads after, into the name.
     pub subject_moves: HashSet<u32>,
+    /// The slots read from the body's start on. A parameter that only a
+    /// default read is not among them: it is let go as the body starts.
+    pub live_at_start: BTreeSet<usize>,
 }
 
 /// The lifetimes in `body`, a function's body or a program's. `tests`
@@ -85,12 +90,14 @@ pub(super) fn lives(body: &Node, tests: bool, tail: bool) -> Lives {
         tests,
     };
     back.walk(body);
+    let live_at_start = (0..back.live.len()).filter(|&s| back.live[s]).collect();
     let mut fwd = Fwd {
         deaths: &back.deaths,
         captures: &back.captures,
         pending: BTreeSet::new(),
         out: Lives {
             moves: std::mem::take(&mut back.moves),
+            live_at_start,
             ..Lives::default()
         },
         tests,
@@ -240,7 +247,7 @@ impl Back {
             }
             Head::Import => {}
             Head::Test if !self.tests => {}
-            Head::If => {
+            Head::If | Head::Then => {
                 self.choice(&[&n.kids[1], &n.kids[2]], &[n.kids[1].id, n.kids[2].id]);
                 self.walk(&n.kids[0]);
             }
@@ -356,8 +363,13 @@ impl Back {
                 }
             }
         }
+        // What is read before the choice is live there whatever the
+        // branches do: arms that all return kill every slot, and a subject
+        // read again after the match must not be let go before it (VM37).
         for &s in reads {
-            if !self.get(s) {
+            if self.get(s) {
+                changed.remove(&s);
+            } else {
                 changed.insert(s, true);
             }
         }
@@ -525,7 +537,7 @@ impl Fwd<'_> {
                     self.out.closure.insert(n.id, c.clone());
                 }
             }
-            Head::If => {
+            Head::If | Head::Then => {
                 self.cond(&n.kids[0]);
                 let before = self.pending.clone();
                 let quiet = self.quiet(&n.kids[1], tail);
@@ -597,6 +609,9 @@ impl Fwd<'_> {
             None if n.head == Head::Op && lit_str(n) == crate::tree::BOOL_CHECK => {
                 self.cond(&n.kids[0])
             }
+            // `not e` of a bool `e` is `e` with the targets swapped: the
+            // same code, so the same places let go (VM38).
+            None if is_not_of_bool(n) => self.cond(&n.kids[0]),
             None => self.expr(n, false),
         }
     }

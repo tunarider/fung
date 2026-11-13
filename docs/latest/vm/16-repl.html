@@ -197,14 +197,13 @@ error[E0702]: deadlock: all tasks are waiting
 4
 &gt; quad2(1)
 9</code></pre>
-<p><code>quad</code>는 람다라서 만들어질 때 보이는 값, 곧 처음의 <code>double</code>을 복사해 쥐고 있다. <code>quad2</code>는 REPL의 최상위 <code>fn</code>이라 부를 때 전역 표에서 <code>double</code>을 읽고, 그때는 다시 정의된 <code>x * 3</code>이 들어 있다. 파일에서도 람다의 규칙은 같다. 람다는 만들 때 보이는 값을 복사한다(파일의 최상위 이름은 다시 묶을 수 없으므로 함수 안에서 보인다).</p>
+<p><code>quad</code>는 람다라서 만들어질 때 보이는 값, 곧 처음의 <code>double</code>을 복사해 쥐고 있다. <code>quad2</code>는 REPL의 최상위 <code>fn</code>이라 부를 때 전역 표에서 <code>double</code>을 읽고, 그때는 다시 정의된 <code>x * 3</code>이 들어 있다. 파일에서도 람다의 규칙은 같다. 람다는 만들 때 보이는 값을 복사한다. 다만 파일에서는 이름을 한 번만 묶으므로(E0238) 이런 차이가 드러나지 않는다. 다시 정의는 REPL의 최상위에만 있다.</p>
 <div class="run"><pre><code>fn demo():
   x = 1
   f = () =&gt; x
-  x = 2
   [f(), x]
 ;;
-print(demo())</code></pre><pre class="out plain"><code>[1, 2]</code></pre></div>
+print(demo())</code></pre><pre class="out plain"><code>[1, 1]</code></pre></div>
 </details>
 </div>
 <h2 id="summary">정리</h2>

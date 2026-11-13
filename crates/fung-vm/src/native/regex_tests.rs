@@ -167,7 +167,7 @@ fn replacement_templates() {
             "replace",
             &["k=v", pat, "$$|$1|${1}|$key|${val}|${1}a|$|${1|$0|$01|$한"]
         ),
-        r#""$|k|k|k|v|ka|$|\${1|k=v|k|$한""#
+        r#""$|k|k|k|v|ka|$|\${1|k=v|k|\$한""#
     );
     for missing in ["$9", "$1a", "$_", "${nope}", "$3"] {
         assert_eq!(

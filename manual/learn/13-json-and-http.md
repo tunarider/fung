@@ -302,13 +302,13 @@ print(json.stringify(summarize([("web1", 120ms), ("web2", 2s)])))
 ## 짚고 넘어가기 {#notes}
 
 :::box mistake JSON의 문자열과 심볼을 비교하기
-JSON에서 온 값은 늘 문자열이다. `svc.status == 'down`처럼 심볼과 비교하면 조용히 거짓이 되는 대신 런타임 에러 E0517로 멈춘다. 가장 흔한 함정이라서 일부러 에러로 만들었다. 문자열과 비교하거나(`svc.status == "down"`), `sym(svc.status) == 'down`으로 바꿔 비교한다. 패턴 `{status: "down"}`도 문자열로 쓴다.
+JSON에서 온 값은 늘 문자열이다. `svc.status == 'down`처럼 심볼과 비교하면 늘 거짓이다: 심볼과 문자열은 다른 타입이라 결코 같지 않다. 문자열과 비교하거나(`svc.status == "down"`), `sym(svc.status) == 'down`으로 바꿔 비교한다. 패턴 `{status: "down"}`도 문자열로 쓴다.
 
-```fung run exit=1 error=E0517
+```fung run
 import json
 
 svc = json.parse(`{"status": "down"}`)!
-print(svc.status == 'down)
+print(svc.status == 'down, svc.status == "down", sym(svc.status) == 'down)
 ```
 
 :::
@@ -377,7 +377,7 @@ scope(fn(s):
 ## 정리 {#summary}
 
 - `json.parse`는 JSON 문자열을 맵·리스트·문자열·숫자·`nil`로 바꿔 `Ok`를 주고, `json.stringify`는 그 반대다(`indent:`로 보기 좋게).
-- JSON에서 온 값은 문자열이다. 심볼과 비교하면 E0517이므로 문자열과 비교하거나 `sym`으로 바꾼다.
+- JSON에서 온 값은 문자열이다. 심볼과 비교하면 늘 거짓이므로 문자열과 비교하거나 `sym`으로 바꾼다.
 - `http.get`·`http.post`는 응답을 받으면 상태 코드와 상관없이 `Ok({status, headers, header_lines, body})`, 전송 실패는 `Err('network)`, 틀린 URL은 `Err('invalid)`, 시간 초과는 `Err('timeout)`.
 - `http.serve(주소, 처리기)`는 요청마다 태스크에서 처리기를 부른다. 처리기는 문자열이나 `{status, headers, body}`를 돌려준다.
 - 기간은 `90s`·`1h30m`처럼 쓰고, 시각은 `time.now`·`time.parse`·`time.format`으로 다룬다. 시각 ± 기간은 시각, 시각 − 시각은 기간이다.

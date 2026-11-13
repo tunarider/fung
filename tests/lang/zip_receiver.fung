@@ -1,0 +1,12 @@
+# `zip` takes from a receiving end only what the other side can pair
+# (D105): the values after that stay in the channel.
+(tx, rx) = channel(5)
+each(0..5, i => send(tx, i)!)
+close(tx)!
+print(zip(rx, ["a", "b"]))
+# expect: [(0, "a"), (1, "b")]
+print(recv(rx), zip(["c"], rx), recv(rx))
+# expect: Ok(2) [("c", 3)] Ok(4)
+# Lists of different lengths are cut to the shorter, a range to the list.
+print(zip([1, 2, 3], ["a"]), zip(0..1000000, ["x", "y"]))
+# expect: [(1, "a")] [(0, "x"), (1, "y")]

@@ -30,7 +30,6 @@ use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHa
 pub use args::Args;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub(crate) use arith::{add_text, check_chars, check_returned, floor_div_i64, rem_i64};
-pub(crate) use compare::check_element;
 pub use compare::{compare, eq, equal, hash_value};
 #[cfg(test)]
 pub use format::format_for_print;
@@ -63,6 +62,9 @@ pub(crate) enum Probe {
     /// An item is, or holds at any depth in its lists, maps, tuples and
     /// tags, an `Err` (a discarded value, 02 버려지는 Err, D54).
     Err,
+    /// An item is, or holds at any depth in its lists, maps, tuples and
+    /// tags, a function: a value with no equality (D62, VA43).
+    Fn,
 }
 
 /// An item that answers a `Probe`.
@@ -75,6 +77,7 @@ impl Probed for Value {
         match p {
             Probe::Mutable => self.holds_mutable(),
             Probe::Err => self.holds_err(),
+            Probe::Fn => self.holds_fn(),
         }
     }
 }
@@ -159,11 +162,20 @@ impl Value {
         self.holds_deep(Probe::Err)
     }
 
+    /// Whether this value is, or holds in its lists, maps, tuples and
+    /// tags at any depth, a function, as `holds_err` looks: such a value
+    /// has no equality, shared with what it is compared with or not
+    /// (VA43).
+    pub(crate) fn holds_fn(&self) -> bool {
+        self.holds_deep(Probe::Fn)
+    }
+
     /// Whether `v` itself answers `p`.
     fn hit(&self, p: Probe) -> bool {
         match p {
             Probe::Mutable => self.is_mutable(),
             Probe::Err => matches!(self, Value::Tag(t) if t.name == Sym::ERR),
+            Probe::Fn => matches!(self, Value::Closure(_) | Value::Native(_)),
         }
     }
 
@@ -172,7 +184,7 @@ impl Value {
     fn opens(&self, p: Probe) -> bool {
         match p {
             Probe::Mutable => self.is_container(),
-            Probe::Err => {
+            Probe::Err | Probe::Fn => {
                 matches!(
                     self,
                     Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_)
@@ -348,10 +360,10 @@ pub struct Closure {
     /// The module's globals; `None` is a slot not assigned yet.
     ///
     /// A top-level `fn` is a closure in this table that holds the table
-    /// again: an `Rc` cycle that is never freed (VM36). With one runtime per
-    /// process it goes away with the process; an embedding or a language server that
-    /// makes runtimes again and again would leak each module's globals
-    /// (open-questions, 알려진 한계).
+    /// again: an `Rc` ring. The runtime keeps every table
+    /// (`World::new_globals`) and empties them as it ends
+    /// (`World::release_values`), which breaks the ring: nothing outlives
+    /// its runtime (VM47; test `the_globals_ring_is_freed_with_the_runtime`).
     pub globals: Globals,
 }
 

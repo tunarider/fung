@@ -160,7 +160,7 @@ fn ints(op: &str, x: i64, y: i64) -> Option<Const> {
         "+" => x.checked_add(y)?,
         "-" => x.checked_sub(y)?,
         "*" => x.checked_mul(y)?,
-        "/" => return floats(op, x as f64, y as f64),
+        "/" => return floats(op, exact(x)?, exact(y)?),
         "//" => {
             if y == 0 || (x == i64::MIN && y == -1) {
                 return None;

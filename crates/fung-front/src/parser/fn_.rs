@@ -44,8 +44,9 @@ fn note_param(seen: &mut HashSet<String>, name: &str, pos: Pos) -> PResult<()> {
 fn note_pattern(seen: &mut HashSet<String>, pat: &Node) -> PResult<()> {
     // each name once: a pattern binding a name twice by itself is E0221
     let mut names: Vec<(String, Pos)> = Vec::new();
+    let mut own: HashSet<String> = HashSet::new();
     pat.bound_names(&mut |name, pos| {
-        if !names.iter().any(|(m, _)| m == name) {
+        if own.insert(name.to_string()) {
             names.push((name.to_string(), pos));
         }
     });
@@ -284,7 +285,8 @@ impl<'a> Parser<'a> {
         }
         match self.pairs[self.i] {
             usize::MAX => false,
-            j => self.kind_from(j + 1) == Kind::FatArrow,
+            // the `=>` is on the line of the `)` (D85)
+            j => self.toks[j + 1].kind == Kind::FatArrow,
         }
     }
 

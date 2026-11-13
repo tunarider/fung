@@ -76,7 +76,10 @@ fn build(n: &Node) -> Result<Pattern, Diag> {
             let mut p = pattern(PatKind::Map);
             for entry in &n.kids {
                 p.kids.push(build(&entry.kids[0])?);
-                p.keys.push(lit_str(entry).to_string());
+                p.keys.push(match &entry.lit {
+                    Lit::Bytes(b) => b.clone(),
+                    _ => lit_str(entry).as_bytes().to_vec(),
+                });
             }
             Ok(p)
         }

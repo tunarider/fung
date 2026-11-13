@@ -98,8 +98,9 @@ print(first(["web-1", "web-2"]), first([]))
 
 ```fung run
 port = nil
+given = 3000
 print(port == nil, port ?? 8080)
-print(3000 ?? 8080)
+print(given ?? 8080)
 ```
 
 ## 심볼 {#symbols}
@@ -164,7 +165,7 @@ print("free:", free, "GB")
 - `if`, `for`, `fn` 같은 **예약어(keyword)**는 이름으로 쓸 수 없다. 목록은 [레퍼런스](../reference/language/lexical.html)에 있다.
 - 이름은 **쓰기 전에** 대입해야 한다. 아래 줄에서 대입할 이름을 위에서 읽으면 E0204다.
 
-파일의 맨 바깥(**최상위**)에서는 한 이름을 **한 번만** 붙인다. 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙인다. (함수 본문 같은 블록 안에서는 같은 이름에 다시 대입할 수 있다. 5장에서 본다.)
+한 이름은 **한 번만** 붙인다. 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙인다. 파일의 맨 바깥(**최상위**)에서도, 함수 본문 같은 블록 안에서도 같다.
 
 ```fung run
 retries = 3
@@ -241,9 +242,9 @@ print(count, level)
 
 :::
 
-:::box mistake 심볼과 문자열 비교 (E0517)
+:::box mistake 심볼과 문자열 비교
 
-`'ok == "ok"`는 거짓이 아니라 **에러**다. 파일, 명령 출력, JSON에서 읽은 값은 늘 문자열이라서, `state == 'ok`처럼 쓰면 조용히 늘 거짓이 되는 것이 가장 흔한 함정이기 때문이다. 문자열을 심볼로 바꿔 비교하려면 `sym(s) == 'ok`라고 쓴다.
+`'ok == "ok"`는 **거짓**이다. 심볼과 문자열은 다른 타입이고, 타입이 다른 값은 결코 같지 않다. 파일, 명령 출력, JSON에서 읽은 값은 늘 문자열이라서, `state == 'ok`처럼 쓰면 늘 거짓이 된다. 조건이 한 번도 참이 되지 않는다면 두 값의 타입부터 본다. 문자열을 심볼로 바꿔 비교하려면 `sym(s) == 'ok`라고 쓴다.
 
 ```fung run
 state = "ok"
@@ -313,4 +314,4 @@ print(a, b, c, d)
 - 값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.
 - 블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.
 
-레퍼런스: [값과 타입](../reference/language/values.html), [연산자](../reference/language/operators.html), [변수와 스코프](../reference/language/scope.html), [변환 함수](../reference/prelude/convert.html), [E0205](../reference/errors.html#E0205), [E0238](../reference/errors.html#E0238), [E0517](../reference/errors.html#E0517). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.
+레퍼런스: [값과 타입](../reference/language/values.html), [연산자](../reference/language/operators.html), [변수와 스코프](../reference/language/scope.html), [변환 함수](../reference/prelude/convert.html), [E0205](../reference/errors.html#E0205), [E0238](../reference/errors.html#E0238), [비교와 동일성](../reference/language/values.html). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.

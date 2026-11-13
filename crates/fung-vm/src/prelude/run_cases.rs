@@ -710,10 +710,7 @@ map(c, 3)"#,
     (r#"print(sh(`echo $PWD`, cwd: ""))"#, ""),
     (r#"print(sh(`echo "$X"`, env: {"X": "a b=c"}))"#, ""),
     (r#"print(exec(["definitely-not-a-command-xyz"]))"#, ""),
-    (
-        r#"print(exec(["/nonexistent/x"]), exec(["/etc"]), exec([""]))"#,
-        "",
-    ),
+    (r#"print(exec(["/nonexistent/x"]), exec(["/etc"]))"#, ""),
     (
         r#"print(exec(["ls"], cwd: "/nonexistent"), exec(["ls"], cwd: "/etc/hosts"))"#,
         "",

@@ -186,6 +186,8 @@ pub(super) struct Sort {
     /// Once sorted: the result so far, grown in place (a builder would
     /// make its vector in one go at the end).
     out: Option<List>,
+    /// How many keys were checked against the first (D87).
+    checked: usize,
 }
 
 /// The shortest run the merging starts from.
@@ -211,6 +213,7 @@ impl Sort {
             j: 0,
             k: 0,
             out: None,
+            checked: 1,
         }
     }
 }
@@ -231,6 +234,17 @@ impl Sort {
         // an order, as `x < x` asks (VA18, D16).
         if let [k] = keys {
             compare(k, k)?;
+        }
+        // Every key has an order with the first before any is moved
+        // (D87): which pairs the sort happens to compare depends on the
+        // data, and a key that does not compare must not slip through.
+        while self.checked < n {
+            if budget == 0 {
+                return Ok(None);
+            }
+            budget -= 1;
+            compare(&keys[0], &keys[self.checked])?;
+            self.checked += 1;
         }
         // finding the runs
         while self.pos < n {
@@ -394,8 +408,7 @@ fn sort_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 
 /// `unique(xs)`: the elements without the later ones `==` an earlier one,
 /// in order (02). Hashing by `hash_value` makes it linear (P1); elements
-/// in one bucket are compared with `eq`, so a symbol meeting a string is
-/// E0517 as with `in`.
+/// in one bucket are compared with `eq`.
 fn unique_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "take the unique elements of")?;
     /// The kept elements, and for each hash the first kept element with
@@ -408,21 +421,10 @@ fn unique_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
         /// The kept elements, grown as the result (and read back for the
         /// comparisons: one copy of them, VA24).
         list: List,
-        /// The first element that is not nil: the type the others must
-        /// have (D40).
-        typed: Option<Value>,
     }
     impl Work for Unique {
         fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
             for x in self.xs.by_ref().take(STEP_ITEMS) {
-                // Elements of different types are `==`'s error even where
-                // their hashes keep them apart (D40): each is checked
-                // against the first that is not nil.
-                match &self.typed {
-                    Some(first) => crate::value::check_element(&x, first)?,
-                    None if !matches!(x, Value::Nil) => self.typed = Some(x.clone()),
-                    None => {}
-                }
                 let mut h = std::hash::DefaultHasher::new();
                 hash_value(&x, &mut h)?;
                 let h = std::hash::Hasher::finish(&h);
@@ -459,7 +461,6 @@ fn unique_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
                 next: Vec::with_capacity(xs.len()),
                 list: List::new(Vec::new()),
                 xs: xs.into_iter(),
-                typed: None,
             },
         )
     })
@@ -879,15 +880,23 @@ fn best(t: &mut Task<'_>, a: &[Value], verb: &str, want: std::cmp::Ordering) -> 
     }
     struct Best {
         best: Option<Value>,
+        /// The first element: every other is checked against it (D87).
+        first: Option<Value>,
         lone: bool,
         want: std::cmp::Ordering,
     }
     impl Collect for Best {
         fn item(&mut self, x: Value) -> Result<bool, Stop> {
             match &self.best {
-                None => self.best = Some(x),
+                None => {
+                    self.first = Some(x.clone());
+                    self.best = Some(x);
+                }
                 Some(b) => {
                     self.lone = false;
+                    if let Some(first) = &self.first {
+                        compare(&x, first)?;
+                    }
                     // ties keep the earlier element
                     if compare(&x, b)? == self.want {
                         self.best = Some(x);
@@ -908,6 +917,7 @@ fn best(t: &mut Task<'_>, a: &[Value], verb: &str, want: std::cmp::Ordering) -> 
     }
     let p = Best {
         best: None,
+        first: None,
         lone: true,
         want,
     };

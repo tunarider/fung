@@ -87,9 +87,9 @@ for [name, state, ready, team] in rows:
 
 :::box mistake JSON 값과 심볼 비교하기
 
-fung에서는 상태 같은 이름을 `'running` 같은 심볼로 쓰는 일이 많다. 그런데 JSON·파일·명령 출력에서 온 값은 언제나 **문자열**이다. 둘을 `==`로 비교하면 조용히 거짓이 되는 대신 E0517로 멈춘다. 문자열끼리 비교하거나, 문자열을 `sym(s)`로 바꿔서 비교한다.
+fung에서는 상태 같은 이름을 `'running` 같은 심볼로 쓰는 일이 많다. 그런데 JSON·파일·명령 출력에서 온 값은 언제나 **문자열**이다. 둘을 `==`로 비교하면 늘 거짓이다: 타입이 다른 값은 같지 않다. 문자열끼리 비교하거나, 문자열을 `sym(s)`로 바꿔서 비교한다.
 
-```fung run exit=1 error=E0517
+```fung run
 import json
 
 svc = json.parse(`{"name": "api", "state": "running"}`)!
@@ -107,4 +107,4 @@ print(svc.state == 'running)
 - **여러 페이지**: 응답의 `next`가 다음 주소를 가리키면 [페이지 넘기며 모두 받기](pagination.html)처럼 끝까지 따라간다.
 - **여러 API 동시에**: 지역마다 API가 따로 있으면 `conc.pmap(urls, fetch)`로 한 번에 받는다.
 
-배우기: [13장 JSON과 HTTP](../learn/13-json-and-http.html), [9장 에러](../learn/09-errors.html), [7장 컬렉션](../learn/07-collections.html). 레퍼런스: [`json.parse`](../reference/modules/json.html#fn-json-parse), [`http.get`](../reference/modules/http.html#fn-http-get), [`get`](../reference/prelude/maps.html#fn-get), [`type_of`](../reference/prelude/convert.html#fn-type_of), [`sym`](../reference/prelude/convert.html#fn-sym), [비교와 동일성](../reference/language/values.html), [E0517](../reference/errors.html#E0517).
+배우기: [13장 JSON과 HTTP](../learn/13-json-and-http.html), [9장 에러](../learn/09-errors.html), [7장 컬렉션](../learn/07-collections.html). 레퍼런스: [`json.parse`](../reference/modules/json.html#fn-json-parse), [`http.get`](../reference/modules/http.html#fn-http-get), [`get`](../reference/prelude/maps.html#fn-get), [`type_of`](../reference/prelude/convert.html#fn-type_of), [`sym`](../reference/prelude/convert.html#fn-sym), [비교와 동일성](../reference/language/values.html).

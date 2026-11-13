@@ -151,13 +151,6 @@ fn disassemble_shows_global_names() {
     );
 }
 
-#[test]
-fn call_encoding() {
-    for (np, nn) in [(0, 0), (3, 0), (2, 1), (4095, 4095)] {
-        assert_eq!(decode_call(encode_call(np, nn)), (np, nn));
-    }
-}
-
 /// A closure is a runtime value (`<fn add>`, `<fn>` when anonymous); the
 /// front end has no closures. What it shows of a function's name is the CLOSURE comment and the child
 /// header, `<lambda>` when anonymous.
@@ -222,22 +215,19 @@ fn disassemble_functions() {
     p.emit(Op::Closure, 0, at);
     let c = p.add_const(Const::Int(1));
     p.emit(Op::Const, c, at);
-    p.emit(Op::Call, encode_call(1, 0), at);
-    p.emit(Op::TailCall, encode_call(0, 2), at);
+    p.emit(Op::Call, 1, at);
+    p.emit_with(Op::TailCall, 0, 2, at);
     p.emit(Op::LoadSelf, 0, at);
-    let want = format!(
-        "== <main> ==\n\
+    let want = "== <main> ==\n\
          0000  1:1   CLOSURE      0    ; add\n\
          0001  1:1   CONST        0    ; 1\n\
-         0002  1:1   CALL         1    ; 1 positional, 0 named\n\
-         0003  1:1   TAILCALL     {}    ; 0 positional, 2 named\n\
+         0002  1:1   CALL         1 0    ; 1 positional, 0 named\n\
+         0003  1:1   TAILCALL     0 2    ; 0 positional, 2 named\n\
          0004  1:1   LOADSELF\n\
          \n== add ==\n\
-         0000  1:1   CHECKTYPE    0    ; a: int | nil\n\
+         0000  1:1   CHECKTYPE    0 0    ; a: int | nil\n\
          0001  1:1   LOADLOCAL    0\n\
-         0002  1:1   RETURN\n",
-        encode_call(0, 2)
-    );
+         0002  1:1   RETURN\n";
     assert_eq!(disassemble(&p), want);
 }
 
@@ -336,7 +326,7 @@ fn m4_ops_disassemble() {
         disassemble(&p),
         "== <main> ==\n\
          0000  1:1   LIST         2\n\
-         0001  1:1   TAG          1 0    ; 'Ok, 1 args\n\
+         0001  1:1   TAG          1 0    ; Ok, 1 args\n\
          0002  1:1   SLICE        3    ; start, end\n\
          0003  1:1   FIELD        1    ; name\n\
          0004  1:1   MATCH        6 0    ; $0, else 6\n\
@@ -368,7 +358,7 @@ fn assert_and_test_opcodes() {
         text: "a == b".into(),
         left: "a".into(),
         right: "b".into(),
-        op: "==".into(),
+        cmp: Some((Cmp::Eq, pos(1, 3))),
     });
     p.emit(Op::Assert, 0, pos(1, 1));
     let c = p.add_const(Const::Str("name".into()));
@@ -441,6 +431,7 @@ fn every_opcode_has_its_name_and_number() {
         "TAILCALLSPREAD",
         "TAILCHECK",
         "JUMPIFTRUE",
+        "TAILCHECKBOOL",
     ];
     assert_eq!(Op::ALL.len(), names.len());
     for (i, (op, name)) in Op::ALL.iter().zip(names).enumerate() {
@@ -624,13 +615,12 @@ fn the_verifier_follows_defaults_matches_and_captures() {
     let mut p = code(
         2,
         &[
-            (Op::LoadLocal, 0),
-            (Op::JumpIfSet, 4),
+            (Op::JumpIfSet, 3),
             (Op::Const, 0),
             (Op::StoreLocal, 0),
             (Op::CheckType, 0),
             (Op::Const, 0),
-            (Op::Match, 9),
+            (Op::Match, 8),
             (Op::MoveLocal, 1),
             (Op::Return, 0),
             (Op::Const, 0),
@@ -648,10 +638,11 @@ fn the_verifier_follows_defaults_matches_and_captures() {
         index: 1,
         ..pat(PatKind::Bind)
     });
+    p.body = 3;
     assert!(verify(&p).is_ok(), "{:?}", verify(&p));
     // The failing path of the MATCH has not bound slot 1.
-    p.code[8] = Instr::new(Op::Pop, 0);
-    p.code[9] = Instr::new(Op::MoveLocal, 1);
+    p.code[7] = Instr::new(Op::Pop, 0);
+    p.code[8] = Instr::new(Op::MoveLocal, 1);
     assert!(violation(&p).contains("MOVELOCAL reads slot 1"));
 
     let mut main = code(1, &[(Op::Closure, 0), (Op::Return, 0)]);
@@ -665,4 +656,189 @@ fn the_verifier_follows_defaults_matches_and_captures() {
     assert!(violation(&main).contains("CLOSURE reads slot 0"));
     main.protos[0].captures[0].index = 4;
     assert!(violation(&main).contains("out of range"));
+}
+
+/// What the VM takes on trust beyond ranges and heights (VM40): the kind
+/// of constant an operand names, the slots and shape of a pattern, where
+/// a call that gives every argument starts, a spread's list, flag bits,
+/// and the one place a slot may be read empty.
+#[test]
+fn the_verifier_checks_what_the_operands_mean() {
+    let at = pos(1, 1);
+    // `ops` after a CONST, with `consts` after the first constant.
+    let with = |consts: Vec<Const>, ops: &[(Op, usize, usize)]| {
+        let mut p = code(0, &[(Op::Const, 0)]);
+        for c in consts {
+            p.add_const(c);
+        }
+        for &(op, arg, b) in ops {
+            p.emit_with(op, arg, b, at);
+        }
+        p.emit(Op::Return, 0, at);
+        p
+    };
+    let matching = |locals: usize, pattern: Pattern| {
+        let mut p = code(
+            locals,
+            &[(Op::Const, 0), (Op::MatchOrFail, 0), (Op::Const, 0)],
+        );
+        p.patterns.push(pattern);
+        p.emit(Op::Return, 0, at);
+        p
+    };
+    let keys = |n: usize| Const::List((0..n).map(|i| Const::Str(format!("k{i}"))).collect());
+    let cases: Vec<(&str, Proto)> = vec![
+        ("MAP 1: its 2 keys", with(vec![keys(2)], &[(Op::Map, 1, 1)])),
+        (
+            "MAP 1: its keys are not a list of strings",
+            with(vec![Const::List(vec![Const::Int(1)])], &[(Op::Map, 1, 1)]),
+        ),
+        (
+            "MAP 1: its keys are not a list of strings",
+            with(vec![], &[(Op::Map, 1, 0)]),
+        ),
+        (
+            "TAG 1: its name is not a symbol",
+            with(vec![], &[(Op::Tag, 1, 0)]),
+        ),
+        ("FIELD 0: not a string", with(vec![], &[(Op::Field, 0, 0)])),
+        (
+            "IMPORT 0: not a string",
+            with(vec![], &[(Op::Pop, 0, 0), (Op::Import, 0, 0)]),
+        ),
+        (
+            "TEST 0: not a string",
+            with(vec![], &[(Op::Test, 0, 0), (Op::Const, 0, 0)]),
+        ),
+        (
+            "pattern 0 binds slot 5: local slots has 1",
+            matching(
+                1,
+                Pattern {
+                    index: 5,
+                    ..pat(PatKind::Bind)
+                },
+            ),
+        ),
+        (
+            // Far past the slots: the verifier itself must not fail.
+            "pattern 0 binds slot 900: local slots has 1",
+            matching(
+                1,
+                Pattern {
+                    kids: vec![Pattern {
+                        index: 900,
+                        ..pat(PatKind::Bind)
+                    }],
+                    ..pat(PatKind::Tuple)
+                },
+            ),
+        ),
+        (
+            "pattern 0 binds global 3: globals has 0",
+            matching(
+                1,
+                Pattern {
+                    index: 3,
+                    global: true,
+                    ..pat(PatKind::Bind)
+                },
+            ),
+        ),
+        (
+            "pattern 0: a map pattern with 1 keys for 0 patterns",
+            matching(
+                0,
+                Pattern {
+                    keys: vec!["a".into()],
+                    ..pat(PatKind::Map)
+                },
+            ),
+        ),
+        (
+            "pattern 0: a literal pattern without its literal",
+            matching(0, pat(PatKind::Lit)),
+        ),
+        (
+            "the body starts at 999: past the end",
+            Proto {
+                body: 999,
+                ..code(0, &[(Op::Const, 0), (Op::Return, 0)])
+            },
+        ),
+        (
+            // A call that gives every argument starts in the middle of an
+            // expression.
+            "paths meet with stack heights 1 and 0",
+            Proto {
+                body: 1,
+                ..code(0, &[(Op::Const, 0), (Op::Return, 0)])
+            },
+        ),
+        (
+            "CALLSPREAD 0: no list to spread",
+            with(vec![], &[(Op::CallSpread, 0, 0)]),
+        ),
+        (
+            "SLICE 248: flags past 7",
+            with(vec![], &[(Op::Slice, 0xF8, 0)]),
+        ),
+        (
+            "RANGE 7: flags past 1",
+            with(vec![], &[(Op::Const, 0, 0), (Op::Range, 7, 0)]),
+        ),
+        (
+            // Only a parameter with a default is tested while empty.
+            "JUMPIFSET 0: not a parameter with a default",
+            code(
+                1,
+                &[
+                    (Op::JumpIfSet, 2),
+                    (Op::Const, 0),
+                    (Op::Const, 0),
+                    (Op::Return, 0),
+                ],
+            ),
+        ),
+        (
+            "LOADLOCAL reads slot 0, which may be unassigned",
+            code(1, &[(Op::LoadLocal, 0), (Op::Return, 0)]),
+        ),
+    ];
+    for (want, p) in &cases {
+        let got = violation(p);
+        assert!(got.contains(want), "want {want:?}, got {got:?}");
+    }
+    // What only the prologue assigned is not there for a call that
+    // starts at the body.
+    let mut skipped = code(
+        2,
+        &[
+            (Op::JumpIfSet, 5),
+            (Op::Const, 0),
+            (Op::StoreLocal, 1),
+            (Op::Const, 0),
+            (Op::StoreLocal, 0),
+            (Op::LoadLocal, 1),
+            (Op::Return, 0),
+        ],
+    );
+    skipped.params.push(Param {
+        name: "a".into(),
+        has_default: true,
+        ty: -1,
+        ..Param::default()
+    });
+    skipped.body = 5;
+    assert!(violation(&skipped).contains("LOADLOCAL reads slot 1"));
+    // The same shapes, right.
+    let good = with(
+        vec![
+            keys(1),
+            Const::Sym("Some".into()),
+            Const::Str("name".into()),
+        ],
+        &[(Op::Map, 1, 1), (Op::Tag, 1, 2), (Op::Field, 3, 0)],
+    );
+    assert!(verify(&good).is_ok(), "{:?}", verify(&good));
 }

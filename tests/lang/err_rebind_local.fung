@@ -1,0 +1,14 @@
+# A name is bound once, in a function as at the top level (D88): the
+# next value gets a name of its own, or the steps become one expression.
+fn _total(xs):
+  n = len(xs)
+  doubled = n * 2
+  doubled + 1
+;;
+fn bad(xs):
+  n = len(xs)
+  n = n * 2
+  n + 1
+;;
+print(bad([1, 2]))
+# expect-error: E0238

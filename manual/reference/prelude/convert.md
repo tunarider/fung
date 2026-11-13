@@ -220,7 +220,7 @@ print("found ${n} hosts")
 
 #### 설명
 
-심볼은 이름만 있는 값이다. 문자열은 심볼과 비교할 수 없으므로(E0517) 파일이나 JSON에서 읽은 `"not_found"`를 `'not_found`와 견주려면 먼저 `sym`으로 바꾼다.
+심볼은 이름만 있는 값이다. 문자열과 심볼은 결코 같지 않으므로(`"ok" == 'ok`는 `false`) 파일이나 JSON에서 읽은 `"not_found"`를 `'not_found`와 견주려면 먼저 `sym`으로 바꾼다.
 
 받는 문자열은 심볼 리터럴이 `'` 뒤에 받는 것과 같다: 글자나 `_`로 시작하고 글자·숫자·`_`가 이어지는 것(`"ok"`, `"_x"`, `"a1"`, `"한글"`, `"Red"`). 대문자로 시작하는 태그 모양도 되므로, 설정에서 읽은 `"Red"`를 `type color = Red | Green`의 값으로 바꿀 수 있다. 빈 문자열, 숫자로 시작하는 것, 공백이나 `-`가 든 것은 E0513이다. 심볼이면 그대로 돌려준다.
 
@@ -271,7 +271,7 @@ print(sym("not-found"))
 
 #### 같이 보기
 
-[`sym_name`](#fn-sym_name), [비교와 동일성](../language/values.html), [E0517](../errors.html#E0517), [`str`](#fn-str)
+[`sym_name`](#fn-sym_name), [비교와 동일성](../language/values.html), [`str`](#fn-str)
 
 :::
 

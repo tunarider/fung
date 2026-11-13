@@ -1,0 +1,26 @@
+# One rule for an expression that goes on to the next line, inside
+# brackets as outside (D85): the line ends in an operator, or the next
+# begins with a continuation token.
+xs = [
+  1,
+  -1,
+  2 +
+  3,
+  [4, 5]
+  |> len,
+]
+print(xs)
+# expect: [1, -1, 5, 2]
+fn first_of(m) = (m
+  .items
+  ?? [])
+print(first_of({items: [7]}))
+# expect: [7]
+# The first statement of a body has no line before it to continue.
+fn neg(a):
+  -a
+;;
+absent = 1 not
+  in [2]
+print(neg(3), absent)
+# expect: -3 true

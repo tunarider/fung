@@ -123,13 +123,12 @@ too many spaces</code></pre></div>
 
 fn shout(s) = upper(s) + &quot;!&quot;</code></pre>
 </details>
-<div class="run"><pre><code>import &quot;./textutil&quot; as tu
-import &quot;./textutil&quot; (slug)
+<div class="run"><pre><code>import &quot;./textutil&quot; as tu (slug)
 
 print(tu.shout(&quot;hi&quot;))
 print(slug(&quot;Hello World&quot;))</code></pre><pre class="out plain"><code>HI!
 hello-world</code></pre></div>
-<p>같은 모듈을 여러 번 import해도(여러 파일에서 가져와도) 그 파일은 처음 한 번만 읽어서 실행한다. 그 뒤로는 만들어 둔 모듈을 그대로 나눠 쓴다.</p>
+<p>한 파일은 같은 모듈을 한 번만 import한다(두 번 쓰면 E0309: 별칭과 이름 목록은 한 <code>import</code>에 함께 쓴다). 여러 파일이 같은 모듈을 가져와도 그 파일은 처음 한 번만 읽어서 실행한다. 그 뒤로는 만들어 둔 모듈을 그대로 나눠 쓴다.</p>
 <h2 id="public">무엇이 공개되는가</h2>
 <p>모듈의 최상위 함수와 변수는 기본으로 <strong>공개</strong>(public)되어 다른 파일에서 쓸 수 있다. 이름이 <code>_</code>로 시작하면 <strong>비공개</strong>(private)다. 위 <code>textutil</code>의 <code>_squash</code>는 같은 파일의 <code>tidy</code>만 쓰는 도우미 함수다. 밖에서 부르면 컴파일 에러 E0304다.</p>
 <details class="fixture"><summary>준비물: textutil.fung</summary>

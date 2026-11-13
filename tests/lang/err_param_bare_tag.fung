@@ -1,4 +1,4 @@
-# A bare tag is a symbol literal, not a destructuring parameter (FE32).
+# A bare tag names no variable: it is no parameter (FE32, FE74).
 fn f(Red) = 1
 print(f(Red))
-# expect-error: E0112
+# expect-error: E0225

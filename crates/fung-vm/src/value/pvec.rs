@@ -41,6 +41,7 @@ fn shift(p: Probe) -> u8 {
     match p {
         Probe::Mutable => 0,
         Probe::Err => 2,
+        Probe::Fn => 4,
     }
 }
 

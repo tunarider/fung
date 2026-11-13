@@ -215,10 +215,19 @@ mod tests {
     #[test]
     fn pure_functions_are_marked() {
         let b = builtins();
-        for name in ["put", "sort", "len", "join", "env"] {
+        // `take` and `zip` are written in fung: the mark is the same
+        // whichever language a builtin is written in (VA47).
+        for name in ["put", "sort", "len", "join", "env", "take", "zip"] {
             assert!(b.prelude_pure(name), "{name}");
         }
-        for name in ["map", "each", "fold", "print", "fail", "send", "take"] {
+        // Those that take a function to compute a value with are marked
+        // too (D90); `each` runs its function for what it does.
+        for name in [
+            "map", "filter", "fold", "find", "any", "all", "sort_by", "group_by", "try_map",
+        ] {
+            assert!(b.prelude_pure(name), "{name}");
+        }
+        for name in ["each", "print", "fail", "send", "until", "scope", "with"] {
             assert!(!b.prelude_pure(name), "{name}");
         }
         assert!(b.module_pure("_native.path", "join"));

@@ -1,24 +1,36 @@
 //! `assert`, `test` blocks, and the `dbg` rewrite (08).
 
 use super::{Compiler, lit_str};
-use crate::bytecode::{Assert, Op};
+use crate::bytecode::{Assert, Cmp, Op};
 use crate::consts::Const;
 use crate::diag::Diag;
 use crate::tree::{Head, Node};
 
-fn is_comparison(op: &str) -> bool {
-    matches!(op, "==" | "!=" | "<" | ">" | "<=" | ">=" | "in")
+fn comparison(op: &str) -> Option<Cmp> {
+    Some(match op {
+        "==" => Cmp::Eq,
+        "!=" => Cmp::Ne,
+        "<" => Cmp::Lt,
+        ">" => Cmp::Gt,
+        "<=" => Cmp::Le,
+        ">=" => Cmp::Ge,
+        "in" => Cmp::In,
+        _ => return None,
+    })
 }
 
-/// The comparison at the top of an assert's expression, with its two
-/// sides: `x not in xs` arrives as `(op not (op in x xs))` (desugar).
-fn top_comparison(e: &Node) -> Option<(&str, &[Node])> {
+/// The comparison at the top of an assert's expression, where its
+/// operator is written, and its two sides: `x not in xs` arrives as
+/// `(op not (op in x xs))` (desugar).
+fn top_comparison(e: &Node) -> Option<(Cmp, crate::source::Pos, &[Node])> {
     if e.head != Head::Op {
         return None;
     }
     let op = lit_str(e);
-    if is_comparison(op) && e.kids.len() == 2 {
-        return Some((op, &e.kids));
+    if let Some(cmp) = comparison(op)
+        && e.kids.len() == 2
+    {
+        return Some((cmp, e.pos, &e.kids));
     }
     match e.kids.as_slice() {
         [inner]
@@ -27,7 +39,7 @@ fn top_comparison(e: &Node) -> Option<(&str, &[Node])> {
                 && lit_str(inner) == "in"
                 && inner.kids.len() == 2 =>
         {
-            Some(("not_in", &inner.kids))
+            Some((Cmp::NotIn, inner.pos, &inner.kids))
         }
         _ => None,
     }
@@ -57,8 +69,8 @@ impl Compiler<'_> {
             text: e.text(src).to_string(),
             ..Assert::default()
         };
-        if let Some((op, sides)) = top_comparison(e) {
-            a.op = op.to_string();
+        if let Some((cmp, at, sides)) = top_comparison(e) {
+            a.cmp = Some((cmp, at));
             for (i, side) in sides.iter().enumerate() {
                 self.expr(side, false)?;
                 if !is_literal(side.head) {

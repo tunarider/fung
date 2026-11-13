@@ -6,7 +6,7 @@
 
 use std::fmt::Write;
 
-use super::{Op, Proto, decode_call, decode_slot_type};
+use super::{Op, Proto};
 use crate::consts::{format, format_for_print, type_text};
 
 /// Renders a proto and its child functions, depth first, each after a
@@ -53,20 +53,16 @@ fn comment(p: &Proto, op: Op, arg: usize, second: usize, b: &mut String) {
             None => return,
         },
         Op::Call | Op::TailCall | Op::CallSpread | Op::TailCallSpread => {
-            let (np, nn) = decode_call(arg);
-            format!("{np} positional, {nn} named")
+            format!("{arg} positional, {second} named")
         }
         Op::Closure => match p.protos.get(arg) {
             Some(c) => display_name(&c.name).to_string(),
             None => return,
         },
-        Op::CheckType => {
-            let (slot, ti) = decode_slot_type(arg);
-            match (p.params.get(slot), p.types.get(ti)) {
-                (Some(prm), Some(t)) => format!("{}: {}", prm.name, type_text(t)),
-                _ => return,
-            }
-        }
+        Op::CheckType => match (p.params.get(arg), p.types.get(second)) {
+            (Some(prm), Some(t)) => format!("{}: {}", prm.name, type_text(t)),
+            _ => return,
+        },
         Op::CheckReturn | Op::TailCheck => match p.types.get(arg) {
             Some(t) => format!("-> {}", type_text(t)),
             None => return,

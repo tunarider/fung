@@ -91,8 +91,8 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0002  2:1   CONST        0    ; &lt;fn print&gt;
 0003  2:7   LOADGLOBAL   0    ; double
 0004  2:14  CONST        1    ; 21
-0005  2:13  CALL         1    ; 1 positional, 0 named
-0006  2:6   CALL         1    ; 1 positional, 0 named
+0005  2:13  CALL         1 0    ; 1 positional, 0 named
+0006  2:6   CALL         1 0    ; 1 positional, 0 named
 0007  2:1   POP
 0008  2:1   CONST        2    ; nil
 0009  1:1   RETURN
@@ -124,7 +124,7 @@ print(double(21))</code></pre><pre class="out plain"><code>42</code></pre></div>
 </table>
 <p>프레임들은 태스크의 <code>frames</code>라는 Rust <code>Vec</code>에 들어 있고, 지역 변수와 계산 중인 값은 모두 태스크의 값 스택 <code>stack</code> 한 줄에 쌓인다. 둘 다 힙(heap)에 있는 배열이다. 그래서 fung 함수가 fung 함수를 부를 때 Rust 함수 호출은 일어나지 않는다. 실행 루프는 반복문 하나이고, <code>CALL</code>은 배열에 원소를 하나 더할 뿐이다. 이 사실이 뒤의 꼬리 호출, 그리고 12장의 스케줄러를 가능하게 한다.</p>
 <h3 id="calling-convention">호출 규약</h3>
-<p><strong>호출 규약</strong>(calling convention)은 "부르는 쪽이 인자를 어디에 어떤 순서로 놓고, 받는 쪽이 그것을 어떻게 가져가는가"의 약속이다. fung의 <code>CALL n</code>은 스택에 <code>[함수, 위치 인자…, (이름 심볼, 값)…]</code>이 쌓여 있다고 약속한다. 피연산자 하나에 수 둘을 담는데, 아래 12비트가 위치 인자 수, 그 위 12비트가 이름 인자 수다. 그래서 이름 인자 하나가 있으면 피연산자가 4097(= 1 + 4096)이 된다.</p>
+<p><strong>호출 규약</strong>(calling convention)은 "부르는 쪽이 인자를 어디에 어떤 순서로 놓고, 받는 쪽이 그것을 어떻게 가져가는가"의 약속이다. fung의 <code>CALL n m</code>은 스택에 <code>[함수, 위치 인자 n개, (이름 심볼, 값) m쌍]</code>이 쌓여 있다고 약속한다. 첫째 피연산자가 위치 인자 수, 둘째가 이름 인자 수다. 그래서 위치 인자 하나와 이름 인자 하나인 호출은 <code>CALL 1 1</code>이다.</p>
 <div class="run"><pre><code>fn greet(name, greeting = &quot;hello&quot;) = &quot;${greeting}, ${name}&quot;
 
 print(greet(&quot;fung&quot;))
@@ -135,30 +135,29 @@ print(greet(&quot;fung&quot;, greeting: &quot;hi&quot;))</code></pre><pre class=
 0002  3:1   CONST        0    ; &lt;fn print&gt;
 0003  3:7   LOADGLOBAL   0    ; greet
 0004  3:13  CONST        1    ; &quot;fung&quot;
-0005  3:12  CALL         1    ; 1 positional, 0 named
-0006  3:6   CALL         1    ; 1 positional, 0 named
+0005  3:12  CALL         1 0    ; 1 positional, 0 named
+0006  3:6   CALL         1 0    ; 1 positional, 0 named
 0007  3:1   POP
 0008  4:1   CONST        0    ; &lt;fn print&gt;
 0009  4:7   LOADGLOBAL   0    ; greet
 0010  4:13  CONST        1    ; &quot;fung&quot;
 0011  4:21  CONST        2    ; 'greeting
 0012  4:31  CONST        3    ; &quot;hi&quot;
-0013  4:12  CALL         4097    ; 1 positional, 1 named
-0014  4:6   CALL         1    ; 1 positional, 0 named
+0013  4:12  CALL         1 1    ; 1 positional, 1 named
+0014  4:6   CALL         1 0    ; 1 positional, 0 named
 0015  4:1   POP
 0016  4:1   CONST        4    ; nil
 0017  1:1   RETURN
 
 == greet ==
-0000  1:1   LOADLOCAL    1
-0001  1:1   JUMPIFSET    4
-0002  1:27  CONST        0    ; &quot;hello&quot;
-0003  1:1   STORELOCAL   1
-0004  1:41  MOVELOCAL    1
-0005  1:38  CONST        1    ; &quot;, &quot;
-0006  1:54  MOVELOCAL    0
-0007  1:38  CONCAT       3
-0008  1:36  RETURN</code></pre></div>
+0000  1:1   JUMPIFSET    3 1
+0001  1:27  CONST        0    ; &quot;hello&quot;
+0002  1:1   STORELOCAL   1
+0003  1:41  MOVELOCAL    1
+0004  1:38  CONST        1    ; &quot;, &quot;
+0005  1:54  MOVELOCAL    0
+0006  1:38  CONCAT       3
+0007  1:36  RETURN</code></pre></div>
 <p>VM이 인자를 묶는 길은 둘이다(<code>crates/fung-vm/src/vm/call.rs</code>의 <code>call_op</code>).</p>
 <ul>
 <li><strong>빠른 길.</strong> fung 함수를 위치 인자만으로, 매개변수 개수만큼 정확히 부르면 스택에 놓인 인자가 그 자리에서 새 프레임의 첫 슬롯이 된다. 나머지 지역 변수 칸은 비워 둔 채 이어 붙인다. 힙 할당이 없다. <code>double(21)</code>이 이 길이다.</li>
@@ -177,11 +176,11 @@ print(f(1))</code></pre><pre class="out err plain" data-code="1"><code>error[E04
    example.fung:3 &lt;entry&gt;</code></pre></div>
 <p>내장 함수도 같은 매개변수 표를 선언하므로(<code>NativeParam</code>) 같은 두 길을 지난다. 다른 점은 기본값뿐이다: 내장 함수의 기본값은 상수라 묶을 때 바로 채운다. <code>exec(cmd, cwd: dir)</code>처럼 내장 함수에 이름 인자를 줄 수 있고, 에러 번호도 fung 함수와 같다.</p>
 <h3 id="defaults">기본값은 함수 서두에서</h3>
-<p>위 <code>greet</code>의 바이트코드를 다시 보자. 0000~0003번은 본문이 아니라 <strong>서두</strong>(prologue)다. "슬롯 1이 비었으면 <code>&quot;hello&quot;</code>를 넣어라"를 명령으로 적은 것이다.</p>
+<p>위 <code>greet</code>의 바이트코드를 다시 보자. 0000~0002번은 본문이 아니라 <strong>서두</strong>(prologue)다. "슬롯 1이 비었으면 <code>&quot;hello&quot;</code>를 넣어라"를 명령으로 적은 것이다.</p>
 <ul>
-<li><code>LOADLOCAL 1</code>이 슬롯을 읽고, <code>JUMPIFSET 4</code>가 "칸이 차 있으면 4번으로 건너뛰라"고 한다.</li>
+<li><code>JUMPIFSET 3 1</code>이 "슬롯 1이 차 있으면 3번으로 건너뛰라"고 한다(둘째 피연산자가 칸 번호다).</li>
 <li>비어 있으면 <code>CONST</code>와 <code>STORELOCAL 1</code>이 기본값을 채운다.</li>
-<li>모든 매개변수를 위치 인자로 준 호출(<code>greet(&quot;x&quot;, &quot;hi&quot;)</code>)은 채울 칸이 없다. 그래서 VM은 그런 호출의 프레임을 서두 뒤(원형의 <code>body</code>, 여기서는 4번)에서 시작한다. 기본값이 넷인 함수를 다 채워 부르는 루프가 이것으로 약 3분의 1 빨라졌다(2026-11-11 점검 VM21).</li>
+<li>모든 매개변수를 위치 인자로 준 호출(<code>greet(&quot;x&quot;, &quot;hi&quot;)</code>)은 채울 칸이 없다. 그래서 VM은 그런 호출의 프레임을 서두 뒤(원형의 <code>body</code>, 여기서는 3번)에서 시작한다. 기본값이 넷인 함수를 다 채워 부르는 루프가 이것으로 약 3분의 1 빨라졌다(2026-11-11 점검 VM21).</li>
 </ul>
 <p>여기서 "비어 있음"은 fung의 <code>nil</code>이 아니다. 값 스택의 칸은 Rust의 <code>Option&lt;Value&gt;</code>이고, 아직 아무것도 들어가지 않은 칸은 <code>None</code>, fung의 <code>nil</code>은 <code>Some(Value::Nil)</code>이다. <code>greet(&quot;x&quot;, greeting: nil)</code>처럼 <code>nil</code>을 일부러 넘기면 기본값이 쓰이지 않는다. 기본값 식이 호출할 때마다 다시 평가되고 앞 매개변수를 참조할 수 있는 것도 기본값이 그냥 서두의 명령이기 때문이다. 타입 표기가 있으면 서두 끝에 <code>CHECKTYPE</code>이, 반환 타입이 있으면 <code>RETURN</code> 앞에 <code>CHECKRETURN</code>이 붙는다.</p>
 <h2 id="closures">클로저</h2>
@@ -210,20 +209,19 @@ print(map([1, 2, 3], adder(10)))</code></pre><pre class="out plain"><code>6
 <p>fung의 규칙은 한 문장이다. <strong>함수는 만들어질 때 보이는 변수의 값을 복사한다</strong>(설계 03, "모델 C"). 이 규칙 하나가 함수 정의, 람다, 최상위, 블록 어디서나 같다.</p>
 <ul>
 <li>처음 구현은 "최상위 <code>fn</code>은 최상위 변수를 호출할 때 찾는다"(C·Python식)였다. 그러면 같은 코드가 최상위에서와 함수 안에서 답이 달랐다. 설계 원칙 7(규칙 하나에서 결과가 따라 나오고 예외 조항이 적을 것)에 따라 규칙을 하나로 합쳤다(<code>background.md</code>의 기각된 대안, 노트 M3).</li>
-<li>복사라서 Lua의 upvalue 상자가 필요 없다. fung에서 <code>x = 2</code>는 이름을 새 값에 붙이는 일이지 값을 고치는 일이 아니다. 블록은 바깥 변수를 다시 대입할 수 없고(E0205) 함수는 전역에 대입할 수 없으므로, 클로저가 가진 값을 누가 몰래 바꿀 길이 없다. 상자를 두어도 그 안이 바뀌는 것을 볼 사람이 없다(노트 M3).</li>
+<li>복사라서 Lua의 upvalue 상자가 필요 없다. fung에서 이름은 한 번만 묶이고(E0238) 값은 바뀌지 않으므로, 클로저가 가진 값을 누가 바꿀 길이 없다. 상자를 두어도 그 안이 바뀌는 것을 볼 사람이 없다(노트 M3). 위 상자의 Java와 같은 자리다: 대입이 한 번뿐이라 공유와 복사의 차이가 프로그램에서 드러나지 않는다.</li>
 <li>공유 상태가 정말 필요하면 이름 붙은 장치 하나, <code>atom</code>(12장)을 쓴다.</li>
 </ul>
 </div>
-<p>복사의 결과를 직접 보자.</p>
+<p>복사한 값은 그것을 만든 함수가 돌아온 뒤에도 남는다.</p>
 <div class="run"><pre><code>fn make():
   x = 1
-  f = () =&gt; x
-  x = 2
-  [f(), x]
+  () =&gt; x
 ;;
 
-print(make())</code></pre><pre class="out plain"><code>[1, 2]</code></pre></div>
-<p><code>f</code>가 만들어진 순간 <code>x</code>는 1이었다. 그 뒤의 <code>x = 2</code>는 <code>f</code>가 가진 1에 닿지 않는다.</p>
+f = make()
+print(f())</code></pre><pre class="out plain"><code>1</code></pre></div>
+<p><code>make</code>의 프레임은 <code>f</code>를 부를 때 이미 사라졌다. <code>f</code>는 만들어진 순간의 <code>x</code>, 곧 1을 자기 안에 가지고 있다. 같은 이름을 다시 묶을 수 없으므로 "복사한 뒤 바깥 변수가 바뀌면?"이라는 물음은 fung 프로그램으로는 쓸 수 없다.</p>
 <h3 id="closure-op">CLOSURE 명령</h3>
 <p>클로저는 바이트코드 명령 <code>CLOSURE</code> 하나로 만들어진다.</p>
 <div class="run"><pre><code>fn adder(n) = x =&gt; x + n
@@ -235,10 +233,10 @@ print(adder(5)(1))</code></pre><pre class="out dump plain"><code>$ fung dump byt
 0002  3:1   CONST        0    ; &lt;fn print&gt;
 0003  3:7   LOADGLOBAL   0    ; adder
 0004  3:13  CONST        1    ; 5
-0005  3:12  CALL         1    ; 1 positional, 0 named
+0005  3:12  CALL         1 0    ; 1 positional, 0 named
 0006  3:16  CONST        2    ; 1
-0007  3:15  CALL         1    ; 1 positional, 0 named
-0008  3:6   CALL         1    ; 1 positional, 0 named
+0007  3:15  CALL         1 0    ; 1 positional, 0 named
+0008  3:6   CALL         1 0    ; 1 positional, 0 named
 0009  3:1   POP
 0010  3:1   CONST        3    ; nil
 0011  1:1   RETURN
@@ -283,8 +281,8 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0002  6:1   CONST        0    ; &lt;fn print&gt;
 0003  6:7   LOADGLOBAL   0    ; countdown
 0004  6:17  CONST        1    ; 3
-0005  6:16  CALL         1    ; 1 positional, 0 named
-0006  6:6   CALL         1    ; 1 positional, 0 named
+0005  6:16  CALL         1 0    ; 1 positional, 0 named
+0006  6:6   CALL         1 0    ; 1 positional, 0 named
 0007  6:1   POP
 0008  6:1   CONST        2    ; nil
 0009  1:1   RETURN
@@ -295,7 +293,7 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0002  3:3   MOVELOCAL    1
 0003  3:6   MOVELOCAL    0
 0004  3:9   CONST        0    ; []
-0005  3:5   TAILCALL     2    ; 2 positional, 0 named
+0005  3:5   TAILCALL     2 0    ; 2 positional, 0 named
 
 == go ==
 0000  2:19  LOADLOCAL    0
@@ -312,7 +310,7 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0011  2:57  MOVELOCAL    0
 0012  2:56  LIST         1
 0013  2:54  ADD
-0014  2:42  TAILCALL     2    ; 2 positional, 0 named</code></pre></div>
+0014  2:42  TAILCALL     2 0    ; 2 positional, 0 named</code></pre></div>
 <p><code>go</code>의 0006번이 <code>LOADSELF</code>다. 최상위 함수가 자기를 부를 때도 전역을 읽지 않고 같은 명령을 쓴다.</p>
 <h2 id="globals">최상위 함수와 전역</h2>
 <p>파일 최상위의 <code>fn</code>은 <strong>끌어올려진다</strong>(hoisting). 이름 해석이 최상위 <code>fn</code>을 먼저 모아 전역 번호를 붙이고, 파일 본문의 맨 앞에서 <code>CLOSURE</code>·<code>STOREGLOBAL</code>로 만든다. 그래서 정의보다 위에서 불러도 되고, 두 함수가 서로를 불러도 된다.</p>
@@ -335,8 +333,8 @@ print(small(2))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0004  5:1   CONST        1    ; &lt;fn print&gt;
 0005  5:7   LOADGLOBAL   0    ; small
 0006  5:13  CONST        2    ; 2
-0007  5:12  CALL         1    ; 1 positional, 0 named
-0008  5:6   CALL         1    ; 1 positional, 0 named
+0007  5:12  CALL         1 0    ; 1 positional, 0 named
+0008  5:6   CALL         1 0    ; 1 positional, 0 named
 0009  5:1   POP
 0010  5:1   CONST        3    ; nil
 0011  1:1   RETURN
@@ -352,14 +350,14 @@ limit = 4
 
 fn small(n) = n &lt; limit
 
-print(small(2))</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `limit` again: a top-level name is bound once
+print(small(2))</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `limit` again: a name is bound once
   --&gt; example.fung:2:1
   |
 2 | limit = 4
   | ^^^^^
   |
   note: `limit` is first bound on line 1
- help: give the new value a name of its own, or compute it in one expression (`x = if … ;;`, `fold`)</code></pre></div>
+ help: give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)</code></pre></div>
 <p>순서가 어긋나서, 대입이 실행되기 전에 함수가 불리면 칸이 아직 비어 있다. 이것은 실행 중에야 알 수 있으므로 런타임 에러 E0809다.</p>
 <div class="run"><pre><code>fn small(n) = n &lt; limit
 
@@ -406,12 +404,12 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0005  4:7   LOADGLOBAL   0    ; count
 0006  4:13  CONST        1    ; 5
 0007  4:16  CONST        2    ; 0
-0008  4:12  CALL         2    ; 2 positional, 0 named
+0008  4:12  CALL         2 0    ; 2 positional, 0 named
 0009  4:21  LOADGLOBAL   1    ; depth
 0010  4:27  CONST        1    ; 5
-0011  4:26  CALL         1    ; 1 positional, 0 named
+0011  4:26  CALL         1 0    ; 1 positional, 0 named
 0012  4:19  ADD
-0013  4:6   CALL         1    ; 1 positional, 0 named
+0013  4:6   CALL         1 0    ; 1 positional, 0 named
 0014  4:1   POP
 0015  4:1   CONST        3    ; nil
 0016  1:1   RETURN
@@ -430,7 +428,7 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0010  1:54  MOVELOCAL    1
 0011  1:60  CONST        1    ; 1
 0012  1:58  ADD
-0013  1:46  TAILCALL     2    ; 2 positional, 0 named
+0013  1:46  TAILCALL     2 0    ; 2 positional, 0 named
 
 == depth ==
 0000  2:15  LOADLOCAL    0
@@ -444,7 +442,7 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0008  2:44  MOVELOCAL    0
 0009  2:48  CONST        1    ; 1
 0010  2:46  SUB
-0011  2:43  CALL         1    ; 1 positional, 0 named
+0011  2:43  CALL         1 0    ; 1 positional, 0 named
 0012  2:36  ADD
 0013  2:13  RETURN</code></pre></div>
 <p><code>count</code>의 0013번은 <code>TAILCALL</code>이고, <code>depth</code>의 0011번은 그냥 <code>CALL</code>이다(<code>1 +</code>가 남아 있으므로). VM의 <code>TAILCALL</code>은 새 프레임을 쌓지 않는다. 지금 프레임의 슬롯을 지우고 새 인자를 <code>base</code> 자리로 옮긴 뒤, 프레임의 원형을 바꾸고 <code>ip</code>를 0(모든 인자를 위치로 주었으면 기본값 서두 뒤)으로 돌린다(<code>call.rs</code>의 <code>reuse_frame</code>). 그래서 <code>count(1000000, 0)</code>은 프레임 하나로 돈다. <code>TAILCALL</code>은 이렇게 지금 프레임을 스스로 끝내므로 그 뒤에는 <code>RETURN</code>이 없다. <code>count</code>의 명령이 <code>TAILCALL</code>에서 끝나는 까닭이다.</p>
@@ -488,7 +486,7 @@ print(down(5))</code></pre><pre class="out err plain" data-code="1"><code>error[
    example.fung:1 down (5 tail calls elided)
    example.fung:3 &lt;entry&gt;</code></pre></div>
 <h3 id="return-type">반환 타입과 꼬리 호출</h3>
-<p>반환 타입을 적은 함수(<code>-&gt; int</code>)는 돌아오는 값을 <code>CHECKRETURN</code>으로 검사해야 한다. 꼬리 호출이 프레임을 다시 쓰면 검사할 함수가 사라지므로, 다른 함수를 부르는 꼬리 호출 앞에는 <code>TAILCHECK</code>가 붙는다. <code>TAILCHECK</code>는 검사(이 함수의 반환 타입과 위치)를 프레임에 맡기고, 프레임은 마침내 돌아올 때 맡은 검사를 최근 것부터 한다. 같은 자리에서 맡긴 검사가 이미 있으면 다시 쌓지 않으므로, 서로 부르는 <code>-&gt; int</code> 함수 둘도 프레임 하나와 검사 두 개로 돈다(<code>vm/frame.rs</code>의 <code>Extra</code>, 결정 D44). <strong>자기 자신을 부르는 꼬리 호출</strong>은 맡기지 않는다. 자기를 부른 값은 결국 같은 함수의 끝에서 같은 검사를 받기 때문이다. 그래서 <code>fn count(n, acc) -&gt; int = …</code>도 백만 번 돈다.</p>
+<p>반환 타입을 적은 함수(<code>-&gt; int</code>)는 돌아오는 값을 <code>CHECKRETURN</code>으로 검사해야 한다. 꼬리 호출이 프레임을 다시 쓰면 검사할 함수가 사라지므로, 다른 함수를 부르는 꼬리 호출 앞에는 <code>TAILCHECK</code>가 붙는다. <code>TAILCHECK</code>는 검사(이 함수의 반환 타입과 위치)를 프레임에 맡기고, 프레임은 마침내 돌아올 때 맡은 검사를 최근 것부터 한다. 같은 자리에서 맡긴 검사가 이미 있으면 다시 쌓지 않으므로, 서로 부르는 <code>-&gt; int</code> 함수 둘도 프레임 하나와 검사 두 개로 돈다(<code>vm/frame.rs</code>의 <code>Extra</code>, 결정 D44). <strong>자기 자신을 부르는 꼬리 호출</strong>은 맡기지 않는다. 자기를 부른 값은 결국 같은 함수의 끝에서 같은 검사를 받기 때문이다. 그래서 <code>fn count(n, acc) -&gt; int = …</code>도 백만 번 돈다. <code>a and f()</code>·<code>a or f()</code>의 오른쪽 호출도 같은 방법으로 꼬리 호출이 된다: 오른쪽의 값은 불이어야 하는데, 그 검사를 <code>TAILCHECKBOOL</code>이 프레임에 맡긴다.</p>
 <div class="run"><pre><code>fn even(n) -&gt; bool = n == 0 then true else odd(n - 1)
 fn odd(n) -&gt; bool = n == 0 then false else even(n - 1)
 print(even(10))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
@@ -505,7 +503,7 @@ print(even(10))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0009  1:52  CONST        2    ; 1
 0010  1:50  SUB
 0011  1:20  TAILCHECK    0    ; -&gt; bool
-0012  1:47  TAILCALL     1    ; 1 positional, 0 named</code></pre></div>
+0012  1:47  TAILCALL     1 0    ; 1 positional, 0 named</code></pre></div>
 <h3 id="defer">정리 장치와 꼬리 호출</h3>
 <p>많은 언어에 "이 함수가 끝날 때 이것을 실행하라"는 <code>defer</code>나 <code>finally</code>가 있다. fung은 <code>defer</code>를 두지 않았다. 할 일을 프레임에 매달면, 꼬리 호출이 그 프레임을 다시 쓰는 순간 매달린 일이 갈 곳을 잃는다(<code>background.md</code>). 정리는 평범한 내장 함수 <code>with(acquire, use, release)</code> 하나가 맡는다. 14장에서 자세히 본다.</p>
 <h2 id="source">코드에서 찾아보기</h2>

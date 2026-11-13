@@ -72,6 +72,16 @@ fn is_arg_end(k: Kind) -> bool {
     matches!(k, Kind::Comma | Kind::RParen | Kind::Newline)
 }
 
+/// E0135 for the least int's magnitude without its minus (FE71): the
+/// number is well formed and does not fit, like any larger one.
+pub(super) fn out_of_range(t: &Token) -> Box<crate::diag::Diag> {
+    Box::new(
+        crate::diag::error("E0135", t.pos, vec![Arg::Str(t.text.clone())])
+            .span(t.text.chars().count())
+            .with_help(crate::lexer::INT_RANGE),
+    )
+}
+
 /// Whether an Int token is the lexer's special magnitude of the least int
 /// (9223372036854775808, `0x8000000000000000`, …), which only a
 /// preceding minus makes valid.
@@ -90,6 +100,8 @@ fn looser_than_a_slice(n: &Node) -> Option<String> {
         return None;
     }
     match (n.head, &n.lit) {
+        // a lambda is looser than every operator (FE67)
+        (Head::Fn, Lit::Fn(info)) if info.lambda => Some("=>".into()),
         (Head::Then, _) => Some("then … else".into()),
         (Head::Coalesce, _) => Some("??".into()),
         (Head::Pipe, _) => Some("|>".into()),
@@ -106,12 +118,17 @@ fn looser_than_a_slice(n: &Node) -> Option<String> {
 impl<'a> Parser<'a> {
     /// Looks past a newline when the next line starts with a continuation
     /// token, without consuming anything otherwise.
+    ///
+    /// Inside brackets too (D85): there a newline is space between items
+    /// and beside the brackets, but it does not join two lines into one
+    /// expression, so the token after it is not looked at as an operator,
+    /// a call or an index (`[1⏎ -1]` is a missing comma, not `[0]`).
     fn peek_infix(&mut self) -> &'a Token {
-        let t = self.peek();
+        let toks = self.toks;
+        let t = &toks[self.i];
         if t.kind != Kind::Newline {
             return t;
         }
-        let toks = self.toks;
         let mut j = self.i;
         while toks[j].kind == Kind::Newline {
             j += 1;
@@ -147,6 +164,13 @@ impl<'a> Parser<'a> {
             return Err(e);
         }
         let lhs = self.prefix(min_bp)?;
+        // A `return` is no operand (E0132): one with a value read its
+        // whole expression, and one without ends here, so a continuation
+        // token on the next line (`?? 1`, `|> f`) does not take it as its
+        // left side and become dead code (FE64).
+        if lhs.head == Head::Return {
+            return Ok(lhs);
+        }
         self.infix_loop(lhs, start, min_bp)
     }
 
@@ -192,7 +216,15 @@ impl<'a> Parser<'a> {
             if matches!(t.kind, Kind::DotDot | Kind::DotDotEq) && self.slice == Some(self.nest) {
                 return Ok(lhs);
             }
-            let not_in = t.kind == Kind::KwNot && self.kind_from(self.i + 1) == Kind::KwIn;
+            // `not in`, also over a line end: a line ending in `not` goes
+            // on (01 rule 1, FE66).
+            let not_in = t.kind == Kind::KwNot && {
+                let mut j = self.i + 1;
+                while self.toks[j].kind == Kind::Newline {
+                    j += 1;
+                }
+                self.toks[j].kind == Kind::KwIn
+            };
             let info = if not_in {
                 Some(Infix {
                     left: BP_COMPARE,
@@ -215,6 +247,7 @@ impl<'a> Parser<'a> {
             }
             self.next();
             if not_in {
+                self.skip_newlines_after_operator();
                 self.next();
             }
             self.skip_newlines_after_operator();
@@ -309,7 +342,7 @@ impl<'a> Parser<'a> {
         match t.kind {
             Kind::Int => {
                 if is_min_int_magnitude(t) {
-                    return Err(err("E0102", t.pos, vec![s(t.text.clone())]));
+                    return Err(out_of_range(t));
                 }
                 self.next();
                 leaf(Head::Int, Lit::Int(t.int))
@@ -339,6 +372,7 @@ impl<'a> Parser<'a> {
             Kind::KwFor => self.for_expr(),
             Kind::LBracket => self.list_literal(),
             Kind::LBrace => self.map_literal(),
+            Kind::Tag if self.kind_after() == Kind::FatArrow => Err(super::tag_as_name(t)),
             Kind::Tag => self.tag_expr(),
             Kind::KwFn => {
                 self.next();
@@ -361,7 +395,7 @@ impl<'a> Parser<'a> {
                 leaf(Head::Bool, Lit::Bool(false))
             }
             Kind::Name => {
-                if self.kind_from(self.i + 1) == Kind::FatArrow && self.bare_lambda_ok() {
+                if self.toks[self.i + 1].kind == Kind::FatArrow && self.bare_lambda_ok() {
                     return self.lambda_here(min_bp);
                 }
                 self.next();
@@ -494,7 +528,7 @@ impl<'a> Parser<'a> {
         let mut saw_spread = false;
         let mut names: HashSet<&str> = HashSet::new();
         while !self.at(Kind::RParen) {
-            if self.at(Kind::Name) && self.kind_from(self.i + 1) == Kind::Colon {
+            if self.at(Kind::Name) && self.toks[self.i + 1].kind == Kind::Colon {
                 // Named argument: positional ones must come first (03).
                 let name = self.next();
                 if !names.insert(&name.text) {

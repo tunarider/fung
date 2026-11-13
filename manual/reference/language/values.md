@@ -17,7 +17,7 @@ lede: 값의 종류와 그 성질, 문자열·리스트·맵·튜플·태그·�
     <tr><td><code>time</code></td><td><code>time.now()</code></td><td>시각. 리터럴 없음. <code>± dur</code>, <code>time - time</code>은 기간, 순서 비교. 출력은 ISO 8601.</td></tr>
     <tr><td><code>list</code></td><td><code>[1, 2]</code></td><td>순서 있는 목록.</td></tr>
     <tr><td><code>map</code></td><td><code>{a: 1}</code></td><td>키는 항상 문자열. 넣은 순서를 지킨다.</td></tr>
-    <tr><td><code>tuple</code></td><td><code>(1, "a")</code></td><td>고정 개수. 원소는 패턴으로만 꺼낸다. 하나짜리는 <code>(x,)</code>.</td></tr>
+    <tr><td><code>tuple</code></td><td><code>(1, "a")</code></td><td>고정 개수. 원소는 패턴으로만 꺼낸다. 하나짜리는 <code>(x,)</code>. 튜플에 되는 것은 패턴, <code>==</code>·<code>&lt;</code> 등의 비교, <code>len</code>·<code>is_empty</code>뿐이다: 색인(<code>t[0]</code>은 E0509)도 <code>map</code>·<code>for</code>도 받지 않는다(여러 값을 훑으려면 리스트).</td></tr>
     <tr><td>태그</td><td><code>Ok(1)</code> <code>Circle(3)</code></td><td>이름 + 인자. 타입 이름은 태그 이름 자체.</td></tr>
     <tr><td><code>range</code></td><td><code>0..10</code> <code>0..=10</code></td><td>게으른 정수 범위. 리스트를 미리 만들지 않는다. 함수의 입력(<code>map</code>·<code>len</code>·<code>flatten</code>·<code>sum</code> 등)으로만 리스트처럼 쓰이고, 연산자 자리(<code>+</code>, 인덱스, <code>==</code>로 리스트와 비교)에서는 리스트가 아니다.</td></tr>
     <tr><td><code>fn</code></td><td><code>x =&gt; x</code></td><td>함수. 내장 함수도 같은 타입.</td></tr>
@@ -54,11 +54,12 @@ lede: 값의 종류와 그 성질, 문자열·리스트·맵·튜플·태그·�
     <tr><td>range</td><td>같은 정수 열(<code>0..5 == 0..=4</code>, 빈 범위끼리는 같음). 출력은 쓴 모양 그대로</td><td>에러</td></tr>
     <tr><td>fn</td><td>에러 E0501(같음이 없다)</td><td>에러</td></tr>
     <tr><td>module, file, task, scope, sender, receiver, atom</td><td>같은 객체인가</td><td>에러</td></tr>
-    <tr><td>타입이 다를 때</td><td>에러 E0517. 예외는 숫자끼리(int와 float)와 한쪽이 <code>nil</code>(<code>false</code>)</td><td>에러</td></tr>
+    <tr><td>타입이 다를 때</td><td><code>false</code>(같지 않다). 숫자끼리(int와 float)는 수로 견준다</td><td>에러</td></tr>
   </tbody>
 </table>
-<p><code>sort</code>, <code>unique</code>, <code>contains</code>, <code>in</code>은 모두 이 표를 따른다(<code>unique</code>는 원소마다 <code>nil</code>이 아닌 첫 원소와 타입을 견준다). 함수는 같음이 없으므로 해시도 없어 <code>unique</code>에 넣으면 E0501이다.</p>
-<p><strong>타입이 다른 두 값의 비교는 에러다(E0517).</strong> 다른 타입의 값은 결코 같지 않으므로 그런 비교는 거의 늘 실수다. JSON·파일·명령 출력·환경 변수에서 온 값은 늘 문자열이라 <code>back.kind == 'not_found</code>나 <code>env("PORT") == 8080</code>이 조용히 거짓이 되는 것이 가장 흔한 함정이다. 타입은 <code>type_of</code>가 주는 이름이되, 태그 값은 이름이 달라도 모두 한 타입으로 견준다: 이름은 값의 일부라 <code>Ok(1) == Err(1)</code>은 <code>false</code>다(태그와 다른 타입의 값, 예컨대 <code>Ok(1) == 1</code>은 에러). 예외는 둘이다: 숫자끼리는 수로 견주고(<code>1 == 1.0</code>), <code>nil</code>은 무엇과도 견줄 수 있다(<code>x == nil</code>). 리스트·튜플·맵·태그 안에서 맞붙어도, <code>in</code>도 같다. 다만 <code>==</code>가 실제로 견주는 쌍만 본다. 첫 차이에서 멈추므로 <code>[1, 'a] == [2, "a"]</code>는 <code>false</code>다. 한쪽을 바꿔서(<code>int(s)</code>, <code>str(n)</code>, <code>sym(s)</code>) 견준다. 타입을 가리려면 <code>type_of</code>나 패턴을 쓴다: 리터럴 패턴(<code>'not_found =&gt;</code>, <code>1 =&gt;</code>)은 비교가 아니라 타입까지 보는 시험이라서 타입이 다르면 그대로 맞지 않을 뿐이다.</p>
+<p><code>unique</code>, <code>contains</code>, <code>in</code>은 이 표의 <code>==</code>를, <code>sort</code>, <code>sort_by</code>, <code>min</code>, <code>max</code>는 <code>&lt;</code>를 따른다. 함수는 같음이 없으므로 해시도 없어 <code>unique</code>에 넣으면 E0501이다.</p>
+<p><strong>타입이 다른 두 값은 같지 않다.</strong> <code>"8080" == 8080</code>, <code>'ok == "ok"</code>, <code>Ok(1) == 1</code>은 모두 <code>false</code>다. 리스트·튜플·맵·태그 안에서 맞붙어도, <code>in</code>도 같다(<code>[1, 'a] == [1, "a"]</code>는 <code>false</code>, <code>"1" in [1, 2]</code>는 <code>false</code>). 숫자끼리는 타입을 넘어 수로 견준다(<code>1 == 1.0</code>). JSON·파일·명령 출력·환경 변수에서 온 값은 늘 문자열이므로, <code>env("PORT") == 8080</code>이나 <code>back.kind == 'not_found</code>는 늘 거짓이다. 조건이 한 번도 참이 되지 않으면 두 값의 타입부터 본다. 한쪽을 바꿔서(<code>int(s)</code>, <code>str(n)</code>, <code>sym(s)</code>) 견준다. 타입을 가리려면 <code>type_of</code>나 패턴을 쓴다: 리터럴 패턴(<code>'not_found =&gt;</code>, <code>1 =&gt;</code>)도 타입까지 본다.</p>
+<p><strong>순서는 다르다.</strong> 문자열과 수 사이, 개수가 다른 두 튜플 사이에는 "어느 쪽이 작은가"의 답이 없으므로 <code>&lt;</code> 등은 에러다(E0501). 이 검사는 값과 상관없이 끝까지 간다: <code>[1, "a"] &lt; [2, 1]</code>은 첫 원소에서 답이 정해져도 둘째 쌍이 견줄 수 없으므로 에러이고, <code>sort</code>·<code>sort_by</code>·<code>min</code>·<code>max</code>는 시작하기 전에 모든 원소(<code>sort_by</code>는 키)를 첫 원소와 견준다. 그래서 정렬이 자료에 따라 되다 말다 하지 않는다. 길이가 다른 두 리스트는 짧은 쪽이 앞이다(<code>[1] &lt; [1, 2]</code>).</p>
 
 ## 경계 사례와 에러 {#edges}
 
@@ -69,11 +70,18 @@ print(group_by(["ab", "c"], s => "${len(s)}"))
 print(group_by(["ab", "c"], s => len(s)))
 ```
 
-타입이 다른 두 값은 견줄 수 없다. 심볼과 문자열, 바깥에서 온 글과 수가 흔한 경우다.
+타입이 다른 두 값은 같지 않다. 심볼과 문자열, 바깥에서 온 글과 수가 흔한 경우다. 한쪽을 바꿔 견준다.
 
-```fung run exit=1 error=E0517
+```fung run
 print('ok == 'ok, 1 == 1.0, nil == 'ok)
-print("8080" == 8080)
+print("8080" == 8080, 'ok == "ok", int("8080") == 8080, sym("ok") == 'ok)
+```
+
+순서는 타입이 다르면 없다. 정렬은 시작하기 전에 모든 원소를 본다.
+
+```fung run exit=1 error=E0501
+print(sort([[2, "b"], [1, "a"]]))
+print(sort([[1, "a"], [2, 2]]))
 ```
 
 함수는 같음이 없다.

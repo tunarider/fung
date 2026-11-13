@@ -100,6 +100,7 @@ Ok(&quot;a.txt&quot;) Err(&quot;empty path&quot;)</code></pre></div>
   <li>인자와 반환 타입에만 쓴다. 맞지 않으면 런타임 에러(E0403, E0404). 변수에는 쓰지 않는다. <code>...rest</code>는 늘 리스트라 <code>list</code>만 적을 수 있다(다른 표기는 E0228).</li>
   <li>타입 이름은 값 이름과 다른 이름 공간이다. <code>list = [1]</code>이라는 변수가 있어도 <code>x: list</code>는 타입이다.</li>
   <li>별칭 이름은 소문자이고(대문자는 태그), 위의 타입 이름은 별칭으로 쓸 수 없다(<code>type int = str</code>은 E0222).</li>
+  <li>내장 타입 이름은 소문자다. 대소문자만 다른 <code>Int</code>·<code>String</code>·<code>List</code>·<code>Bool</code>·<code>Nil</code>은 태그 이름으로 읽혀 어떤 값도 맞지 않으므로 컴파일 에러 E0212다(도움말이 <code>int</code>를 알려 준다).</li>
 </ul>
 <h2 id="edges">경계 사례와 에러</h2>
 <p>표기한 타입이 아니면 호출 자리에서 멈춘다.</p>

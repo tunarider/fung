@@ -1,6 +1,6 @@
 # A tag on a pipe's right takes the value (01): `1 |> Red` is `Red(1)`.
-# A quoted symbol is a value, not a tag (FE19): calling it is an error.
+# A quoted symbol is a value, not a tag (FE19): calling it is an error,
+# and a literal called is one before the program runs (D99).
 print(1 |> Red)
 print(1 |> 'red)
-# expect: Red(1)
 # expect-error: E0401

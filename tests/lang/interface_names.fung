@@ -1,0 +1,9 @@
+# A file's public top-level names and the parameters of its public fns
+# make up its interface. They may be prelude names and need not be read,
+# in the entry file as in an imported one (D86). Inside the file the
+# name is the file's own.
+max = 3
+unread = 4
+fn first(xs, len = 1) = xs[len - 1]
+print(max, first([7, 8]), first([7, 8], len: 2))
+# expect: 3 7 8

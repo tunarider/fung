@@ -71,7 +71,7 @@ pub fn format(c: &Const) -> String {
         Const::Nil => "nil".into(),
         Const::Str(s) => quote_str(s),
         Const::Bytes(b) => quote_bytes(b),
-        Const::Sym(s) => format!("'{s}"),
+        Const::Sym(s) => symbol(s),
         Const::Dur(ns) => format_dur(*ns),
         Const::Builtin(n) => format!("<fn {n}>"),
         Const::Dbg => "<fn dbg>".into(),
@@ -189,6 +189,17 @@ pub fn quote_bytes(b: &[u8]) -> String {
     out
 }
 
+/// A symbol as source writes it (D103): `'name`, and one that starts
+/// with an uppercase letter as the tag without values it is (`Red`;
+/// `'Red` is not source, E0128).
+pub fn symbol(name: &str) -> String {
+    if name.chars().next().is_some_and(crate::unicode::is_upper) {
+        name.to_string()
+    } else {
+        format!("'{name}")
+    }
+}
+
 /// [`quote_bytes`] at the end of `out`. A run of ASCII that needs no
 /// escape goes in at once; only the rest is read a character at a time
 /// (VA13).
@@ -222,9 +233,17 @@ pub fn write_quoted(b: &[u8], out: &mut String) {
             '\r' => out.push_str("\\r"),
             '\\' => out.push_str("\\\\"),
             '"' => out.push_str("\\\""),
-            '$' if b.get(at) == Some(&b'{') => out.push_str("\\$"),
+            // `${` interpolates and `$name` is E0129: both are escaped so
+            // that what is shown reads back as source (VA45).
+            '$' if b.get(at) == Some(&b'{')
+                || first(&b[at..]).is_some_and(
+                    |u| matches!(u, Unit::Char(n) if n == '_' || crate::unicode::is_name_start(n)),
+                ) =>
+            {
+                out.push_str("\\$")
+            }
             c if c != ' ' && !crate::unicode::is_print(c) => {
-                let _ = write!(out, "\\u{{{:X}}}", c as u32);
+                let _ = write!(out, "\\u{{{:x}}}", c as u32);
             }
             c => out.push(c),
         }
@@ -261,9 +280,13 @@ mod tests {
                 '\r' => out.push_str("\\r"),
                 '\\' => out.push_str("\\\\"),
                 '"' => out.push_str("\\\""),
-                '$' if us.get(i + 1) == Some(&Unit::Char('{')) => out.push_str("\\$"),
+                '$' if matches!(us.get(i + 1), Some(&Unit::Char(n))
+                    if n == '{' || n == '_' || crate::unicode::is_name_start(n)) =>
+                {
+                    out.push_str("\\$")
+                }
                 c if c != ' ' && !crate::unicode::is_print(c) => {
-                    out.push_str(&format!("\\u{{{:X}}}", c as u32))
+                    out.push_str(&format!("\\u{{{:x}}}", c as u32))
                 }
                 c => out.push(c),
             }
@@ -388,7 +411,7 @@ mod tests {
     #[test]
     fn string_quoting() {
         assert_eq!(quote_str("a\nb\r\\"), "\"a\\nb\\r\\\\\"");
-        assert_eq!(quote_str("${x} $y $"), "\"\\${x} $y $\"");
+        assert_eq!(quote_str("${x} $y $"), "\"\\${x} \\$y $\"");
         assert_eq!(quote_str("\u{1}é한"), "\"\\u{1}é한\"");
     }
 
@@ -403,7 +426,7 @@ mod tests {
 
     #[test]
     fn nbsp_is_escaped() {
-        assert_eq!(quote_str("a\u{A0}b"), "\"a\\u{A0}b\"");
+        assert_eq!(quote_str("a\u{A0}b"), "\"a\\u{a0}b\"");
     }
 
     #[test]

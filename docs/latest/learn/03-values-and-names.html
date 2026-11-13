@@ -119,8 +119,9 @@ true false</code></pre></div>
 <div class="run"><pre><code>print(first([&quot;web-1&quot;, &quot;web-2&quot;]), first([]))</code></pre><pre class="out plain"><code>web-1 nil</code></pre></div>
 <p><code>nil</code>로 할 수 있는 일은 적다. <code>==</code>로 비교하기, 찍기, 그리고 <code>??</code>로 기본값 바꾸기 정도다. <code>a ?? b</code>는 <code>a</code>가 <code>nil</code>이면 <code>b</code>, 아니면 <code>a</code>다. 그 밖의 연산, 예를 들어 <code>nil + 1</code>은 에러다. "없는 값"이 조용히 <code>0</code>처럼 계산되어 퍼지지 않게 하기 위해서다.</p>
 <div class="run"><pre><code>port = nil
+given = 3000
 print(port == nil, port ?? 8080)
-print(3000 ?? 8080)</code></pre><pre class="out plain"><code>true 8080
+print(given ?? 8080)</code></pre><pre class="out plain"><code>true 8080
 3000</code></pre></div>
 <h2 id="symbols">심볼</h2>
 <p><strong>심볼</strong>(<code>sym</code>)은 <code>'ok</code>, <code>'degraded</code>, <code>'not_found</code>처럼 <code>'</code> 뒤에 이름을 쓴 값이다. 이름 자체만 뜻이 있는 값으로, 몇 가지 정해진 상태 가운데 하나를 나타낼 때 쓴다. 미리 선언할 필요 없이 바로 쓴다.</p>
@@ -169,7 +170,7 @@ print(&quot;free:&quot;, free, &quot;GB&quot;)</code></pre><pre class="out plain
 <li><code>if</code>, <code>for</code>, <code>fn</code> 같은 <strong>예약어(keyword)</strong>는 이름으로 쓸 수 없다. 목록은 <a href="../reference/language/lexical.html">레퍼런스</a>에 있다.</li>
 <li>이름은 <strong>쓰기 전에</strong> 대입해야 한다. 아래 줄에서 대입할 이름을 위에서 읽으면 E0204다.</li>
 </ul>
-<p>파일의 맨 바깥(<strong>최상위</strong>)에서는 한 이름을 <strong>한 번만</strong> 붙인다. 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙인다. (함수 본문 같은 블록 안에서는 같은 이름에 다시 대입할 수 있다. 5장에서 본다.)</p>
+<p>한 이름은 <strong>한 번만</strong> 붙인다. 이미 붙인 이름에 다시 대입하면 E0238이다. 바뀐 값에는 새 이름을 붙인다. 파일의 맨 바깥(<strong>최상위</strong>)에서도, 함수 본문 같은 블록 안에서도 같다.</p>
 <div class="run"><pre><code>retries = 3
 max_tries = retries + 1
 print(retries, max_tries)</code></pre><pre class="out plain"><code>3 4</code></pre></div>
@@ -200,14 +201,14 @@ print(max_retries, log_dir)</code></pre><pre class="out plain"><code>3 /var/log/
 count = 0
 for f in files:
   count = count + 1
-;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot reassign `count` here: it was defined outside this block
+;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot assign to `count` here: it is bound outside this block
   --&gt; example.fung:4:3
   |
 4 |   count = count + 1
   |   ^^^^^
   |
   note: `count` is a top-level name bound on line 2
- help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
+ help: a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
 <p>블록 안에서 새로 만든 이름도 블록 밖으로 나오지 않는다(E0206). 대신 fung의 블록은 <strong>값을 낸다</strong>. 블록의 마지막 식이 그 블록의 값이다. 그래서 "블록 안에서 변수를 고친다" 대신 "블록이 낸 값을 대입한다"라고 쓴다. 위의 개수는 그냥 <code>len(files)</code>이고, 더 복잡한 계산은 4장의 <code>if</code> 식과 <code>fold</code>로 쓴다.</p>
 <div class="run"><pre><code>files = [&quot;a.log&quot;, &quot;b.log&quot;]
 count = len(files)
@@ -221,8 +222,8 @@ print(count, level)</code></pre><pre class="out plain"><code>2 critical</code></
 <div class="box mistake"><b>블록 안에서 합계 쌓기 (E0205)</b>
 <p>쉘이나 Python 습관대로 반복문 안에서 <code>total = total + x</code>를 쓰면 E0205다. 값이 바뀌지 않는 언어에서 이 코드를 허용하면, 블록 안의 대입은 바깥 변수를 고치지 못하고 <strong>블록 안에 같은 이름의 새 변수를 만드는</strong> 수밖에 없다. 그러면 반복이 끝난 뒤 바깥의 <code>total</code>은 조용히 <code>0</code>으로 남는다. 조용히 틀리는 대신 에러로 막은 것이다. 합계는 <code>sum(xs)</code>, 개수는 <code>len(xs)</code>, 그 밖의 누적은 4장의 <code>fold</code>로 쓴다.</p>
 </div>
-<div class="box mistake"><b>심볼과 문자열 비교 (E0517)</b>
-<p><code>'ok == &quot;ok&quot;</code>는 거짓이 아니라 <strong>에러</strong>다. 파일, 명령 출력, JSON에서 읽은 값은 늘 문자열이라서, <code>state == 'ok</code>처럼 쓰면 조용히 늘 거짓이 되는 것이 가장 흔한 함정이기 때문이다. 문자열을 심볼로 바꿔 비교하려면 <code>sym(s) == 'ok</code>라고 쓴다.</p>
+<div class="box mistake"><b>심볼과 문자열 비교</b>
+<p><code>'ok == &quot;ok&quot;</code>는 <strong>거짓</strong>이다. 심볼과 문자열은 다른 타입이고, 타입이 다른 값은 결코 같지 않다. 파일, 명령 출력, JSON에서 읽은 값은 늘 문자열이라서, <code>state == 'ok</code>처럼 쓰면 늘 거짓이 된다. 조건이 한 번도 참이 되지 않는다면 두 값의 타입부터 본다. 문자열을 심볼로 바꿔 비교하려면 <code>sym(s) == 'ok</code>라고 쓴다.</p>
 <div class="run"><pre><code>state = &quot;ok&quot;
 print(sym(state) == 'ok)</code></pre><pre class="out plain"><code>true</code></pre></div>
 </div>
@@ -264,7 +265,7 @@ print(a, b, c, d)</code></pre><pre class="out plain"><code>[1, 2] [1, 2] [1, 2, 
 <li>값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.</li>
 <li>블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.</li>
 </ul>
-<p>레퍼런스: <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/operators.html">연산자</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0205">E0205</a>, <a href="../reference/errors.html#E0238">E0238</a>, <a href="../reference/errors.html#E0517">E0517</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
+<p>레퍼런스: <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/operators.html">연산자</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0205">E0205</a>, <a href="../reference/errors.html#E0238">E0238</a>, <a href="../reference/language/values.html">비교와 동일성</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/02-first-program.html"><small>이전 장</small>2. 설치와 첫 프로그램</a><a class="next" href="../learn/04-conditions-and-loops.html"><small>다음 장</small>4. 조건과 반복</a></nav>
 </div></main>
 </div>

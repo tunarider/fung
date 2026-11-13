@@ -94,13 +94,13 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
 0002  2:19  CONST        0    ; &lt;fn map&gt;
 0003  2:6   CONST        1    ; [1, 2, 3]
 0004  2:23  LOADGLOBAL   0    ; sq
-0005  2:22  CALL         2    ; 2 positional, 0 named
+0005  2:22  CALL         2 0    ; 2 positional, 0 named
 0006  2:1   STOREGLOBAL  1    ; xs
 0007  3:1   CONST        2    ; &lt;fn print&gt;
 0008  3:7   CONST        3    ; &lt;fn sum&gt;
 0009  3:11  LOADGLOBAL   1    ; xs
-0010  3:10  CALL         1    ; 1 positional, 0 named
-0011  3:6   CALL         1    ; 1 positional, 0 named
+0010  3:10  CALL         1 0    ; 1 positional, 0 named
+0011  3:6   CALL         1 0    ; 1 positional, 0 named
 0012  3:1   POP
 0013  3:1   CONST        4    ; nil
 0014  1:1   RETURN
@@ -166,8 +166,8 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
 <p>스코프 규칙 위반(정의 전 읽기 E0204, 바깥 변수 재대입 E0205, 블록 밖 이름 E0206, <code>for</code> 안의 <code>return</code>, 최상위 <code>return</code>, 모듈 이름 가리기, 대안 패턴의 이름 불일치)은 첫 번째에서 멈추지 않고 <strong>전부 모아</strong> 보고한다. 보이는 이름을 다시 묶는 것(E0240)과 쓰지 않는 이름(E0239, 다른 에러가 없을 때만)도 여기서 잡는다. 이름 해석이 끝나면 값을 쓰는 자리의 조용한 <code>nil</code>(<code>else</code> 없는 <code>if</code> E0223, 비었거나 문장으로 끝나는 블록 E0224)을 트리를 한 번 더 돌며 찾는다(<code>resolve/value.rs</code>).</p>
 <h2 id="bytecode">바이트코드</h2>
 <h3>명령 인코딩</h3>
-<p>명령 하나는 <strong>고정 폭</strong>이다: 8비트가 명령, 24비트가 피연산자, 그리고 <code>MATCH</code>·<code>TAG</code>·<code>MAP</code>만 둘째 24비트 피연산자(VM32). VM은 링크 때 명령을 8바이트 <code>Code</code>로 풀고, 둘째 피연산자는 명령 종류 뒤의 빈 바이트에 담는다. 디코딩과 점프 계산이 단순하고 역어셈블러가 쉽다. 24비트면 상수 번호, 슬롯 번호, 점프 위치에 충분하다. 가변 길이 바이트 열은 매 명령의 길이를 따져야 해서 택하지 않았다.</p>
-<p><code>CALL</code>은 피연산자 하나에 두 수를 담는다: 하위 12비트가 위치 인자 수, 그 위 12비트가 이름 인자 수.</p>
+<p>명령 하나는 <strong>고정 폭</strong>이다: 8비트가 명령, 24비트가 피연산자, 그리고 수가 둘 필요한 명령(<code>MATCH</code>·<code>TAG</code>·<code>MAP</code>, 호출 넷, <code>CHECKTYPE</code>·<code>JUMPIFSET</code>)만 둘째 24비트 피연산자(VM32). VM은 링크 때 명령을 8바이트 <code>Code</code>로 풀고, 둘째 피연산자는 명령 종류 뒤의 빈 바이트에 담는다. 디코딩과 점프 계산이 단순하고 역어셈블러가 쉽다. 24비트면 상수 번호, 슬롯 번호, 점프 위치에 충분하다. 가변 길이 바이트 열은 매 명령의 길이를 따져야 해서 택하지 않았다.</p>
+<p><code>CALL</code>의 첫째 피연산자는 위치 인자 수, 둘째는 이름 인자 수다. 그래서 인자와 매개변수의 개수 한도도 다른 모든 개수와 같은 24비트다.</p>
 <h3>함수 원형(Proto)</h3>
 <p>함수마다 하나. 명령열, 상수 풀, 인자 표(이름·기본값 여부·<code>...rest</code>·타입 표기), 지역 슬롯 수, 붙잡을 값 목록, 안쪽 함수 원형들, 패턴 트리들, 그리고 <strong>명령마다 소스 위치 하나</strong>(명령열과 나란한 배열)를 가진다. 런타임 에러가 정확한 줄과 칸을 가리킬 수 있는 이유다.</p>
 <h3>명령 목록</h3>
@@ -192,7 +192,7 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
 <p>모든 연산이 새 값을 만든다. 리스트와 맵은 사본이 원본과 구조를 공유하는 영속 자료구조라, 누적과 꼬리 재귀도 선형이다(<a href="#collections">컬렉션의 내부</a>). 값 층 밖의 코드는 <code>Len</code>·<code>At</code>·<code>All</code>·<code>Slice</code>·<code>Put</code> 같은 메서드와 빌더로만 리스트·맵을 다룬다.</p>
 <p>스택 칸은 <code>Option&lt;Value&gt;</code>다. <code>None</code>은 "슬롯이 아직 비어 있음"이고, fung의 <code>nil</code>은 별도 값 <code>Value::Nil</code>이다. 이 구분이 기본값 처리를 공짜로 만든다(아래).</p>
 <h3>태스크, 스택, 프레임</h3>
-<p>실행 단위는 <strong>태스크</strong>다. 태스크마다 피연산자 스택 하나를 갖고, 호출마다 프레임 <code>{Proto, ip, 슬롯 시작 위치, 클로저, 전역 표}</code>을 쌓는다. 지역 변수는 그 프레임의 슬롯 시작 위치 + 번호로 스택에서 바로 읽는다. 전역 상태는 없다: 실행 스레드 하나가 태스크들을 차례로 돌리며(M:1) 같은 바이트코드를 번갈아 실행한다(<a href="#concurrency">동시성 런타임</a>).</p>
+<p>실행 단위는 <strong>태스크</strong>다. 태스크마다 피연산자 스택 하나를 갖고, 호출마다 프레임 <code>{클로저, ip, 슬롯 시작 위치(base)와 함수 칸(floor), 꼬리 호출 수, 시작 자리, 드문 정보}</code>를 쌓는다(원형과 전역 표는 클로저에서 읽는다). 지역 변수는 그 프레임의 슬롯 시작 위치 + 번호로 스택에서 바로 읽는다. 전역 상태는 없다: 실행 스레드 하나가 태스크들을 차례로 돌리며(M:1) 같은 바이트코드를 번갈아 실행한다(<a href="#concurrency">동시성 런타임</a>).</p>
 <p>프레임 깊이가 100,000을 넘으면 E0804 "stack overflow"와 "꼬리 재귀나 fold를 쓰세요"라는 힌트가 나온다. 프레임이 작은 구조체라 그 깊이도 수십 MB 수준이다.</p>
 <h3>호출 규약</h3>
 <p>스택에는 <code>[함수, 위치 인자…, (이름 심볼, 값)…]</code>이 놓인다. VM이 원형의 인자 표를 보고 새 프레임 슬롯에 묶는다: 위치 인자는 차례로, 이름 인자는 표에서 찾아, 남는 위치 인자는 <code>...rest</code> 리스트로. 맞지 않으면 E04xx. 이 일은 인자가 놓인 그 자리에서 한다. 먼저 모두 검사하고, 이름 인자를 위에서 꺼내(태스크가 재사용하는 배열에 잠시 담아) 매개변수 이름의 심볼 번호로 칸을 찾아 쓴다. 내장 함수도 같은 인자 표를 선언하므로 같은 길에서 같은 검사를 받고, 상수인 기본값은 묶을 때 채운다. 그래서 <code>exec(cmd, cwd: d)</code>가 된다.</p>
@@ -201,16 +201,15 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
 <p><strong>기본값은 함수 서두(prologue)에 컴파일된다</strong>: "슬롯이 비었으면 기본값 식을 실행해 채운다". 호출할 때마다 평가되고 앞 인자를 참조할 수 있는 이유다.</p>
 <div class="run"><pre><code>fn greet(name, greeting = &quot;hello&quot;) = &quot;${greeting}, ${name}&quot;</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
 == greet ==
-0000  1:1   LOADLOCAL    1
-0001  1:1   JUMPIFSET    4
-0002  1:27  CONST        0    ; &quot;hello&quot;
-0003  1:1   STORELOCAL   1
-0004  1:41  MOVELOCAL    1
-0005  1:38  CONST        1    ; &quot;, &quot;
-0006  1:54  MOVELOCAL    0
-0007  1:38  CONCAT       3
-0008  1:36  RETURN</code></pre></div>
-<p>0001의 <code>JUMPIFSET 4</code>는 "슬롯 1(<code>greeting</code>)이 차 있으면 기본값을 건너뛴다"이고, 0002~0003이 기본값을 채운다. 0007의 <code>CONCAT 3</code>은 보간 조각 셋을 잇는다. 모든 매개변수를 위치 인자로 준 호출은 채울 것이 없으므로 서두를 건너뛰어 그 뒤(원형의 <code>body</code>, 여기서는 4)에서 시작한다(VM21). 자기 꼬리 호출도 같다.</p>
+0000  1:1   JUMPIFSET    3 1
+0001  1:27  CONST        0    ; &quot;hello&quot;
+0002  1:1   STORELOCAL   1
+0003  1:41  MOVELOCAL    1
+0004  1:38  CONST        1    ; &quot;, &quot;
+0005  1:54  MOVELOCAL    0
+0006  1:38  CONCAT       3
+0007  1:36  RETURN</code></pre></div>
+<p>0000의 <code>JUMPIFSET 3 1</code>은 "슬롯 1(<code>greeting</code>)이 차 있으면 3번으로 가서 기본값을 건너뛴다"이고, 0001~0002가 기본값을 채운다. <code>CONCAT 3</code>은 보간 조각 셋을 잇는다. 모든 매개변수를 위치 인자로 준 호출은 채울 것이 없으므로 서두를 건너뛰어 그 뒤(원형의 <code>body</code>, 여기서는 3)에서 시작한다(VM21). 자기 꼬리 호출도 같다.</p>
 <p>타입 표기는 서두의 <code>CHECKTYPE</code>, 반환 타입은 <code>RETURN</code> 직전의 <code>CHECKRETURN</code>이 검사한다.</p>
 <h3>클로저: 복사, 상자 없음</h3>
 <p><code>CLOSURE n</code>은 원형 n의 "붙잡을 값 목록"(현재 프레임의 슬롯 또는 현재 클로저가 붙잡은 값)을 <strong>복사</strong>해 새 클로저를 만든다. 대부분의 언어는 바깥 변수가 나중에 바뀌는 것을 보여 주려고 변수를 상자(upvalue)에 담아 공유하지만, fung은 "함수는 만들어질 때 보이는 변수의 값을 복사한다"는 규칙 하나로 정했기 때문에 상자가 필요 없다.</p>
@@ -252,7 +251,7 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
 0010  1:54  MOVELOCAL    1
 0011  1:60  CONST        1    ; 1
 0012  1:58  ADD
-0013  1:46  TAILCALL     2    ; 2 positional, 0 named</code></pre></div>
+0013  1:46  TAILCALL     2 0    ; 2 positional, 0 named</code></pre></div>
 <p>반환 타입을 적은 함수는 반환값을 검사해야 하므로, 다른 함수로의 꼬리 호출은 프레임을 남기는 보통 호출(<code>CALL</code>)이 된다. 자기 자신으로의 꼬리 호출은 같은 검사를 다시 하게 되므로 <code>TAILCALL</code>로 남는다.</p>
 <h3>패턴 매칭</h3>
 <p>패턴은 명령열로 펼치지 않고 원형의 <strong>패턴 트리</strong>로 둔다. <code>MATCH L n</code> 한 명령이 실행 중에 트리 n번을 해석해 맞으면 이름들을 슬롯에 묶고 다음 명령으로, 맞지 않으면 L로 간다(VM29: 불 값을 올렸다 <code>JUMPIFFALSE</code>로 꺼내지 않는다). 정수·심볼·불·<code>nil</code> 리터럴 패턴은 값 층을 거치지 않고 바로 견준다. 패턴의 의미가 Rust 함수 하나(<code>vm/matcher.rs</code>)에 모여 있어 이해하고 고치기 쉽다. guard는 그 뒤의 평범한 비교와 <code>JUMPIFFALSE</code>이고, 아무 절도 맞지 않으면 <code>NOMATCH</code>가 E0601을 낸다. 구조 분해 대입은 <code>MATCHORFAIL</code>이다.</p>
@@ -304,7 +303,7 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
   </tbody>
 </table>
 <p><code>crates/fung-cli/tests/perf.rs</code>(릴리스 빌드)가 이 다섯과 뒤에 더한 것들(스택처럼 쓰기, <code>unique</code>, 긴 문자열의 글자 인덱스, 자기 자신과의 <code>==</code>)을 0.3초 기준으로 지키므로 n²로 돌아가면 테스트가 실패한다.</p>
-<p>2026-10-20 검토에서 더 고친 것: <code>unique</code>는 <code>==</code>와 맞는 해시로 선형이다(정수와 같은 값의 실수는 같은 해시, 맵은 순서와 무관한 해시, 심볼은 그 이름의 문자열과 같은 해시라 E0517이 그대로 난다). 문자열의 <code>s[i]</code>·<code>s[a..b]</code>는 글자 배열을 만들지 않는다(ASCII는 바이트 위치 그대로). 같은 리스트·맵·튜플·태그끼리의 <code>==</code>는 바로 참이다. 원소가 모두 상수인 리스트 리터럴은 컴파일 때 상수 하나가 된다. L5에서 맵·튜플·태그 값과 빈 것, 그런 것을 품은 것까지 넓혔다(<code>args</code>는 전용 상수 <code>Const::Args</code>).</p>
+<p>2026-10-20 검토에서 더 고친 것: <code>unique</code>는 <code>==</code>와 맞는 해시로 선형이다(정수와 같은 값의 실수는 같은 해시, 맵은 순서와 무관한 해시, 심볼은 그 이름의 문자열과 같은 해시지만 둘은 같지 않다). 문자열의 <code>s[i]</code>·<code>s[a..b]</code>는 글자 배열을 만들지 않는다(ASCII는 바이트 위치 그대로). 같은 리스트·맵·튜플·태그끼리의 <code>==</code>는 바로 참이다(함수를 품은 값은 빼고: 함수는 같음이 없으므로 저장소를 공유하든 아니든 E0501이고, 큰 리스트는 노드가 "함수를 품었는가"를 기억한다). 원소가 모두 상수인 리스트 리터럴은 컴파일 때 상수 하나가 된다. L5에서 맵·튜플·태그 값과 빈 것, 그런 것을 품은 것까지 넓혔다(<code>args</code>는 전용 상수 <code>Const::Args</code>).</p>
 <h3>구조 공유와 길 복사</h3>
 <p>값을 평평한 배열 대신 <strong>가지가 32개인 얕은 트리</strong>에 담는다. 하나를 바꾸면 그 값까지 내려가는 길의 노드만 새로 만들고, 나머지 가지는 원본의 노드를 그대로 가리킨다. 원본은 하나도 바뀌지 않는다.</p>
 <pre class="plain"><code>원본                      바꾼 뒤
@@ -319,7 +318,7 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
 <ul>
   <li><strong>영속 벡터</strong>(Clojure의 PersistentVector를 앞으로도 자라게 한 것): 인덱스 <code>i</code>를 5비트씩 끊어 트리를 내려간다. 마지막 32개는 따로 둔 <code>tail</code> 배열에, 처음 32개 이하는 <code>head</code> 배열에 있어서, 끝이나 앞에 붙이기는 그 배열만 복사한다. 배열이 차면 트리에 잎으로 끼우며 그 길만 복사한다. 앞에 끼울 자리를 위해 트리의 위치는 0이 아니라 <code>org</code>에서 시작하고, 그 앞의 칸은 빈 자리표다. 앞자리가 다 차면 트리가 앞으로 한 층 자란다(옛 뿌리가 새 뿌리의 둘째 자식이 된다). 그래서 앞·뒤 모두 상각 O(1)이고 색인은 그대로 O(log₃₂ n)이다(L5).</li>
   <li><strong>보기</strong>: 큰 리스트는 <code>{벡터, 시작, 끝}</code>이다. <code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code>는 같은 벡터를 가리키며 위치만 다른 보기를 만든다(상수 시간). 끝이 벡터의 끝인 보기에 덧붙이면 벡터를 이어서 키운다. 앞쪽 조각이 벡터의 대부분이면 벡터를 그 끝에서 자르고(마지막 잎이 <code>tail</code>이 되고 그 길만 복사, O(log n)) 이어서 키우므로, 스택처럼 쓰는 <code>s[..len(s) - 1] + [x]</code>도 선형이다. 작은 앞쪽 조각은 새 벡터로 떼어 낸 뒤 붙인다. 원본은 어느 쪽이든 그대로다.</li>
-  <li><strong>메모리 규칙</strong>: 잘라 낸 결과가 바탕 벡터의 1/4보다 작으면 복사해서 떼어 낸다. 작은 조각이 큰 원본을 붙잡아 메모리에 남기지 않게 하려는 것이다.</li>
+  <li><strong>메모리 규칙</strong>: 잘라 낸 결과가 바탕 벡터의 1/4보다 작으면 보기로 두지 않고 떼어 낸다(32개 이하면 복사, 더 크면 트리를 O(log n)에 잘라 자기 잎만 가진 벡터). 작은 조각이 큰 원본을 붙잡아 메모리에 남기지 않게 하려는 것이다.</li>
 </ul>
 <h3>맵: HAMT와 넣은 순서</h3>
 <p><strong>HAMT</strong>(Hash Array Mapped Trie)는 키를 32비트로 해시하고 5비트씩 끊어 내려가는 트리다. 노드는 "어느 칸이 차 있는가"를 나타내는 32비트 비트맵과 찬 칸만 담은 배열이다. 칸의 위치는 "내 앞에 찬 칸의 수"로, CPU의 비트 세기 명령 한 번(<code>u32::count_ones</code>)으로 구한다. 해시 32비트를 다 써도 같은 키들은 마지막에 작은 충돌 목록에 둔다.</p>
@@ -345,7 +344,7 @@ print(sum(xs))</code></pre><pre class="out dump plain"><code>$ fung dump bytecod
   <tbody>
     <tr><td><code>xs[i]</code>, <code>len</code></td><td>O(1)</td><td>O(log₃₂ n), O(1)</td></tr>
     <tr><td><code>xs + [x]</code></td><td>O(n), n ≤ 32</td><td>거의 O(1)</td></tr>
-    <tr><td><code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code></td><td>O(b−a)</td><td>O(1) 보기(작아지면 복사)</td></tr>
+    <tr><td><code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code></td><td>O(b−a)</td><td>O(1) 보기(바탕의 1/4보다 작으면 떼어 냄: O(log n)이나 32개 이하의 복사)</td></tr>
     <tr><td><code>[x] + xs</code>(앞에 붙이기)</td><td>O(n), n ≤ 32</td><td>거의 O(1)</td></tr>
     <tr><td><code>xs + ys</code></td><td colspan="2">짧은 쪽 길이에 비례(짧은 쪽을 긴 쪽의 끝에 붙인다)</td></tr>
     <tr><td><code>m[k]</code>, <code>k in m</code>, <code>get</code></td><td>O(1)</td><td>O(log₃₂ n)</td></tr>

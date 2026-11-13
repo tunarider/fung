@@ -179,7 +179,6 @@ fn statements_and_newlines() {
         ("1; 2;", "(program 1 2)"),
         ("1 +\n\n  2", "(program (binary + 1 2))"),
         ("true\n  and false", "(program (binary and true false))"),
-        ("1\n-2", "(program 1 (unary - 2))"),
         ("f\n(1)", "(program f 1)"),
     ]);
 }
@@ -342,7 +341,7 @@ fn min_int_literal() {
         "1 + 9223372036854775808",
         "-(9223372036854775808)",
     ] {
-        assert_eq!(perr(src), "E0102", "{src:?}");
+        assert_eq!(perr(src), "E0135", "{src:?}");
     }
     assert_eq!(
         p("-9223372036854775807"),
@@ -459,8 +458,8 @@ fn lambda_params_require_commas() {
 #[test]
 fn least_int_magnitude_needs_a_minus_in_patterns_too() {
     // 01: 9223372036854775808 is only valid right after `-`.
-    assert_eq!(perr("match x: 9223372036854775808 => 1 ;;"), "E0102");
-    assert_eq!(perr("[9223372036854775808] = xs"), "E0102");
+    assert_eq!(perr("match x: 9223372036854775808 => 1 ;;"), "E0135");
+    assert_eq!(perr("[9223372036854775808] = xs"), "E0135");
     p("match x: -9223372036854775808 => 1 ;;");
 }
 
@@ -536,10 +535,9 @@ fn collection_literals() {
 }
 
 #[test]
-fn newlines_inside_brackets_are_whitespace_everywhere() {
-    // 01: inside ( ) [ ] { } a newline is whitespace — in patterns and
-    // lambda parameter lists too, and a tag's `(` may follow on the next
-    // line there.
+fn newlines_inside_brackets_are_whitespace_between_items() {
+    // 01: inside ( ) [ ] { } a newline is whitespace between items and
+    // beside the brackets, in patterns and lambda parameter lists too.
     check(&[
         (
             "match r:\n  Ok(\n    y\n  ) => y\n;;",
@@ -562,15 +560,21 @@ fn newlines_inside_brackets_are_whitespace_everywhere() {
             "g = ([a,\n b]) => a",
             "(program (assign g (fn ((plist (pbind a) (pbind b))) (block a))))",
         ),
+        // A line ending in `=>` goes on (rule 1).
         (
-            "map(xs, x\n  => x)",
+            "map(xs, x =>\n  x)",
             "(program (call map xs (fn (x) (block x))))",
         ),
-        ("x = [Ok\n  (1)]", "(program (assign x (list (tag Ok 1))))"),
-        (
-            "match r: [Ok\n (v)] => v ;;",
-            "(program (match r (arm (plist (ptag Ok (pbind v))) (nil) (block v))))",
-        ),
+    ]);
+    // It does not join the two tokens of one item (D85): a lambda's
+    // `=>`, a tag's `(` and a named argument's `:` are on the line of
+    // what they follow.
+    check_errs(&[
+        ("map(xs, x\n  => x)", "E0112"),
+        ("map(xs, (a, b)\n  => a)", "E0112"),
+        ("x = [Red\n  (1)]", "E0112"),
+        ("match r: [Ok\n (v)] => v ;;", "E0236"),
+        ("f(a\n: 1)", "E0112"),
     ]);
     assert_eq!(
         p("import fs (\n  read,\n  write\n)"),
@@ -750,9 +754,9 @@ fn assignment_for_and_parameters_take_one_destructuring_pattern() {
         ("Ok(x) | 1 = r", "E0112"),
         ("-1 = x", "E0112"),
         ("for 1 in xs: 1 ;;", "E0112"),
-        ("for Red in xs: 1 ;;", "E0112"),
+        ("for Red in xs: 1 ;;", "E0225"),
         ("for x | 1 in xs: 1 ;;", "E0112"),
-        ("fn f(Red) = 1", "E0112"),
+        ("fn f(Red) = 1", "E0225"),
         ("fn f(Ok(x) | 2) = 1", "E0112"),
         ("f = (1) => 1", "E0112"),
         ("f = ('a) => 1", "E0112"),
@@ -1249,8 +1253,9 @@ fn map_shorthand() {
 // --- the 2026-11-08 review (FE6–FE11, FE15) ---
 
 /// Inside brackets a newline is whitespace before `]` after an open
-/// slice's `..`, between `not` and `in`, and between a named argument's
-/// name and its `:` (01, FE6).
+/// slice's `..` (beside the bracket), and a line ending in `not` goes on
+/// to its `in` (rule 1, FE66). A named argument's `:` is on the name's
+/// line (D85; FE6 had let it follow on the next).
 #[test]
 fn newlines_inside_brackets_around_two_token_forms() {
     check(&[
@@ -1259,7 +1264,6 @@ fn newlines_inside_brackets_around_two_token_forms() {
             "print(1 not\n in xs)",
             "(program (call print (binary not_in 1 xs)))",
         ),
-        ("f(a\n : 1)", "(program (call f (named a 1)))"),
     ]);
 }
 
@@ -1326,21 +1330,6 @@ fn test_names_and_import_paths_are_text() {
         p("test \"caf\\xc3\\xa9\": assert true ;;"),
         "(program (test \"café\" (block (assert true))))"
     );
-}
-
-/// `..._` is the same as `...`: it binds no name (FE11).
-#[test]
-fn rest_wildcard_binds_nothing() {
-    check(&[
-        (
-            "[a, ..._] = xs",
-            "(program (assign (plist (pbind a) (prest)) xs))",
-        ),
-        (
-            "fn f([a, ..._], [b, ..._]) = a",
-            "(program (fn f((plist (pbind a) (prest)), (plist (pbind b) (prest))) (block a)))",
-        ),
-    ]);
 }
 
 /// Forms the grammar reads and then refuses carry their own codes, not
@@ -1756,10 +1745,24 @@ fn return_stands_as_a_statement_or_ends_a_branch() {
         ("fn f(a) = return return a", "E0132"),
         ("fn f(a) = not return a", "E0132"),
     ]);
+    // A `return` without a value ends its statement: a continuation token
+    // on the next line does not make it an operand (FE64). The line is a
+    // statement after a `return` (E0131), or no expression at all.
+    check_errs(&[
+        ("fn f():\n  return\n    ?? 1\n;;", "E0131"),
+        ("fn f():\n  return\n    |> g\n;;", "E0131"),
+        ("fn f():\n  return\n    .foo\n;;", "E0131"),
+        ("fn f(c):\n  return\n    and c\n;;", "E0131"),
+        ("fn f(c) = c then return\n  ?? 1 else 2", "E0112"),
+    ]);
     check(&[
         (
             "fn f() = return",
             "(program (fn f() (block (return (nil)))))",
+        ),
+        (
+            "fn f(a) = a then return\n  else 2",
+            "(program (fn f(a) (block (then a (return (nil)) 2))))",
         ),
         (
             "fn f(a) = a then return 1 else 2",
@@ -2047,4 +2050,151 @@ fn small_parse_diagnostics_of_the_third_review() {
         full_err("{a: x, \"a\": y} = {a: 1}"),
         "E0113 1:8 duplicate key `a` in a map literal or pattern\nnote: the key `a` is first written at 1:2"
     );
+}
+
+/// One rule for an expression that goes on to the next line, inside
+/// brackets as outside (D85): the line ends in a token that cannot end
+/// an expression, or the next begins with one that cannot begin a
+/// statement. Inside brackets a newline is space only between items and
+/// beside the brackets, so a missing comma does not join two items into
+/// one (`[1⏎ -1]` was `[0]`).
+#[test]
+fn brackets_do_not_join_two_lines_into_one_expression() {
+    check_errs(&[
+        ("xs = [\n  1\n  -1\n]", "E0112"),
+        ("xs = [a\n  [1]]", "E0112"),
+        ("xs = [f\n  (3)]", "E0112"),
+        ("xs = [Red\n  (3)]", "E0112"),
+        ("x = g(\n  5\n  -2\n)", "E0112"),
+        ("m = {a: 1\n  -1}", "E0112"),
+        ("t = (1,\n  2\n  -3)", "E0112"),
+        ("x = (a\n  + b)", "E0112"),
+        ("x = [a\n  == b]", "E0112"),
+    ]);
+    check(&[
+        (
+            "xs = [\n  1,\n  -1\n]",
+            "(program (assign xs (list 1 (unary - 1))))",
+        ),
+        ("x = (a +\n  b)", "(program (assign x (binary + a b)))"),
+        (
+            "x = f(\n  a\n    |> g\n)",
+            "(program (assign x (call f (pipe a g))))",
+        ),
+        (
+            "x = [a\n  ?? b]",
+            "(program (assign x (list (coalesce a b))))",
+        ),
+        ("x = (m\n  .k)", "(program (assign x (field k m)))"),
+        (
+            "x = (c\n  then 1\n  else 2)",
+            "(program (assign x (then c 1 2)))",
+        ),
+        (
+            "x = f(\n  -1\n)",
+            "(program (assign x (call f (unary - 1))))",
+        ),
+    ]);
+}
+
+/// A statement that follows another does not begin its line with `-`
+/// (D85): the line before it would be a statement of its own, dropped,
+/// with the negated value in its place. The first statement of a file or
+/// a body, and one on the line of what opens it (`_ => -1`, `if c: -1`),
+/// has no line before to continue.
+#[test]
+fn a_statement_after_another_does_not_begin_a_line_with_minus() {
+    check_errs(&[
+        ("fn f(a):\n  g(a)\n  -a\n;;", "E0136"),
+        ("x = 1\n- 2", "E0136"),
+        ("1\n-2", "E0136"),
+        ("if c: f() ;;\n-x", "E0136"),
+        ("x = match v:\n  1 =>\n    g()\n    -1\n;;", "E0136"),
+    ]);
+    check(&[
+        ("-1", "(program (unary - 1))"),
+        ("fn f(a) = -a", "(program (fn f(a) (block (unary - a))))"),
+        (
+            "fn f(a):\n  -a\n;;",
+            "(program (fn f(a) (block (unary - a))))",
+        ),
+        (
+            "fn f(a):\n  g(a)\n  (-a)\n;;",
+            "(program (fn f(a) (block (call g a) (unary - a))))",
+        ),
+        ("g(a); -a", "(program (call g a) (unary - a))"),
+        (
+            "x = if c: -1 else: 1 ;;",
+            "(program (assign x (if c (block (unary - 1)) (block 1))))",
+        ),
+        (
+            "x = match v:\n  -1 => 0\n  _ =>\n    -1\n;;",
+            "(program (assign x (match v (arm (plit -1) (nil) (block 0)) (arm (pwild) (nil) (block (unary - 1))))))",
+        ),
+        ("x = a -\n  2", "(program (assign x (binary - a 2)))"),
+    ]);
+}
+
+/// Rule 1 holds wherever the token stands (FE66): a line ending in
+/// `else` or `not` goes on.
+#[test]
+fn a_line_ending_in_else_or_not_continues() {
+    check(&[
+        (
+            "x = if c: 1 else\n: 2 ;;",
+            "(program (assign x (if c (block 1) (block 2))))",
+        ),
+        (
+            "x = if c: 1 else\n  if d: 2 else: 3 ;;",
+            "(program (assign x (if c (block 1) (if d (block 2) (block 3)))))",
+        ),
+        (
+            "x = 1 not\n  in xs",
+            "(program (assign x (binary not_in 1 xs)))",
+        ),
+    ]);
+}
+
+/// One way to leave a list pattern's rest unnamed (D93): `...`.
+#[test]
+fn an_unnamed_rest_is_written_without_a_name() {
+    check(&[(
+        "[x, ...] = xs",
+        "(program (assign (plist (pbind x) (prest)) xs))",
+    )]);
+    check_errs(&[
+        ("[x, ..._] = xs", "E0112"),
+        ("match xs: [x, ..._] => x ;;", "E0112"),
+    ]);
+}
+
+/// Small parser fixes of the fourth review: a bare lambda is no slice end
+/// (FE67), a rest's name carries its own place (FE72), and the least
+/// int's magnitude alone is out of range, not malformed (FE71).
+#[test]
+fn small_parser_fixes() {
+    check_errs(&[
+        ("xs[x => x..2]", "E0125"),
+        ("xs[..x => x]", "E0125"),
+        ("x = 9223372036854775808", "E0135"),
+        ("match v: 9223372036854775808 => 1 ;;", "E0135"),
+    ]);
+    let prog = parse(&toks_of("[head, ...tail] = v")).unwrap();
+    let rest = &prog.kids[0].kids[0].kids[1];
+    assert_eq!((rest.head, rest.pos.col), (Head::Prest, 11));
+}
+
+/// An uppercase name is E0225 wherever a variable would be bound (FE74).
+#[test]
+fn an_uppercase_name_binds_nowhere() {
+    check_errs(&[
+        ("fn Foo() = 1", "E0225"),
+        ("fn f(X) = 1", "E0225"),
+        ("for X in xs: print(X) ;;", "E0225"),
+        ("f = X => 1", "E0225"),
+        ("f = (X, y) => 1", "E0225"),
+        ("g(Red => 1)", "E0225"),
+    ]);
+    p("fn f(Ok(x)) = x");
+    p("f = Red");
 }

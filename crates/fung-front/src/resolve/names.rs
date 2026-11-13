@@ -28,7 +28,7 @@ pub(super) enum Outer {
 }
 
 impl Outer {
-    /// Variables are reassigned (E0205); the rest are hidden (E0240).
+    /// An outer variable: assigning to it is E0205; the rest are E0240.
     fn is_variable(&self) -> bool {
         matches!(self, Outer::Var(_) | Outer::TopName(_))
     }
@@ -119,7 +119,10 @@ impl Resolver<'_> {
     }
 
     /// Whether a new binding of `name` here (`assign`: an assignment)
-    /// hides nothing; otherwise reports it. `interface`: the name is part
+    /// hides nothing; otherwise reports it. One rule, a visible name is
+    /// not bound again (D88), with two messages: an assignment to an
+    /// outer variable is the counter in a loop (E0205, whose help shows
+    /// what to write instead); any other binding is E0240. `interface`: the name is part
     /// of a module's interface (a public top-level name of an imported
     /// file, or a parameter of its public fns), which callers see only
     /// qualified (`m.get`) or as an argument name (`timeout:`), so it may
@@ -157,10 +160,12 @@ impl Resolver<'_> {
         false
     }
 
-    /// Whether a public top-level name or parameter of the file being
-    /// resolved is part of a module's interface (`binds_fresh`).
+    /// Whether a top-level name or parameter of the file being resolved
+    /// is part of its interface (`binds_fresh`): it is public. The rule
+    /// is the file's own, whether the file is imported or is the entry
+    /// (D86), so a file means the same however it is loaded.
     pub(super) fn interface_name(&self, name: &str) -> bool {
-        self.opts.library && !name.starts_with('_')
+        !name.starts_with('_')
     }
 
     /// Reports the names of a block that were never read (E0239): not
@@ -186,18 +191,17 @@ impl Resolver<'_> {
         }
     }
 
-    /// The end of the file: unread imports are E0239, and so are the
-    /// unread names of the entry file's top level, which nothing else can
-    /// read (D38). An imported file's public names are its interface, top-
-    /// level fns are not variables, and the REPL keeps every name for
-    /// later inputs.
+    /// The end of the file: unread imports are E0239. A file's top-level
+    /// names are not: a public one is its interface, whichever file reads
+    /// it (D86), and a `_` one is kept on purpose, like a local. The REPL
+    /// keeps every name for later inputs.
     pub(super) fn report_unused_file(&mut self) {
         if self.opts.redefine {
             return;
         }
         let sc = &self.fns[0].blocks[0];
         let mut found: Vec<(Pos, Diag)> = Vec::new();
-        for (name, b) in &sc.names {
+        for name in sc.names.keys() {
             if sc.used.contains(name) || name.starts_with('_') || crate::tree::is_hidden(name) {
                 continue;
             }
@@ -206,8 +210,6 @@ impl Resolver<'_> {
             };
             if let Some(&len) = self.import_bound.get(name) {
                 found.push((pos, unused("import", name, pos).span(len)));
-            } else if !b.constant && !self.opts.library {
-                found.push((pos, unused("variable", name, pos)));
             }
         }
         found.sort_by_key(|(p, _)| (p.line, p.col));

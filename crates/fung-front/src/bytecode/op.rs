@@ -1,6 +1,7 @@
 //! Opcodes and the instruction word (09. 명령 인코딩): 8 bits of opcode,
 //! a 24-bit operand, and a second 24-bit operand for the few
-//! instructions that need two (VM32: MATCH, TAG, MAP).
+//! instructions that need two (VM32: MATCH, TAG, MAP; VM42, VM43: the
+//! calls, CHECKTYPE, JUMPIFSET).
 //!
 //! One table, `instructions!` below, says everything the front end knows
 //! about an opcode: its name, what its operand indexes, how it changes
@@ -26,9 +27,6 @@ pub enum Operand {
     Captured,
     /// An index into `Proto::types`.
     Type,
-    /// A parameter slot in the low 12 bits, an index into `types` above
-    /// (`decode_slot_type`).
-    SlotType,
     /// An index into `Proto::patterns`.
     Pattern,
     /// An index into `Proto::asserts`.
@@ -37,8 +35,6 @@ pub enum Operand {
     Target,
     /// How many values the instruction takes from the stack (or pairs).
     Count,
-    /// Positional and named argument counts (`decode_call`).
-    Call,
     /// Bit flags (SLICE) or 1 for an inclusive RANGE.
     Flags,
 }
@@ -153,8 +149,8 @@ instructions! {
     CheckBool "CHECKBOOL" None Fixed(1, 1), Next;
     Jump "JUMP" Target Fixed(0, 0), Goto;
     JumpIfFalse "JUMPIFFALSE" Target Fixed(1, 0), Branch;
-    /// arg = encode_call(positional, named)
-    Call "CALL" Call Called, Next;
+    /// arg = positional arguments, b = named arguments
+    Call "CALL" Count Called, Next;
     Return "RETURN" None Fixed(1, 0), Stop;
     LoadLocal "LOADLOCAL" Local Fixed(0, 1), Next;
     StoreLocal "STORELOCAL" Local Fixed(1, 0), Next;
@@ -168,11 +164,11 @@ instructions! {
     LoadCaptured "LOADCAPTURED" Captured Fixed(0, 1), Next;
     LoadSelf "LOADSELF" None Fixed(0, 1), Next;
     /// like CALL, reusing the current frame
-    TailCall "TAILCALL" Call Called, Stop;
-    /// takes the loaded slot value; if it is assigned, ip = arg
-    JumpIfSet "JUMPIFSET" Target Fixed(1, 0), Branch;
-    /// slot `arg & 0xFFF` must match `types[arg >> 12]` (E0403)
-    CheckType "CHECKTYPE" SlotType Fixed(0, 0), Next;
+    TailCall "TAILCALL" Count Called, Stop;
+    /// if the parameter slot b is assigned, ip = arg (a default's test)
+    JumpIfSet "JUMPIFSET" Target Fixed(0, 0), Branch;
+    /// the parameter slot arg must match `types[b]` (E0403)
+    CheckType "CHECKTYPE" Local Fixed(0, 0), Next;
     /// the top must match `types[arg]` (E0404)
     CheckReturn "CHECKRETURN" Type Fixed(1, 1), Next;
     List "LIST" Count Items, Next;
@@ -215,25 +211,33 @@ instructions! {
     MoveLocal "MOVELOCAL" Local Fixed(0, 1), Next;
     /// like CALL; the last positional argument is a list or a range
     /// whose items are the arguments there (`f(a, ...xs)`, D45)
-    CallSpread "CALLSPREAD" Call Called, Next;
+    CallSpread "CALLSPREAD" Count Called, Next;
     /// like TAILCALL, spreading as CALLSPREAD does
-    TailCallSpread "TAILCALLSPREAD" Call Called, Stop;
+    TailCallSpread "TAILCALLSPREAD" Count Called, Stop;
     /// before a TAILCALL in a function with a return type: the frame's
     /// value is checked against `types[arg]` when it returns (E0404),
     /// whatever function the frame runs by then (D44)
     TailCheck "TAILCHECK" Type Fixed(0, 0), Next;
     /// jump when the top is true; error unless it is a bool (VM27)
     JumpIfTrue "JUMPIFTRUE" Target Fixed(1, 0), Branch;
+    /// the frame takes a bool check along into the tail call that
+    /// follows: the right side of `and`/`or` in tail position (D97)
+    TailCheckBool "TAILCHECKBOOL" None Fixed(0, 0), Next;
 }
 
 impl Op {
     /// What the second operand means (VM32): MATCH's pattern (its first
     /// is where it goes when the pattern fails, VM29), TAG's name and
-    /// MAP's key list (constants, VM30); `None` for the others.
+    /// MAP's key list (constants, VM30), a call's named-argument count
+    /// (VM43), CHECKTYPE's type and JUMPIFSET's parameter slot (VM42);
+    /// `None` for the others.
     pub fn second(self) -> Operand {
         match self {
             Op::Match => Operand::Pattern,
             Op::Tag | Op::Map => Operand::Const,
+            Op::Call | Op::TailCall | Op::CallSpread | Op::TailCallSpread => Operand::Count,
+            Op::CheckType => Operand::Type,
+            Op::JumpIfSet => Operand::Local,
             _ => Operand::None,
         }
     }
@@ -253,17 +257,15 @@ impl Op {
     }
 
     /// How many values the instruction takes from the stack and leaves on
-    /// it on the path to the next instruction (`Flow`). ASSERT looks at
-    /// its entry in `asserts`: `split` says it compares two sides.
-    pub fn stack_effect(self, arg: usize, split: bool) -> (usize, usize) {
+    /// it on the path to the next instruction (`Flow`). `b` is the second
+    /// operand. ASSERT looks at its entry in `asserts`: `split` says it
+    /// compares two sides.
+    pub fn stack_effect(self, arg: usize, b: usize, split: bool) -> (usize, usize) {
         match self.info().effect {
             Effect::Fixed(pops, pushes) => (pops as usize, pushes as usize),
             Effect::Items => (arg, 1),
             Effect::Sliced => (1 + (arg & 1) + (arg >> 1 & 1), 1),
-            Effect::Called => {
-                let (positional, named) = decode_call(arg);
-                (1 + positional + 2 * named, 1)
-            }
+            Effect::Called => (1 + arg + 2 * b, 1),
             Effect::Asserted => (1 + usize::from(split), 0),
         }
     }
@@ -307,20 +309,4 @@ impl Instr {
     pub fn b(self) -> usize {
         (self.0 >> 32) as usize & MAX_OPERAND
     }
-}
-
-/// CALL and TAILCALL pack the positional count in the low 12 bits of the
-/// operand and the named-argument count in the next 12.
-pub fn encode_call(positional: usize, named: usize) -> usize {
-    positional | named << 12
-}
-
-/// Unpacks a CALL operand into (positional, named).
-pub fn decode_call(arg: usize) -> (usize, usize) {
-    (arg & 0xFFF, arg >> 12)
-}
-
-/// Unpacks a CHECKTYPE operand into (parameter slot, type index).
-pub fn decode_slot_type(arg: usize) -> (usize, usize) {
-    (arg & 0xFFF, arg >> 12)
 }

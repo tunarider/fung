@@ -38,6 +38,9 @@ impl Resolver<'_> {
             captures: Vec::new(),
         };
         let mut f = FnScope::new(&decl.name);
+        if !decl.name.is_empty() {
+            f.self_sig = Some(super::call::Sig::of(decl));
+        }
         f.for_body = decl.for_body;
         f.lambda = decl.lambda;
         f.top = top;

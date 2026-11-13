@@ -1,4 +1,4 @@
 print(pad_left("x", 3, "ab"), pad_right("x", 4, "ab"))
-pad_left("x", 9223372036854775807)
+_ = pad_left("x", 9223372036854775807)
 # expect: abx xaba
 # expect-error: E0806

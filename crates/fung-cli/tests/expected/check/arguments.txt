@@ -30,31 +30,10 @@
 ==== check -e "fn map(xs) = xs\nlen = 1"
 -- stdout
 -- stderr
-| error[E0240]: `map` hides a prelude function
-|   --> -e:1:4
-|   |
-| 1 | fn map(xs) = xs
-|   |    ^^^
-|   |
-|  help: a visible name means one thing: give the new one a name of its own
-| error[E0240]: `len` hides a prelude function
-|   --> -e:2:1
-|   |
-| 2 | len = 1
-|   | ^^^
-|   |
-|  help: a visible name means one thing: give the new one a name of its own
--- exit: 2
+-- exit: 0
 ==== check -e "print(if true: _y = 1 ;;)"
 -- stdout
 -- stderr
-| error[E0224]: a block used as a value ends with an assignment to `_y`, so the value is nil
-|   --> -e:1:16
-|   |
-| 1 | print(if true: _y = 1 ;;)
-|   |                ^^
-|   |
-|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 | error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
 |   --> -e:1:7
 |   |
@@ -62,6 +41,13 @@
 |   |       ^^ this if has no else
 |   |
 |  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
+| error[E0224]: a block used as a value ends with an assignment to `_y`, so the value is nil
+|   --> -e:1:16
+|   |
+| 1 | print(if true: _y = 1 ;;)
+|   |                ^^
+|   |
+|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 -- exit: 2
 ==== check -e "fn f():\n  x = 1\n  len = 2\n  x\n;;"
 -- stdout
@@ -292,19 +278,19 @@
 ==== check -e --foo
 -- stdout
 -- stderr
-| error[E0204]: undefined name `foo`
-|   --> -e:1:3
-|   |
-| 1 | --foo
-|   |   ^^^ not found in this scope
-|   |
 | error[E0234]: the result of `-` is computed and discarded
 |   --> -e:1:1
 |   |
 | 1 | --foo
 |   | ^
 |   |
-|  help: a line that starts with `-` is a new statement; to continue the line above, end that line with `-`
+|  help: use the value, or write `_ = …` to discard it on purpose
+| error[E0204]: undefined name `foo`
+|   --> -e:1:3
+|   |
+| 1 | --foo
+|   |   ^^^ not found in this scope
+|   |
 -- exit: 2
 ==== check -- -e
 -- stdout

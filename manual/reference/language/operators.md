@@ -7,15 +7,15 @@ lede: 산술·비교·논리 연산자, 파이프 <code>|&gt;</code>, 우선순�
 <h3>산술</h3>
 <ul>
   <li><code>+ - *</code>, <code>/</code>는 항상 실수 결과(<code>7 / 2 == 3.5</code>), <code>//</code>는 내림 나눗셈(<code>7 // 2 == 3</code>), <code>%</code>는 <code>//</code>와 짝인 나머지(<code>-7 % 3 == 2</code>, 실수도 정확한 나머지라 나누는 수보다 작다), <code>**</code>는 거듭제곱(<code>2 ** 10 == 1024</code>). 정수의 음의 정수 거듭제곱은 정수가 아니므로 에러 E0524이고, 지수를 실수로 쓴다(<code>2 ** -1.0 == 0.5</code>): 결과의 타입이 지수의 값에 따라 바뀌지 않는다.</li>
-  <li>정수와 실수를 섞으면 실수. 이때 정수가 실수로 정확히 옮겨지지 않으면(2<sup>53</sup>을 넘는 일부 정수) 말없이 깎지 않고 에러 E0523이다. 일부러 반올림하려면 <code>float(n)</code>. 0으로 나누기(0의 음수 거듭제곱 <code>0.0 ** -1</code>도), 정수 오버플로, <code>NaN</code>·<code>Inf</code>는 에러.</li>
+  <li>정수와 실수를 섞으면 실수. 이때 정수가 실수로 정확히 옮겨지지 않으면(2<sup>53</sup>을 넘는 일부 정수) 말없이 깎지 않고 에러 E0523이다. 정수끼리의 <code>/</code>도 실수 계산이라 같다(<code>9007199254740993 / 3</code>은 E0523, 정수 몫은 <code>//</code>). 일부러 반올림하려면 <code>float(n)</code>. 0으로 나누기(0의 음수 거듭제곱 <code>0.0 ** -1</code>도), 정수 오버플로, <code>NaN</code>·<code>Inf</code>는 에러.</li>
   <li><code>+</code>는 문자열·리스트를 이어 붙인다. <code>"a" + 1</code>은 에러, 반복은 <code>repeat(s, n)</code>. 문자열은 1억 글자, 리스트는 1억 원소를 넘으면 E0806(보간도 같다).</li>
 </ul>
 <h3>비교·논리·포함</h3>
 <ul>
-  <li><code>==</code>와 <code>!=</code>는 값 비교. 두 값의 타입이 다르면 에러 E0517이다(숫자끼리와 한쪽이 <code>nil</code>인 경우는 제외, <a href="values.html">값과 타입</a>의 "비교와 동일성"). 함수는 같음이 없어 에러 E0501. 비교는 연쇄하지 않는다: <code>a &lt; b &lt; c</code>는 문법 에러(<code>a &lt; b and b &lt; c</code>).</li>
+  <li><code>==</code>와 <code>!=</code>는 값 비교. 타입이 다른 두 값은 같지 않다(<code>"8080" == 8080</code>은 <code>false</code>; 정수와 실수는 둘 다 수라 <code>1 == 1.0</code>은 <code>true</code>, <a href="values.html">값과 타입</a>의 "비교와 동일성"). 함수는 같음이 없어 에러 E0501. 비교는 연쇄하지 않는다: <code>a &lt; b &lt; c</code>는 문법 에러(<code>a &lt; b and b &lt; c</code>).</li>
   <li><code>and</code> <code>or</code> <code>not</code>은 bool만 받고 단락 평가한다. 빈 리스트나 0을 거짓으로 보지 않는다.</li>
   <li>이항 연산의 두 피연산자는 왼쪽부터 평가한다. 파이프 <code>|&gt;</code>도 그렇다: 왼쪽 값을 먼저 구하고 오른쪽을 구한다. <code>and</code>·<code>or</code>·<code>then … else</code>·<code>??</code>만 오른쪽을 필요할 때 평가한다(<a href="functions.html">함수</a>의 "평가 순서").</li>
-  <li><code>x in c</code> / <code>x not in c</code>: 리스트는 원소, 맵은 키, 문자열은 부분 문자열, 범위는 그 정수 열에 같은 수가 있는지(<code>2.0 in 0..3</code>은 <code>true</code>, <code>1.5 in 0..3</code>은 <code>false</code>). 리스트의 원소는 <code>==</code>로 견주므로 타입이 다른 원소를 만나면 E0517, 범위에 수가 아닌 값(<code>nil</code> 제외)을 찾아도 E0517이다. <code>contains(c, x)</code>는 <code>x in c</code>와 같고, <code>is_empty(x)</code>는 <code>len(x) == 0</code>과 같다. 함수 꼴은 파이프와 함수를 받는 자리를 위해 둔다: <code>xs |&gt; contains(x)</code>, <code>filter(groups, is_empty)</code>.</li>
+  <li><code>x in c</code> / <code>x not in c</code>: 리스트는 원소, 맵은 키, 문자열은 부분 문자열, 범위는 그 정수 열에 같은 수가 있는지(<code>2.0 in 0..3</code>은 <code>true</code>, <code>1.5 in 0..3</code>은 <code>false</code>). 리스트의 원소는 <code>==</code>로 견주므로 타입이 다른 값은 들어 있지 않다(<code>"1" in [1, 2]</code>는 <code>false</code>). 범위에 수가 아닌 값을 찾아도 <code>false</code>다. <code>contains(c, x)</code>는 <code>x in c</code>와 같고, <code>is_empty(x)</code>는 <code>len(x) == 0</code>과 같다. 함수 꼴은 파이프와 함수를 받는 자리를 위해 둔다: <code>xs |&gt; contains(x)</code>, <code>filter(groups, is_empty)</code>.</li>
 </ul>
 <h3>범위</h3>
 <p><code>a..b</code>는 <code>b</code>를 빼고, <code>a..=b</code>는 넣는다. 정수만 된다. 시작이 끝보다 뒤면 에러다(E0522): <code>a..b</code>는 <code>a &gt; b</code>, <code>a..=b</code>는 <code>a &gt; b + 1</code>일 때. 빈 범위는 <code>n..n</code>과 <code>n..=n-1</code>뿐이다. 그래서 거꾸로 세려던 <code>for i in n..0</code>이 말없이 아무것도 하지 않는 일이 없다. 끝이 시작보다 작아질 수 있는 계산이면 <code>a..max(a, b)</code>처럼 드러낸다. 범위 값으로 하는 색인 <code>xs[r]</code>은 같은 끝의 슬라이스와 같다.</p>

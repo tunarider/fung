@@ -1,6 +1,0 @@
-# JSON has no symbols: what comes back is a string (written with
-# sym_name, D80).
-import json
-back = json.parse(json.stringify({kind: sym_name('not_found)}))!
-print(back.kind == 'not_found)
-# expect-error: E0517

@@ -283,19 +283,11 @@ print(json.stringify(summarize([(&quot;web1&quot;, 120ms), (&quot;web2&quot;, 2s
 </div>
 <h2 id="notes">짚고 넘어가기</h2>
 <div class="box mistake"><b>JSON의 문자열과 심볼을 비교하기</b>
-<p>JSON에서 온 값은 늘 문자열이다. <code>svc.status == 'down</code>처럼 심볼과 비교하면 조용히 거짓이 되는 대신 런타임 에러 E0517로 멈춘다. 가장 흔한 함정이라서 일부러 에러로 만들었다. 문자열과 비교하거나(<code>svc.status == &quot;down&quot;</code>), <code>sym(svc.status) == 'down</code>으로 바꿔 비교한다. 패턴 <code>{status: &quot;down&quot;}</code>도 문자열로 쓴다.</p>
+<p>JSON에서 온 값은 늘 문자열이다. <code>svc.status == 'down</code>처럼 심볼과 비교하면 늘 거짓이다: 심볼과 문자열은 다른 타입이라 결코 같지 않다. 문자열과 비교하거나(<code>svc.status == &quot;down&quot;</code>), <code>sym(svc.status) == 'down</code>으로 바꿔 비교한다. 패턴 <code>{status: &quot;down&quot;}</code>도 문자열로 쓴다.</p>
 <div class="run"><pre><code>import json
 
 svc = json.parse(`{&quot;status&quot;: &quot;down&quot;}`)!
-print(svc.status == 'down)</code></pre><pre class="out err plain" data-code="1"><code>error[E0517]: cannot compare values of different types: &quot;down&quot; (str) and 'down (sym)
-  --&gt; example.fung:4:18
-  |
-4 | print(svc.status == 'down)
-  |                  ^
-  |
- call path (innermost first):
-   example.fung:4 &lt;entry&gt;
- help: a symbol is never a string; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
+print(svc.status == 'down, svc.status == &quot;down&quot;, sym(svc.status) == 'down)</code></pre><pre class="out plain"><code>false true true</code></pre></div>
 </div>
 <div class="box other"><b>다른 언어는</b>
 <p>쉘에서는 <code>curl</code>로 받고 <code>jq</code>로 JSON을 다루고 <code>date</code>로 시각을 계산하며, 세 도구의 문법이 저마다 다르다. fung에서는 셋이 같은 값(맵·리스트·시각) 위에서 이어진다. Python의 <code>json</code>·<code>urllib</code>·<code>datetime</code>이나 JavaScript의 <code>JSON.parse</code>·<code>fetch</code>·<code>Date</code>와 하는 일이 같다.</p>
@@ -338,7 +330,7 @@ scope(fn(s):
 <h2 id="summary">정리</h2>
 <ul>
 <li><code>json.parse</code>는 JSON 문자열을 맵·리스트·문자열·숫자·<code>nil</code>로 바꿔 <code>Ok</code>를 주고, <code>json.stringify</code>는 그 반대다(<code>indent:</code>로 보기 좋게).</li>
-<li>JSON에서 온 값은 문자열이다. 심볼과 비교하면 E0517이므로 문자열과 비교하거나 <code>sym</code>으로 바꾼다.</li>
+<li>JSON에서 온 값은 문자열이다. 심볼과 비교하면 늘 거짓이므로 문자열과 비교하거나 <code>sym</code>으로 바꾼다.</li>
 <li><code>http.get</code>·<code>http.post</code>는 응답을 받으면 상태 코드와 상관없이 <code>Ok({status, headers, header_lines, body})</code>, 전송 실패는 <code>Err('network)</code>, 틀린 URL은 <code>Err('invalid)</code>, 시간 초과는 <code>Err('timeout)</code>.</li>
 <li><code>http.serve(주소, 처리기)</code>는 요청마다 태스크에서 처리기를 부른다. 처리기는 문자열이나 <code>{status, headers, body}</code>를 돌려준다.</li>
 <li>기간은 <code>90s</code>·<code>1h30m</code>처럼 쓰고, 시각은 <code>time.now</code>·<code>time.parse</code>·<code>time.format</code>으로 다룬다. 시각 ± 기간은 시각, 시각 − 시각은 기간이다.</li>

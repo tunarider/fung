@@ -5,28 +5,41 @@
 //!
 //! For every proto, and every child proto, it checks
 //!
-//! 1. each operand is in range of the table it indexes (`Operand`),
+//! 1. each operand is in range of the table it indexes (`Operand`), and
+//!    names what the VM reads there (VM40): the constant of a FIELD,
+//!    IMPORT or TEST is a string, a TAG's name a symbol, a MAP's keys a
+//!    list of as many strings as it takes values; a pattern binds slots
+//!    and globals that exist and has a key for each pattern of a map; a
+//!    spread call has its list; flags name bits the VM knows,
 //! 2. each jump goes forward, to an instruction of the same proto,
 //! 3. no path falls off the end of the code: every one ends in an
-//!    instruction that stops (`Flow::Stop`: RETURN, TAILCALL, NOMATCH),
+//!    instruction that stops (`Flow::Stop`: RETURN, TAILCALL, TAILCALLSPREAD,
+//!    NOMATCH),
 //! 4. the stack never runs short, and has the same height wherever paths
 //!    meet,
 //! 5. no read of a local slot (LOADLOCAL, MOVELOCAL, CHECKTYPE, a
 //!    CLOSURE's capture) can find it empty: an abstract run keeps, at
-//!    each instruction, the slots assigned on every path to it.
+//!    each instruction, the slots assigned on every path to it. Only
+//!    JUMPIFSET asks whether a slot is empty, of a parameter with a
+//!    default (the prologue's test),
+//! 6. a call that gives every argument starts at `Proto::body`: an
+//!    instruction of the proto, reached with an empty stack.
 //!
 //! The compiler emits forward jumps only (there are no loops, 03), so one
 //! pass in code order sees every path into an instruction before the
 //! instruction. Code no path reaches is checked for operands only.
 //!
-//! The compiler runs it on what it makes in debug builds (`compile`), and
-//! a test runs it on every `.fung` file in the repository.
+//! The compiler runs it on every program it makes, before the program
+//! runs (`compile`, VM41), so it must answer for any proto, however
+//! wrong, without failing itself. A test runs it on every `.fung` file in
+//! the repository.
 
 use std::collections::HashMap;
 use std::fmt;
 
-use super::{Op, Operand, Pattern, Proto, decode_call, decode_slot_type};
+use super::{Op, Operand, Pattern, Proto};
 use crate::bytecode::PatKind;
+use crate::consts::Const;
 use crate::tree::CaptureKind;
 
 /// What the verifier learned about a proto that passed.
@@ -131,6 +144,40 @@ fn binds(p: &Pattern, out: &mut Vec<usize>) {
     }
 }
 
+/// What is wrong with pattern `p` of a proto with `locals` slots, if
+/// anything: a name bound past the slots or the globals, a map pattern
+/// whose keys and patterns differ in number, a literal without one.
+fn pattern_fault(p: &Pattern, locals: usize, globals: usize) -> Option<String> {
+    match p.kind {
+        PatKind::Bind if p.global && p.index >= globals => {
+            return Some(format!(" binds global {}: globals has {globals}", p.index));
+        }
+        PatKind::Bind if !p.global && p.index >= locals => {
+            return Some(format!(" binds slot {}: local slots has {locals}", p.index));
+        }
+        PatKind::Map if p.keys.len() != p.kids.len() => {
+            return Some(format!(
+                ": a map pattern with {} keys for {} patterns",
+                p.keys.len(),
+                p.kids.len()
+            ));
+        }
+        PatKind::Lit if p.lit.is_none() => {
+            return Some(": a literal pattern without its literal".into());
+        }
+        _ => {}
+    }
+    p.kids
+        .iter()
+        .chain(p.rest.as_deref())
+        .find_map(|k| pattern_fault(k, locals, globals))
+}
+
+/// Whether `c` is a string constant: text or bytes (L4).
+fn is_str(c: &Const) -> bool {
+    matches!(c, Const::Str(_) | Const::Bytes(_))
+}
+
 /// Verifies one proto and its children.
 fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(), Violation> {
     let fail = |at: usize, what: String| Violation {
@@ -163,6 +210,19 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
     if p.params.len() > p.num_locals {
         return Err(fail(0, "more parameters than local slots".into()));
     }
+    // The patterns MATCH and MATCHORFAIL read: the matcher writes the
+    // slots they name without looking.
+    for (i, pattern) in p.patterns.iter().enumerate() {
+        if let Some(what) = pattern_fault(pattern, p.num_locals, globals) {
+            return Err(fail(0, format!("pattern {i}{what}")));
+        }
+    }
+    if p.body >= len.max(1) {
+        return Err(fail(
+            p.body,
+            format!("the body starts at {}: past the end", p.body),
+        ));
+    }
 
     // (1) and (2): every instruction, reachable or not.
     for (at, ins) in p.code.iter().enumerate() {
@@ -193,6 +253,58 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
                     ),
                 ));
             }
+            Operand::Type if b >= p.types.len() => {
+                return Err(fail(
+                    at,
+                    format!("{} second {b}: types has {}", op.name(), p.types.len()),
+                ));
+            }
+            Operand::Local if b >= p.num_locals => {
+                return Err(fail(
+                    at,
+                    format!("{} second {b}: local slots has {}", op.name(), p.num_locals),
+                ));
+            }
+            _ => {}
+        }
+        // What the constant must be for the VM to read it (VM40).
+        let name = op.name();
+        match op {
+            Op::Tag if !matches!(p.consts[b], Const::Sym(_)) => {
+                return Err(fail(at, format!("{name} {arg}: its name is not a symbol")));
+            }
+            Op::Map => match &p.consts[b] {
+                Const::List(keys) if keys.iter().all(is_str) => {
+                    if keys.len() != arg {
+                        return Err(fail(
+                            at,
+                            format!(
+                                "{name} {arg}: its {} keys do not pair with them",
+                                keys.len()
+                            ),
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(fail(
+                        at,
+                        format!("{name} {arg}: its keys are not a list of strings"),
+                    ));
+                }
+            },
+            Op::Field | Op::Import | Op::Test if p.consts.get(arg).is_some_and(|c| !is_str(c)) => {
+                return Err(fail(at, format!("{name} {arg}: not a string")));
+            }
+            Op::Slice if arg > 7 => {
+                return Err(fail(at, format!("{name} {arg}: flags past 7")));
+            }
+            Op::Range if arg > 1 => {
+                return Err(fail(at, format!("{name} {arg}: flags past 1")));
+            }
+            // The last positional argument is the list it spreads.
+            Op::CallSpread | Op::TailCallSpread if arg == 0 => {
+                return Err(fail(at, format!("{name} {arg}: no list to spread")));
+            }
             _ => {}
         }
         match op.info().operand {
@@ -205,18 +317,6 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
             Operand::Type => size(p.types.len(), "types")?,
             Operand::Pattern => size(p.patterns.len(), "patterns")?,
             Operand::Assert => size(p.asserts.len(), "asserts")?,
-            Operand::SlotType => {
-                let (slot, ty) = decode_slot_type(arg);
-                if slot >= p.params.len() || ty >= p.types.len() {
-                    return Err(fail(at, format!("CHECKTYPE {slot}/{ty} out of range")));
-                }
-            }
-            Operand::Call => {
-                let (positional, named) = decode_call(arg);
-                if positional > 0xFFF || named > 0xFFF {
-                    return Err(fail(at, format!("{} {arg} out of range", op.name())));
-                }
-            }
             Operand::Target => {
                 if arg >= len {
                     return Err(fail(at, format!("{} {arg}: past the end", op.name())));
@@ -253,6 +353,22 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
     for (i, prm) in p.params.iter().enumerate() {
         entry.set(i, !prm.has_default);
     }
+    // (6) A call that gives every argument starts at the body, past the
+    // prologue: one more path into it, with an empty stack and only the
+    // parameters in their slots.
+    if p.body > 0 {
+        let mut direct = Slots::new(p.num_locals);
+        for i in 0..p.params.len() {
+            direct.set(i, true);
+        }
+        incoming.insert(
+            p.body,
+            State {
+                height: 0,
+                slots: direct,
+            },
+        );
+    }
     // The state falling through into the current instruction, if any.
     let mut cur = Some(State {
         height: 0,
@@ -277,9 +393,9 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
                 s
             }
         };
-        let (op, arg) = (p.code[at].op(), p.code[at].arg());
-        let split = op == Op::Assert && !p.asserts[arg].op.is_empty();
-        let (pops, pushes) = op.stack_effect(arg, split);
+        let (op, arg, b) = (p.code[at].op(), p.code[at].arg(), p.code[at].b());
+        let split = op == Op::Assert && p.asserts[arg].cmp.is_some();
+        let (pops, pushes) = op.stack_effect(arg, b, split);
         if s.height < pops {
             return Err(fail(
                 at,
@@ -304,9 +420,14 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
         let mut binding = None;
         let next_op = p.code.get(at + 1).map(|i| i.op());
         match op {
-            // The prologue loads a parameter with a default to test it:
-            // the slot may be empty there (JUMPIFSET).
-            Op::LoadLocal if next_op == Some(Op::JumpIfSet) => {}
+            // Only the prologue asks whether a slot is empty, of a
+            // parameter with a default (VM42).
+            Op::JumpIfSet if !p.params.get(b).is_some_and(|prm| prm.has_default) => {
+                return Err(fail(
+                    at,
+                    format!("JUMPIFSET {b}: not a parameter with a default"),
+                ));
+            }
             Op::LoadLocal => read(&s, arg, "LOADLOCAL")?,
             Op::MoveLocal => {
                 read(&s, arg, "MOVELOCAL")?;
@@ -314,7 +435,10 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
             }
             Op::StoreLocal => s.slots.set(arg, true),
             Op::ClearLocal => s.slots.set(arg, false),
-            Op::CheckType => read(&s, decode_slot_type(arg).0, "CHECKTYPE")?,
+            Op::CheckType if arg >= p.params.len() => {
+                return Err(fail(at, format!("CHECKTYPE {arg}: not a parameter")));
+            }
+            Op::CheckType => read(&s, arg, "CHECKTYPE")?,
             Op::Closure => {
                 for c in &p.protos[arg].captures {
                     if c.kind == CaptureKind::Local {
@@ -335,6 +459,19 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
                 binding = Some(bound);
             }
             // The VM reads the call TAILCHECK hands its check to (D44).
+            // The bool check goes along with the same call, before the
+            // return type's (D97).
+            Op::TailCheckBool
+                if !matches!(
+                    next_op,
+                    Some(Op::TailCheck | Op::TailCall | Op::TailCallSpread)
+                ) =>
+            {
+                return Err(fail(
+                    at,
+                    "TAILCHECKBOOL is not followed by a tail call".into(),
+                ));
+            }
             Op::TailCheck if !matches!(next_op, Some(Op::TailCall | Op::TailCallSpread)) => {
                 return Err(fail(at, "TAILCHECK is not followed by a tail call".into()));
             }
@@ -348,13 +485,9 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
             if op == Op::Coalesce {
                 t.height += 1;
             }
-            // The jump of LOADLOCAL i; JUMPIFSET is taken when slot i
-            // holds a value.
-            if op == Op::JumpIfSet
-                && let Some(prev) = at.checked_sub(1).map(|i| p.code[i])
-                && prev.op() == Op::LoadLocal
-            {
-                t.slots.set(prev.arg(), true);
+            // The jump of JUMPIFSET is taken when its slot holds a value.
+            if op == Op::JumpIfSet {
+                t.slots.set(b, true);
             }
             t
         };

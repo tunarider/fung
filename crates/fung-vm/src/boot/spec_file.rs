@@ -84,15 +84,42 @@ fn spec_of(lines: &[String]) -> &'static Builtins {
 /// The public names of a compiled module body, each with its parameters
 /// when resolve knows them (a top-level fn, or a member of a bridge under
 /// a name of the file: the parameters calls are checked against, D43).
-fn export_lines(prefix: &str, proto: &Proto, sigs: &BTreeMap<String, Sig>) -> Vec<String> {
+/// `fung_pure` says which functions written in fung only compute (VA47);
+/// a function that is another name for a native has the native's mark.
+fn export_lines(
+    prefix: &str,
+    proto: &Proto,
+    sigs: &BTreeMap<String, Sig>,
+    fung_pure: &dyn Fn(&str, bool) -> bool,
+) -> Vec<String> {
     proto
         .exports
         .iter()
         .map(|name| match sigs.get(name) {
-            Some(sig) => format!("{prefix} {name}({}){}", sig.list(), pure_mark(sig.pure)),
+            Some(sig) => {
+                let pure = fung_pure(name, sig.pure);
+                format!("{prefix} {name}({}){}", sig.list(), pure_mark(pure))
+            }
             None => format!("{prefix} {name}"),
         })
         .collect()
+}
+
+/// Whether the prelude function `name`, written in fung, only computes:
+/// an alias carries its native's mark, and every other one is classified
+/// by hand (`PURE_FUNG`, `CALLING_FUNG`), as the natives are.
+fn prelude_fung_pure(name: &str, alias_pure: bool) -> bool {
+    let pure = crate::vm::PURE_FUNG.contains(&name);
+    let calling = crate::vm::CALLING_FUNG.contains(&name);
+    assert!(
+        usize::from(pure) + usize::from(calling) + usize::from(alias_pure) <= 1,
+        "the prelude function `{name}` is classified twice"
+    );
+    assert!(
+        pure || calling || alias_pure,
+        "the prelude function `{name}` is not classified: add it to PURE_FUNG or CALLING_FUNG"
+    );
+    pure || alias_pure
 }
 
 /// The content `spec/builtins.txt` must have.
@@ -121,7 +148,12 @@ pub(crate) fn render() -> String {
             let (b, errs) = loader.compile(&file, src, Stage::All);
             assert!(errs.is_empty(), "{file}: {errs:?}");
             let proto = b.proto.expect("a compiled prelude file");
-            lines.extend(export_lines("prelude fung", &proto, &b.sigs));
+            lines.extend(export_lines(
+                "prelude fung",
+                &proto,
+                &b.sigs,
+                &prelude_fung_pure,
+            ));
         }
         let loader = Loader {
             spec: Some(spec_of(&lines)),
@@ -141,7 +173,12 @@ pub(crate) fn render() -> String {
         for key in FUNG_MODULES {
             let m = b.modules.iter().find(|m| m.key == *key).expect(key);
             let proto = m.proto.as_ref().expect(key);
-            lines.extend(export_lines(&format!("module {key}"), proto, &m.sigs));
+            lines.extend(export_lines(
+                &format!("module {key}"),
+                proto,
+                &m.sigs,
+                &|_, alias_pure| alias_pure,
+            ));
         }
         lines.sort();
         format!("{HEADER}{}\n", lines.join("\n"))

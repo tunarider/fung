@@ -904,7 +904,7 @@ fn each_failure_leaves_rest() {
          supervise(fn(s):\n  t = spawn(s, fn(): each(c, x => x == 2 then fail(\"x\") else nil) ;;)\n  \
          print(type_of(await(t)), recv(c))\n;;, _e => nil)",
     );
-    assert_eq!(out, "'Err Ok(3)\n", "{err}");
+    assert_eq!(out, "Err Ok(3)\n", "{err}");
 }
 
 /// A walk whose function cancels its own scope stops before it takes the
@@ -1054,8 +1054,9 @@ fn sort_of_sorted_input_is_linear() {
         };
         let Value::List(l) = out else { panic!() };
         assert_eq!(l.len(), n as usize);
-        // n comparisons, then the result at STEP_COMPARES / 2 items a piece
-        let limit = 7 * (n as usize) / (2 * STEP_COMPARES);
+        // n comparisons with the first key (D87) and n to find the run,
+        // then the result at STEP_COMPARES / 2 items a piece
+        let limit = 9 * (n as usize) / (2 * STEP_COMPARES);
         assert!(pieces <= limit, "{pieces} pieces, limit {limit}");
     }
 }

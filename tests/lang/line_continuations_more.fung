@@ -1,6 +1,7 @@
 # More places where a line goes on (01): a line ending in `in` (a for
 # head) or `|` (pattern alternatives, a type union) continues (FE7), and
-# inside brackets a newline is whitespace in two-token forms (FE6).
+# a line ending in `not` goes on to its `in` (FE66). Inside brackets a
+# newline is space beside the brackets and between items (D85).
 type amount = int |
   float
 
@@ -20,8 +21,10 @@ print(xs[1..
 print(4 not
   in xs)
 f = (a, b) => a - b
-print(f(b
-  : 1, a: 5))
+print(f(
+  b: 1,
+  a: 5
+))
 print("end")
 # expect: 2
 # expect: 5.0

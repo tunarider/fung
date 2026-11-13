@@ -508,3 +508,15 @@ fn parentheses_that_change_the_meaning_stay() {
         ),
     ]);
 }
+
+/// A comment after the last statement is not part of a continued one
+/// (FE76).
+#[test]
+fn a_comment_at_the_end_is_not_indented() {
+    check("x = 1 +\n  2\n# c\n", "x = 1 +\n  2\n# c\n");
+    check("x = 1 +\n  2\n\n  # c\n# d\n", "x = 1 +\n  2\n\n# c\n# d\n");
+    check(
+        "fn f():\n  x = 1 +\n    2\n  # in\n  x\n;;\n# out\n",
+        "fn f():\n  x = 1 +\n    2\n  # in\n  x\n;;\n# out\n",
+    );
+}

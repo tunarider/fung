@@ -1,5 +1,0 @@
-# `unique` compares its elements with == (D40).
-print(unique([1, 1.0, nil, nil]))
-# expect: [1, nil]
-print(unique([1, "1"]))
-# expect-error: E0517

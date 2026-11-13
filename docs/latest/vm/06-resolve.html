@@ -140,21 +140,27 @@ print(label(12))</code></pre><pre class="out dump plain"><code>$ fung dump core 
   word
 ;;
 print(label(12))</code></pre><pre class="out plain"><code>big 120</code></pre></div>
-<p>"오른쪽을 먼저"에는 다른 효과도 있다. <code>x = x + 1</code>에서 오른쪽의 <code>x</code>는 대입하기 <strong>전의</strong> <code>x</code>다. 블록 안에서 같은 이름에 다시 대입하면 같은 칸을 다시 쓴다. (파일 최상위에서는 이름을 한 번만 묶는다. 다시 묶으면 E0238이다.)</p>
+<p>이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름을 다시 묶으면, 파일 최상위에서든 함수 안에서든 E0238이다. 이름 해석이 지금 블록의 표에서 그 이름을 찾았다는 것이 곧 에러다.</p>
 <div class="run"><pre><code>fn bump():
   x = 1
   x = x + 1
   x
 ;;
-print(bump())</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
-(do (let (global 0) (fn bump() (do (let (local 0) 1) (let (local 0) (op + (local 0) 1)) (local 0)))) (call (prelude print) (call (global 0))))</code></pre></div>
+print(bump())</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `x` again: a name is bound once
+  --&gt; example.fung:3:3
+  |
+3 |   x = x + 1
+  |   ^
+  |
+  note: `x` is first bound on line 2
+ help: give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)</code></pre></div>
 <h2 id="globals">파일 최상위: 전역과 끌어올리기</h2>
 <p>파일 최상위에서 만든 이름은 지역 슬롯이 아니라 <strong>전역 칸</strong>(global)이 된다. 함수 호출의 스택 칸은 함수가 끝나면 사라지지만, 파일의 이름은 그 파일의 함수들이 언제 불려도 거기 있어야 하기 때문이다. 다른 파일이 <code>import</code>해서 쓰는 이름도 이 칸들이다(11장).</p>
 <p>최상위의 <code>fn</code>은 특별하게 다룬다. 이름 해석은 파일의 <code>fn</code> 문장을 <strong>먼저</strong> 모아 전역 번호를 붙이고, 코어 트리의 맨 앞으로 옮긴다. 이것을 <strong>끌어올리기</strong>(hoisting)라고 한다. 그래서 함수를 정의하기 전 줄에서 불러도 되고, 두 함수가 서로를 불러도 된다.</p>
 <div class="run"><pre><code>limit = 10
 fn clamp(x) = x &gt; limit then limit else x
 print(clamp(42))</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
-(do (let (global 0) (fn clamp(x) (do (if (op &gt; (local 0) (global 1)) (global 1) (local 0))))) (let (global 1) 10) (call (prelude print) (call (global 0) 42)))</code></pre></div>
+(do (let (global 0) (fn clamp(x) (do (then (op &gt; (local 0) (global 1)) (global 1) (local 0))))) (let (global 1) 10) (call (prelude print) (call (global 0) 42)))</code></pre></div>
 <p>소스에서는 <code>limit = 10</code>이 먼저인데, 코어에서는 <code>clamp</code>의 대입이 맨 앞으로 왔다. <code>clamp</code>가 0번, <code>limit</code>이 1번 칸이다. 그런데 <code>clamp</code>는 <code>limit</code>보다 먼저 만들어지는데도 안에서 <code>(global 1)</code>로 <code>limit</code>을 읽는다. 이것은 최상위 이름이 <strong>딱 한 번만</strong> 묶이기 때문에 가능하다(다시 묶으면 <code>E0238</code>). 한 번만 묶이면 값이 바뀌지 않으므로 상수와 같고, 최상위 <code>fn</code>이 불릴 때 그 칸을 읽어도 안전하다. 아직 대입되지 않은 칸을 읽으면(대입 줄보다 먼저 함수를 부르면) 실행 중에 <code>E0809</code>다. 이 규칙의 이유는 9장에서 "함수는 만들어질 때 보이는 변수를 복사한다"는 fung의 함수 규칙과 함께 본다.</p>
 <div class="run"><pre><code>limit = 10
 fn clamp(x) = x &gt; limit then limit else x
@@ -189,15 +195,15 @@ count = 0
 for l in events:
   if starts_with(l, &quot;error&quot;): count = count + 1 ;;
 ;;
-print(count)</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot reassign `count` here: it was defined outside this block
+print(count)</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot assign to `count` here: it is bound outside this block
   --&gt; example.fung:4:31
   |
 4 |   if starts_with(l, &quot;error&quot;): count = count + 1 ;;
   |                               ^^^^^
   |
   note: `count` is a top-level name bound on line 2
- help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
-<p>판정 방법은 간단하다. 대입을 만나면 지금 블록의 표를 본다. 있으면 같은 칸에 다시 대입. 없는데 바깥 스코프 어딘가에 있으면 <code>E0205</code>. 어디에도 없으면 새 이름이다.</p>
+ help: a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
+<p>판정 방법은 간단하다. 대입을 만나면 지금 블록의 표를 본다. 있으면 <code>E0238</code>(이름은 한 번만 묶인다). 없는데 바깥 스코프 어딘가에 있으면 <code>E0205</code>. 어디에도 없으면 새 이름이다.</p>
 <p>이름 해석은 <strong>에러를 하나 찾아도 멈추지 않는다</strong>. 파일 끝까지 훑으며 모든 에러를 모아 한꺼번에 보고한다.</p>
 <div class="run"><pre><code>print(a)
 print(b)</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `a`
@@ -241,7 +247,7 @@ print(count)</code></pre><pre class="out plain"><code>2</code></pre></div>
 <li><code>crates/fung-front/src/resolve.rs</code>: 입구 <code>resolve(core, prelude, opts)</code>가 <code>Resolved</code>(바뀐 트리, 메인 프레임의 칸 수 <code>num_locals</code>, 전역 이름 목록 <code>globals</code>)나 에러 목록을 돌려준다.</li>
 <li><code>Resolver::root_block</code>: 파일 최상위. <code>fn</code>을 먼저 모아 전역 번호를 붙이는 끌어올리기, 최상위 이름(모두 한 번만 묶임)의 칸을 미리 잡는 <code>Resolver::declare_consts</code>.</li>
 <li><code>Resolver::name</code>(이름 읽기와 <code>E0204</code>·<code>E0206</code>·<code>E0208</code>), <code>Resolver::lookup</code>(찾는 순서), <code>Resolver::capture_from</code>(바깥 함수에서 붙잡기).</li>
-<li><code>Resolver::let_</code>(오른쪽 먼저), <code>Resolver::bind_new</code>(<code>E0205</code>·<code>E0209</code> 판정), <code>Resolver::bind_here</code>(전역 칸 또는 슬롯 배정).</li>
+<li><code>Resolver::let_</code>(오른쪽 먼저), <code>Resolver::bind_new</code>(<code>E0238</code>·<code>E0205</code>·<code>E0240</code> 판정), <code>Resolver::bind_here</code>(전역 칸 또는 슬롯 배정).</li>
 <li><code>Resolver::push_block</code>·<code>Resolver::pop_block</code>: 블록 스코프를 쌓고 버리며, 버릴 때 슬롯 번호를 되돌린다.</li>
 <li><code>crates/fung-front/src/resolve/scope.rs</code>: 심볼 테이블. <code>Binding</code>(전역인가, 번호, 상수인가), 블록 스코프 <code>Scope</code>, 함수 스코프 <code>FnScope</code>와 <code>FnScope::alloc_slot</code>.</li>
 <li><code>crates/fung-front/src/resolve/similar.rs</code>: 비슷한 이름 찾기 <code>similar</code>, <code>edit_budget</code>, <code>edit_distance</code>.</li>

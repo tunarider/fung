@@ -49,9 +49,13 @@ impl Parser<'_> {
         let t = self.peek();
         let ok = match t.kind {
             Kind::Name | Kind::LParen | Kind::LBracket | Kind::LBrace => true,
-            Kind::Tag => self.kind_from(self.i + 1) == Kind::LParen,
+            Kind::Tag => self.toks[self.i + 1].kind == Kind::LParen,
             _ => false,
         };
+        if t.kind == Kind::Tag && !ok {
+            // a bare tag binds nothing here: the name of a variable (FE74)
+            return Err(super::tag_as_name(t));
+        }
         if !ok {
             return Err(err(
                 "E0112",
@@ -87,7 +91,7 @@ impl Parser<'_> {
             Kind::Int => {
                 // like an expression: only `-` makes this magnitude valid (01)
                 if super::expr::is_min_int_magnitude(t) {
-                    return Err(err("E0102", t.pos, vec![s(t.text.clone())]));
+                    return Err(super::expr::out_of_range(t));
                 }
                 self.next();
                 leaf(Head::Plit, Lit::Int(t.int))
@@ -147,9 +151,9 @@ impl Parser<'_> {
             }
             Kind::Tag => {
                 self.next();
-                // Outside brackets a newline ends the tag; inside them it is
-                // whitespace (01), so `(` may follow on the next line.
-                if !self.at(Kind::LParen) {
+                // The `(` of a tag's patterns is on the tag's line, inside
+                // brackets too, as in an expression (D85).
+                if self.toks[self.i].kind != Kind::LParen {
                     // A result holds one value (D41): a bare `Ok` could
                     // only match a symbol, never a result.
                     if matches!(t.text.as_str(), "Ok" | "Err") {
@@ -229,14 +233,19 @@ impl Parser<'_> {
     fn plist(&mut self, mut n: Node) -> PResult<Node> {
         while !self.at(Kind::RBracket) {
             if self.at(Kind::Ellipsis) {
-                self.next();
-                let mut rest = Node::new(Head::Prest, n.pos, Vec::new());
+                let dots = self.next();
+                let mut rest = Node::new(Head::Prest, dots.pos, Vec::new());
                 if self.at(Kind::Name) {
-                    // `..._` is `...`: `_` binds nothing (FE11)
                     let name = self.next();
-                    if name.text != "_" {
-                        rest.lit = Lit::Str(name.text.clone());
+                    // errors about the name point at the name (FE72)
+                    rest.pos = name.pos;
+                    // `..._` would be a second way to write `...` (D93).
+                    if name.text == "_" {
+                        let mut e = err("E0112", name.pos, vec![s("a name after `...`"), s("`_`")]);
+                        e.help = Some("a rest that is not named is written `...` alone".into());
+                        return Err(e);
                     }
+                    rest.lit = Lit::Str(name.text.clone());
                 }
                 n.kids.push(rest);
                 if self.at(Kind::Comma) {
@@ -261,32 +270,33 @@ impl Parser<'_> {
 
     /// The entries of a `{…}` pattern after the `{`.
     fn pmap(&mut self, mut n: Node) -> PResult<Node> {
-        let mut seen = std::collections::HashMap::new();
+        let mut seen: std::collections::HashMap<Vec<u8>, Pos> = std::collections::HashMap::new();
         while !self.at(Kind::RBrace) {
-            // The keys a map literal takes (SP3): identifier-shaped, or a
-            // string without interpolation (a pattern's keys are text).
+            // The keys a map literal takes (SP3, FE74): identifier-shaped,
+            // or a string without interpolation.
             let p = self.peek();
             let text = if self.at_name_like() {
-                p.key().to_string()
+                Ok(p.key().to_string())
             } else if p.kind == Kind::String {
                 match p.plain() {
-                    Some(Ok(text)) => text,
-                    Some(Err(_)) => {
-                        return Err(err(
-                            "E0112",
-                            p.pos,
-                            vec![s("a map key that is text"), s(describe(p))],
-                        ));
-                    }
+                    Some(text) => text,
                     None => return Err(err("E0122", p.pos, vec![s("a map pattern's key")])),
                 }
             } else {
                 return Err(err("E0112", p.pos, vec![s("a map key"), s(describe(p))]));
             };
-            if let Some(&first) = seen.get(&text) {
-                return Err(super::duplicate_key(p, text, first));
+            let bytes = match &text {
+                Ok(k) => k.as_bytes(),
+                Err(b) => b,
+            };
+            if let Some(&first) = seen.get(bytes) {
+                return Err(super::duplicate_key(
+                    p,
+                    crate::text::lossy(bytes).into_owned(),
+                    first,
+                ));
             }
-            seen.insert(text.clone(), p.pos);
+            seen.insert(bytes.to_vec(), p.pos);
             let key = self.next();
             let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
             let v = if key.kind == Kind::String {
@@ -305,7 +315,7 @@ impl Parser<'_> {
             n.kids.push(Node::with_lit(
                 Head::Pentry,
                 key.pos,
-                Lit::Str(text),
+                super::str_lit(text),
                 vec![v],
             ));
             if self.at(Kind::Comma) {
