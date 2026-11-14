@@ -379,32 +379,48 @@ fn similar_names_for_many_errors_stay_linear() {
 }
 
 /// Three shapes that compiled in quadratic time (VM51) check in linear
-/// time: a fold of 100,000 string literals (each level kept a copy of its
-/// partial string: 1.0 s and 6 GB here, now 0.15 s), 100,000 `??` (each
-/// branch found where it starts from its line's start: 1.1 s, now 0.15 s)
-/// and 120,000 errors on one line (each looked at the whole line: about
-/// 5 s, now about 1 s).
+/// time: a fold of string literals (each level kept a copy of its
+/// partial string: 1.0 s and 6 GB for 100,000 here, now 0.15 s), a chain
+/// of `??` (each branch found where it starts from its line's start:
+/// 1.1 s, now 0.15 s) and errors on one line (each looked at the whole
+/// line: about 5 s for 120,000, now about 1 s). A runner three times
+/// slower than this machine failed fixed bounds, so the test asks what
+/// "linear" means: twice the input takes well under the four times a
+/// quadratic pass would (the best of two runs each).
 #[test]
 fn three_long_shapes_compile_in_linear_time() {
     let _serial = serial();
-    let n = 100_000;
-    let strings = format!(
-        "fn f() = {}\nprint(len(f()))\n",
-        vec!["\"a\""; n].join(" + ")
-    );
-    let coalesce = format!("fn f(x) = {}\nprint(f(1))\n", vec!["x"; n].join(" ?? "));
-    let names: Vec<String> = (0..120_000).map(|i| format!("u{i}")).collect();
-    let errors = format!("print({})\n", names.join(", "));
-    for (name, src, ok, limit) in [
-        ("strings", &strings, true, Duration::from_millis(500)),
-        ("coalesce", &coalesce, true, Duration::from_millis(500)),
-        ("errors", &errors, false, Duration::from_secs(2)),
-    ] {
-        check_file(name, src);
-        let (out, took) = check_file(name, src);
-        eprintln!("{name} {took:?}");
-        assert_eq!(out.status.success(), ok, "{name}");
-        assert!(took < limit, "{name} took {took:?}");
+    let strings = |n: usize| {
+        format!(
+            "fn f() = {}\nprint(len(f()))\n",
+            vec!["\"a\""; n].join(" + ")
+        )
+    };
+    let coalesce = |n: usize| format!("fn f(x) = {}\nprint(f(1))\n", vec!["x"; n].join(" ?? "));
+    let errors = |n: usize| {
+        let names: Vec<String> = (0..n).map(|i| format!("u{i}")).collect();
+        format!("print({})\n", names.join(", "))
+    };
+    let shapes: [(&str, &dyn Fn(usize) -> String, bool, usize); 3] = [
+        ("strings", &strings, true, 100_000),
+        ("coalesce", &coalesce, true, 100_000),
+        ("errors", &errors, false, 60_000),
+    ];
+    for (name, make, ok, n) in shapes {
+        let time = |n: usize| {
+            let src = make(n);
+            let (out, first) = check_file(name, &src);
+            assert_eq!(out.status.success(), ok, "{name}");
+            first.min(check_file(name, &src).1)
+        };
+        let (one, two) = (time(n), time(2 * n));
+        eprintln!("{name}: {one:?} for {n}, {two:?} for twice that");
+        assert!(
+            two < one * 3,
+            "{name}: {one:?} for {n}, {two:?} for {}",
+            2 * n
+        );
+        assert!(two < Duration::from_secs(10), "{name} took {two:?}");
     }
 }
 
