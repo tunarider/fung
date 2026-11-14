@@ -190,7 +190,7 @@ opts = cli.parse(args, bools: [&quot;dry-run&quot;], values: [&quot;dir&quot;, &
 print(opts)
 
 dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
-min_size = int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))
+min_size = parse_int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))!
 dry_run = get(opts.flags, &quot;dry_run&quot;, false)
 print(dir, min_size, dry_run, opts.rest)</code></pre><pre class="out plain"><code>{flags: {dir: &quot;logs&quot;, min: &quot;100&quot;, dry_run: true}, rest: [&quot;a.log&quot;, &quot;b.log&quot;]}
 logs 100 true [&quot;a.log&quot;, &quot;b.log&quot;]</code></pre></div>
@@ -201,7 +201,7 @@ logs 100 true [&quot;a.log&quot;, &quot;b.log&quot;]</code></pre></div>
 <pre class="plain shell"><code>APP_ENV=staging fung example.fung</code></pre>
 </details>
 <div class="run"><pre><code>app_env = env(&quot;APP_ENV&quot;) ?? &quot;production&quot;
-port = int(env(&quot;PORT&quot;) ?? &quot;8080&quot;)
+port = parse_int(env(&quot;PORT&quot;) ?? &quot;8080&quot;)!
 print(app_env, port)</code></pre><pre class="out plain"><code>staging 8080</code></pre></div>
 <h2 id="stdin">표준 입력</h2>
 <p>파이프 중간에서 쓰는 스크립트(<code>cat app.log | fung count.fung</code>)는 <strong>표준 입력</strong>(standard input)을 읽는다. <code>read_lines()</code>는 인자 없이 부르면 표준 입력 전체를 줄 리스트로, <code>read_line()</code>은 한 줄을 <code>Ok(줄)</code>로, 끝에 닿으면 <code>Ok(nil)</code>로 준다. 아래 예제는 준비물 <code>in.txt</code>를 표준 입력으로 넣어 돌렸다.</p>
@@ -225,7 +225,7 @@ print(&quot;failing:&quot;, join(bad, &quot;, &quot;))</code></pre><pre class="o
 <div class="run"><pre><code>import fs
 
 missing = [&quot;app.conf&quot;, &quot;db.conf&quot;] |&gt; filter(f =&gt; not fs.exists(f)!)
-if not is_empty(missing):
+if len(missing) &gt; 0:
   eprint(&quot;missing config:&quot;, join(missing, &quot;, &quot;))
   exit(2)
 ;;
@@ -253,7 +253,7 @@ import path
 
 opts = cli.parse(args, values: [&quot;dir&quot;, &quot;min&quot;])!
 dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
-min_size = int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))
+min_size = parse_int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))!
 
 found = fs.walk(dir)!
   |&gt; filter(p =&gt; path.ext(p) == &quot;.log&quot;)
@@ -261,7 +261,7 @@ found = fs.walk(dir)!
   |&gt; filter(((_, size)) =&gt; size &gt;= min_size)
   |&gt; sort_by(((_, size)) =&gt; -size)
 
-if is_empty(found):
+if len(found) == 0:
   eprint(&quot;no log files over ${min_size} bytes&quot;)
   exit(1)
 ;;

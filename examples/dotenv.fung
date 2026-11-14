@@ -15,7 +15,7 @@ fn parse(text):
 # Problems with a config: missing or empty required keys, bad ports.
 fn problems(cfg, required, ports):
   missing = filter(required, k => get(cfg, k, "") == "") |> map(k => "missing: ${k}")
-  bad_ports = filter(ports, k => contains(cfg, k) and not valid_port(get(cfg, k)))
+  bad_ports = filter(ports, k => k in cfg and not valid_port(get(cfg, k)))
     |> map(k => "not a port: ${k}=${get(cfg, k)}")
   missing + bad_ports
 ;;

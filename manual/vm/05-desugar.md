@@ -55,7 +55,7 @@ fung의 코어는 겉 트리와 **같은 모양**(균일 트리, 4장)이다. �
     <tr><td><code>(op 연산자 a b)</code></td><td>원시 연산</td><td>산술, 비교, <code>in</code>, <code>not</code>, 단항 <code>-</code></td></tr>
     <tr><td><code>(concat 조각…)</code></td><td>문자열 잇기</td><td>보간 <code>"…${e}…"</code></td></tr>
     <tr><td><code>(field x "k")</code> <code>(index x i)</code> <code>(slice x a b)</code></td><td>접근</td><td><code>x.k</code>, <code>x[i]</code>, <code>x[a..b]</code></td></tr>
-    <tr><td><code>(tag Ok e…)</code></td><td>태그 값</td><td><code>Ok(e)</code>, <code>e |&gt; Ok</code></td></tr>
+    <tr><td><code>(tag Ok e…)</code></td><td>태그 값</td><td><code>Ok(e)</code>, <code>e |&gt; Ok()</code></td></tr>
     <tr><td><code>(match e (arm 패턴 조건 본문)…)</code></td><td>패턴 매칭</td><td><code>match</code></td></tr>
     <tr><td><code>(unwrap e "!")</code> <code>(coalesce a b)</code></td><td>결과값 축약</td><td><code>e!</code>, <code>e?</code>, <code>a ?? b</code></td></tr>
     <tr><td><code>(return e)</code> <code>(import …)</code> <code>(test …)</code> <code>(assert e)</code></td><td></td><td>그대로</td></tr>
@@ -108,10 +108,10 @@ print(false and (1 / 0 == 1))
 
 `1 / 0`이 있지만 에러가 나지 않는다. 실행되지 않았기 때문이다.
 
-`(op bool b)`는 "b가 불(bool)이 아니면 에러"라는 검사다. fung은 조건 자리에 `true`·`false`만 받는다. `if`의 조건 `a`는 VM의 점프 명령이 검사하지만, 가지로 실행된 `b`의 값은 따로 검사해야 한다. 그래서 오른쪽이 불이 아니면 실행 시점의 `E0505`다. (리터럴을 바로 쓴 `true and 1`은 타입이 이미 드러나 있어 컴파일할 때 같은 번호로 잡힌다.)
+`(op bool b)`는 "b가 불(bool)이 아니면 에러"라는 검사다. fung은 조건 자리에 `true`·`false`만 받는다. `if`의 조건 `a`는 VM의 점프 명령이 검사하지만, 가지로 실행된 `b`의 값은 따로 검사해야 한다. 그래서 오른쪽이 불이 아니면 실행 시점의 `E0505`다. (리터럴을 바로 쓴 `true and 1`이나 리터럴이 묶인 이름의 `true and one`은 타입이 이미 드러나 있어 컴파일할 때 같은 번호로 잡힌다.)
 
 ```fung run exit=1 error=E0505
-one = 1
+one = len("a")
 print(true and one)
 ```
 

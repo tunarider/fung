@@ -138,10 +138,11 @@ pub struct FnInfo {
     pub params: Vec<Param>,
     /// `None` means unchecked.
     pub ret: Option<Vec<TypeTerm>>,
-    /// The synthetic lambda of a `for`: `return` and `?` inside are
-    /// E0237 (D42).
+    /// The synthetic function of a `for`: `return` and `?` inside are
+    /// E0237 (D143).
     pub for_body: bool,
-    /// Written as a lambda `=>`: `return` and `?` inside are E0237 (D42).
+    /// Written as a lambda `=>` (the formatter and messages show it so;
+    /// it means what an anonymous `fn` does, D142).
     pub lambda: bool,
     pub num_locals: usize,
     pub captures: Vec<Capture>,

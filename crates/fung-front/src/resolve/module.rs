@@ -157,7 +157,7 @@ impl Resolver<'_> {
             self.errs.push(e.span(len));
             return None;
         }
-        self.binds_fresh(name, pos, false, false);
+        self.binds_fresh(name, pos, false);
         let b = Binding {
             global: true,
             index: self.globals.len(),
@@ -177,7 +177,7 @@ impl Resolver<'_> {
             self.errs.push(e);
             return None;
         }
-        self.binds_fresh(name, pos, false, false);
+        self.binds_fresh(name, pos, false);
         let b = Binding {
             global: true,
             index: self.globals.len(),

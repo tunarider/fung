@@ -126,30 +126,13 @@
 ==== check crates/fung-cli/tests/data/check/shadow.fung
 -- stdout
 -- stderr
-| error[E0238]: cannot bind `sort` again: a name is bound once
-|   --> crates/fung-cli/tests/data/check/shadow.fung:8:3
+| error[E0239]: unused parameter `keys`
+|   --> crates/fung-cli/tests/data/check/shadow.fung:5:17
 |   |
-| 8 |   sort = 1
-|   |   ^^^^
+| 5 | fn uses(filter, keys = 1) = filter
+|   |                 ^^^^
 |   |
-|   note: `sort` is a prelude function
-|  help: a visible name means one thing: give the new one a name of its own
-| error[E0238]: cannot bind `first` again: a name is bound once
-|   --> crates/fung-cli/tests/data/check/shadow.fung:13:3
-|    |
-| 13 |   first => first
-|    |   ^^^^^
-|    |
-|   note: `first` is a prelude function
-|  help: a visible name means one thing: give the new one a name of its own
-| error[E0238]: cannot bind `sum` again: a name is bound once
-|   --> crates/fung-cli/tests/data/check/shadow.fung:16:15
-|    |
-| 16 | result = for (sum, x) in [(1, 2)]: sum + x ;;
-|    |               ^^^
-|    |
-|   note: `sum` is a prelude function
-|  help: a visible name means one thing: give the new one a name of its own
+|  help: remove it, or start its name with `_` if it is kept on purpose
 -- exit: 2
 ==== check crates/fung-cli/tests/data/check/unused_imports.fung
 -- stdout

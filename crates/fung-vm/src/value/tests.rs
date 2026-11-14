@@ -546,7 +546,7 @@ fn str_format_quotes_and_escapes() {
         ("nl\n", r#""nl\n""#),
         ("q\"q", r#""q\"q""#),
         ("back\\slash", r#""back\\slash""#),
-        ("cost $5", r#""cost $5""#),
+        ("cost $5", r#""cost \$5""#),
         ("tmpl ${x}", r#""tmpl \${x}""#),
         ("참치", r#""참치""#),
         ("bell\x07", r#""bell\u{7}""#),

@@ -291,22 +291,32 @@ impl Task<'_> {
     }
 
     /// The root's wait as an error, as a runtime error there would show
-    /// (`Sched::stuck`), with what holds the channel open when the root
-    /// holds its sending end itself.
+    /// (`Sched::stuck`). Waiting on a channel, the help says that only
+    /// `close` closes it (D136), and where the root holds its sending end
+    /// when it does.
     pub(super) fn stuck_root(&self) -> Diag {
         let (pos, ..) = self.wait_site();
         let mut d = error("E0702", pos, Vec::new()).with_call_path(self.call_path());
+        let receives = self
+            .fiber
+            .conts
+            .last()
+            .is_some_and(|c| c.k.receives_on().is_some());
+        let waits = match self.wait_name() {
+            "wait_closed" => "waits for a channel to close",
+            _ => "waits to receive",
+        };
         if let Some((at, name)) = self.own_sender() {
             let close = match name {
                 Some(n) => format!("`close({n})`"),
                 None => "`close`".to_string(),
             };
-            let waits = match self.wait_name() {
-                "wait_closed" => "waits for that channel to close, but it still holds its",
-                _ => "waits to receive, but it still holds that channel's",
-            };
             d.help = Some(format!(
-                "this task {waits} sending end itself ({at}), so the channel cannot close: close it with {close} first, or leave the sending end to the producers only"
+                "this task {waits}, and a channel closes only by `close`: it holds the sending end itself ({at}), so close it with {close} once the last value is sent"
+            ));
+        } else if receives {
+            d.help = Some(format!(
+                "this task {waits}, and a channel closes only by `close`: the task that sends the last value closes the sending end with `close(tx)`"
             ));
         }
         d

@@ -1,4 +1,4 @@
-fn f() = x
+fn f() = print(x)
 f()
 x = 1
 # expect-error: E0809

@@ -179,7 +179,7 @@ opts = cli.parse(args, bools: ["dry-run"], values: ["dir", "min"])!
 print(opts)
 
 dir = get(opts.flags, "dir", ".")
-min_size = int(get(opts.flags, "min", "0"))
+min_size = parse_int(get(opts.flags, "min", "0"))!
 dry_run = get(opts.flags, "dry_run", false)
 print(dir, min_size, dry_run, opts.rest)
 ```
@@ -192,7 +192,7 @@ print(dir, min_size, dry_run, opts.rest)
 
 ```fung run env="APP_ENV=staging"
 app_env = env("APP_ENV") ?? "production"
-port = int(env("PORT") ?? "8080")
+port = parse_int(env("PORT") ?? "8080")!
 print(app_env, port)
 ```
 
@@ -226,7 +226,7 @@ print("failing:", join(bad, ", "))
 import fs
 
 missing = ["app.conf", "db.conf"] |> filter(f => not fs.exists(f)!)
-if not is_empty(missing):
+if len(missing) > 0:
   eprint("missing config:", join(missing, ", "))
   exit(2)
 ;;
@@ -264,7 +264,7 @@ import path
 
 opts = cli.parse(args, values: ["dir", "min"])!
 dir = get(opts.flags, "dir", ".")
-min_size = int(get(opts.flags, "min", "0"))
+min_size = parse_int(get(opts.flags, "min", "0"))!
 
 found = fs.walk(dir)!
   |> filter(p => path.ext(p) == ".log")
@@ -272,7 +272,7 @@ found = fs.walk(dir)!
   |> filter(((_, size)) => size >= min_size)
   |> sort_by(((_, size)) => -size)
 
-if is_empty(found):
+if len(found) == 0:
   eprint("no log files over ${min_size} bytes")
   exit(1)
 ;;

@@ -496,8 +496,8 @@ fn the_wrong_end_is_a_type_error() {
             "argument `rx` must be receiver",
         ),
         (
-            "(_tx, rx) = channel(1)\nclose(rx)",
-            "argument `x` must be sender | file",
+            "(_tx, _rx) = channel(1)\nclose(1)",
+            "argument `x` must be sender | receiver | file",
         ),
         ("(tx, _rx) = channel(1)\nfor x in tx:\n  x\n;;", "E0506"),
     ] {
@@ -522,14 +522,19 @@ fn end_types_in_annotations() {
     );
 }
 
-/// The function that makes the channel returns only the receiving end:
-/// its own `tx` goes when it returns, the task's copy when the task ends,
-/// and then the channel closes.
+/// A channel closes only by `close` (D136): the ends going away do
+/// nothing to it. A producer that ends without closing leaves the
+/// consumer waiting: a deadlock, reported instead of hanging.
 #[test]
-fn a_producer_that_ends_closes_its_channel() {
+fn a_channel_closes_only_by_close() {
+    let (out, err, code) = run(
+        "fn numbers(s, n):\n  (tx, rx) = channel()\n  spawn(s, () => each(0..n, i => send(tx, i)))\n  rx\n;;\nscope(fn(s):\n  for x in numbers(s, 3):\n    print(x)\n  ;;\n  print(\"done\")\n;;)",
+    );
+    assert_eq!((out.as_str(), code), ("0\n1\n2\n", 1), "{err}");
+    assert!(err.contains("E0702"), "{err}");
     assert_eq!(
         run(
-            "fn numbers(s, n):\n  (tx, rx) = channel()\n  spawn(s, () => each(0..n, i => send(tx, i)))\n  rx\n;;\nscope(fn(s):\n  for x in numbers(s, 3):\n    print(x)\n  ;;\n  print(\"done\")\n;;)"
+            "fn numbers(s, n):\n  (tx, rx) = channel()\n  spawn(s, fn():\n    each(0..n, i => send(tx, i))\n    close(tx)\n  ;;)\n  rx\n;;\nscope(fn(s):\n  for x in numbers(s, 3):\n    print(x)\n  ;;\n  print(\"done\")\n;;)"
         ),
         ("0\n1\n2\ndone\n".into(), "".into(), 0)
     );
@@ -545,16 +550,15 @@ fn a_live_sender_at_top_level_is_a_deadlock() {
 }
 
 /// Closing a closed channel is `Err('closed)`, as closing a closed file
-/// is (D72): through any copy of the end, and also when the channel
-/// closed because its receiving ends went.
+/// is (D72): through any copy of either end (D137).
 #[test]
 fn closing_a_closed_channel_is_an_err() {
     assert_eq!(
         run(
-            "(tx, _rx) = channel(2)\nt2 = tx\nprint(close(tx), close(t2), close(tx))\nfn gone():\n  (tx3, _) = channel()\n  tx3\n;;\nprint(close(gone()))"
+            "(tx, rx) = channel(2)\nt2 = tx\nprint(close(tx), close(t2), close(rx))\n(tx3, rx3) = channel()\nprint(close(rx3), close(tx3))"
         ),
         (
-            "Ok(nil) Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\nErr({kind: 'closed, message: \"channel closed\"})\n".into(),
+            "Ok(nil) Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\nOk(nil) Err({kind: 'closed, message: \"channel closed\"})\n".into(),
             "".into(),
             0
         )
@@ -575,12 +579,13 @@ fn close_closes_for_every_copy() {
     );
 }
 
-/// The last receiving end goes while a send waits on an unbuffered
-/// channel: the send wakes with `closed`.
+/// `close(rx)` (D137): the receiving side is done. A send waiting on an
+/// unbuffered channel wakes with `closed`, a later send fails at once,
+/// and what the buffer held is dropped.
 #[test]
-fn dropping_the_receiver_wakes_a_blocked_sender() {
+fn closing_the_receiving_end_wakes_a_blocked_sender() {
     let o = exec_waiting(
-        "fn sender_only(s):\n  (tx, rx) = channel()\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  t\n;;\nprint(scope(s => await(sender_only(s))))",
+        "fn sender_only(s):\n  (tx, rx) = channel()\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  close(rx)!\n  t\n;;\nprint(scope(s => await(sender_only(s))))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -593,14 +598,26 @@ fn dropping_the_receiver_wakes_a_blocked_sender() {
 }
 
 #[test]
-fn dropping_the_receiver_fails_later_sends() {
+fn closing_the_receiving_end_fails_later_sends() {
     assert_eq!(
-        run("fn mk() = channel(1)\n(tx, _) = mk()\nprint(send(tx, 1))"),
+        run(
+            "(tx, rx) = channel(2)\nsend(tx, 1)!\nclose(rx)!\nprint(send(tx, 2), recv(rx))"
+        ),
         (
-            "Err({kind: 'closed, message: \"channel closed\"})\n".into(),
+            "Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\n".into(),
             "".into(),
             0
         )
+    );
+}
+
+/// The ends going away close nothing: a sender whose receiving ends are
+/// all gone still sends into the buffer (nobody will take the values).
+#[test]
+fn dropping_the_receiver_closes_nothing() {
+    assert_eq!(
+        run("fn mk() = channel(1)\n(tx, _) = mk()\nprint(send(tx, 1))"),
+        ("Ok(nil)\n".into(), "".into(), 0)
     );
 }
 
@@ -718,7 +735,7 @@ fn iterating_a_sender_says_to_use_the_receiving_end() {
 fn fan_in_stops_when_its_output_is_gone() {
     let (out, err, code) = run("import conc\n\
          fn ticker(s, name):\n  (tx, rx) = channel()\n  fn go(i) = match send(tx, i):\n    Ok(_) => go(i + 1)\n    Err(_) => print(\"stopped ${name}\")\n  ;;\n  spawn(s, () => go(0))\n  rx\n;;\n\
-         print(timeout(() => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s, \"a\"), ticker(s, \"b\")])\n  len(take(out, 2))\n;;), 10s))");
+         print(timeout(() => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s, \"a\"), ticker(s, \"b\")])\n  got = take(out, 2)\n  close(out)!\n  len(got)\n;;), 10s))");
     let mut lines: Vec<&str> = out.lines().collect();
     lines.sort();
     assert_eq!(
@@ -734,7 +751,7 @@ fn fan_in_stops_when_its_output_is_gone() {
 fn fan_in_lets_an_idle_input_go_when_its_output_is_gone() {
     let (out, err, code) = run("import conc\n(_idle_tx, idle) = channel()\n\
          fn ticker(s):\n  (tx, rx) = channel()\n  fn go(i) = match send(tx, i):\n    Ok(_) => go(i + 1)\n    Err(_) => print(\"stopped\")\n  ;;\n  spawn(s, () => go(0))\n  rx\n;;\n\
-         print(timeout(() => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s), idle])\n  len(take(out, 2))\n;;), 10s))");
+         print(timeout(() => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s), idle])\n  got = take(out, 2)\n  close(out)!\n  len(got)\n;;), 10s))");
     assert_eq!(
         (out.as_str(), err.as_str(), code),
         ("stopped\nOk(Ok(2))\n", "", 0)
@@ -746,7 +763,7 @@ fn fan_in_lets_an_idle_input_go_when_its_output_is_gone() {
 #[test]
 fn fan_in_forwards_a_long_stream() {
     let (out, err, code) = run(
-        "import conc\nprint(scope(fn(s):\n  (tx, rx) = channel()\n  spawn(s, () => each(1..=200000, i => send(tx, i)))\n  sum(conc.fan_in(s, [rx]))\n;;))",
+        "import conc\nprint(scope(fn(s):\n  (tx, rx) = channel()\n  spawn(s, fn():\n    each(1..=200000, i => send(tx, i))\n    close(tx)!\n  ;;)\n  sum(conc.fan_in(s, [rx]))\n;;))",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
@@ -782,11 +799,7 @@ fn a_cancelled_send_drops_its_value_at_once() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        (
-            "2 Err({kind: 'closed, message: \"channel closed\"})\nOk(0) Ok(1)\n",
-            "",
-            0
-        )
+        ("2 Ok(nil)\nOk(0) Ok(1)\n", "", 0)
     );
 }
 
@@ -858,13 +871,12 @@ fn wait_closed_waits_for_the_close_only() {
     );
 }
 
-/// The channel closes when its last sending end goes, which wakes
-/// `wait_closed` too; waiting for a close only the waiter could make is a
-/// deadlock reported under its own name.
+/// `close` wakes `wait_closed`; waiting for a close nobody makes is a
+/// deadlock reported under its own name (D136).
 #[test]
-fn wait_closed_wakes_when_the_senders_go_and_deadlocks_by_name() {
+fn wait_closed_wakes_at_close_and_deadlocks_by_name() {
     let (out, err, code) = run(
-        "scope(fn(s):\n  (tx, rx) = channel()\n  spawn(s, () => wait_closed(rx))\n  spawn(s, fn():\n    _ = tx\n    nil\n  ;;)\n;;)\nprint(\"woken\")",
+        "scope(fn(s):\n  (tx, rx) = channel()\n  spawn(s, () => wait_closed(rx))\n  spawn(s, () => close(tx)!)\n;;)\nprint(\"woken\")",
     );
     assert_eq!((out.as_str(), err.as_str(), code), ("woken\n", "", 0));
     let (_, err, code) =

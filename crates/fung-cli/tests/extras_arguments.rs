@@ -271,13 +271,11 @@ print(http.serve("127.0.0.1:0", 1))"#,
         "handler",
     ),
     // prelude
-    ("prelude", "is_empty", "print(is_empty(1))", "E0506", ""),
     ("prelude", "zip", "print(zip(1, [1]))", "E0506", ""),
     ("prelude", "first", "print(first(1))", "E0506", ""),
     ("prelude", "last", "print(last(1))", "E0506", ""),
     ("prelude", "take", "print(take([1], -1))", "E0403", "n"),
     ("prelude", "drop", "print(drop([1], \"1\"))", "E0403", "n"),
-    ("prelude", "contains", "print(contains(1, 1))", "E0512", ""),
     (
         "prelude",
         "pad_left",
@@ -311,7 +309,7 @@ print(http.serve("127.0.0.1:0", 1))"#,
 ];
 
 /// How many cases the table holds.
-const CASE_COUNT: usize = 43;
+const CASE_COUNT: usize = 41;
 
 fn run(bin: &Path, dir: &Path, src: &str) -> (String, String, Option<i32>) {
     let o = common::output(

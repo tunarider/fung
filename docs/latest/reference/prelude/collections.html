@@ -103,14 +103,14 @@ print(hosts)</code></pre><pre class="out plain"><code>[&quot;WEB-1&quot;, &quot;
 <h2 id="basics">세기와 고르기</h2>
 <section class="entry" id="fn-len">
 <h3>len</h3>
-<p>문자열의 글자 수, 리스트·맵·튜플·범위의 원소 수를 돌려준다.</p>
+<p>문자열의 글자 수, 리스트·맵·범위의 원소 수를 돌려준다.</p>
 <div class="sig"><code>len(x)</code></div>
 <h4>설명</h4>
 <p>문자열은 바이트가 아니라 <strong>글자</strong>(유니코드 코드 포인트)를 센다. 그래서 <code>len(&quot;참치&quot;)</code>는 2다. 결합 문자로 쓴 <code>&quot;e\u{301}&quot;</code>(é)는 코드 포인트 둘이라 2다. UTF-8에 속하지 않는 바이트는 하나가 한 글자다. 바이트 수는 <a href="strings.html#fn-byte_len"><code>byte_len</code></a>이 센다. 범위는 원소를 만들지 않고 계산하므로 <code>len(0..1_000_000_000_000)</code>도 바로 답한다. 빈 범위(<code>5..5</code>, <code>5..=4</code>)는 0이다. 시작이 끝보다 뒤인 범위는 만들 수 없다(E0522).</p>
-<p>채널의 받는 끝은 몇 개가 올지 미리 알 수 없으므로 길이가 없다(E0506). 다 받아 세려면 <code>len(map(rx, x =&gt; x))</code>처럼 리스트로 만든다.</p>
+<p>튜플은 개수가 정해진 묶음이라 패턴으로 꺼내고 세지 않는다: <code>len((1, 2))</code>는 E0506이다. 채널의 받는 끝은 몇 개가 올지 미리 알 수 없으므로 길이가 없다(E0506). 다 받아 세려면 <code>len(map(rx, x =&gt; x))</code>처럼 리스트로 만든다.</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>x</code>: <code>str</code>, <code>list</code>, <code>map</code>, <code>tuple</code>, <code>range</code>.</li>
+<li><code>x</code>: <code>str</code>, <code>list</code>, <code>map</code>, <code>range</code>.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p>정수.</p>
@@ -118,8 +118,8 @@ print(hosts)</code></pre><pre class="out plain"><code>[&quot;WEB-1&quot;, &quot;
 <p>그 밖의 타입이면 런타임 에러 E0506(<code>cannot take the length of int</code>).</p>
 <h4>예제</h4>
 <p><strong>여러 타입의 길이</strong></p>
-<div class="run"><pre><code>print(len(&quot;참치&quot;), len([1, 2]), len({a: 1, b: 2}), len((1, 2, 3)))
-print(len(0..10), len(0..=10), len(5..5), len(0..1_000_000_000_000))</code></pre><pre class="out plain"><code>2 2 2 3
+<div class="run"><pre><code>print(len(&quot;참치&quot;), len([1, 2]), len({a: 1, b: 2}))
+print(len(0..10), len(0..=10), len(5..5), len(0..1_000_000_000_000))</code></pre><pre class="out plain"><code>2 2 2
 10 11 0 1000000000000</code></pre></div>
 <p><strong>길이가 없는 값</strong></p>
 <div class="run"><pre><code>print(len(42))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot take the length of int
@@ -131,33 +131,7 @@ print(len(0..10), len(0..=10), len(5..5), len(0..1_000_000_000_000))</code></pre
  call path (innermost first):
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-is_empty"><code>is_empty</code></a>, <a href="strings.html#fn-chars"><code>chars</code></a></p>
-</section>
-<section class="entry" id="fn-is_empty">
-<h3>is_empty<span class="by">fung으로 작성</span></h3>
-<p>비었으면 <code>true</code>. <code>len(x) == 0</code>과 같다.</p>
-<div class="sig"><code>is_empty(x)</code></div>
-<h4>설명</h4>
-<p><code>len</code>이 받는 모든 값을 받는다. 범위는 길이를 세지 않고 원소가 하나라도 있는지만 본다. <code>[nil]</code>은 원소가 하나 있으므로 비어 있지 않다.</p>
-<p>조건 자리에는 <code>bool</code>만 오므로, 리스트가 비었는지 물을 때 <code>if xs:</code>라고 쓸 수 없다. <code>if is_empty(xs):</code> 또는 <code>if not is_empty(xs):</code>로 쓴다. <code>len(xs) == 0</code>과 같은 일을 함수로 두는 것은 <code>filter(groups, is_empty)</code>처럼 함수를 넘기는 자리 때문이다.</p>
-<h4>매개변수</h4>
-<ul>
-<li><code>x</code>: <code>str</code>, <code>list</code>, <code>map</code>, <code>tuple</code>, <code>range</code>.</li>
-</ul>
-<h4>돌려주는 값</h4>
-<p><code>bool</code>.</p>
-<h4>에러</h4>
-<p><code>len</code>과 같다(E0506).</p>
-<h4>예제</h4>
-<p><strong>여러 값</strong></p>
-<div class="run"><pre><code>print(is_empty([]), is_empty(&quot;&quot;), is_empty({}), is_empty(0..0))
-print(is_empty([nil]), is_empty(5..=4), is_empty(&quot;x&quot;))</code></pre><pre class="out plain"><code>true true true true
-false true false</code></pre></div>
-<p><strong>조건에 쓰기</strong></p>
-<div class="run"><pre><code>failed = []
-print(is_empty(failed) then &quot;all ok&quot; else &quot;${len(failed)} failed&quot;)</code></pre><pre class="out plain"><code>all ok</code></pre></div>
-<h4>같이 보기</h4>
-<p><a href="#fn-len"><code>len</code></a>, <a href="../language/conditions.html">조건</a></p>
+<p><a href="strings.html#fn-chars"><code>chars</code></a></p>
 </section>
 <section class="entry" id="fn-first">
 <h3>first<span class="by">fung으로 작성</span></h3>
@@ -268,44 +242,6 @@ print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&q
 <h4>같이 보기</h4>
 <p><a href="#fn-take"><code>take</code></a>, <a href="../language/access.html">슬라이스</a></p>
 </section>
-<section class="entry" id="fn-contains">
-<h3>contains<span class="by">fung으로 작성</span></h3>
-<p><code>x in c</code>와 같다: 리스트의 원소인지, 맵의 키인지, 부분 문자열인지.</p>
-<div class="sig"><code>contains(c, x)</code></div>
-<h4>설명</h4>
-<p><code>c</code>의 타입에 따라 묻는 것이 다르다.</p>
-<ul>
-<li>리스트·범위: <code>x</code>와 <code>==</code>인 원소가 있는가. 비교 규칙을 따르므로 <code>contains([1], 1.0)</code>도 참이다.</li>
-<li>맵: <code>x</code>가 키인가(값이 아니다). 키는 문자열이므로 <code>x</code>도 문자열이어야 한다.</li>
-<li>문자열: <code>x</code>가 부분 문자열인가. 찾을 글은 비어 있을 수 없다(빈 글은 어디에나 있으므로 E0403, <a href="strings.html#fn-index_of"><code>index_of</code></a>의 <code>sub</code>와 같은 규칙).</li>
-</ul>
-<p>심볼과 문자열은 같지 않다(<code>contains(['a], &quot;a&quot;)</code>는 <code>false</code>). 외부에서 온 문자열은 <a href="convert.html#fn-sym"><code>sym</code></a>으로 바꿔서 찾는다.</p>
-<p>연산자 <code>in</code>이 있는데 함수를 따로 두는 것은 파이프(<code>xs |&gt; contains(x)</code>)와 함수를 넘기는 자리(<code>filter(xss, xs =&gt; contains(xs, x))</code>)에서 쓰려는 것이다. 조건에서는 <code>x in c</code>가 읽기 쉽다.</p>
-<h4>매개변수</h4>
-<ul>
-<li><code>c</code>: 리스트, 범위, 맵, 문자열.</li>
-<li><code>x</code>: 찾을 값.</li>
-</ul>
-<h4>돌려주는 값</h4>
-<p><code>bool</code>.</p>
-<h4>에러</h4>
-<ul>
-<li>맵에서 문자열이 아닌 키를 찾으면 E0514(<code>cannot use a value of type int as a map key</code>), 문자열에서 문자열이 아닌 값을 찾으면 런타임 에러 E0501(<code>cannot search str and int</code>), 빈 문자열을 찾으면 E0403(<code>argument `x` must be a non-empty str, got &quot;&quot;</code>).</li>
-</ul>
-<h4>예제</h4>
-<p><strong>세 가지 뜻</strong></p>
-<div class="run"><pre><code>print(contains([1, 2], 2), contains({a: 1}, &quot;a&quot;), contains({a: 1}, &quot;b&quot;), contains(&quot;hello&quot;, &quot;ell&quot;))
-print(contains(0..10, 5), 2 in [1, 2])</code></pre><pre class="out plain"><code>true true false true
-true true</code></pre></div>
-<p><strong>허용 목록 검사</strong></p>
-<div class="run"><pre><code>allowed = [&quot;prod&quot;, &quot;staging&quot;]
-for target in [&quot;prod&quot;, &quot;dev&quot;]:
-  print(target, contains(allowed, target) then &quot;ok&quot; else &quot;refused&quot;)
-;;</code></pre><pre class="out plain"><code>prod ok
-dev refused</code></pre></div>
-<h4>같이 보기</h4>
-<p><a href="#fn-find"><code>find</code></a>, <a href="#fn-any"><code>any</code></a>, <a href="strings.html#fn-starts_with"><code>starts_with</code></a>, <a href="../language/values.html">비교와 동일성</a></p>
-</section>
 <h2 id="transform">바꾸기와 고르기</h2>
 <section class="entry" id="fn-map">
 <h3>map</h3>
@@ -314,8 +250,8 @@ dev refused</code></pre></div>
 <h4>설명</h4>
 <p><code>map([a, b, c], f)</code>는 <code>[f(a), f(b), f(c)]</code>다. 원소 수는 그대로이고 순서도 지킨다. 원본은 바뀌지 않는다. <code>for x in xs: 식 ;;</code>도 리스트를 만들지만, 이미 있는 함수를 넘기거나 파이프로 이을 때는 <code>map</code>이 짧다.</p>
 <p><code>f</code>는 인자 하나를 받는 함수다. 범위를 주면 리스트가 된다(<code>map(0..3, x =&gt; x)</code>는 <code>[0, 1, 2]</code>). 받는 끝을 주면 값이 올 때마다 <code>f</code>를 부르고 채널이 닫히면 끝난다.</p>
-<div class="box mistake"><b>람다 안의 ? 는 컴파일 에러다 (E0237)</b>
-<p><code>map(xs, s =&gt; parse_int(s)?)</code>처럼 람다 안에 쓴 <code>?</code>는 컴파일 에러 E0237이다(람다는 일찍 돌아갈 수 없다). 허락했다면 <code>?</code>는 람다에서 돌아올 뿐이라, <code>Err</code>가 바깥 함수로 가지 않고 결과 리스트의 원소가 되어 버린다. 실패할 수 있는 변환은 <a href="#fn-try_map"><code>try_map</code></a>을 쓴다. 처음 나온 <code>Err</code>에서 멈추고 그것을 돌려준다.</p>
+<div class="box mistake"><b>람다 안의 ? 는 람다에서 돌아온다</b>
+<p><code>map(xs, s =&gt; parse_int(s)?)</code>처럼 람다 안에 쓴 <code>?</code>는 람다에서 돌아올 뿐이라, <code>Err</code>가 바깥 함수로 가지 않고 결과 리스트의 원소가 된다. 실패할 수 있는 변환은 <a href="#fn-try_map"><code>try_map</code></a>을 쓴다. 처음 나온 <code>Err</code>에서 멈추고 그것을 돌려준다.</p>
 </div>
 <h4>매개변수</h4>
 <ul>
@@ -395,7 +331,7 @@ Err({kind: 'parse, message: &quot;not an integer: \&quot;http\&quot;&quot;})</co
 <div class="run"><pre><code>rs = [Ok(1), Ok(2), Ok(3)]
 print(try_map(rs, r =&gt; r))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-map"><code>map</code></a>, <a href="../language/results.html">결과값과 에러</a>, <a href="../errors.html#E0237">E0237</a></p>
+<p><a href="#fn-map"><code>map</code></a>, <a href="../language/results.html">결과값과 에러</a></p>
 </section>
 <section class="entry" id="fn-filter">
 <h3>filter</h3>
@@ -573,14 +509,14 @@ print(r)</code></pre><pre class="out plain"><code>checking 1
 checking 2
 true</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-all"><code>all</code></a>, <a href="#fn-find"><code>find</code></a>, <a href="#fn-contains"><code>contains</code></a></p>
+<p><a href="#fn-all"><code>all</code></a>, <a href="#fn-find"><code>find</code></a>, <a href="../language/operators.html"><code>in</code></a></p>
 </section>
 <section class="entry" id="fn-all">
 <h3>all</h3>
 <p>모든 원소에서 <code>f(x)</code>가 <code>true</code>면 <code>true</code>. 빈 컬렉션은 <code>true</code>.</p>
 <div class="sig"><code>all(xs, f)</code></div>
 <h4>설명</h4>
-<p>처음 <code>false</code>가 나오면 멈춘다. 빈 컬렉션이 <code>true</code>인 것은 "어긋나는 원소가 하나도 없다"는 뜻이기 때문이다(수학의 관례와 같다). 빈 목록을 "실패"로 다루고 싶으면 <code>not is_empty(xs) and all(xs, f)</code>로 쓴다.</p>
+<p>처음 <code>false</code>가 나오면 멈춘다. 빈 컬렉션이 <code>true</code>인 것은 "어긋나는 원소가 하나도 없다"는 뜻이기 때문이다(수학의 관례와 같다). 빈 목록을 "실패"로 다루고 싶으면 <code>len(xs) &gt; 0 and all(xs, f)</code>로 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>

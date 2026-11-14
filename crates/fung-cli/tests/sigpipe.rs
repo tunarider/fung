@@ -318,7 +318,7 @@ fn a_child_starts_with_the_default_sigpipe_action() {
     // `yes` dies by SIGPIPE (status 141 in the shell) once `head` has
     // gone; with SIGPIPE ignored it would print an error and exit 1.
     runs_with(
-        "print(exec([\"sh\", \"-c\", \"(yes; echo yes-exit $? >&2) | head -1\"]))",
+        "print(exec([\"sh\", \"-c\", \"(yes; echo yes-exit \\$? >&2) | head -1\"]))",
         "Ok({out: \"y\\n\", err: \"yes-exit 141\\n\", code: 0, signal: nil})\n",
     );
 }

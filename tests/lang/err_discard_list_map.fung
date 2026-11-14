@@ -1,5 +1,8 @@
 # A discarded list: the Errs in it are not lost.
-fn checked() = map([1, 2, 3], x => x == 2 then Err("two") else Ok(x))
+fn checked():
+  assert true  # an effect (D141): the call is a statement
+  map([1, 2, 3], x => x == 2 then Err("two") else Ok(x))
+;;
 checked()
 # expect-error: E0606
 print("not reached")

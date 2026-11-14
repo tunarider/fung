@@ -215,10 +215,14 @@ mod tests {
     #[test]
     fn pure_functions_are_marked() {
         let b = builtins();
-        // `take` and `zip` are written in fung: the mark is the same
-        // whichever language a builtin is written in (VA47).
-        for name in ["put", "sort", "len", "join", "env", "take", "zip"] {
+        // `drop` and `last` are written in fung: their mark is worked out
+        // from their bodies (D141). `first`, `take` and `zip` read a
+        // receiving end, which is an effect.
+        for name in ["put", "sort", "len", "join", "env", "drop", "last"] {
             assert!(b.prelude_pure(name), "{name}");
+        }
+        for name in ["first", "take", "zip"] {
+            assert!(!b.prelude_pure(name), "{name}");
         }
         // Those that take a function to compute a value with are marked
         // too (D90); `each` runs its function for what it does.
@@ -233,7 +237,8 @@ mod tests {
         }
         assert!(b.module_pure("_native.path", "join"));
         assert!(!b.module_pure("_native.fs", "read"));
-        assert!(!b.module_pure("_native.arg", "count"));
+        // an argument check only computes and may raise, as `len` may (D141)
+        assert!(b.module_pure("_native.arg", "count"));
         let s = super::parse("prelude native len(x) pure\nmodule _native.path base(p) pure\n");
         assert!(s.prelude_pure("len"));
         assert_eq!(s.native_signature("len"), Some("x"));

@@ -228,7 +228,7 @@ print(r)</code></pre><pre class="out plain"><code>used ./no-such-file</code></pr
 <h4>예제</h4>
 <p><strong>실패를 알리고 끝내기</strong></p>
 <div class="run"><pre><code>missing = [&quot;DB_HOST&quot;, &quot;DB_USER&quot;] |&gt; filter(k =&gt; env(k) == nil)
-if not is_empty(missing):
+if len(missing) &gt; 0:
   eprint(&quot;missing env:&quot;, join(missing, &quot;, &quot;))
   exit(2)
 ;;
@@ -265,7 +265,7 @@ cleaned tmp</code></pre></div>
   [env_name, ...hosts] =&gt; print(&quot;deploying to&quot;, env_name, hosts)
 ;;</code></pre><pre class="out plain"><code>deploying to prod [&quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
 <p><strong>인자가 없을 때</strong></p>
-<div class="run"><pre><code>if is_empty(args):
+<div class="run"><pre><code>if len(args) == 0:
   eprint(&quot;usage: count N&quot;)
   exit(2)
 ;;

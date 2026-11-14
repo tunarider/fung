@@ -1205,7 +1205,7 @@ fn settled_cancel_sweep(width: i64) -> String {
         )
         .replace(
             "ready: fn(a): send(port_tx, a); burn(k) ;;",
-            "ready: fn(a):\n    burn(turn_budget())\n    settle(k)\n    send(out_tx, turn_budget())\n    send(port_tx, a)\n  ;;",
+            "ready: fn(a):\n    _ = burn(turn_budget())\n    settle(k)\n    send(out_tx, turn_budget())\n    send(port_tx, a)\n  ;;",
         )
         .replace(
             ", attempt)\nprint(\"done\")",

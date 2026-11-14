@@ -84,7 +84,7 @@
 <h2 id="reading">에러 메시지 읽는 법</h2>
 <p>예를 하나 돌려 보자. 정수를 받아야 하는 함수에 문자열을 넘겼다.</p>
 <div class="run"><pre><code>fn backoff(n: int) = n * 2
-arg = &quot;3&quot;
+arg = trim(&quot; 3 &quot;)
 print(backoff(arg))</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `n` must be int, got str
   --&gt; example.fung:1:12
   |
@@ -127,7 +127,7 @@ print(len(fiels))</code></pre><pre class="out err plain" data-code="2"><code>err
 </table>
 <p><code>fung check</code>는 실행하지 않고 컴파일 단계만 검사하므로 종료 코드 2의 에러와 경고만 찾는다. 인자 개수나 타입(E04xx), 0으로 나누기(E05xx) 같은 것은 실행해야 드러난다.</p>
 <h2 id="index">찾아보기</h2>
-<div class="error-index"><a href="#E0101"><code>E0101</code> unexpected character %q</a><a href="#E0102"><code>E0102</code> malformed number %q</a><a href="#E0103"><code>E0103</code> invalid escape %s in string</a><a href="#E0104"><code>E0104</code> unterminated string</a><a href="#E0105"><code>E0105</code> malformed duration %q</a><a href="#E0106"><code>E0106</code> `\u{%s}` is not a Unicode scalar value</a><a href="#E0110"><code>E0110</code> unexpected %s</a><a href="#E0111"><code>E0111</code> comparison operators cannot be chained</a><a href="#E0112"><code>E0112</code> expected %s, found %s</a><a href="#E0113"><code>E0113</code> duplicate key `%s` in a map literal or pattern</a><a href="#E0114"><code>E0114</code> test must be at the top level</a><a href="#E0115"><code>E0115</code> expression nesting too deep (limit %d)</a><a href="#E0116"><code>E0116</code> argument `%s` given twice</a><a href="#E0117"><code>E0117</code> `%s()` has no arguments</a><a href="#E0118"><code>E0118</code> a range cannot be an operand of another range</a><a href="#E0119"><code>E0119</code> parameter `%s` is bound twice</a><a href="#E0120"><code>E0120</code> a required parameter cannot follow an optional one</a><a href="#E0121"><code>E0121</code> a tag takes its values by position, not by name</a><a href="#E0122"><code>E0122</code> a string with `${…}` cannot be %s</a><a href="#E0123"><code>E0123</code> `_` cannot be a named argument</a><a href="#E0124"><code>E0124</code> an anonymous function cannot be written with `=`</a><a href="#E0125"><code>E0125</code> `%s` binds looser than `..`, so it cannot be an end of a slice</a><a href="#E0126"><code>E0126</code> a positional argument cannot follow a named one</a><a href="#E0127"><code>E0127</code> `??` and `|&gt;` cannot be mixed without parentheses</a><a href="#E0128"><code>E0128</code> a symbol is not written with an uppercase letter: `'%s`</a><a href="#E0129"><code>E0129</code> `$%s` in a string is not interpolation</a><a href="#E0130"><code>E0130</code> a type annotation has no element type</a><a href="#E0131"><code>E0131</code> this statement comes after `return`, so it never runs</a><a href="#E0132"><code>E0132</code> `return` used as a value</a><a href="#E0133"><code>E0133</code> a spread `...` cannot stand %s</a><a href="#E0134"><code>E0134</code> `%s` is not a keyword in fung</a><a href="#E0135"><code>E0135</code> number %q is out of range</a><a href="#E0136"><code>E0136</code> a statement after another cannot begin its line with `-`</a><a href="#E0204"><code>E0204</code> undefined name `%s`</a><a href="#E0205"><code>E0205</code> cannot assign to `%s` here: it is bound outside this block</a><a href="#E0206"><code>E0206</code> `%s` is not visible here: it was defined inside a block</a><a href="#E0208"><code>E0208</code> local function `%s` is defined later in this block</a><a href="#E0209"><code>E0209</code> cannot reassign `%s`: it is a function or an imported name</a><a href="#E0210"><code>E0210</code> function `%s` is defined twice</a><a href="#E0211"><code>E0211</code> %s %s</a><a href="#E0212"><code>E0212</code> unknown type `%s`</a><a href="#E0213"><code>E0213</code> return inside a for body</a><a href="#E0214"><code>E0214</code> `?` outside a function</a><a href="#E0215"><code>E0215</code> `_` can only be a call argument or a pattern</a><a href="#E0216"><code>E0216</code> alternatives of a pattern must bind the same names</a><a href="#E0217"><code>E0217</code> type `%s` is defined twice</a><a href="#E0218"><code>E0218</code> type `%s` refers to itself</a><a href="#E0219"><code>E0219</code> type aliases must be at the top level</a><a href="#E0220"><code>E0220</code> `?` inside a for body</a><a href="#E0221"><code>E0221</code> name `%s` is bound twice in one pattern</a><a href="#E0222"><code>E0222</code> `%s` is a built-in type and cannot be a type alias</a><a href="#E0223"><code>E0223</code> `if` without `else` used as a value: it is nil when the condition is false</a><a href="#E0224"><code>E0224</code> a block used as a value %s, so the value is nil</a><a href="#E0225"><code>E0225</code> `%s` starts with an uppercase letter, so it is a tag and cannot name a variable</a><a href="#E0226"><code>E0226</code> `?` inside a lambda given to %s</a><a href="#E0227"><code>E0227</code> `_` in a call on the right of `|&gt;`</a><a href="#E0228"><code>E0228</code> the rest parameter `...%s` is always a list</a><a href="#E0229"><code>E0229</code> `%s` on the right of `|&gt;` applies to the call, not to the pipe</a><a href="#E0230"><code>E0230</code> too many %s (limit %d)</a><a href="#E0231"><code>E0231</code> a block used as a value %s, so the value is nil</a><a href="#E0232"><code>E0232</code> `%s` takes no element type</a><a href="#E0233"><code>E0233</code> the test name %q %s</a><a href="#E0234"><code>E0234</code> %s is computed and discarded</a><a href="#E0235"><code>E0235</code> this arm %s</a><a href="#E0236"><code>E0236</code> `%s` takes exactly one value, found %d</a><a href="#E0237"><code>E0237</code> `%s` inside %s</a><a href="#E0238"><code>E0238</code> cannot bind `%s` again: a name is bound once</a><a href="#E0239"><code>E0239</code> unused %s `%s`</a><a href="#E0240"><code>E0240</code> `%s` hides %s</a><a href="#E0241"><code>E0241</code> this alternative never matches: %s</a><a href="#E0242"><code>E0242</code> the test %q checks nothing: its body is empty</a><a href="#E0243"><code>E0243</code> `??` after %s: it is never nil or a result, so the right side is never used</a><a href="#E0301"><code>E0301</code> cannot find module `%s`</a><a href="#E0302"><code>E0302</code> circular import: %s</a><a href="#E0303"><code>E0303</code> module `%s` has no member `%s`</a><a href="#E0304"><code>E0304</code> `%s` is private to module `%s`</a><a href="#E0305"><code>E0305</code> `%s` is not a valid module name; use `as`</a><a href="#E0306"><code>E0306</code> only import, fn, type, test, and assignment are allowed at the top level of an imported module</a><a href="#E0307"><code>E0307</code> cannot import the entry file</a><a href="#E0308"><code>E0308</code> cannot shadow module `%s`</a><a href="#E0309"><code>E0309</code> `%s` is already imported or bound to a module</a><a href="#E0310"><code>E0310</code> `%s` is internal; %s</a><a href="#E0311"><code>E0311</code> import must be at the top level</a><a href="#E0312"><code>E0312</code> cannot read module `%s`: %s</a><a href="#E0313"><code>E0313</code> `import` after another statement</a><a href="#E0401"><code>E0401</code> cannot call a value of type %s</a><a href="#E0402"><code>E0402</code> %s takes %d argument(s), got %s</a><a href="#E0403"><code>E0403</code> argument `%s` must be %s, got %s</a><a href="#E0404"><code>E0404</code> return value must be %s, got %s</a><a href="#E0405"><code>E0405</code> argument `%s` given twice</a><a href="#E0406"><code>E0406</code> %s has no argument named `%s`</a><a href="#E0407"><code>E0407</code> missing argument %s</a><a href="#E0501"><code>E0501</code> cannot %s %s and %s</a><a href="#E0502"><code>E0502</code> division by zero</a><a href="#E0503"><code>E0503</code> integer overflow</a><a href="#E0504"><code>E0504</code> result is not a finite number</a><a href="#E0505"><code>E0505</code> expected bool, got %s</a><a href="#E0506"><code>E0506</code> cannot %s %s</a><a href="#E0507"><code>E0507</code> %s %d is out of range (length %d)</a><a href="#E0508"><code>E0508</code> key `%s` not found</a><a href="#E0509"><code>E0509</code> cannot index %s with %s</a><a href="#E0511"><code>E0511</code> cannot slice a value of type %s</a><a href="#E0512"><code>E0512</code> cannot test membership in a value of type %s</a><a href="#E0513"><code>E0513</code> cannot convert %s to %s</a><a href="#E0514"><code>E0514</code> cannot use a value of type %s as a map key</a><a href="#E0515"><code>E0515</code> invalid pattern %s</a><a href="#E0516"><code>E0516</code> slice start %d is after its end %d (length %d)</a><a href="#E0517"><code>E0517</code> cannot compare values of different types: %s and %s</a><a href="#E0518"><code>E0518</code> %s is not valid UTF-8: %s</a><a href="#E0519"><code>E0519</code> %s in %s: it is not put into text silently</a><a href="#E0520"><code>E0520</code> file `%s` is not open for %s</a><a href="#E0521"><code>E0521</code> the replacement names group `%s`, which the pattern does not have</a><a href="#E0522"><code>E0522</code> range start %d is after its end %d</a><a href="#E0523"><code>E0523</code> the int %d has no exact float value</a><a href="#E0524"><code>E0524</code> `%d ** %d`: an int to a negative int power is not an int</a><a href="#E0601"><code>E0601</code> no pattern matched %s</a><a href="#E0602"><code>E0602</code> value %s does not match the pattern</a><a href="#E0603"><code>E0603</code> unhandled Err: %s</a><a href="#E0604"><code>E0604</code> `%s` on nil</a><a href="#E0605"><code>E0605</code> `%s` on %s, which is not a result (Ok(x) or Err(e))</a><a href="#E0606"><code>E0606</code> discarded Err: %s</a><a href="#E0607"><code>E0607</code> task's Err was never awaited: %s</a><a href="#E0701"><code>E0701</code> task cancelled</a><a href="#E0702"><code>E0702</code> deadlock: all tasks are waiting</a><a href="#E0703"><code>E0703</code> atom swapped inside its own swap</a><a href="#E0704"><code>E0704</code> agent called from inside its own swap</a><a href="#E0705"><code>E0705</code> channel sent into itself</a><a href="#E0706"><code>E0706</code> `%s` on a closed scope</a><a href="#E0707"><code>E0707</code> `%s` has an effect, which a swap's function must not have</a><a href="#E0708"><code>E0708</code> an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket</a><a href="#E0709"><code>E0709</code> this value would make a cycle through channels or tasks, which could never be freed</a><a href="#E0801"><code>E0801</code> internal error: %v</a><a href="#E0802"><code>E0802</code> expression nesting too deep (limit %d)</a><a href="#E0803"><code>E0803</code> %s</a><a href="#E0804"><code>E0804</code> stack overflow: call depth exceeded %d</a><a href="#E0805"><code>E0805</code> not supported yet: %s</a><a href="#E0806"><code>E0806</code> too many %s (limit %d)</a><a href="#E0807"><code>E0807</code> assertion failed: %s</a><a href="#E0808"><code>E0808</code> `%s` has no value: the statement that assigned it failed</a><a href="#E0809"><code>E0809</code> `%s` is read before its assignment ran</a><a href="#E0810"><code>E0810</code> a file dropped without `close` failed: %s</a><a href="#W0101"><code>W0101</code> unused import `%s`</a><a href="#W0102"><code>W0102</code> unused variable `%s`</a><a href="#W0103"><code>W0103</code> `%s` shadows a prelude function</a><a href="#W0104"><code>W0104</code> `%s` is assigned as the last statement of a block used as a value, so the value is nil</a></div>
+<div class="error-index"><a href="#E0101"><code>E0101</code> unexpected character %q</a><a href="#E0102"><code>E0102</code> malformed number %q</a><a href="#E0103"><code>E0103</code> invalid escape %s in string</a><a href="#E0104"><code>E0104</code> unterminated string</a><a href="#E0105"><code>E0105</code> malformed duration %q</a><a href="#E0106"><code>E0106</code> `\u{%s}` is not a Unicode scalar value</a><a href="#E0110"><code>E0110</code> unexpected %s</a><a href="#E0111"><code>E0111</code> comparison operators cannot be chained</a><a href="#E0112"><code>E0112</code> expected %s, found %s</a><a href="#E0113"><code>E0113</code> duplicate key `%s` in a map literal or pattern</a><a href="#E0114"><code>E0114</code> test must be at the top level</a><a href="#E0115"><code>E0115</code> expression nesting too deep (limit %d)</a><a href="#E0116"><code>E0116</code> argument `%s` given twice</a><a href="#E0117"><code>E0117</code> `%s()` has no arguments</a><a href="#E0118"><code>E0118</code> a range cannot be an operand of another range</a><a href="#E0119"><code>E0119</code> parameter `%s` is bound twice</a><a href="#E0120"><code>E0120</code> a required parameter cannot follow an optional one</a><a href="#E0121"><code>E0121</code> a tag takes its values by position, not by name</a><a href="#E0122"><code>E0122</code> a string with `${…}` cannot be %s</a><a href="#E0123"><code>E0123</code> `_` cannot be a named argument</a><a href="#E0124"><code>E0124</code> an anonymous function cannot be written with `=`</a><a href="#E0125"><code>E0125</code> `%s` binds looser than `..`, so it cannot be an end of a slice</a><a href="#E0126"><code>E0126</code> a positional argument cannot follow a named one</a><a href="#E0127"><code>E0127</code> `??` and `|&gt;` cannot be mixed without parentheses</a><a href="#E0128"><code>E0128</code> a symbol is not written with an uppercase letter: `'%s`</a><a href="#E0129"><code>E0129</code> `$` in a string must start `${…}` or be written `\$`</a><a href="#E0130"><code>E0130</code> a type annotation has no element type</a><a href="#E0131"><code>E0131</code> this statement comes after `return`, so it never runs</a><a href="#E0132"><code>E0132</code> `return` used as a value</a><a href="#E0133"><code>E0133</code> a spread `...` cannot stand %s</a><a href="#E0134"><code>E0134</code> `%s` is not a keyword in fung</a><a href="#E0135"><code>E0135</code> number %q is out of range</a><a href="#E0136"><code>E0136</code> a statement after another cannot begin its line with `-`</a><a href="#E0204"><code>E0204</code> undefined name `%s`</a><a href="#E0205"><code>E0205</code> cannot assign to `%s` here: it is bound outside this block</a><a href="#E0206"><code>E0206</code> `%s` is not visible here: it was defined inside a block</a><a href="#E0208"><code>E0208</code> local function `%s` is defined later in this block</a><a href="#E0209"><code>E0209</code> cannot reassign `%s`: it is a function or an imported name</a><a href="#E0210"><code>E0210</code> function `%s` is defined twice</a><a href="#E0211"><code>E0211</code> %s %s</a><a href="#E0212"><code>E0212</code> unknown type `%s`</a><a href="#E0213"><code>E0213</code> return inside a for body</a><a href="#E0214"><code>E0214</code> `?` outside a function</a><a href="#E0215"><code>E0215</code> `_` can only be a call argument or a pattern</a><a href="#E0216"><code>E0216</code> alternatives of a pattern must bind the same names</a><a href="#E0217"><code>E0217</code> type `%s` is defined twice</a><a href="#E0218"><code>E0218</code> type `%s` refers to itself</a><a href="#E0219"><code>E0219</code> type aliases must be at the top level</a><a href="#E0220"><code>E0220</code> `?` inside a for body</a><a href="#E0221"><code>E0221</code> name `%s` is bound twice in one pattern</a><a href="#E0222"><code>E0222</code> `%s` is a built-in type and cannot be a type alias</a><a href="#E0223"><code>E0223</code> `if` without `else` used as a value: it is nil when the condition is false</a><a href="#E0224"><code>E0224</code> a block used as a value %s, so the value is nil</a><a href="#E0225"><code>E0225</code> `%s` starts with an uppercase letter, so it is a tag and cannot name a variable</a><a href="#E0226"><code>E0226</code> `?` inside a lambda given to %s</a><a href="#E0227"><code>E0227</code> `_` in a call on the right of `|&gt;`</a><a href="#E0228"><code>E0228</code> the rest parameter `...%s` is always a list</a><a href="#E0229"><code>E0229</code> `%s` on the right of `|&gt;` applies to the call, not to the pipe</a><a href="#E0230"><code>E0230</code> too many %s (limit %d)</a><a href="#E0231"><code>E0231</code> a block used as a value %s, so the value is nil</a><a href="#E0232"><code>E0232</code> `%s` takes no element type</a><a href="#E0233"><code>E0233</code> the test name %q %s</a><a href="#E0234"><code>E0234</code> %s is computed and discarded</a><a href="#E0235"><code>E0235</code> this arm %s</a><a href="#E0236"><code>E0236</code> `%s` takes exactly one value, found %d</a><a href="#E0237"><code>E0237</code> `%s` inside %s</a><a href="#E0238"><code>E0238</code> cannot bind `%s` again: a name is bound once</a><a href="#E0239"><code>E0239</code> unused %s `%s`</a><a href="#E0240"><code>E0240</code> `%s` hides %s</a><a href="#E0241"><code>E0241</code> this alternative never matches: %s</a><a href="#E0242"><code>E0242</code> the test %q checks nothing: its body is empty</a><a href="#E0243"><code>E0243</code> `??` after %s: it is never nil or a result, so the right side is never used</a><a href="#E0301"><code>E0301</code> cannot find module `%s`</a><a href="#E0302"><code>E0302</code> circular import: %s</a><a href="#E0303"><code>E0303</code> module `%s` has no member `%s`</a><a href="#E0304"><code>E0304</code> `%s` is private to module `%s`</a><a href="#E0305"><code>E0305</code> `%s` is not a valid module name; use `as`</a><a href="#E0306"><code>E0306</code> only import, fn, type, test, and assignment are allowed at the top level of an imported module</a><a href="#E0307"><code>E0307</code> cannot import the entry file</a><a href="#E0308"><code>E0308</code> cannot shadow module `%s`</a><a href="#E0309"><code>E0309</code> `%s` is already imported or bound to a module</a><a href="#E0310"><code>E0310</code> `%s` is internal; %s</a><a href="#E0311"><code>E0311</code> import must be at the top level</a><a href="#E0312"><code>E0312</code> cannot read module `%s`: %s</a><a href="#E0313"><code>E0313</code> `import` after another statement</a><a href="#E0401"><code>E0401</code> cannot call a value of type %s</a><a href="#E0402"><code>E0402</code> %s takes %d argument(s), got %s</a><a href="#E0403"><code>E0403</code> argument `%s` must be %s, got %s</a><a href="#E0404"><code>E0404</code> return value must be %s, got %s</a><a href="#E0405"><code>E0405</code> argument `%s` given twice</a><a href="#E0406"><code>E0406</code> %s has no argument named `%s`</a><a href="#E0407"><code>E0407</code> missing argument %s</a><a href="#E0501"><code>E0501</code> cannot %s %s and %s</a><a href="#E0502"><code>E0502</code> division by zero</a><a href="#E0503"><code>E0503</code> integer overflow</a><a href="#E0504"><code>E0504</code> result is not a finite number</a><a href="#E0505"><code>E0505</code> expected bool, got %s</a><a href="#E0506"><code>E0506</code> cannot %s %s</a><a href="#E0507"><code>E0507</code> %s %d is out of range (length %d)</a><a href="#E0508"><code>E0508</code> key `%s` not found</a><a href="#E0509"><code>E0509</code> cannot index %s with %s</a><a href="#E0511"><code>E0511</code> cannot slice a value of type %s</a><a href="#E0512"><code>E0512</code> cannot test membership in a value of type %s</a><a href="#E0513"><code>E0513</code> cannot convert %s to %s</a><a href="#E0514"><code>E0514</code> cannot use a value of type %s as a map key</a><a href="#E0515"><code>E0515</code> invalid pattern %s</a><a href="#E0516"><code>E0516</code> slice start %d is after its end %d (length %d)</a><a href="#E0517"><code>E0517</code> cannot compare values of different types: %s and %s</a><a href="#E0518"><code>E0518</code> %s is not valid UTF-8: %s</a><a href="#E0519"><code>E0519</code> %s in %s: it is not put into text silently</a><a href="#E0520"><code>E0520</code> file `%s` is not open for %s</a><a href="#E0521"><code>E0521</code> the replacement names group `%s`, which the pattern does not have</a><a href="#E0522"><code>E0522</code> range start %d is after its end %d</a><a href="#E0523"><code>E0523</code> the int %d has no exact float value</a><a href="#E0524"><code>E0524</code> `%d ** %d`: an int to a negative int power is not an int</a><a href="#E0601"><code>E0601</code> no pattern matched %s</a><a href="#E0602"><code>E0602</code> value %s does not match the pattern</a><a href="#E0603"><code>E0603</code> unhandled Err: %s</a><a href="#E0604"><code>E0604</code> `%s` on nil</a><a href="#E0605"><code>E0605</code> `%s` on %s, which is not a result (Ok(x) or Err(e))</a><a href="#E0606"><code>E0606</code> discarded Err: %s</a><a href="#E0607"><code>E0607</code> task's Err was never awaited: %s</a><a href="#E0701"><code>E0701</code> task cancelled</a><a href="#E0702"><code>E0702</code> deadlock: all tasks are waiting</a><a href="#E0703"><code>E0703</code> atom swapped inside its own swap</a><a href="#E0704"><code>E0704</code> agent called from inside its own swap</a><a href="#E0705"><code>E0705</code> channel sent into itself</a><a href="#E0706"><code>E0706</code> `%s` on a closed scope</a><a href="#E0707"><code>E0707</code> `%s` has an effect, which a swap's function must not have</a><a href="#E0708"><code>E0708</code> an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket</a><a href="#E0709"><code>E0709</code> this value would make a cycle through channels or tasks, which could never be freed</a><a href="#E0801"><code>E0801</code> internal error: %v</a><a href="#E0802"><code>E0802</code> expression nesting too deep (limit %d)</a><a href="#E0803"><code>E0803</code> %s</a><a href="#E0804"><code>E0804</code> stack overflow: call depth exceeded %d</a><a href="#E0805"><code>E0805</code> not supported yet: %s</a><a href="#E0806"><code>E0806</code> too many %s (limit %d)</a><a href="#E0807"><code>E0807</code> assertion failed: %s</a><a href="#E0808"><code>E0808</code> `%s` has no value: the statement that assigned it failed</a><a href="#E0809"><code>E0809</code> `%s` is read before its assignment ran</a><a href="#E0810"><code>E0810</code> a file dropped without `close` failed: %s</a><a href="#W0101"><code>W0101</code> unused import `%s`</a><a href="#W0102"><code>W0102</code> unused variable `%s`</a><a href="#W0103"><code>W0103</code> `%s` shadows a prelude function</a><a href="#W0104"><code>W0104</code> `%s` is assigned as the last statement of a block used as a value, so the value is nil</a></div>
 <h2 id="e01">E01xx: 문법(렉서·파서)</h2>
 <p>소스는 먼저 렉서(lexer)가 글자를 토큰(token, 숫자·이름·연산자 같은 낱말)으로 자르고, 파서(parser)가 토큰을 문장과 식의 구조로 묶는다. 이 단계에서 글자나 구조가 규칙에 맞지 않으면 E01xx다. 실행 전에 찾는 컴파일 에러라 종료 코드는 2이고, 문법 에러가 있으면 파일의 어떤 줄도 실행하지 않는다. <a href="language/lexical.html">어휘</a>와 <a href="language/blocks.html">문장과 블록</a>이 규칙이다.</p>
 <section class="entry error" id="E0101">
@@ -441,19 +441,8 @@ print(m)</code></pre><pre class="out plain"><code>{db_prod: 1}</code></pre></div
 <section class="entry error" id="E0123">
 <h3>E0123</h3>
 <p class="catalog"><code>`_` cannot be a named argument</code></p>
-<p>이름 인자 자리에 <code>_</code>를 썼다. <code>_</code> 부분 적용은 위치 인자 자리만 채운다. 이름 인자 자리를 비워 둔 함수가 필요하면 람다를 쓴다.</p>
-<div class="run"><pre><code>fn greet(name, greeting = &quot;hi&quot;) = &quot;${greeting}, ${name}&quot;
-hello = greet(&quot;kim&quot;, greeting: _)</code></pre><pre class="out err plain" data-code="2"><code>error[E0123]: `_` cannot be a named argument
-  --&gt; example.fung:2:32
-  |
-2 | hello = greet(&quot;kim&quot;, greeting: _)
-  |                                ^
-  |
- help: `_` fills a position; for a named one write a lambda: `x =&gt; f(a: x)`</code></pre></div>
-<div class="run"><pre><code>fn greet(name, greeting = &quot;hi&quot;) = &quot;${greeting}, ${name}&quot;
-hello = g =&gt; greet(&quot;kim&quot;, greeting: g)
-print(hello(&quot;hello&quot;))</code></pre><pre class="out plain"><code>hello, kim</code></pre></div>
-<p class="help">기본 도움말: <code>`_` fills a position; for a named one write a lambda: `x =&gt; f(a: x)`</code></p>
+<p>쓰지 않는 번호다. 이름 인자 자리에 <code>_</code>를 쓸 때(<code>f(a: _)</code>) 내던 에러였는데, 이제 이름 인자 자리도 비워 둘 수 있다(<a href="language/functions.html">부분 적용</a>). 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.</p>
+<p class="help">기본 도움말: <code>not used: `f(a: _)` is a partial application</code></p>
 </section>
 <section class="entry error" id="E0124">
 <h3>E0124</h3>
@@ -537,20 +526,20 @@ print(color == Red, type_of(color))</code></pre><pre class="out plain"><code>tru
 </section>
 <section class="entry error" id="E0129">
 <h3>E0129</h3>
-<p class="catalog"><code>`$%s` in a string is not interpolation</code></p>
-<p>보통 문자열 안에서 <code>$</code> 바로 뒤에 이름이 왔다. <code>&quot;$name&quot;</code>은 셸이나 다른 언어에서 보간이지만 fung에서는 보간이 아니라 글자 그대로라, 값이 들어간 줄 알기 쉽다. <code>$</code> 뒤가 이름의 첫 글자가 아니면(<code>&quot;$5&quot;</code>, 끝의 <code>$</code>) 글자다. 원시 문자열 <code>`…`</code>에는 보간이 없으므로 해당하지 않는다.</p>
+<p class="catalog"><code>`$` in a string must start `${…}` or be written `\$`</code></p>
+<p>보통 문자열 안에 <code>${</code>도 <code>\$</code>도 아닌 맨 <code>$</code>가 있다. 문자열의 <code>$</code>는 보간(<code>${…}</code>)을 시작하거나, 글자 그대로면 <code>\$</code>로 쓴다. <code>&quot;$name&quot;</code>처럼 셸이나 다른 언어에서 보간인 모양도, <code>&quot;$5&quot;</code>처럼 글자로 보이는 모양도 같은 에러다. 원시 문자열 <code>`…`</code>에는 보간이 없으므로 해당하지 않는다.</p>
 <div class="run"><pre><code>user = &quot;ann&quot;
-print(&quot;hello $user&quot;)</code></pre><pre class="out err plain" data-code="2"><code>error[E0129]: `$user` in a string is not interpolation
+print(&quot;hello $user&quot;)</code></pre><pre class="out err plain" data-code="2"><code>error[E0129]: `$` in a string must start `${…}` or be written `\$`
   --&gt; example.fung:2:14
   |
 2 | print(&quot;hello $user&quot;)
   |              ^^^^^
   |
  help: write `${user}` for the value, or `\$user` for the text</code></pre></div>
-<p>고치는 법: 값은 <code>${user}</code>로, 글자 그대로는 <code>\$user</code>로 쓴다. <code>$</code>가 많은 셸 명령은 원시 문자열로 쓴다.</p>
+<p>고치는 법: 값은 <code>${user}</code>로, 글자 그대로는 <code>\$user</code>·<code>\$5</code>로 쓴다. <code>$</code>가 많은 셸 명령이나 정규식은 원시 문자열로 쓴다.</p>
 <div class="run"><pre><code>user = &quot;ann&quot;
-print(&quot;hello ${user}, not \$user&quot;)</code></pre><pre class="out plain"><code>hello ann, not $user</code></pre></div>
-<p class="help">기본 도움말: <code>write `${name}` for the value, or `\$name` for the text</code></p>
+print(&quot;hello ${user}, not \$user, \$5&quot;, `$HOME`)</code></pre><pre class="out plain"><code>hello ann, not $user, $5 $HOME</code></pre></div>
+<p class="help">기본 도움말: <code>write `\$` for the character, or `${…}` to put a value in</code></p>
 </section>
 <section class="entry error" id="E0130">
 <h3>E0130</h3>
@@ -1104,7 +1093,7 @@ print(max_retries, home, cfg.HOME)</code></pre><pre class="out plain"><code>3 /h
 <section class="entry error" id="E0226">
 <h3>E0226</h3>
 <p class="catalog"><code>`?` inside a lambda given to %s</code></p>
-<p>쓰지 않는 번호다. <code>map</code>·<code>conc.pmap</code>에 넘긴 람다 안의 <code>?</code>에 내던 에러였는데, 어느 람다든 <code>return</code>·<code>?</code>를 막는 <a href="#E0237">E0237</a>에 합쳤다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.</p>
+<p>쓰지 않는 번호다. <code>map</code>·<code>conc.pmap</code>에 넘긴 람다 안의 <code>?</code>에 내던 에러였다. 한때 어느 람다든 막는 <a href="#E0237">E0237</a>에 합쳤다가, 지금은 람다의 <code>?</code>가 익명 <code>fn</code>처럼 그 람다에서 돌아온다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.</p>
 <p class="help">기본 도움말: <code>not used: merged into E0237</code></p>
 </section>
 <section class="entry error" id="E0227">
@@ -1209,7 +1198,7 @@ cleanup</code></pre><pre class="out err plain" data-code="2"><code>error[E0234]:
   | ^^^^^^^
   |
  help: to call it, add `()`: `cleanup()`; to discard it on purpose, write `_ = cleanup`</code></pre></div>
-<p>효과가 없다고 알려진 내장 함수·표준 모듈 함수(<code>put</code>, <code>sort</code>, <code>replace</code>, <code>path.join</code>, <code>json.parse</code> 등 값을 계산해 돌려줄 뿐인 것)를 문장으로 부른 것도 같다(메시지 <code>the result of `put(…)` is computed and discarded</code>). <code>put(m, k, v)</code>가 <code>m</code>을 바꾼다고 여긴 실수가 흔하다. 그런 호출의 인자가 모두 효과 없는 식이면 그 호출이 든 식도 효과 없는 식이다(<code>count == len(xs)</code>, <code>[sort(xs)]</code>). 함수를 받는 내장 함수(<code>map</code>·<code>each</code> 등)와 사용자 함수는 무엇을 할지 모르므로 해당하지 않는다.</p>
+<p>효과가 없는 함수(<code>put</code>, <code>sort</code>, <code>replace</code>, <code>path.join</code>, <code>json.parse</code>, 본문이 계산만 하는 내 함수 등 값을 계산해 돌려줄 뿐인 것)를 문장으로 부른 것도 같다(메시지 <code>the result of `put(…)` is computed and discarded</code>). <code>put(m, k, v)</code>가 <code>m</code>을 바꾼다고 여긴 실수가 흔하다. 그런 호출의 인자가 모두 효과 없는 식이면 그 호출이 든 식도 효과 없는 식이다(<code>count == len(xs)</code>, <code>[sort(xs)]</code>). 함수를 받는 함수(<code>map</code> 등)는 받은 함수가 효과 없을 때만 해당한다. 무엇이 효과 없는 함수인지는 <a href="language/blocks.html">블록</a>에 있다. 계산만 돌리려는 문장은 <code>_ = f(x)</code>로 쓴다.</p>
 <p>고치는 법: 호출이면 <code>()</code>를 붙이고, 대입이면 <code>=</code>를 쓰고, 효과 없는 함수면 결과를 이름에 담고(<code>m = put(m, k, v)</code>), 여러 줄 식이면 연산자를 줄 끝에 둔다. <code>fung -e</code>의 마지막 값도 버려지므로 보려면 <code>print(…)</code>로 감싼다. 일부러 버리려면 <code>_ = 식</code>. 맨 <code>nil</code>도 같다: 문장으로 쓴 <code>match</code>에서 할 일이 없는 절은 본문을 비워 <code>_ =&gt;</code>로, 할 일이 없는 <code>else</code>는 빼고 쓴다. 실행 중에 계산된 <code>Err</code>를 버리는 것은 여전히 E0606이다. 0.6.0까지는 말없이 버렸다.</p>
 <div class="run"><pre><code>fn cleanup() = print(&quot;cleaned&quot;)
 cleanup()</code></pre><pre class="out plain"><code>cleaned</code></pre></div>
@@ -1268,29 +1257,31 @@ print(divmod(7, 2))</code></pre><pre class="out plain"><code>Ok((3, 1))</code></
 <section class="entry error" id="E0237">
 <h3>E0237</h3>
 <p class="catalog"><code>`%s` inside %s</code></p>
-<p>람다 <code>=&gt;</code>나 <code>for</code> 본문 안에서 <code>return</code>이나 <code>?</code>를 썼다. 람다는 일찍 돌아갈 수 없다. 허락하면 <code>return</code>·<code>?</code>는 바깥 함수가 아니라 람다에서 돌아오고, 그 값은 받은 함수가 쓰는 대로 쓰인다: <code>map</code>이면 <code>Err</code>가 결과 리스트의 원소가 되고, <code>filter</code>면 조건 자리에서 런타임 에러가 된다. <code>for</code> 본문도 <code>map</code>이 부르는 람다라 같다. 0.6.0까지는 <code>for</code> 본문(E0213·E0220)과 <code>map</code>·<code>conc.pmap</code>에 바로 넘긴 람다의 <code>?</code>(E0226)만 막았다.</p>
-<div class="run"><pre><code>fn ports(xs) = map(xs, s =&gt; parse_int(s)?)</code></pre><pre class="out err plain" data-code="2"><code>error[E0237]: `?` inside a lambda `=&gt;`
-  --&gt; example.fung:1:41
+<p><code>for</code> 본문 안에서 <code>return</code>이나 <code>?</code>를 썼다. <code>for</code>는 <code>map</code>·<code>each</code>의 설탕이라 본문은 그 함수들에 넘길 함수의 본문이다. 그래서 <code>return</code>은 쓰는 사람이 기대하는 뜻(바깥 함수에서 돌아가기)으로 옮길 수 없고, 그 원소만 끝내는 뜻으로 받으면 <code>return x</code>가 조용히 "다음 원소로"가 된다. 람다와 익명 <code>fn</code>의 <code>return</code>·<code>?</code>는 그 함수에서 돌아오므로 이 에러가 아니다. 0.6.0까지는 <code>for</code> 본문(E0213·E0220)과 <code>map</code>·<code>conc.pmap</code>에 바로 넘긴 람다의 <code>?</code>(E0226)를 막았고, 0.6.0 뒤 한때 모든 람다도 막았다.</p>
+<div class="run"><pre><code>fn first_big(xs):
+  for x in xs:
+    if x &gt; 100: return x ;;
+  ;;
+  nil
+;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0237]: `return` inside a `for` body
+  --&gt; example.fung:3:17
   |
-1 | fn ports(xs) = map(xs, s =&gt; parse_int(s)?)
-  |                                         ^
+3 |     if x &gt; 100: return x ;;
+  |                 ^^^^^^
   |
- help: a lambda `=&gt;` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`</code></pre></div>
-<p>고치는 법: 실패할 수 있는 변환은 첫 <code>Err</code>에서 멈추는 <code>try_map</code>, 찾기는 <code>find</code>, 검사는 <code>all</code>·<code>any</code>, 누적은 <code>fold</code>를 쓴다. 정말 일찍 돌아가야 하면 익명 함수 <code>fn(x): … ;;</code>로 쓴다.</p>
+ help: a `for` body is the body of the function `map`/`each` is given, so it cannot return from the function around it; use `try_map`, `find`, `all`/`any` or `fold`, or an anonymous `fn(x): … ;;` to return from</code></pre></div>
+<p>고치는 법: 실패할 수 있는 변환은 첫 <code>Err</code>에서 멈추는 <code>try_map</code>, 찾기는 <code>find</code>, 검사는 <code>all</code>·<code>any</code>, 누적은 <code>fold</code>를 쓴다.</p>
 <div class="run"><pre><code>fn ports(xs) = try_map(xs, parse_int)
 print(ports([&quot;80&quot;, &quot;443&quot;]), ports([&quot;80&quot;, &quot;http&quot;]))
-fn first_big(xs) = find(xs, fn(x):
-  if x &lt; 0: return false ;;
-  x &gt; 100
-;;)
+fn first_big(xs) = find(xs, x =&gt; x &gt; 100)
 print(first_big([10, 300]))</code></pre><pre class="out plain"><code>Ok([80, 443]) Err({kind: 'parse, message: &quot;not an integer: \&quot;http\&quot;&quot;})
 300</code></pre></div>
-<p class="help">기본 도움말: <code>a lambda `=&gt;` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`</code></p>
+<p class="help">기본 도움말: <code>a `for` body is the body of the function `map`/`each` is given, so it cannot return from the function around it; use `try_map`, `find`, `all`/`any` or `fold`, or an anonymous `fn(x): … ;;` to return from</code></p>
 </section>
 <section class="entry error" id="E0238">
 <h3>E0238</h3>
 <p class="catalog"><code>cannot bind `%s` again: a name is bound once</code></p>
-<p>보이는 이름을 다시 묶었다. 이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름이든, 바깥 블록이나 바깥 함수의 이름, 최상위 이름과 최상위 <code>fn</code>, import한 이름과 모듈 이름, prelude 함수, 지역 <code>fn</code> 자신의 이름이든 같고, 묶는 방법(대입, 구조 분해, 매개변수, 람다의 매개변수, <code>for</code>의 변수, <code>match</code> 절의 패턴, 지역 <code>fn</code>, 최상위 <code>fn</code>, import)과도 상관없다. 그래서 이름은 모두 상수이고, 한 자리에서 이름 하나는 한 가지만 뜻한다: 가려진 이름을 읽으려다 내 값을 읽는 실수(<code>match x: x =&gt; …</code>는 <code>x</code>와 비교하지 않는다)가 없다. 노트가 그 이름이 어디서 왔는지 알려 준다: 같은 블록에서 처음 묶은 줄(<code>note: `x` is first bound on line 1</code>), 블록 바깥(<code>is bound outside this block, on line 2</code>), 최상위 이름, 함수(<code>is a function defined on line 1</code>), import(<code>is imported on line 1</code>), 모듈(<code>is the module imported on line 1</code>), prelude 함수(<code>is a prelude function</code>). 도움말은 무엇을 쓸지 알려 준다. 전에는 이 규칙을 갈래마다 다른 번호(E0205·E0210·E0240·E0308)로 보고했다.</p>
+<p>보이는 이름을 다시 묶었다. 이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름이든, 바깥 블록이나 바깥 함수의 이름, 최상위 이름과 최상위 <code>fn</code>, import한 이름과 모듈 이름, 지역 <code>fn</code> 자신의 이름이든 같고, 묶는 방법(대입, 구조 분해, 매개변수, 람다의 매개변수, <code>for</code>의 변수, <code>match</code> 절의 패턴, 지역 <code>fn</code>, 최상위 <code>fn</code>, import)과도 상관없다. 그래서 이름은 모두 상수이고, 한 자리에서 이름 하나는 한 가지만 뜻한다: 가려진 이름을 읽으려다 내 값을 읽는 실수(<code>match x: x =&gt; …</code>는 <code>x</code>와 비교하지 않는다)가 없다. 노트가 그 이름이 어디서 왔는지 알려 준다: 같은 블록에서 처음 묶은 줄(<code>note: `x` is first bound on line 1</code>), 블록 바깥(<code>is bound outside this block, on line 2</code>), 최상위 이름, 함수(<code>is a function defined on line 1</code>), import(<code>is imported on line 1</code>), 모듈(<code>is the module imported on line 1</code>). prelude 함수는 어느 블록에도 묶이지 않은 이름이라 해당하지 않는다: 묶은 블록에서 가려진다(<a href="language/scope.html">변수와 스코프</a>). 도움말은 무엇을 쓸지 알려 준다. 전에는 이 규칙을 갈래마다 다른 번호(E0205·E0210·E0240·E0308)로 보고했다.</p>
 <div class="run"><pre><code>retries = 3
 retries = retries + 1
 print(retries)</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `retries` again: a name is bound once
@@ -1334,18 +1325,6 @@ print(clamp([5, 20], limit))</code></pre><pre class="out err plain" data-code="2
   |
   note: `limit` is a top-level name bound on line 1
  help: a visible name means one thing: give the new one a name of its own</code></pre></div>
-<div class="run"><pre><code>fn summary(xs):
-  max = 0
-  len(xs) + max
-;;
-print(summary([1]))</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `max` again: a name is bound once
-  --&gt; example.fung:2:3
-  |
-2 |   max = 0
-  |   ^^^
-  |
-  note: `max` is a prelude function
- help: a visible name means one thing: give the new one a name of its own</code></pre></div>
 <div class="run"><pre><code>limit = 10
 fn clamp(xs, cap) = map(xs, x =&gt; x &gt; cap then cap else x)
 print(clamp([5, 20], limit))</code></pre><pre class="out plain"><code>[5, 10]</code></pre></div>
@@ -1375,7 +1354,7 @@ path = &quot;/tmp/out&quot;</code></pre><pre class="out err plain" data-code="2"
 <div class="run"><pre><code>import path
 out_path = &quot;/tmp/out&quot;
 print(path.join(out_path, &quot;a.txt&quot;))</code></pre><pre class="out plain"><code>/tmp/out/a.txt</code></pre></div>
-<p>import된 파일의 인터페이스, 곧 공개 최상위 이름과 공개 <code>fn</code>의 매개변수는 prelude 함수와 같은 이름이어도 된다(<code>http.get</code>, <code>path.join</code>, <code>timeout:</code>). 부르는 쪽은 그것을 모듈 이름을 붙여 읽거나 인자 이름으로만 쓴다(<a href="language/modules.html">모듈</a>). 같은 모듈을 두 번 import하는 것은 이름이 아니라 모듈의 규칙이라 <a href="#E0309">E0309</a>다.</p>
+<p>같은 모듈을 두 번 import하는 것은 이름이 아니라 모듈의 규칙이라 <a href="#E0309">E0309</a>다.</p>
 <p class="help">기본 도움말: <code>give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)</code></p>
 </section>
 <section class="entry error" id="E0239">
@@ -1597,31 +1576,8 @@ print(my_lib.answer())</code></pre><pre class="out plain"><code>42</code></pre><
 <section class="entry error" id="E0306">
 <h3>E0306</h3>
 <p class="catalog"><code>only import, fn, type, test, and assignment are allowed at the top level of an imported module</code></p>
-<p>가져오는 모듈의 최상위에 <code>import</code>, <code>fn</code>, <code>type</code>, <code>test</code>, 이름을 묶는 대입이 아닌 문장이 있다(<code>_ = 식</code>, <code>(_, _) = 식</code>처럼 아무 이름도 묶지 않는 대입도 맨 문장이다). 모듈은 처음 가져올 때 한 번 실행되는데, 그때 출력 같은 일이 일어나면 가져오는 것만으로 부작용이 생긴다.</p>
-<p>흔한 원인: 실행 파일로 쓰던 파일을 모듈로 가져옴, 확인용 <code>print</code>를 남겨 둠.</p>
-<details class="fixture"><summary>준비물: config.fung</summary>
-<p><code>config.fung</code></p>
-<pre class="plain"><code>port = 8080
-print(&quot;loading config&quot;)</code></pre>
-</details>
-<div class="run"><pre><code>import &quot;./config&quot;
-
-print(config.port)</code></pre><pre class="out err plain" data-code="2"><code>error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
-  --&gt; config.fung:2:1
-  |
-2 | print(&quot;loading config&quot;)
-  | ^
-  |
- help: move the statement into a function, or into the entry file</code></pre></div>
-<p>고치는 법: 그 문장을 함수 안으로 옮기거나 실행 파일(진입 파일)로 옮긴다.</p>
-<details class="fixture"><summary>준비물: config.fung</summary>
-<p><code>config.fung</code></p>
-<pre class="plain"><code>port = 8080
-fn describe() = &quot;port ${port}&quot;</code></pre>
-</details>
-<div class="run"><pre><code>import &quot;./config&quot;
-print(config.describe())</code></pre><pre class="out plain"><code>port 8080</code></pre></div>
-<p class="help">기본 도움말: <code>move the statement into a function, or into the entry file</code></p>
+<p>쓰지 않는 번호다. 가져오는 모듈의 최상위에 <code>import</code>, <code>fn</code>, <code>type</code>, <code>test</code>, 이름을 묶는 대입이 아닌 문장이 있을 때 내던 에러였다. 이제 import된 파일의 최상위는 진입 파일과 같아서, 어떤 문장이든 처음 import될 때 위에서 아래로 한 번 실행된다(<a href="language/modules.html">모듈</a>). 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.</p>
+<p class="help">기본 도움말: <code>not used: an imported file's top level takes any statement</code></p>
 </section>
 <section class="entry error" id="E0307">
 <h3>E0307</h3>
@@ -1757,7 +1713,7 @@ print(&quot;start&quot;, json.stringify([1]))</code></pre><pre class="out plain"
 <p class="catalog"><code>cannot call a value of type %s</code></p>
 <p>함수가 아닌 값을 함수처럼 불렀다. 메시지에 그 값의 타입이 나온다.</p>
 <p>흔한 원인: 같은 이름의 변수가 함수를 가렸음(prelude 변수 <code>args</code>는 함수가 아니라 리스트다), 괄호를 잘못 붙임.</p>
-<div class="run"><pre><code>name = &quot;deploy&quot;
+<div class="run"><pre><code>name = lower(&quot;Deploy&quot;)
 print(name())</code></pre><pre class="out err plain" data-code="1"><code>error[E0401]: cannot call a value of type str
   --&gt; example.fung:2:11
   |
@@ -1800,7 +1756,7 @@ print(connect(&quot;db1&quot;, 5432, 10s))</code></pre><pre class="out plain"><c
 <p>인자가 매개변수에 적은 타입이 아니다. 위치는 그 매개변수를 가리키고, 호출 경로의 두 번째 줄이 누가 불렀는지 보여 준다. 값이 리터럴이라 소스에 드러나면(매개변수의 기본값, 대상이 정해진 호출의 리터럴 인자) 실행 전에 같은 문구로 잡고 위치는 그 리터럴이다(종료 코드 2).</p>
 <p>흔한 원인: 명령줄 인자나 파일에서 읽은 문자열을 숫자로 바꾸지 않고 넘김, 열거형 별칭(<code>type color = Red | Green</code>)에 없는 태그를 넘김.</p>
 <div class="run"><pre><code>fn backoff(n: int) = n * 2
-arg = &quot;3&quot;
+arg = trim(&quot; 3 &quot;)
 print(backoff(arg))</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `n` must be int, got str
   --&gt; example.fung:1:12
   |
@@ -1892,7 +1848,7 @@ print(connect(&quot;db1&quot;))</code></pre><pre class="out plain"><code>db1:22<
 <p class="catalog"><code>cannot %s %s and %s</code></p>
 <p>이항 연산자가 받은 두 값의 타입 조합으로는 계산할 수 없다. 메시지는 연산(<code>add</code>, <code>subtract</code> …)과 두 타입을 적는다. 함수는 같음이 없어서 <code>==</code>·<code>!=</code>로 견주거나 <code>unique</code>에 넣어도 이 에러다(<code>cannot compare fn and fn</code>). 두 쪽이 다 함수를 품은 리스트·맵·튜플·태그도 그렇다.</p>
 <p>흔한 원인: 문자열과 숫자를 <code>+</code>로 이음, <code>nil</code>(없는 값)로 계산함, 기간을 정수로 <code>//</code> 나눔.</p>
-<div class="run"><pre><code>count = 3
+<div class="run"><pre><code>count = len([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;])
 print(&quot;found &quot; + count + &quot; files&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0501]: cannot add str and int
   --&gt; example.fung:2:16
   |
@@ -1972,7 +1928,7 @@ if len(xs): print(&quot;not empty&quot;) ;;</code></pre><pre class="out err plai
   |
  call path (innermost first):
    example.fung:2 &lt;entry&gt;</code></pre></div>
-<p>고치는 법: 비교를 직접 쓴다. 빈 컬렉션 검사는 <code>is_empty</code>도 있다.</p>
+<p>고치는 법: 비교를 직접 쓴다(<code>len(xs) &gt; 0</code>, <code>xs != []</code>).</p>
 <div class="run"><pre><code>xs = [1, 2]
 if len(xs) &gt; 0: print(&quot;not empty&quot;) ;;</code></pre><pre class="out plain"><code>not empty</code></pre></div>
 </section>
@@ -2084,19 +2040,20 @@ print(host, port)</code></pre><pre class="out plain"><code>db1 5432</code></pre>
 <h3>E0513</h3>
 <p class="catalog"><code>cannot convert %s to %s</code></p>
 <p>값을 다른 타입으로 바꿀 수 없다. 메시지가 값과 바꾸려던 타입을 적는다.</p>
-<p>흔한 원인: 숫자가 아닌 문자열을 <code>int</code>로 바꿈, 공백이 든 문자열을 <code>sym</code>으로 바꿈, JSON에 없는 타입의 값(심볼, 튜플, 시각, 기간, 태그 등)을 <code>json.stringify</code>에 넘김.</p>
-<div class="run"><pre><code>print(int(&quot;8080x&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0513]: cannot convert &quot;8080x&quot; to int
+<p>흔한 원인: 문자열을 <code>int</code>·<code>float</code>로 바꿈(글은 <code>parse_int</code>·<code>parse_float</code>가 읽는다), 공백이 든 문자열을 <code>sym</code>으로 바꿈, JSON에 없는 타입의 값(심볼, 튜플, 시각, 기간, 태그 등)을 <code>json.stringify</code>에 넘김.</p>
+<div class="run"><pre><code>print(int(&quot;8080&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0513]: cannot convert &quot;8080&quot; to int
   --&gt; example.fung:1:10
   |
-1 | print(int(&quot;8080x&quot;))
+1 | print(int(&quot;8080&quot;))
   |          ^
   |
  call path (innermost first):
-   example.fung:1 &lt;entry&gt;</code></pre></div>
-<p>고치는 법: 실패할 수 있는 입력은 <code>Ok</code>/<code>Err</code>를 돌려주는 <code>parse_int</code>·<code>parse_float</code>로 바꾸고 결과를 다룬다. JSON에는 문자열이나 숫자로 바꿔서 넣는다(심볼은 <code>sym_name</code>, 튜플은 리스트, 시각은 <code>time.format</code>).</p>
+   example.fung:1 &lt;entry&gt;
+ help: `int` converts between numbers; read a number from text with `parse_int(s)!`, or handle its Err</code></pre></div>
+<p>고치는 법: 글은 <code>Ok</code>/<code>Err</code>를 돌려주는 <code>parse_int</code>·<code>parse_float</code>로 읽고 결과를 다룬다(틀릴 리 없으면 <code>!</code>). JSON에는 문자열이나 숫자로 바꿔서 넣는다(심볼은 <code>sym_name</code>, 튜플은 리스트, 시각은 <code>time.format</code>).</p>
 <div class="run"><pre><code>import json
-print(parse_int(&quot;8080x&quot;))
-print(json.stringify({wait: str(5s), state: sym_name('ok)}))</code></pre><pre class="out plain"><code>Err({kind: 'parse, message: &quot;not an integer: \&quot;8080x\&quot;&quot;})
+print(parse_int(&quot;8080&quot;)!, parse_int(&quot;8080x&quot;))
+print(json.stringify({wait: str(5s), state: sym_name('ok)}))</code></pre><pre class="out plain"><code>8080 Err({kind: 'parse, message: &quot;not an integer: \&quot;8080x\&quot;&quot;})
 {&quot;wait&quot;:&quot;5s&quot;,&quot;state&quot;:&quot;ok&quot;}</code></pre></div>
 </section>
 <section class="entry error" id="E0514">
@@ -2220,10 +2177,10 @@ read_line(f)</code></pre><pre class="out err plain" data-code="1"><code>error[E0
 <p class="catalog"><code>the replacement names group `%s`, which the pattern does not have</code></p>
 <p><code>regex.replace</code>의 바꿀 글이 패턴에 없는 그룹을 가리킨다. 없는 그룹은 빈 문자열이 되어 글을 말없이 지우므로 멈춘다. <code>$</code> 뒤의 이름은 가능한 한 길게 읽으므로, <code>$1a</code>는 그룹 1 뒤의 <code>a</code>가 아니라 이름이 <code>1a</code>인 그룹이다.</p>
 <div class="run"><pre><code>import regex
-print(regex.replace(&quot;k=v&quot;, `(\w)=(\w)`, &quot;$1a&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0521]: the replacement names group `1a`, which the pattern does not have
+print(regex.replace(&quot;k=v&quot;, `(\w)=(\w)`, `$1a`))</code></pre><pre class="out err plain" data-code="1"><code>error[E0521]: the replacement names group `1a`, which the pattern does not have
   --&gt; example.fung:2:20
   |
-2 | print(regex.replace(&quot;k=v&quot;, `(\w)=(\w)`, &quot;$1a&quot;))
+2 | print(regex.replace(&quot;k=v&quot;, `(\w)=(\w)`, `$1a`))
   |                    ^
   |
  call path (innermost first):
@@ -2490,7 +2447,7 @@ scope(fn(s):
 <h3>E0702</h3>
 <p class="catalog"><code>deadlock: all tasks are waiting</code></p>
 <p>교착(deadlock): 모든 태스크가 무언가를 기다리고 있어서 아무도 더 나아갈 수 없다. fung은 영원히 멈춰 있는 대신 이것을 알아채고 에러로 끝낸다. 상황에 따라 도움말이 원인을 짚어 준다.</p>
-<p>흔한 원인: 받는 쪽이 보내는 끝을 자기도 쥐고 있어서 채널이 닫히지 않음, 버퍼 없는 채널(<code>channel()</code>)에 받는 태스크 없이 보냄.</p>
+<p>흔한 원인: 다 보낸 쪽이 <code>close(tx)</code>를 잊어 받는 쪽이 영원히 기다림(채널은 <code>close</code>로만 닫힌다), 버퍼 없는 채널(<code>channel()</code>)에 받는 태스크 없이 보냄. 받는 쪽이 기다리면 도움말이 <code>close</code>를 알려 주고, 그 태스크가 보내는 끝을 쥐고 있으면 그 이름도 알려 준다.</p>
 <div class="run"><pre><code>(_tx, rx) = channel()
 print(recv(rx))</code></pre><pre class="out err plain" data-code="1"><code>error[E0702]: deadlock: all tasks are waiting
   --&gt; example.fung:2:11
@@ -2500,7 +2457,7 @@ print(recv(rx))</code></pre><pre class="out err plain" data-code="1"><code>error
   |
  call path (innermost first):
    example.fung:2 &lt;entry&gt;
- help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only</code></pre></div>
+ help: this task waits to receive, and a channel closes only by `close`: it holds the sending end itself (the global `_tx`), so close it with `close(_tx)` once the last value is sent</code></pre></div>
 <p><code>channel()</code>은 버퍼가 없어서 받는 쪽이 준비될 때까지 <code>send</code>가 기다린다. 같은 태스크가 보내고 나서 받으려 하면 그것도 교착이다.</p>
 <div class="run"><pre><code>(tx, rx) = channel()
 send(tx, &quot;job&quot;)!
@@ -2513,12 +2470,13 @@ for job in rx: print(job) ;;</code></pre><pre class="out err plain" data-code="1
   |
  call path (innermost first):
    example.fung:2 &lt;entry&gt;</code></pre></div>
-<p>고치는 법: 보내기는 다른 태스크에 맡기고, 보내는 끝은 보내는 쪽만 쥔다. 함수 안의 변수는 마지막으로 읽힌 뒤 놓이므로, 보내는 끝을 태스크에만 넘기면 그 태스크가 끝날 때 채널이 닫혀 <code>for</code>가 끝난다. 혼자 보내고 받아야 하면 버퍼가 있는 <code>channel(n)</code>을 쓰고 다 보낸 뒤 <code>close</code>한다.</p>
+<p>고치는 법: 보내기는 다른 태스크에 맡기고, 마지막 값을 보낸 쪽이 <code>close(tx)</code>로 닫는다. 혼자 보내고 받아야 하면 버퍼가 있는 <code>channel(n)</code>을 쓰고 다 보낸 뒤 <code>close</code>한다.</p>
 <div class="run"><pre><code>fn collect() = scope(fn(s):
   (tx, rx) = channel()
   spawn(s, fn():
     send(tx, 1)!
     send(tx, 2)!
+    close(tx)!
   ;;)
   for x in rx: x ;;
 ;;)!

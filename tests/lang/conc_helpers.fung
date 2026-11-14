@@ -24,11 +24,14 @@ print(conc.pmap([0, 1, 2, 3], waits, limit: 2))
 print(conc.retry(() => Err("never"), times: 2))
 # expect: Err("never")
 
-# fan_in over two producers ends on its own: each producer's channel
-# closes when its task ends, and then the merged one closes.
+# fan_in over two producers ends when both have closed their channels,
+# and then the merged one closes.
 fn numbers(s, from, n):
   (tx, rx) = channel()
-  spawn(s, () => each(from..from + n, i => send(tx, i)))
+  spawn(s, fn():
+    each(from..from + n, i => send(tx, i))
+    close(tx)!
+  ;;)
   rx
 ;;
 

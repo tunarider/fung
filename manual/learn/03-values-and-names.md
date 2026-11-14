@@ -98,7 +98,7 @@ print(first(["web-1", "web-2"]), first([]))
 
 ```fung run
 port = nil
-given = 3000
+given = first([3000])
 print(port == nil, port ?? 8080)
 print(given ?? 8080)
 ```
@@ -128,23 +128,24 @@ print(1h30m // 1m, 2m > 90s)
 
 fung은 타입을 **저절로 바꾸지 않는다**. `"5" + 3`은 `8`도 `"53"`도 아니고 에러다. 파일이나 명령 출력, 명령줄 인자에서 온 값은 늘 문자열이라서, 숫자로 계산하려면 직접 바꿔야 한다.
 
-```fung run exit=1 error=E0501
+```fung run exit=2 error=E0501
 used = "91"
 print(used + 1)
 ```
 
-바꾸는 함수는 타입 이름과 같다.
+글에서 수를 읽는 함수는 `parse_int`와 `parse_float`다. 글이 수 모양이 아닐 수 있으므로 이 함수들은 결과를 상자에 담아 돌려준다. 뒤에 붙인 `!`가 상자에서 수를 꺼내고, 수 모양이 아니면 에러로 멈춘다.
 
 ```fung run
-print(int("91") + 1, float("2.5") * 2)
+print(parse_int("91")! + 1, parse_float("2.5")! * 2)
 print(str(42) + " servers", int(3.9), float(2))
 ```
 
-- `int(x)`: 정수로. 실수는 소수점 아래를 버린다. 정수 모양이 아닌 문자열(`"abc"`, `"3.5"`)이면 에러로 멈춘다.
-- `float(x)`: 실수로.
+- `parse_int(s)!`: 글을 정수로 읽는다. 정수 모양이 아닌 글(`"abc"`, `"3.5"`)이면 에러로 멈춘다.
+- `parse_float(s)!`: 글을 실수로 읽는다.
 - `str(x)`: 어떤 값이든 문자열로.
+- `int(x)`·`float(x)`: 수 사이를 바꾼다. `int`는 실수의 소수점 아래를 버린다. 글을 주면 에러다.
 
-사용자가 입력한 값처럼 숫자가 아닐 수도 있는 것을 바꿀 때는 멈추지 않고 실패를 돌려주는 `parse_int`를 쓴다. 그 결과를 다루는 법은 9장에서 배운다.
+사용자가 입력한 값처럼 숫자가 아닐 수도 있는 것은 `!`로 멈추는 대신 실패를 다룰 수도 있다. 상자와 `!`, 실패를 다루는 법은 9장에서 배운다.
 
 ## 이름 붙이기 {#names}
 
@@ -275,7 +276,7 @@ Python과 JavaScript는 `"5" + 3`을 각각 에러와 `"53"`으로 처리하고,
 
 ```fung run
 total_gb = 500
-used_gb = int("437")
+used_gb = parse_int("437")!
 print("usage:", used_gb / total_gb * 100, "%")
 print("free:", total_gb - used_gb, "GB")
 ```

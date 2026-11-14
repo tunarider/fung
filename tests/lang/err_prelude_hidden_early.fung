@@ -1,0 +1,9 @@
+# A block that binds a prelude name hides the prelude function for its
+# whole length: a read before the binding is E0204, not the prelude's
+# function (D139).
+fn words(text):
+  lines = lines(text)
+  len(lines)
+;;
+print(words("a\nb"))
+# expect-error: E0204

@@ -50,7 +50,7 @@ url_decode = _net.url_decode
 # port (SO_REUSEPORT). An address that does not read is `Err 'invalid`,
 # a bind failure `Err 'network` (D70).
 fn serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_port: bool = false):
-  _arg.dur("drain", drain)
+  _ = _arg.dur("drain", drain)
   l = match _net.listen(addr, reuse_port):
     Ok(l)  => l
     Err(e) => return Err({kind: e.kind == 'invalid then 'invalid else 'network, message: "cannot listen on `${addr}`: ${e.message}"})
@@ -85,12 +85,12 @@ fn serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_
 # none is Content-Length, Transfer-Encoding or Trailer (the request frames
 # its body itself).
 fn _request(method, url, body, headers, limit, cap, hops):
-  _arg.token("method", method)
-  _arg.str_map("headers", headers)
-  _arg.headers("headers", headers)
-  _arg.count("max_body", cap)
-  _arg.count("redirects", hops)
-  if limit != nil: _arg.dur("timeout", limit) ;;
+  _ = _arg.token("method", method)
+  _ = _arg.str_map("headers", headers)
+  _ = _arg.headers("headers", headers)
+  _ = _arg.count("max_body", cap)
+  _ = _arg.count("redirects", hops)
+  if limit != nil: _ = _arg.dur("timeout", limit) ;;
   r = limit == nil
     then _attempt(method, url, body, headers, cap, hops)
     else _within(limit, () => _attempt(method, url, body, headers, cap, hops))

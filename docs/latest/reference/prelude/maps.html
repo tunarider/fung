@@ -131,7 +131,7 @@ print(cfg.port)</code></pre><pre class="out err plain" data-code="1"><code>error
    example.fung:2 &lt;entry&gt;
  help: use get(m, key, default) for a default</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="collections.html#fn-contains"><code>contains</code></a>, <a href="../language/results.html"><code>??</code></a>, <a href="../language/access.html">인덱스·필드</a></p>
+<p><a href="../language/operators.html"><code>in</code></a>, <a href="../language/results.html"><code>??</code></a>, <a href="../language/access.html">인덱스·필드</a></p>
 </section>
 <section class="entry" id="fn-put">
 <h3>put</h3>
@@ -161,7 +161,7 @@ print(m)</code></pre><pre class="out plain"><code>{a: 1, b: 2, c: 3} {a: 9, b: 2
 <div class="run"><pre><code>hosts = [&quot;web-1:80&quot;, &quot;db-1:5432&quot;]
 ports = fold(hosts, {}, fn(acc, h):
   [name, port] = split(h, &quot;:&quot;)
-  put(acc, name, int(port))
+  put(acc, name, parse_int(port)!)
 ;;)
 print(ports)</code></pre><pre class="out plain"><code>{&quot;web-1&quot;: 80, &quot;db-1&quot;: 5432}</code></pre></div>
 <p><strong>키는 문자열</strong></p>

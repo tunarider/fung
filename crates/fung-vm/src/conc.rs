@@ -438,17 +438,21 @@ impl Cont for ClosedWait {
 /// copy of the end.
 fn close(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
     // One `close` for what can be closed (SP10): a file handle closes on
-    // the pool, as `fs` did; a channel's sending end closes here. A
-    // closed one of either is `Err('closed)` (D72).
+    // the pool, as `fs` did; a channel closes here, by either end (D137).
+    // A closed one is `Err('closed)` (D72).
     match &args[0] {
         Value::File(_) => crate::native::fs::close_fn(t, args),
-        // A closed channel, by any end or because its receiving ends
-        // went, is a closed handle: closing it again is an Err (D72).
         Value::Sender(e) if e.0.closed() => Ok(Flow::Done(err_kind("closed", "channel closed"))),
+        Value::Receiver(e) if e.0.closed() => Ok(Flow::Done(err_kind("closed", "channel closed"))),
         Value::Sender(e) => {
             e.0.close();
             Ok(Flow::Done(nat::ok(Value::Nil)))
         }
-        v => Err(nat::wrong_arg("x", "sender | file", v)),
+        // the receiving side is done: the buffer goes, a send fails
+        Value::Receiver(e) => {
+            crate::value::drop_children(|stack| e.0.abandon(stack));
+            Ok(Flow::Done(nat::ok(Value::Nil)))
+        }
+        v => Err(nat::wrong_arg("x", "sender | receiver | file", v)),
     }
 }

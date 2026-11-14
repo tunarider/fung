@@ -7,8 +7,8 @@ print(regex.is_match("app.log", `\.log$`), regex.find("abc", "z"))
 # expect: true nil
 print(regex.find_all("a1 b22", `\d+`) |> map(found => found.text))
 # expect: ["1", "22"]
-print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"), regex.split("a, b,c", `\s*,\s*`))
+print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, `$3/$2/$1`), regex.split("a, b,c", `\s*,\s*`))
 # expect: 04/10/2026 ["a", "b", "c"]
 kv = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
-print(kv.named.key, int(kv.named.val) + 1)
+print(kv.named.key, parse_int(kv.named.val)! + 1)
 # expect: port 8081

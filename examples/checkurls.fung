@@ -5,6 +5,6 @@
 import conc
 import "./urlcheck" (check, report)
 
-if is_empty(args): fail("usage: checkurls.fung URL...") ;;
+if len(args) == 0: fail("usage: checkurls.fung URL...") ;;
 results = conc.pmap(args, u => check(u), limit: 8)
 if not report(results): exit(1) ;;

@@ -268,7 +268,7 @@ import json
 
 services = json.parse(fs.read("services.json")!)!
 down = services |> filter(s => s.status == "down") |> map(s => s.name)
-if is_empty(down):
+if len(down) == 0:
   print("all services up")
 else:
   eprint("down:", join(down, ", "))

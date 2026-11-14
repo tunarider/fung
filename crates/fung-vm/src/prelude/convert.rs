@@ -1,6 +1,7 @@
-//! Conversions. `int`, `float`, `str` and `sym`
-//! assert ("this must be a number": a runtime error when it is not);
-//! `parse_int`, `parse_float` and `parse_dur` check and return Ok/Err.
+//! Conversions. `int` and `float` convert between numbers, `str` and
+//! `sym` assert (a runtime error when the value has no such form); text
+//! is read by `parse_int`, `parse_float` and `parse_dur`, which return
+//! Ok/Err (D147).
 
 use fung_front::diag::Arg;
 use fung_front::lexer::{Kind, Token, lex};
@@ -107,12 +108,14 @@ fn shown(x: &Value) -> String {
     crate::vm::shown_value(x)
 }
 
-/// E0513, with the lexer's help when it had one (`int("007")` is told
-/// about `0o`).
-fn cannot_convert_text(v: &Value, to: &str, help: Option<String>) -> Stop {
-    let mut stop = fail("E0513", vec![Arg::Str(shown(v)), nat::s(to)]);
+/// E0513 for text given to `int`/`float`: they convert between numbers;
+/// text is read by `parse_*` (D147).
+fn text_is_read(v: &Value, to: &str) -> Stop {
+    let mut stop = cannot_convert(v, to);
     if let Stop::Error(d) = &mut stop {
-        d.help = help;
+        d.help = Some(format!(
+            "`{to}` converts between numbers; read a number from text with `parse_{to}(s)!`, or handle its Err"
+        ));
     }
     stop
 }
@@ -138,13 +141,7 @@ fn int_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
                 return Ok(Value::Int(*f as i64));
             }
         }
-        Value::Str(s) => {
-            return match s.as_str().map(parse_int) {
-                Some(Ok(n)) => Ok(Value::Int(n)),
-                Some(Err(help)) => Err(cannot_convert_text(&a[0], "int", help)),
-                None => Err(cannot_convert_text(&a[0], "int", None)),
-            };
-        }
+        Value::Str(_) => return Err(text_is_read(&a[0], "int")),
         _ => {}
     }
     Err(cannot_convert(&a[0], "int"))
@@ -154,13 +151,7 @@ fn float_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     match &a[0] {
         Value::Int(n) => return Ok(Value::Float(*n as f64)),
         Value::Float(f) => return Ok(Value::Float(*f)),
-        Value::Str(s) => {
-            return match s.as_str().map(parse_float) {
-                Some(Ok(f)) => Ok(Value::Float(f)),
-                Some(Err(help)) => Err(cannot_convert_text(&a[0], "float", help)),
-                None => Err(cannot_convert_text(&a[0], "float", None)),
-            };
-        }
+        Value::Str(_) => return Err(text_is_read(&a[0], "float")),
         _ => {}
     }
     Err(cannot_convert(&a[0], "float"))

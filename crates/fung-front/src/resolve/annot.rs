@@ -25,15 +25,16 @@ fn refused<'n>(types: &[String], lit: &'n Node) -> Option<&'n str> {
     (!types.iter().any(|a| takes(a))).then_some(t)
 }
 
-/// E0403 for a literal `lit` bound to parameter `name` of type `types`.
-fn argument(name: &str, types: &[String], lit: &Node) -> Option<Diag> {
+/// E0403 for a literal `lit` bound to parameter `name` of type `types`,
+/// written at `at`.
+fn argument(name: &str, types: &[String], lit: &Node, at: crate::source::Pos) -> Option<Diag> {
     let got = refused(types, lit)?;
     let args = vec![
         Arg::Str(name.to_string()),
         Arg::Str(types.join(" | ")),
         Arg::Str(got.to_string()),
     ];
-    Some(error("E0403", lit.pos, args))
+    Some(error("E0403", at, args))
 }
 
 fn names(types: &[TypeTerm]) -> Vec<String> {
@@ -43,13 +44,19 @@ fn names(types: &[TypeTerm]) -> Vec<String> {
 /// A parameter's default (`fn f(a: int = "x")`), `p` with its types
 /// expanded.
 pub(super) fn default_error(p: &Param, default: &Node) -> Option<Diag> {
-    argument(&p.name, &names(p.types.as_ref()?), default)
+    argument(&p.name, &names(p.types.as_ref()?), default, default.pos)
 }
 
 /// The first literal argument of a call that its parameter's annotation
 /// refuses, in the order of the parameters (as the run checks them).
-/// Positional arguments before a spread, and named ones.
-pub(super) fn argument_error(sig: &Sig, args: &[Node]) -> Option<Diag> {
+/// Positional arguments before a spread, and named ones. `view` gives
+/// the literal an argument stands for: itself, or what a name holds
+/// (D149).
+pub(super) fn argument_error<'a>(
+    sig: &Sig,
+    args: &'a [Node],
+    view: &dyn Fn(&'a Node) -> &'a Node,
+) -> Option<Diag> {
     let n = sig.params.len();
     let fixed = if n > 0 && sig.params[n - 1].rest {
         n - 1
@@ -79,10 +86,10 @@ pub(super) fn argument_error(sig: &Sig, args: &[Node]) -> Option<Diag> {
             _ => {}
         }
     }
-    sig.params[..fixed]
-        .iter()
-        .zip(bound)
-        .find_map(|(p, lit)| argument(&p.name, p.types.as_ref()?, lit?))
+    sig.params[..fixed].iter().zip(bound).find_map(|(p, lit)| {
+        let lit = lit?;
+        argument(&p.name, p.types.as_ref()?, view(lit), lit.pos)
+    })
 }
 
 /// E0404 for each literal the function returns that its return type

@@ -109,8 +109,8 @@ run</code></pre></div>
   <li>기본값은 호출할 때마다 왼쪽부터 평가되고, 앞 인자를 참조할 수 있다. 기본값과 <code>...rest</code>는 <code>fn</code>과 익명 <code>fn(…):</code>에서 쓴다(람다 <code>=&gt;</code>에는 없다).</li>
   <li>호출할 때 위치 인자 뒤에 이름 붙인 인자를 쓴다: <code>exec(cmd, cwd: dir)</code>. 내장 함수와 람다도 똑같다(<code>f = (a, b) =&gt; a - b</code>이면 <code>f(b: 1, a: 10)</code>은 9).</li>
   <li>호출의 마지막 위치 인자 자리에 <code>...xs</code>를 하나 쓰면 리스트나 범위 <code>xs</code>의 원소가 그 자리부터의 위치 인자가 된다: <code>f(a, ...xs, k: v)</code>. 다른 위치 인자 앞, 리스트 리터럴(<code>[a, ...xs]</code>는 <code>[a] + xs</code>로), 태그의 값에는 쓸 수 없다(E0133). 리스트·범위가 아닌 값을 펼치면 런타임 에러 E0506.</li>
-  <li>인자 개수가 맞지 않거나(E0402·E0407), 같은 인자를 위치와 이름으로 두 번 주거나(E0405), 모르는 이름이면(E0406) 에러다. 호출 대상이 소스에 드러나면 컴파일 때 같은 번호와 문구로 잡는다: 가려지지 않은 최상위 <code>fn</code>, 블록 안의 <code>fn</code>, prelude 함수, import한 모듈의 함수, 바로 부르는 함수 리터럴(<code>(x =&gt; x)(1)</code>), 그리고 단 하나의 묶기가 이런 함수(람다, 익명 <code>fn</code>, 함수의 이름, 모듈 멤버, 이들의 부분 적용 <code>f(a, _)</code>)인 이름이다. 이름은 어디서나 한 번만 묶이므로 어느 블록의 이름이든 같다(<code>plus = add</code>, <code>f = x =&gt; x</code>, <code>(f, g) = (x =&gt; x, len)</code>). 그 밖(매개변수로 받은 함수, 고르거나 계산한 함수 <code>c then g else h</code>·<code>pick()</code>, 펼친 인자의 개수)은 호출할 때 잡는다. 다만 펼친 인자 앞에 적은 위치 인자만으로 이미 넘치면 컴파일 때 E0402다(<code>got at least N</code>). 아는 함수의 순수 표시(<a href="blocks.html">E0234</a>)도 같은 판정이다: <code>s = sort</code>이면 문장 <code>s(xs)</code>는 E0234.</li>
-  <li>매개변수는 본문의 지역 이름이다. 보이는 바깥 이름(바깥 지역, 최상위 이름, import한 이름, prelude 함수)과 같은 이름이면 E0238이고(공개 최상위 <code>fn</code>의 매개변수만은 prelude 함수와 같은 이름일 수 있다, <a href="modules.html">모듈</a>), 본문과 뒤 매개변수의 기본값 어디서도 읽지 않으면 E0239다(<a href="scope.html">변수와 스코프</a>). 받기만 하는 매개변수는 <code>_</code>로 시작한다: <code>on_fail: _e =&gt; nil</code>. 람다·<code>for</code>·<code>match</code> 패턴이 묶는 이름도 같다.</li>
+  <li>인자 개수가 맞지 않거나(E0402·E0407), 같은 인자를 위치와 이름으로 두 번 주거나(E0405), 모르는 이름이면(E0406) 에러다. 호출 대상이 소스에 드러나면 컴파일 때 같은 번호와 문구로 잡는다: 가려지지 않은 최상위 <code>fn</code>, 블록 안의 <code>fn</code>, prelude 함수, import한 모듈의 함수, 바로 부르는 함수 리터럴(<code>(x =&gt; x)(1)</code>), 그리고 단 하나의 묶기가 이런 함수(람다, 익명 <code>fn</code>, 함수의 이름, 모듈 멤버, 이들의 부분 적용 <code>f(a, _)</code>)인 이름이다. 함수가 아닌 리터럴이 묶인 이름을 부르면(<code>f = 1</code> 뒤의 <code>f(2)</code>) 리터럴을 부르는 것처럼 컴파일 때 E0401이다(<a href="conditions.html">조건</a>의 "리터럴"). 이름은 어디서나 한 번만 묶이므로 어느 블록의 이름이든 같다(<code>plus = add</code>, <code>f = x =&gt; x</code>, <code>(f, g) = (x =&gt; x, len)</code>). 그 밖(매개변수로 받은 함수, 고르거나 계산한 함수 <code>c then g else h</code>·<code>pick()</code>, 펼친 인자의 개수)은 호출할 때 잡는다. 다만 펼친 인자 앞에 적은 위치 인자만으로 이미 넘치면 컴파일 때 E0402다(<code>got at least N</code>). 아는 함수의 순수 표시(<a href="blocks.html">E0234</a>)도 같은 판정이다: <code>s = sort</code>이면 문장 <code>s(xs)</code>는 E0234.</li>
+  <li>매개변수는 본문의 지역 이름이다. 보이는 바깥 이름(바깥 지역, 최상위 이름, import한 이름)과 같은 이름이면 E0238이고(prelude 함수와 같은 이름은 된다: 본문에서 그 함수를 가린다), 본문과 뒤 매개변수의 기본값 어디서도 읽지 않으면 E0239다(<a href="scope.html">변수와 스코프</a>). 받기만 하는 매개변수는 <code>_</code>로 시작한다: <code>on_fail: _e =&gt; nil</code>. 람다·<code>for</code>·<code>match</code> 패턴이 묶는 이름도 같다.</li>
   <li>매개변수 자리에 구조 분해 패턴(<code>_</code>, 튜플, 리스트, 맵, 태그)을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>. <code>fn</code>과 람다가 같고, 대입·<code>for</code>와 같은 <a href="match.html">구조 분해 패턴</a>이라 맨 바깥의 리터럴(<code>(1) =&gt; …</code>, 인자 없는 태그 <code>fn f(Red)</code>)은 매개변수가 될 수 없다(E0112, 값으로 고르려면 <code>match</code>).</li>
 </ul>
 <div class="run"><pre><code>fn greet(name, greeting = &quot;hello&quot;, ...extra) = &quot;${greeting}, ${name}${join(extra)}&quot;
@@ -136,7 +136,7 @@ print(xs, n, v, w)</code></pre><pre class="out plain"><code>1
 [1, 2] 7 5 false</code></pre></div>
 <h3>람다의 본문</h3>
 <p>람다 <code>=&gt;</code>의 본문은 식 하나이고 <strong>가능한 한 길게</strong> 읽는다. <code>then … else</code>보다도 낮으므로 <code>x =&gt; x &gt; 0 then "pos" else "neg"</code>는 조건식 전체가 본문이다. 그래서 람다는 연산자의 피연산자가 될 수 없다: 식의 한 조각으로 쓰려면 괄호로 감싼다(<code>1 + x =&gt; x</code>, <code>v |&gt; x =&gt; x + 1</code>은 E0110). 인자, 리스트 원소, 대입의 오른쪽, <code>then … else</code>의 가지에는 그대로 쓴다.</p>
-<p>람다는 일찍 돌아갈 수 없다: 본문의 <code>return</code>과 <code>?</code>는 컴파일 에러 E0237이다. 넘겨받은 함수가 람다의 값을 어떻게 쓰는지에 따라 <code>?</code>가 돌려준 <code>Err</code>가 리스트의 원소가 되거나(<code>map</code>) 조건이 되어(<code>filter</code>) 말없이 섞이기 때문이다. 일찍 돌아가야 하면 익명 함수 <code>fn(x): … ;;</code>로 쓴다. 이름 있는 <code>fn</code>과 익명 <code>fn</code>은 <code>return</code>·<code>?</code>를 쓸 수 있다.</p>
+<p>람다는 식 하나짜리 익명 <code>fn</code>이고 뜻이 같다: <code>x =&gt; e</code>는 <code>fn(x): e ;;</code>다. 본문의 <code>?</code>와 <code>return</code>은 <code>fn f() = 식</code>의 본문과 같은 규칙으로 <strong>그 람다에서</strong> 돌아온다(<code>return</code>은 본문 전체이거나 가지의 끝, 그 밖은 E0132). 바깥 함수에서 돌아가지 않는다는 것을 잊지 않는다: <code>map(xs, s =&gt; parse_int(s)?)</code>는 첫 실패에서 멈추지 않고 <code>Err</code>를 원소로 담은 리스트를 만든다. 첫 실패에서 멈추려면 <code>try_map(xs, parse_int)</code>를 쓴다.</p>
 <div class="run"><pre><code>f = x =&gt; x &gt; 0 then &quot;pos&quot; else &quot;neg&quot;
 print(f(1), f(-1))</code></pre><pre class="out plain"><code>pos neg</code></pre></div>
 <h3>반환</h3>
@@ -147,7 +147,7 @@ print(f(1), f(-1))</code></pre><pre class="out plain"><code>pos neg</code></pre>
 <ul>
   <li><code>_</code>가 여럿이면 왼쪽부터 차례로 인자가 된다: <code>sub(_, _)</code>는 <code>(a, b) =&gt; sub(a, b)</code>.</li>
   <li>겹친 호출에서 <code>_</code>는 <strong>가장 안쪽 호출</strong>에 속한다: <code>map(xss, len(_))</code>의 <code>len(_)</code>은 <code>x =&gt; len(x)</code>다.</li>
-  <li>이름 붙인 인자 자리(<code>f(a: _)</code>)에는 쓸 수 없다(E0123). 파이프 오른쪽 호출의 인자로도 쓸 수 없다(E0227, <a href="operators.html#pipe">파이프</a>).</li>
+  <li>이름 붙인 인자 자리에도 쓴다: <code>f(1, b: _)</code>는 <code>x =&gt; f(1, b: x)</code>다. 빈칸이 여럿이면 자리 인자의 빈칸이든 이름 인자의 빈칸이든 <strong>쓴 순서대로</strong> 새 함수의 인자가 된다(<code>f(user: _, port: _)</code>의 첫 인자는 <code>user</code>). 만들어진 함수의 인자에는 이름이 없다. 파이프 오른쪽 호출의 인자로는 쓸 수 없다(E0227, <a href="operators.html#pipe">파이프</a>).</li>
 </ul>
 <div class="run"><pre><code>import path
 files = [&quot;a.txt&quot;, &quot;b.txt&quot;]
@@ -256,16 +256,11 @@ print(map([[1, 2], [3]], len(_)))</code></pre><pre class="out plain"><code>10
 made
 7 6 7
 [2, 1]</code></pre></div>
-<p>람다는 일찍 돌아가지 않는다. <code>return</code>이나 <code>?</code>가 필요하면 익명 <code>fn</code>으로 쓴다.</p>
-<div class="run"><pre><code>fn ints(xs) = try_map(xs, fn(s): Ok(parse_int(s)? * 2) ;;)
-print(ints([&quot;1&quot;, &quot;2&quot;]))
-fn bad(xs) = map(xs, s =&gt; parse_int(s)? * 2)</code></pre><pre class="out err plain" data-code="2"><code>error[E0237]: `?` inside a lambda `=&gt;`
-  --&gt; example.fung:3:39
-  |
-3 | fn bad(xs) = map(xs, s =&gt; parse_int(s)? * 2)
-  |                                       ^
-  |
- help: a lambda `=&gt;` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`</code></pre></div>
+<p>람다의 <code>?</code>는 람다에서 돌아온다. 바깥 함수가 아니다.</p>
+<div class="run"><pre><code>fn ints(xs) = try_map(xs, s =&gt; Ok(parse_int(s)? * 2))
+print(ints([&quot;1&quot;, &quot;2&quot;]), ints([&quot;1&quot;, &quot;x&quot;]))
+print(map([&quot;1&quot;, &quot;x&quot;], s =&gt; parse_int(s)? * 2))</code></pre><pre class="out plain"><code>Ok([2, 4]) Err({kind: 'parse, message: &quot;not an integer: \&quot;x\&quot;&quot;})
+[2, Err({kind: 'parse, message: &quot;not an integer: \&quot;x\&quot;&quot;})]</code></pre></div>
 <p><code>return</code> 문장 뒤의 문장은 실행되지 않으므로 에러다. 모든 가지가 <code>return</code>으로 끝나는 <code>if</code>·<code>match</code> 뒤도 같다.</p>
 <div class="run"><pre><code>fn sign(n):
   if n &lt; 0: return -1 ;;
@@ -282,15 +277,10 @@ fn head(xs):
   |   ^ never runs
   |
  help: remove it, or move the `return` after it</code></pre></div>
-<p>이름 붙인 인자 자리에는 <code>_</code>를 쓸 수 없다.</p>
+<p>이름 붙인 인자 자리도 비워 둘 수 있다.</p>
 <div class="run"><pre><code>fn f(a, b) = a - b
-g = f(1, b: _)</code></pre><pre class="out err plain" data-code="2"><code>error[E0123]: `_` cannot be a named argument
-  --&gt; example.fung:2:13
-  |
-2 | g = f(1, b: _)
-  |             ^
-  |
- help: `_` fills a position; for a named one write a lambda: `x =&gt; f(a: x)`</code></pre></div>
+g = f(1, b: _)
+print(g(10), map([1, 2], f(10, b: _)))</code></pre><pre class="out plain"><code>-9 [9, 8]</code></pre></div>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/language/scope.html"><small>이전</small>변수와 스코프</a><a class="next" href="../../reference/language/conditions.html"><small>다음</small>조건</a></nav>
 </div></main>
 </div>

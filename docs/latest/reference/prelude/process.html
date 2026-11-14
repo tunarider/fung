@@ -130,7 +130,7 @@ hi</code></pre></div>
 
 print(run([&quot;echo&quot;, &quot;fine&quot;]))
 print(run([&quot;sh&quot;, &quot;-c&quot;, &quot;exit 3&quot;]))
-print(run([&quot;sh&quot;, &quot;-c&quot;, &quot;kill -9 $$&quot;]))
+print(run([&quot;sh&quot;, &quot;-c&quot;, `kill -9 $$`]))
 print(run([&quot;no-such-command-xyz&quot;]))</code></pre><pre class="out plain"><code>ok: fine
 exited with 3
 killed by signal 9

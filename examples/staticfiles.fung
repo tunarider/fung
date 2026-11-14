@@ -8,7 +8,7 @@ import path
 fn resolve(root, req_path):
   parts = split(req_path, "/") |> filter(p => p != "" and p != ".")
   if ".." in parts: return nil ;;
-  is_empty(parts) then root else path.join(root, join(parts, "/"))
+  len(parts) == 0 then root else path.join(root, join(parts, "/"))
 ;;
 
 fn content_type(file) = match lower(path.ext(file)):

@@ -3,7 +3,7 @@ fn step(acc, l):
   (seen, err_ms) = acc
   p = split(l, " ")
   lv = p[1]
-  ms = int(split(p[3], "=")[1])
+  ms = parse_int(split(p[3], "=")[1])!
   (put(seen, lv, get(seen, lv, 0) + 1), lv == "ERROR" then err_ms + ms else err_ms)
 ;;
 (counts, err) = fold(lines(fs.read("data/logs.txt")!), ({}, 0), step)

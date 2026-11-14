@@ -74,7 +74,7 @@ print(cfg.port)
 
 #### 같이 보기
 
-[`contains`](collections.html#fn-contains), [`??`](../language/results.html), [인덱스·필드](../language/access.html)
+[`in`](../language/operators.html), [`??`](../language/results.html), [인덱스·필드](../language/access.html)
 
 :::
 
@@ -120,7 +120,7 @@ print(m)
 hosts = ["web-1:80", "db-1:5432"]
 ports = fold(hosts, {}, fn(acc, h):
   [name, port] = split(h, ":")
-  put(acc, name, int(port))
+  put(acc, name, parse_int(port)!)
 ;;)
 print(ports)
 ```

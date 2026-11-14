@@ -10,7 +10,9 @@
 mod alias;
 mod annot;
 mod call;
+mod effect;
 mod fn_;
+mod lits;
 mod module;
 mod names;
 mod pattern;
@@ -54,8 +56,6 @@ pub struct ModuleInfo {
 pub struct Options {
     /// Import spec as written → module.
     pub imports: BTreeMap<String, ModuleInfo>,
-    /// An imported file: top-level restrictions (04).
-    pub library: bool,
     /// REPL: the globals earlier inputs defined, in index order. They
     /// keep their indexes and count as read.
     pub globals: Vec<String>,
@@ -111,6 +111,10 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         pattern_bound: HashSet::new(),
         guarded: false,
         global_sigs: HashMap::new(),
+        global_lits: HashMap::new(),
+        bodies: HashMap::new(),
+        sites: Vec::new(),
+        purity: HashMap::new(),
         lambda_targets: Vec::new(),
         similar_index: None,
         similar_indexed: 0,
@@ -121,6 +125,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
     let mut out = r.root_block(core);
     out.number();
     // The file's last item is discarded (01), or printed by the REPL.
+    r.settle_effects();
     let pure_calls = std::mem::take(&mut r.pure_calls);
     value::check_file(core, opts.keep_value, &pure_calls, &mut r.errs);
     // A discarded name that is not defined is one mistake: its E0204
@@ -161,7 +166,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
             let name = &r.globals[*i];
             let sig = Sig {
                 name: (own != name).then(|| own.clone()),
-                ..sig.clone()
+                ..r.exported(sig)
             };
             (name.clone(), sig)
         })
@@ -234,6 +239,17 @@ struct Resolver<'a> {
     /// parameters. Empty in the REPL, where a later input may define the
     /// name again.
     global_sigs: HashMap<usize, (String, Sig)>,
+    /// The global slots whose one binding is a literal, with it and where
+    /// the name was bound (D149): top-level fns read them as constants.
+    global_lits: HashMap<usize, (std::rc::Rc<Node>, Pos)>,
+    /// What each fung function's body does that may have an effect, by
+    /// where it is written (D141).
+    bodies: HashMap<effect::FnKey, Vec<effect::Effect>>,
+    /// The calls of known functions, for E0234 once the bodies are
+    /// worked out.
+    sites: Vec<effect::Site>,
+    /// Each body's summary, once worked out.
+    purity: HashMap<effect::FnKey, effect::Purity>,
     /// The "similar name" index (FE36), made at the first undefined name,
     /// and how many of the file's lasting names it holds.
     similar_index: Option<similar::Index>,
@@ -296,20 +312,17 @@ fn ref_node(pos: Pos, b: Binding) -> Node {
 }
 
 impl Resolver<'_> {
-    /// E0237 for `return` or `?` (`what`) in a lambda `=>` or a `for`
-    /// body: neither can return early (D42). A `for` body is a lambda
-    /// that builds the list, so it is the same rule.
+    /// E0237 for `return` or `?` (`what`) in a `for` body (D143): `for` is
+    /// sugar for `map`/`each`, its body the body of the function they are
+    /// given, so a `return` there could not return from the function the
+    /// writer means. A lambda `=>` returns from itself, as an anonymous
+    /// `fn` does (D142).
     fn early_return(&self, what: &str, pos: Pos) -> Option<Diag> {
-        let f = self.cur();
-        let place = if f.for_body {
-            "a `for` body"
-        } else if f.lambda {
-            "a lambda `=>`"
-        } else {
+        if !self.cur().for_body {
             return None;
-        };
+        }
         let len = if what == "?" { 1 } else { 6 };
-        Some(error("E0237", pos, vec![str_arg(what), str_arg(place)]).span(len))
+        Some(error("E0237", pos, vec![str_arg(what), str_arg("a `for` body")]).span(len))
     }
 
     /// The built-in names prelude calls are checked against.
@@ -352,8 +365,8 @@ impl Resolver<'_> {
 
     /// Resolves the file scope. Imports and top-level fn statements are
     /// bound first, in source order, as constant globals and emitted first
-    /// (03, 04), then the remaining statements in order. In a library file
-    /// those statements may only be assignments (04, E0306).
+    /// (03, 04), then the remaining statements in order. An imported file
+    /// takes the same statements as the entry (D140).
     fn root_block(&mut self, n: &Node) -> Node {
         self.push_block(n, true);
         // REPL: the globals of earlier inputs keep their indexes (08).
@@ -401,8 +414,7 @@ impl Resolver<'_> {
                 self.errs.push(e);
                 continue;
             }
-            let interface = self.interface_name(name);
-            self.binds_fresh(name, at, false, interface);
+            self.binds_fresh(name, at, false);
             let b = Binding {
                 global: true,
                 index: self.globals.len(),
@@ -414,7 +426,7 @@ impl Resolver<'_> {
             self.root_scope().fns.insert(name.to_string());
             self.globals.push(name.to_string());
             if !self.opts.redefine {
-                let sig = self.sig_of(fn_info(k));
+                let sig = self.sig_of_node(k);
                 self.global_sigs.insert(b.index, (name.to_string(), sig));
             }
             fns.push(k);
@@ -434,19 +446,6 @@ impl Resolver<'_> {
             kids.push(Node::new(Head::Let, k.pos, vec![ref_node(k.pos, b), f]));
         }
         for k in rest {
-            // `_ = e` keeps no value either: it is a bare statement under
-            // another spelling (FE69), and so is any pattern that binds no
-            // name, `(_, _) = e` (FE80).
-            let discards = k.head == Head::Let && {
-                let mut binds = false;
-                k.kids[0].bound_names(&mut |_, _| binds = true);
-                !binds
-            };
-            if self.opts.library && ((k.head != Head::Let && k.head != Head::Test) || discards) {
-                // At the statement's start, not a call's `(` (FE29).
-                self.errs.push(error("E0306", k.start_pos(), vec![]));
-                continue;
-            }
             let w = self.walk(k);
             kids.push(w);
         }
@@ -487,7 +486,9 @@ impl Resolver<'_> {
     }
 
     /// Opens a block scope in the current function and notes which local
-    /// fns the block declares later (for E0208).
+    /// fns the block declares later (for E0208), and which prelude names
+    /// its statements bind (they hide the prelude function for the whole
+    /// block, D139).
     fn push_block(&mut self, n: &Node, file: bool) {
         let later: HashSet<String> = if file {
             HashSet::new()
@@ -498,10 +499,24 @@ impl Resolver<'_> {
                 .map(str::to_string)
                 .collect()
         };
+        let mut hiding = HashMap::new();
+        for k in &n.kids {
+            let mut note = |name: &str, pos: Pos| {
+                if self.prelude.contains(name) {
+                    hiding.entry(name.to_string()).or_insert(pos);
+                }
+            };
+            if k.head == Head::Let {
+                k.kids[0].bound_names(&mut note);
+            } else if let Some(name) = fn_stmt(k) {
+                note(name, fn_info(k).name_pos);
+            }
+        }
         let f = self.cur_mut();
         let sc = Scope::new(file, f.next_slot);
         f.blocks.push(sc);
         f.later.push(later);
+        f.hiding.push(hiding);
     }
 
     /// Closes a block: its names become "closed" for E0206 and its slots
@@ -510,6 +525,7 @@ impl Resolver<'_> {
         let f = self.cur_mut();
         let sc = f.pop_scope();
         f.later.pop();
+        f.hiding.pop();
         if !file {
             f.next_slot = sc.base;
             for name in sc.names.keys() {
@@ -535,6 +551,8 @@ impl Resolver<'_> {
     }
 
     fn walk_node(&mut self, n: &Node) -> Node {
+        // A name bound to a literal is checked as the literal is (D149).
+        self.check_named_literals(n);
         match n.head {
             Head::Do => return self.block(n),
             Head::Let => return self.let_(n),
@@ -570,6 +588,9 @@ impl Resolver<'_> {
                     self.errs.push(e);
                 }
             }
+            // they stop the program: an effect (D141)
+            Head::Assert => self.note_effect(),
+            Head::Unwrap if lit_str(n) == "!" => self.note_effect(),
             Head::Unwrap if lit_str(n) == "?" => {
                 if !self.in_function() {
                     self.errs.push(error("E0214", n.pos, vec![]));
@@ -604,7 +625,7 @@ impl Resolver<'_> {
         match self.bind_new(name, at, false) {
             Some(b) => {
                 self.cur_block().fns.insert(name.to_string());
-                let known = (name.to_string(), self.sig_of(fn_info(n)));
+                let known = (name.to_string(), self.sig_of_node(n));
                 self.cur_block().sigs.insert(name.to_string(), known);
                 Node::new(Head::Let, n.pos, vec![ref_node(n.pos, b), f])
             }
@@ -658,8 +679,7 @@ impl Resolver<'_> {
             }
             return Some(b);
         }
-        let interface = self.cur_block().file && self.interface_name(name);
-        if !self.binds_fresh(name, pos, assign, interface) {
+        if !self.binds_fresh(name, pos, assign) {
             return None;
         }
         Some(self.bind_here(name, pos))
@@ -719,6 +739,7 @@ impl Resolver<'_> {
             };
             let pat = self.bind_pattern(target, mode);
             self.note_bound_functions(target, &n.kids[1], &rhs);
+            self.note_bound_literals(target, &n.kids[1]);
             return Node::new(Head::Let, n.pos, vec![pat, rhs]);
         }
         let lhs = match self.bind_new(lit_str(target), target.pos, true) {
@@ -729,6 +750,7 @@ impl Resolver<'_> {
         // function (D110), the callee a partial application keeps in a
         // hidden variable too (FE65).
         self.note_bound_functions(target, &n.kids[1], &rhs);
+        self.note_bound_literals(target, &n.kids[1]);
         Node::new(Head::Let, n.pos, vec![lhs, rhs])
     }
 
@@ -767,6 +789,21 @@ impl Resolver<'_> {
             .any(|f| f.later.iter().any(|l| l.contains(name)))
         {
             self.errs.push(name_error("E0208", n.pos, name));
+            return n.clone();
+        }
+        // A block that binds a prelude name hides the prelude function
+        // in the whole block and the blocks inside, before the binding
+        // too (D139).
+        let hidden_at = self
+            .fns
+            .iter()
+            .flat_map(|f| f.hiding.iter())
+            .find_map(|h| h.get(name).copied());
+        if let Some(at) = hidden_at {
+            self.errs.push(name_error("E0204", n.pos, name).with_help(&format!(
+                "`{name}` is bound on line {} of this block, so here it is that name, not the prelude function; read it after that line, or give the new name another name",
+                at.line
+            )));
             return n.clone();
         }
         if self.prelude.contains(name) {

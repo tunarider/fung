@@ -180,7 +180,7 @@ print(classify({name: "tmp", port: 60000}))
 [top, ...rest] = ["a.log", "b.log", "c.log"]
 
 print(quotient, remainder)
-print(host, int(port))
+print(host, parse_int(port)!)
 print(name, n)
 print(top, rest)
 ```

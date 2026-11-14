@@ -1,2 +1,5 @@
-print(int("x"))
+# `int` converts between numbers; text is read by `parse_int` (D147).
+print(int(3.9))
+# expect: 3
+print(int("8080"))
 # expect-error: E0513

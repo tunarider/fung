@@ -48,8 +48,9 @@ pub(crate) fn stop_signal(t: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
     s.rx = Rc::downgrade(&rx);
     // A sending end left from watchers that are gone closes nothing
     // anyone reads; after a stop the new channel closes at once.
+    // A channel closes only by `close` (D136).
     let old = if s.requested {
-        drop(tx);
+        tx.0.close();
         None
     } else {
         s.tx.replace(Rc::new(tx))
@@ -68,8 +69,9 @@ fn request(w: &mut World, shared: &Shared) -> bool {
         .stop_requested
         .store(true, std::sync::atomic::Ordering::SeqCst);
     let watched = w.stop.rx.strong_count() > 0;
-    let tx = w.stop.tx.take();
-    drop(tx);
+    if let Some(tx) = w.stop.tx.take() {
+        tx.0.close();
+    }
     watched
 }
 

@@ -43,8 +43,6 @@ pub(super) enum Outer {
     Module(Option<Pos>),
     /// The name of a local fn, inside it.
     OwnFn,
-    /// A prelude function.
-    Prelude,
 }
 
 impl Outer {
@@ -63,7 +61,6 @@ impl Outer {
             Outer::Import(p) => ("is imported on line", p),
             Outer::Module(p) => ("is the module imported on line", p),
             Outer::OwnFn => return format!("note: `{name}` is the name of the function it is in"),
-            Outer::Prelude => return format!("note: `{name}` is a prelude function"),
         };
         match at {
             Some(p) => format!("note: `{name}` {what} {}", p.line),
@@ -90,8 +87,9 @@ impl Resolver<'_> {
     /// The visible name `name` that a binding in the current block would
     /// hide: a name of an enclosing block of this function or of an
     /// enclosing function, a function's own name, the file's names (its
-    /// constants, for a top-level fn), or the prelude. Names of ended
-    /// blocks and local fns defined later are not visible (E0206, E0208).
+    /// constants, for a top-level fn). A prelude function can be hidden
+    /// (D138). Names of ended blocks and local fns defined later are not
+    /// visible (E0206, E0208).
     pub(super) fn outer_name(&self, name: &str) -> Option<Outer> {
         let last = self.fns.len() - 1;
         // Only the file's own block can bind a name no open block binds.
@@ -129,9 +127,6 @@ impl Resolver<'_> {
         if self.in_top_fn() && self.consts.contains_key(name) {
             return Some(Outer::TopName(self.const_pos.get(name).copied()));
         }
-        if self.prelude.contains(name) {
-            return Some(Outer::Prelude);
-        }
         None
     }
 
@@ -140,27 +135,16 @@ impl Resolver<'_> {
     /// not bound again (D88), one error, E0238 (D122): the note says where
     /// the name is from, and the help what to write instead (for an
     /// assignment to an outer variable, the counter in a loop, an
-    /// expression or `fold`). `interface`: the name is part
-    /// of a module's interface (a public top-level name of an imported
-    /// file, or a parameter of its public fns), which callers see only
-    /// qualified (`m.get`) or as an argument name (`timeout:`), so it may
-    /// be a prelude name.
-    pub(super) fn binds_fresh(
-        &mut self,
-        name: &str,
-        pos: Pos,
-        assign: bool,
-        interface: bool,
-    ) -> bool {
+    /// expression or `fold`). A prelude function's name may be bound
+    /// anywhere (D138): it is hidden for the whole block (D139).
+    pub(super) fn binds_fresh(&mut self, name: &str, pos: Pos, assign: bool) -> bool {
         if crate::tree::is_hidden(name) {
             return true;
         }
         let Some(outer) = self.outer_name(name) else {
             return true;
         };
-        if interface && matches!(outer, Outer::Prelude) {
-            return true;
-        }
+        self.forget_literal(name);
         let e = match &outer {
             Outer::Module(_) => self.module_again(name, pos),
             o => {
@@ -203,6 +187,7 @@ impl Resolver<'_> {
             _ if sc.fns.contains(name) => Here::Fn,
             _ => Here::Name,
         };
+        self.forget_literal(name);
         if matches!(here, Here::Module) {
             return self.module_again(name, pos);
         }
@@ -219,14 +204,6 @@ impl Resolver<'_> {
             e = e.with_help(FN_HELP);
         }
         e
-    }
-
-    /// Whether a top-level name or parameter of the file being resolved
-    /// is part of its interface (`binds_fresh`): it is public. The rule
-    /// is the file's own, whether the file is imported or is the entry
-    /// (D86), so a file means the same however it is loaded.
-    pub(super) fn interface_name(&self, name: &str) -> bool {
-        !name.starts_with('_')
     }
 
     /// Reports the names of a block that were never read (E0239): not

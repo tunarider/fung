@@ -8,7 +8,7 @@ import "./bigfiles" (largest, human)
 
 opts = cli.parse(args, values: ["trash"])!
 dir = first(opts.rest) ?? fail("usage: tidy.fung <dir> [n] [--trash <trash-dir>]")
-n = len(opts.rest) > 1 then int(opts.rest[1]) else 5
+n = len(opts.rest) > 1 then parse_int(opts.rest[1])! else 5
 trash = get(opts.flags, "trash")
 
 for (p, size) in largest(dir, n):

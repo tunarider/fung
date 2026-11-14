@@ -343,66 +343,16 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
 
 /// The pure builtins whose call is there for what it does, not for its
 /// value: `each` and the functions that run one they are given inside a
-/// scope, a deadline or a cleanup, and those that raise on purpose
-/// (`fail`, the argument checks of `_native.arg`). The other pure
-/// builtins, called as a statement, only compute a value to drop it
-/// (E0234, D39), and so do those that take a function to compute with
-/// (`map`, `filter`, `fold`, …, D90): a pass for its effects is `each`.
+/// scope, a deadline or a cleanup, and `fail`, which always stops. The
+/// argument checks of `_native.arg` and `_r.pad` only compute and may
+/// raise, as `len` may: they are pure, and a statement that runs one for
+/// its check writes `_ = _arg.count(…)` (D141: a function that checks its
+/// arguments so is still known to have no effect).
 #[cfg_attr(not(test), allow(dead_code))]
-const CALLS_OR_RAISES: &[(&str, &[&str])] = &[
-    (
-        "prelude",
-        &["fail", "each", "scope", "timeout", "with", "supervise"],
-    ),
-    (
-        "_native.arg",
-        &[
-            "count",
-            "positive",
-            "dur",
-            "list_of",
-            "str_map",
-            "token",
-            "headers",
-            "header_problem",
-            "is_token",
-            "result",
-            "options",
-        ],
-    ),
-    // It checks a pad argument (`_padding` in the prelude).
-    ("_native.range", &["pad"]),
-];
-
-/// The prelude functions written in fung that only compute (VA47): the
-/// spec marks them `pure` like the natives, so a call of one as a
-/// statement is E0234 whichever language it is written in. Those that
-/// read a receiving end (`first`, `take`, `zip`) are here as `sort` and
-/// `len` are in [`PURE`]: reading a channel is `recv`'s to do. Those
-/// that compute with a function they are given (`iterate`, `until`) are
-/// here as `fold` is (D90, VA63).
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) const PURE_FUNG: &[&str] = &[
-    "first",
-    "last",
-    "take",
-    "drop",
-    "zip",
-    "contains",
-    "is_empty",
-    "is_ok",
-    "is_err",
-    "pad_left",
-    "pad_right",
-    "iterate",
-    "until",
-];
-
-/// The prelude functions written in fung that run a command. Every one
-/// is here, in [`PURE_FUNG`], or another name for a native
-/// (`boot::spec_file`).
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) const CALLING_FUNG: &[&str] = &["exec", "sh"];
+const CALLS_OR_RAISES: &[(&str, &[&str])] = &[(
+    "prelude",
+    &["fail", "each", "scope", "timeout", "with", "supervise"],
+)];
 
 /// Whether `name` of `module` is known to have no effect (D39): what the
 /// spec marks `pure`, for E0234 on a call of it as a statement.

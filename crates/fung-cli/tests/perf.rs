@@ -69,7 +69,7 @@ const CASES: &[(&str, &str, &str)] = &[
     ),
     (
         "discard slices of a long list",
-        "fn id(v) = v\nxs = map(0..100000, x => x)\nfor i in 0..2000: id(xs[i..]) ;;\neach(0..2000, i => xs[..i + 50000])\nprint(len(xs))",
+        "fn id(v) = v\nxs = map(0..100000, x => x)\nfor i in 0..2000: _ = id(xs[i..]) ;;\neach(0..2000, i => xs[..i + 50000])\nprint(len(xs))",
         "100000\n",
     ),
     (
@@ -261,6 +261,41 @@ fn a_long_operator_chain_compiles_in_linear_time() {
             took < Duration::from_millis(300),
             "16,000 operators ({name}) took {took:?}"
         );
+    }
+}
+
+/// Whether 20,000 functions that call one another in a chain have an
+/// effect is worked out in linear time: a body is looked at again only
+/// when what it calls changed (D141: going over every body until nothing
+/// changed took about 11 s here, an effect moving a step or two a round).
+#[test]
+fn a_long_call_chain_is_judged_in_linear_time() {
+    let _serial = serial();
+    let n = 20_000;
+    for (name, first) in [("chain_effect", "print(x)"), ("chain_pure", "x + 1")] {
+        // in both orders: each function calls the one before, or after
+        for down in [true, false] {
+            let mut src = String::new();
+            for i in 0..n {
+                let body = match (down, i) {
+                    (true, 0) => first.to_string(),
+                    (true, _) => format!("f{}(x)", i - 1),
+                    (false, i) if i == n - 1 => first.to_string(),
+                    (false, _) => format!("f{}(x)", i + 1),
+                };
+                src.push_str(&format!("fn f{i}(x) = {body}\n"));
+            }
+            let top = if down { n - 1 } else { 0 };
+            src.push_str(&format!("_ = f{top}(1)\nprint(\"done\")\n"));
+            run_file(name, &src);
+            let (out, took) = run_file(name, &src);
+            eprintln!("{n} chained functions ({name}, down: {down}) {took:?}");
+            assert!(out.ends_with("done\n"), "{out}");
+            assert!(
+                took < Duration::from_millis(500),
+                "{n} chained functions ({name}, down: {down}) took {took:?}"
+            );
+        }
     }
 }
 
@@ -612,7 +647,7 @@ fn fifty_commands_at_once() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let src = format!(
-        "import fs\nfn wait_for(cond) = cond() then nil else fn(): sleep(5ms); wait_for(cond) ;;()\nd = \"{}\"\nprint(timeout(() => scope(fn(s):\n  ts = map(0..50, _i => spawn(s, () => sh(\"touch {}/$$; sleep 1\")!.code))\n  wait_for(() => len(fs.list(d)!) == 50)\n  print(\"ready\")\n  read_line()\n  fold(ts, 0, (a, t) => a + await(t)!)\n;;)!, 20s)!)",
+        "import fs\nfn wait_for(cond) = cond() then nil else fn(): sleep(5ms); wait_for(cond) ;;()\nd = \"{}\"\nprint(timeout(() => scope(fn(s):\n  ts = map(0..50, _i => spawn(s, () => sh(`touch {}/$$; sleep 1`)!.code))\n  wait_for(() => len(fs.list(d)!) == 50)\n  print(\"ready\")\n  read_line()\n  fold(ts, 0, (a, t) => a + await(t)!)\n;;)!, 20s)!)",
         dir.display(),
         dir.display()
     );

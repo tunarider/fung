@@ -152,7 +152,7 @@ fn double(x) = x * 2
 fs.with_temp_dir(fn(dir):
   p = path.join(dir, "n.txt")
   fs.write(p, "21\n")!
-  n = int(trim(fs.read(p)!))
+  n = parse_int(trim(fs.read(p)!))!
   print(double(n))
   print(fs.exists(p)!, fs.exists(path.join(dir, "nope"))!)
 ;;)

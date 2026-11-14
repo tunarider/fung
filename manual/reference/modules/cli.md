@@ -29,7 +29,7 @@ description: fung 모듈 cli — 명령줄 인자를 옵션과 나머지로 나�
 
 :::box choice 왜 이렇게 작은가
 
-`cli`는 도움말 생성, 필수 옵션 검사, 타입 변환을 하지 않는다. 그런 기능은 규칙이 많아 배울 것이 늘고, 스크립트마다 원하는 모양이 다르다. 대신 결과가 평범한 맵과 리스트이므로 `get(flags, "port", "8080")`, `int(...)`, [`parse_dur`](../prelude/convert.html#fn-parse_dur), `match`로 필요한 만큼 직접 쓴다.
+`cli`는 도움말 생성, 필수 옵션 검사, 타입 변환을 하지 않는다. 그런 기능은 규칙이 많아 배울 것이 늘고, 스크립트마다 원하는 모양이 다르다. 대신 결과가 평범한 맵과 리스트이므로 `get(flags, "port", "8080")`, `parse_int(...)`, [`parse_dur`](../prelude/convert.html#fn-parse_dur), `match`로 필요한 만큼 직접 쓴다.
 
 :::
 
@@ -104,7 +104,7 @@ print(cli.parse(["-v", "web-1"], bools: ["dry-run"]))
 import cli
 
 opts = cli.parse(args, bools: ["verbose"], values: ["retries", "timeout"])!
-retries = int(get(opts.flags, "retries", "3"))
+retries = parse_int(get(opts.flags, "retries", "3"))!
 wait = parse_dur(get(opts.flags, "timeout", "30s"))!
 verbose = get(opts.flags, "verbose", false)
 print(retries + 1, wait, verbose, opts.rest)

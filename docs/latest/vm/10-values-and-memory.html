@@ -134,7 +134,7 @@
 <h3 id="cycles">순환이 생길 수 있는 자리</h3>
 <p>불변 값만으로는 고리가 생기지 않는다. 그런데 fung에도 <strong>바뀌는 것</strong>이 몇 있다. 채널(버퍼에 값이 쌓인다), atom(가리키는 값이 바뀐다), 모듈 전역 표가 그렇다. 이것들은 나중에 자기를 가리키게 될 수 있다. 그래서 고리가 생길 자리를 규칙으로 막았다.</p>
 <ul>
-<li>채널에 <strong>그 채널의 끝</strong>을 보내면 E0709다. 버퍼가 자기 보내는 끝을 쥐면 채널은 영원히 닫히지 않는다. <code>send</code>가 보내는 값을 훑어 막는다.</li>
+<li>채널에 <strong>그 채널의 끝</strong>을 보내면 E0709다. 버퍼가 자기 끝을 쥐면 그 채널은 참조 계수로 해제되지 않는다. <code>send</code>가 보내는 값을 훑어 막는다.</li>
 </ul>
 <div class="run"><pre><code>(tx, _rx) = channel(1)
 print(send(tx, [tx]))</code></pre><pre class="out err plain" data-code="1"><code>error[E0709]: this value would make a cycle through channels or tasks, which could never be freed
@@ -242,7 +242,7 @@ print(len(items), items[19999])</code></pre><pre class="out plain"><code>5000 4
 <p>이 정도는 디버그 빌드에서도 순식간이다. 릴리스 빌드의 성능 시험(<code>crates/fung-cli/tests/perf.rs</code>)이 이런 모양 다섯을 2만 개로 돌려 0.3초를 넘으면 실패하므로, 구현이 n²로 돌아가면 바로 드러난다.</p>
 <p><strong>남은 n².</strong> 문자열을 <strong>앞에</strong> 붙여 쌓는 것(<code>s + acc</code>)은 매번 전체를 복사한다. 뒤에 붙이는 <code>acc + s</code>와 보간 <code>&quot;${acc}…&quot;</code>은 홀로 쥔 문자열을 제자리에서 늘리므로 쌓아도 선형이다(리스트의 <code>acc + [x]</code>와 같은 원리). 리스트는 앞·뒤 어느 쪽에 붙여도 상각 O(1)이다. 문자열을 앞에 붙여 가야 하면 조각을 리스트에 모아 <code>reverse</code>하고 <code>join</code>한다.</p>
 <h2 id="lifetime">지역 변수의 수명</h2>
-<p>참조 계수는 해제 시점이 정확하다. 그러면 "언제 마지막 손잡이가 사라지는가"가 곧 의미가 된다. 특히 채널은 보내는 끝의 마지막 사본이 사라질 때 <strong>닫힌다</strong>(14장). 그런데 지역 변수가 함수가 끝날 때까지 값을 쥐고 있으면, 그 함수 안에서 그 채널을 끝까지 읽는 코드는 영원히 기다린다.</p>
+<p>참조 계수는 해제 시점이 정확하다. 그러면 "언제 마지막 손잡이가 사라지는가"가 보이는 곳이 생긴다. 홀로 쥔 맵·리스트는 제자리에서 고칠 수 있고(아래 "마지막 읽기는 값을 넘긴다"), 읽지 않은 태스크의 <code>Err</code>는 마지막 핸들이 놓일 때 E0607로 보고되며, 닫지 않은 파일은 마지막 핸들이 놓일 때 닫힌다. 지역 변수가 함수가 끝날 때까지 값을 쥐고 있으면 이것들이 모두 늦어진다. (2026-11-15 D136 전에는 채널도 보내는 끝의 마지막 사본이 사라질 때 닫혀서, 놓는 시점이 프로그램이 끝나느냐를 정했다. 지금 채널은 <code>close</code>로만 닫히므로 놓는 시점은 "되느냐"가 아니라 "언제 보고되느냐"에만 보인다.)</p>
 <p>그래서 컴파일러는 "이 지역 변수가 뒤에서 다시 읽히는가"를 보고, 아니면 칸을 비우는 명령 <code>CLEARLOCAL</code>을 넣는다(설계 03 "값의 수명", 2026-10-20 검토 L7). 넣는 곳은 셋이다. 문장이 끝난 뒤, 가지가 시작할 때(다른 가지에서만 읽히는 변수, <code>match</code>의 주제와 가드만 읽은 변수), 클로저가 붙잡은 것이 마지막 읽기면 그 <code>CLOSURE</code> 바로 뒤(2026-11-11 점검 VM19). 함수 본문이든 가지 안이든, 진입 파일의 블록 안이든 같다(2026-11-08 점검 VM1·VM2).
 반복문이 없는 언어(반복은 재귀, <code>for</code> 본문은 함수)라서 한 프레임의 코드는 가지만 있는 한 방향 길이고, 뒤에서 앞으로 한 번 걸으면 곳곳의 "살아 있는 칸"이 나온다(생존 분석). 가지는 같은 자리에서 따로 걸어, "가지 앞에서는 살아 있는데 이 가지의 시작에서는 죽은 칸"이 그 가지가 시작할 때 놓을 칸이다. 클로저가 붙잡는 것도 읽기다.
 살아 있는 칸의 집합은 하나만 두고 제자리에서 고치며, 가지를 다 걸으면 바꾼 것을 기록에서 되돌린다. 문장마다 집합을 복사하던 전 방식은 동시에 살아 있는 지역 4만 개에서 30초가 걸렸다(VM24, 지금은 0.1초).
@@ -290,16 +290,8 @@ print(total(&quot;x.log&quot;))</code></pre><pre class="out dump plain"><code>$ 
 0002  3:28  CONST        1    ; &lt;fn len&gt;
 0003  3:20  TAILCALL     2 0    ; 2 positional, 0 named</code></pre></div>
 <p><code>total</code>의 0003번이 <code>names</code>(슬롯 1)를 비운다. 람다가 <code>names</code>를 붙잡은 것은 복사라 칸에 값이 남는데, 그것이 마지막 읽기이므로 <code>CLOSURE</code> 바로 뒤에 놓는다.
-<code>path</code>(슬롯 0)와 <code>sizes</code>(슬롯 2)는 마지막 읽기가 <code>MOVELOCAL</code>(아래 절)이라 칸이 이미 비었으므로, 따로 비우지 않는다. 채널 쪽에서 보면 이렇다.</p>
-<div class="run"><pre><code>fn numbers(n) = scope(fn(s):
-  (tx, rx) = channel()
-  spawn(s, () =&gt; each(0..n, i =&gt; send(tx, i)!))
-  fold(rx, 0, (acc, x) =&gt; acc + x)
-;;)!
-
-print(numbers(5))</code></pre><pre class="out plain"><code>10</code></pre></div>
-<p><code>spawn</code>에 넘길 클로저를 만든 바로 뒤에 <code>tx</code>의 칸이 비워지므로, 보내는 끝을 쥔 것은 생산 태스크의 클로저뿐이다. 그 태스크가 끝나면 마지막 사본이 사라지고 채널이 닫혀 <code>fold</code>가 끝난다.</p>
-<p>가지도 같다. 아래 <code>drain</code>의 <code>else</code>는 <code>tx</code>를 읽지 않으므로, 가지가 시작하자마자 칸을 비운다(0011번). 가지 안의 문장이 하나뿐이어도, 그 <code>if</code>가 함수의 마지막 식이어도 같다. 전에는 "문장이 없는 자리의 읽기는 그 자리를 품은 문장 뒤에 놓는다"였는데, 품은 문장이 함수의 마지막 식이면 "문장 뒤"가 없어 이 코드가 교착했다(VM19).</p>
+<code>path</code>(슬롯 0)와 <code>sizes</code>(슬롯 2)는 마지막 읽기가 <code>MOVELOCAL</code>(아래 절)이라 칸이 이미 비었으므로, 따로 비우지 않는다.</p>
+<p>가지도 같다. 아래 <code>drain</code>의 <code>else</code>는 <code>tx</code>를 읽지 않으므로, 가지가 시작하자마자 칸을 비운다(0011번). 가지 안의 문장이 하나뿐이어도, 그 <code>if</code>가 함수의 마지막 식이어도 같다. 전에는 "문장이 없는 자리의 읽기는 그 자리를 품은 문장 뒤에 놓는다"였는데, 품은 문장이 함수의 마지막 식이면 "문장 뒤"가 없어 (채널이 사본이 사라질 때 닫히던 때) 이 코드가 교착했다(VM19).</p>
 <div class="run"><pre><code>fn drain(flag):
   (tx, rx) = channel(1)
   if flag:
@@ -356,15 +348,6 @@ print(m)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode exam
 0006  1:33  TAILCALL     3 0    ; 3 positional, 0 named</code></pre></div>
 <p><code>&lt;lambda&gt;</code>에서 <code>m</code>(슬롯 0)은 한 번 읽히니 <code>MOVELOCAL 0</code>이다. <code>i</code>(슬롯 1)는 두 번 읽히는데, 보간 안의 첫 읽기는 뒤에 또 읽히니 <code>LOADLOCAL 1</code>(복사), 인자로 가는 둘째가 <code>MOVELOCAL 1</code>이다. 가지(<code>if</code>·<code>??</code>)는 가지마다 따로 보고, <code>match</code>의 주제와 가드는 갈래마다 다시 읽힐 수 있어 넘기지 않는다. 클로저가 붙잡는 것은 복사다.</p>
 <p>넘겨준 값은 그 문장이 끝나기 전에도 놓일 수 있다. 받은 쪽이 놓으면 그만이기 때문이다.</p>
-<div class="run"><pre><code>fn drop_it(_x) = nil
-
-fn closes_early() = scope(fn(_s):
-  (tx, rx) = channel()
-  [drop_it(tx), recv(rx)]
-;;)!
-
-print(closes_early())</code></pre><pre class="out plain"><code>[nil, Err({kind: 'closed, message: &quot;channel closed&quot;})]</code></pre></div>
-<p><code>tx</code>가 <code>drop_it</code>으로 넘어가고 거기서 놓이니, 같은 문장의 <code>recv</code>가 기다리기 전에 채널이 닫혀 있다.</p>
 <h2 id="source">코드에서 찾아보기</h2>
 <ul>
 <li><code>crates/fung-vm/src/value.rs</code>: <code>Value</code> 열거형, 함수 값 <code>Closure</code>, 모듈 값 <code>Module</code>, 바뀌는 것을 품었는지 보는 <code>holds_mutable</code>.</li>

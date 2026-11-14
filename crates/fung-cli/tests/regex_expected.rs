@@ -188,7 +188,7 @@ print(m.text, m.start, m.end, s[m.start..m.end], m.groups)"#,
 ;;"#,
     r#"print(regex.find_all("aaa", "a*"), regex.find_all("baaac", "a*"))"#,
     // named arguments and the direct bridge
-    r#"print(regex.find(s: "k=v", pattern: `(\w)=(\w)`), regex.replace(repl: "$2=$1", pattern: `(\w)=(\w)`, s: "k=v"))"#,
+    r#"print(regex.find(s: "k=v", pattern: `(\w)=(\w)`), regex.replace(repl: `$2=$1`, pattern: `(\w)=(\w)`, s: "k=v"))"#,
     r#"import _native.regex as n
 print(n.split("a,b", ","), n.is_match("x", "x"))"#,
     // argument errors: the subject first, then the pattern, which is

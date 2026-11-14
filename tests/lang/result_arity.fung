@@ -2,7 +2,7 @@
 # tuple carries several.
 print(Ok(1) ?? 0, Err("x") ?? 0)
 # expect: 1 0
-print(1 |> Ok, (1, 2) |> Ok())
+print(1 |> Ok(), (1, 2) |> Ok())
 # expect: Ok(1) Ok((1, 2))
 print(match Ok((1, 2)): Ok((a, b)) => a + b ;;)
 # expect: 3

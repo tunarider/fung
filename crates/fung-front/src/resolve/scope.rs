@@ -49,6 +49,9 @@ pub(super) struct Scope {
     /// `fn`, or the callee a partial application keeps): a call of one
     /// is checked as a top-level fn's is (FE65).
     pub(super) sigs: HashMap<String, (String, super::call::Sig)>,
+    /// The names of this block whose one binding is a literal, with it
+    /// and where the name was bound (D149).
+    pub(super) lits: HashMap<String, (std::rc::Rc<crate::tree::Node>, Pos)>,
 }
 
 impl Scope {
@@ -63,6 +66,7 @@ impl Scope {
             param: HashSet::new(),
             fns: HashSet::new(),
             sigs: HashMap::new(),
+            lits: HashMap::new(),
         }
     }
 }
@@ -80,11 +84,13 @@ pub(super) struct FnScope {
     pub(super) self_name: String,
     /// The parameters of a named local fn, for its calls of itself.
     pub(super) self_sig: Option<super::call::Sig>,
-    /// The synthetic lambda of a `for`: `return` and `?` inside are
-    /// E0237 (D42).
+    /// The synthetic function of a `for`: `return` and `?` inside are
+    /// E0237 (D143).
     pub(super) for_body: bool,
-    /// A lambda `=>`: `return` and `?` inside are E0237 (D42).
-    pub(super) lambda: bool,
+    /// How many parameters it has: its slots below this are they.
+    pub(super) nparams: usize,
+    /// What its body does that may have an effect (D141).
+    pub(super) effects: Vec<super::effect::Effect>,
     /// A parameter default is being resolved: `return` there is E0211
     /// (FE38).
     pub(super) in_default: bool,
@@ -104,6 +110,11 @@ pub(super) struct FnScope {
     pub(super) lasting: Vec<String>,
     /// Per block: local fn names declared later in that block (E0208).
     pub(super) later: Vec<HashSet<String>>,
+    /// Per block: the prelude names a statement of the block binds and
+    /// that are not bound yet, with where: the block hides the prelude
+    /// function for its whole length, so a read before the binding is
+    /// E0204 (D139).
+    pub(super) hiding: Vec<HashMap<String, crate::source::Pos>>,
 }
 
 impl FnScope {
@@ -122,6 +133,9 @@ impl FnScope {
             .insert(name.to_string(), b)
             .is_none();
         if new {
+            if let Some(h) = self.hiding.get_mut(block) {
+                h.remove(name);
+            }
             if block == 0 && !self.closed.contains_key(name) {
                 self.lasting.push(name.to_string());
             }

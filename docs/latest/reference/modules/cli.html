@@ -98,7 +98,7 @@
 <p>옵션 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>flags.dry_run</code>). <code>flags.dry_run</code>처럼 점으로 바로 읽을 수 있게 하려는 것이다. 같은 옵션이 두 번 나오면(<code>--a-b</code>와 <code>--a_b</code>처럼 쓴 꼴만 달라도) 실패다. 어느 값을 뜻했는지 말없이 고르지 않는다. 한 글자 옵션(<code>-v</code>)과 묶음(<code>-xvf</code>)은 해석하지 않고 실패다. <code>-</code>로 시작하는 위치 인자(<code>-5</code>, <code>-file</code>)는 <code>--</code> 뒤에 둔다.</p>
 <p>명령줄은 스크립트 바깥에서 오는 입력이라, 사용자가 잘못 친 명령줄은 런타임 에러가 아니라 <code>Err</code> 값이다. 그래서 <code>cli.parse</code>는 <code>Ok({flags, rest})</code>나 <code>Err({kind: 'invalid, message})</code>를 돌려준다. 잘못된 명령줄에 그냥 멈추려면 <code>cli.parse(args, …)!</code>, 사용자에게 안내를 보이려면 <code>match</code>로 <code>Err</code>를 받는다.</p>
 <div class="box choice"><b>왜 이렇게 작은가</b>
-<p><code>cli</code>는 도움말 생성, 필수 옵션 검사, 타입 변환을 하지 않는다. 그런 기능은 규칙이 많아 배울 것이 늘고, 스크립트마다 원하는 모양이 다르다. 대신 결과가 평범한 맵과 리스트이므로 <code>get(flags, &quot;port&quot;, &quot;8080&quot;)</code>, <code>int(...)</code>, <a href="../prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>, <code>match</code>로 필요한 만큼 직접 쓴다.</p>
+<p><code>cli</code>는 도움말 생성, 필수 옵션 검사, 타입 변환을 하지 않는다. 그런 기능은 규칙이 많아 배울 것이 늘고, 스크립트마다 원하는 모양이 다르다. 대신 결과가 평범한 맵과 리스트이므로 <code>get(flags, &quot;port&quot;, &quot;8080&quot;)</code>, <code>parse_int(...)</code>, <a href="../prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>, <code>match</code>로 필요한 만큼 직접 쓴다.</p>
 </div>
 <section class="entry" id="fn-cli-parse">
 <h3>cli.parse<span class="by">fung으로 작성</span></h3>
@@ -159,7 +159,7 @@ Err({kind: 'invalid, message: &quot;the flag `-v` is not supported: flags start 
 <div class="run"><pre><code>import cli
 
 opts = cli.parse(args, bools: [&quot;verbose&quot;], values: [&quot;retries&quot;, &quot;timeout&quot;])!
-retries = int(get(opts.flags, &quot;retries&quot;, &quot;3&quot;))
+retries = parse_int(get(opts.flags, &quot;retries&quot;, &quot;3&quot;))!
 wait = parse_dur(get(opts.flags, &quot;timeout&quot;, &quot;30s&quot;))!
 verbose = get(opts.flags, &quot;verbose&quot;, false)
 print(retries + 1, wait, verbose, opts.rest)</code></pre><pre class="out plain"><code>6 2s false [&quot;report.csv&quot;]</code></pre></div>

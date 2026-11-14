@@ -19,13 +19,13 @@ E0119	parameter `%s` is bound twice
 E0120	a required parameter cannot follow an optional one		move the parameters with a default to the end, or give this one a default too
 E0121	a tag takes its values by position, not by name		write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
 E0122	a string with `${…}` cannot be %s		only a constant string fits here: drop the interpolation
-E0123	`_` cannot be a named argument		`_` fills a position; for a named one write a lambda: `x => f(a: x)`
+E0123	`_` cannot be a named argument		not used: `f(a: _)` is a partial application
 E0124	an anonymous function cannot be written with `=`		anonymous functions take a block: `fn(x): … ;;`, or write a lambda `x => …`
 E0125	`%s` binds looser than `..`, so it cannot be an end of a slice		put the end in parentheses: `xs[(a or b)..]`
 E0126	a positional argument cannot follow a named one		put the positional arguments first: `f(1, b: 2)`
 E0127	`??` and `|>` cannot be mixed without parentheses		say which one goes first: `(x |> f) ?? d` or `x |> (f ?? d)`
 E0128	a symbol is not written with an uppercase letter: `'%s`		an uppercase symbol is written as the tag, without the quote: `Red`
-E0129	`$%s` in a string is not interpolation		write `${name}` for the value, or `\$name` for the text
+E0129	`$` in a string must start `${…}` or be written `\$`		write `\$` for the character, or `${…}` to put a value in
 E0130	a type annotation has no element type		write `list` or `map` alone: the elements are not checked, so they are not written
 E0131	this statement comes after `return`, so it never runs	never runs	remove it, or move the `return` after it
 E0132	`return` used as a value		`return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
@@ -65,7 +65,7 @@ E0233	the test name %q %s		give each test in a file its own name: the report nam
 E0234	%s is computed and discarded		use the value, or write `_ = …` to discard it on purpose
 E0235	this arm %s		move it last, or give it a guard: `n when n > 0 =>`
 E0236	`%s` takes exactly one value, found %d		put several values in a tuple: `Ok((a, b))` or `Err((a, b))`
-E0237	`%s` inside %s		a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+E0237	`%s` inside %s		a `for` body is the body of the function `map`/`each` is given, so it cannot return from the function around it; use `try_map`, `find`, `all`/`any` or `fold`, or an anonymous `fn(x): … ;;` to return from
 E0238	cannot bind `%s` again: a name is bound once		give the new value a name of its own, or compute it in one expression (a pipe, `x = if … ;;`, `fold`)
 E0239	unused %s `%s`		remove it, or start its name with `_` if it is kept on purpose
 E0240	`%s` hides %s		a visible name means one thing: give the new one a name of its own
@@ -77,7 +77,7 @@ E0302	circular import: %s
 E0303	module `%s` has no member `%s`		
 E0304	`%s` is private to module `%s`		names starting with `_` are not exported
 E0305	`%s` is not a valid module name; use `as`		
-E0306	only import, fn, type, test, and assignment are allowed at the top level of an imported module		move the statement into a function, or into the entry file
+E0306	only import, fn, type, test, and assignment are allowed at the top level of an imported module		not used: an imported file's top level takes any statement
 E0307	cannot import the entry file		
 E0308	cannot shadow module `%s`		import it under another name: `import fs as m`
 E0309	`%s` is already imported or bound to a module		

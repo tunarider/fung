@@ -1,6 +1,7 @@
 # A builtin that only computes is no statement, whether it is written in
-# Rust or in fung (VA47): `take` gives a new list and leaves `xs` alone.
+# Rust or in fung (D141: read from its body): `drop` gives a new list and
+# leaves `xs` alone.
 xs = [1, 2, 3]
-print(take(xs, 2))
-take(xs, 2)
+print(drop(xs, 1))
+drop(xs, 1)
 # expect-error: E0234

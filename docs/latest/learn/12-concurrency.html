@@ -212,13 +212,14 @@ print(results)</code></pre><pre class="out plain"><code>[Ok(Ok(&quot;web1 ok&quo
 ;;)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled, message: &quot;cancelled&quot;})</code></pre></div>
 <h2 id="channels">채널로 주고받기</h2>
 <p>태스크끼리 값을 넘기는 통로가 <strong>채널</strong>(channel)이다. <code>channel()</code>은 두 끝을 튜플로 준다. 보내는 끝(<code>tx</code>)에는 <code>send(tx, 값)</code>을, 받는 끝(<code>rx</code>)에는 <code>recv(rx)</code>나 <code>for x in rx</code>를 쓴다. 받는 쪽은 값이 올 때까지 기다린다. <code>for x in rx</code>는 채널이 <strong>닫힐</strong> 때까지 값마다 돈다.</p>
-<p>채널은 보내는 끝의 사본이 모두 사라지면 저절로 닫힌다. 그래서 채널을 만드는 함수 안에서 보내는 끝을 생산 태스크에만 넘기면, 생산이 끝날 때 채널이 닫히고 받는 <code>for</code>도 끝난다.</p>
+<p>채널은 <code>close(tx)</code>로만 닫힌다. 다 보낸 쪽이 닫아야 받는 <code>for</code>가 끝난다. 그래서 생산 태스크는 마지막 값을 보낸 뒤 <code>close(tx)</code>를 부른다.</p>
 <div class="run"><pre><code>fn countdown(s, n):
   (tx, rx) = channel()
   spawn(s, fn():
     for i in reverse(1..=n):
       send(tx, i)!
     ;;
+    close(tx)!
   ;;)
   rx
 ;;
@@ -230,8 +231,8 @@ scope(fn(s):
 ;;)</code></pre><pre class="out plain"><code>got 3
 got 2
 got 1</code></pre></div>
-<p><code>reverse(1..=n)</code>은 <code>n</code>부터 1까지 거꾸로 센 리스트다. <code>send</code>는 받는 쪽이 모두 사라진 채널이면 <code>Err({kind: 'closed})</code>를 돌려주므로 결과를 <code>!</code>로 다룬다.</p>
-<p>채널로 일감을 나누는 <strong>일꾼</strong>(worker) 모양도 흔하다. 일감 채널 하나를 일꾼 여럿이 함께 받고, 결과는 다른 채널로 모은다.</p>
+<p><code>reverse(1..=n)</code>은 <code>n</code>부터 1까지 거꾸로 센 리스트다. <code>send</code>와 <code>close</code>는 닫힌 채널이면 <code>Err({kind: 'closed})</code>를 돌려주므로 결과를 <code>!</code>로 다룬다. 받는 쪽이 먼저 그만둘 때는 받는 끝을 <code>close(rx)</code>로 닫는다. 그 뒤의 <code>send</code>는 <code>Err({kind: 'closed})</code>라 보내는 쪽도 멈출 수 있다.</p>
+<p>채널로 일감을 나누는 <strong>일꾼</strong>(worker) 모양도 흔하다. 일감 채널 하나를 일꾼 여럿이 함께 받고, 결과는 다른 채널로 모은다. 일감을 다 보낸 쪽이 일감 채널을, 일꾼이 모두 끝난 뒤 결과 채널을 닫는다.</p>
 <div class="run"><pre><code>fn worker(id, jobs, results):
   for job in jobs:
     sleep(10ms)
@@ -242,8 +243,14 @@ got 1</code></pre></div>
 done = scope(fn(s):
   (jobs_tx, jobs_rx) = channel()
   (res_tx, res_rx) = channel()
-  each([1, 2], id =&gt; spawn(s, () =&gt; worker(id, jobs_rx, res_tx)))
-  spawn(s, () =&gt; each(1..=4, j =&gt; send(jobs_tx, j)!))
+  spawn(s, fn():
+    _ = scope(w =&gt; each([1, 2], id =&gt; spawn(w, () =&gt; worker(id, jobs_rx, res_tx))))
+    close(res_tx)!
+  ;;)
+  spawn(s, fn():
+    each(1..=4, j =&gt; send(jobs_tx, j)!)
+    close(jobs_tx)!
+  ;;)
   for r in res_rx: r ;;
 ;;)!
 print(len(done), &quot;jobs done&quot;)</code></pre><pre class="out plain"><code>4 jobs done</code></pre></div>
@@ -322,8 +329,8 @@ print(total)</code></pre><pre class="out plain"><code>14</code></pre></div>
 <div class="box learn"><b>구조적 동시성</b>
 <p>태스크의 수명을 코드 블록에 묶는 방식을 <strong>구조적 동시성</strong>(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 태스크 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.</p>
 </div>
-<div class="box mistake"><b>보내는 끝을 쥔 채 기다리기</b>
-<p>채널을 최상위나 받는 함수 안에서 만들고 그 함수가 보내는 끝을 계속 쥐고 있으면, 채널은 닫히지 않는다. 받는 <code>for</code>는 영원히 기다리고, 다른 태스크도 모두 기다리는 중이면 fung은 E0702(<code>deadlock: all tasks are waiting</code>, 교착)로 멈추고 누가 보내는 끝을 쥐었는지 도움말로 알려 준다. 보내는 끝은 생산하는 쪽에만 넘기거나, 다 보냈으면 <code>close(tx)</code>로 직접 닫는다.</p>
+<div class="box mistake"><b>닫는 것을 잊기</b>
+<p>채널은 <code>close</code>로만 닫힌다. 다 보낸 쪽이 <code>close(tx)</code>를 잊으면 받는 <code>for</code>는 영원히 기다리고, 다른 태스크도 모두 기다리는 중이면 fung은 E0702(<code>deadlock: all tasks are waiting</code>, 교착)로 멈춘다. 도움말이 채널은 <code>close</code>로만 닫힌다고 알려 주고, 기다리는 태스크가 보내는 끝을 쥐고 있으면 그 이름도 알려 준다. 고치는 법은 마지막 값을 보낸 뒤의 <code>close(tx)</code> 한 줄이다.</p>
 <div class="run"><pre><code>(tx, rx) = channel()
 scope(fn(s):
   spawn(s, () =&gt; each([&quot;a&quot;, &quot;b&quot;], x =&gt; send(tx, x)!))
@@ -341,7 +348,7 @@ error[E0702]: deadlock: all tasks are waiting
  call path (innermost first):
    example.fung:4 &lt;lambda&gt;
    example.fung:2 &lt;entry&gt;
- help: this task waits to receive, but it still holds that channel's sending end itself (a value `&lt;lambda&gt;` captured), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only</code></pre></div>
+ help: this task waits to receive, and a channel closes only by `close`: it holds the sending end itself (a value `&lt;lambda&gt;` captured), so close it with `close` once the last value is sent</code></pre></div>
 </div>
 <div class="box other"><b>다른 언어는</b>
 <p>Python의 <code>threading</code>·<code>asyncio</code>, JavaScript의 <code>Promise</code>·<code>async/await</code>, Java의 스레드는 태스크를 아무 데서나 띄울 수 있다. fung의 태스크 범위는 Python Trio의 nursery, Kotlin의 <code>coroutineScope</code>, Java 21의 <code>StructuredTaskScope</code>와 같은 구조적 동시성이다. <code>atom</code>과 <code>swap</code>은 Clojure의 atom에서, 실패를 격리하는 <code>supervise</code>는 Erlang의 supervisor에서 생각을 빌렸다. 쉘의 <code>cmd &amp;</code>와 <code>wait</code>도 동시성이지만, 실패한 작업의 종료 코드를 모으는 일은 손으로 해야 한다.</p>
@@ -387,7 +394,7 @@ print(result)</code></pre><pre class="out plain"><code>15</code></pre></div>
 <li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 실패할 수 있으므로 <code>await</code>·<code>scope</code>·<code>timeout</code>은 <code>Ok(값)</code>이나 <code>Err</code>를 돌려준다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 <code>Err</code>를 아무도 읽지 않으면 E0607이다.</li>
 <li>태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 <code>supervise(f, on_fail)</code>.</li>
 <li><code>timeout(f, d)</code>는 기한 안에 끝나면 <code>Ok(f의 값)</code>, 지나면 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>. <code>cancel</code>로 직접 취소한다.</li>
-<li>채널 <code>(tx, rx) = channel()</code>로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.</li>
+<li>채널 <code>(tx, rx) = channel()</code>로 값을 주고받는다. <code>close(tx)</code>로만 닫힌다(받는 쪽이 그만둘 때는 <code>close(rx)</code>). 닫는 것을 잊고 기다리면 E0702.</li>
 <li>함께 고치는 값은 <code>atom</code>·<code>deref</code>·<code>swap</code>. <code>swap</code>의 함수에는 효과를 쓸 수 없다(E0707).</li>
 </ul>
 <p>함수마다의 규칙은 레퍼런스의 <a href="../reference/prelude/concurrency.html">동시성</a>과 <a href="../reference/modules/conc.html">conc</a>에 있다. 에러는 <a href="../reference/errors.html#E0702">E0702</a>, <a href="../reference/errors.html#E0707">E0707</a>을 보라. fung이 태스크를 어떻게 번갈아 실행하는지는 VM 책의 <a href="../vm/12-scheduler.html">스케줄러</a>와 <a href="../vm/14-cancellation.html">취소</a>에서 다룬다. 실무 예는 예제 모음의 <a href="../recipes/ssh-collect.html">여러 서버에 ssh 보내기</a>를 보라.</p>

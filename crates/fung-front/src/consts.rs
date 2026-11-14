@@ -236,15 +236,10 @@ pub fn write_quoted(b: &[u8], out: &mut String) {
             '\r' => out.push_str("\\r"),
             '\\' => out.push_str("\\\\"),
             '"' => out.push_str("\\\""),
-            // `${` interpolates and `$name` is E0129: both are escaped so
-            // that what is shown reads back as source (VA45).
-            '$' if b.get(at) == Some(&b'{')
-                || first(&b[at..]).is_some_and(
-                    |u| matches!(u, Unit::Char(n) if n == '_' || crate::unicode::is_name_start(n)),
-                ) =>
-            {
-                out.push_str("\\$")
-            }
+            // `${` interpolates and any other bare `$` is E0129: every
+            // `$` is escaped so that what is shown reads back as source
+            // (VA45, D146).
+            '$' => out.push_str("\\$"),
             c if c != ' ' && !crate::unicode::is_print(c) => {
                 let _ = write!(out, "\\u{{{:x}}}", c as u32);
             }
@@ -267,9 +262,8 @@ mod tests {
     /// writer must give the same text (VA13).
     fn quote_slowly(b: &[u8]) -> String {
         use crate::text::{Unit, units};
-        let us: Vec<Unit> = units(b).map(|(_, u)| u).collect();
         let mut out = String::from("\"");
-        for (i, &u) in us.iter().enumerate() {
+        for (_, u) in units(b) {
             let c = match u {
                 Unit::Byte(x) => {
                     out.push_str(&format!("\\x{x:02x}"));
@@ -283,11 +277,7 @@ mod tests {
                 '\r' => out.push_str("\\r"),
                 '\\' => out.push_str("\\\\"),
                 '"' => out.push_str("\\\""),
-                '$' if matches!(us.get(i + 1), Some(&Unit::Char(n))
-                    if n == '{' || n == '_' || crate::unicode::is_name_start(n)) =>
-                {
-                    out.push_str("\\$")
-                }
+                '$' => out.push_str("\\$"),
                 c if c != ' ' && !crate::unicode::is_print(c) => {
                     out.push_str(&format!("\\u{{{:x}}}", c as u32))
                 }
@@ -414,7 +404,8 @@ mod tests {
     #[test]
     fn string_quoting() {
         assert_eq!(quote_str("a\nb\r\\"), "\"a\\nb\\r\\\\\"");
-        assert_eq!(quote_str("${x} $y $"), "\"\\${x} \\$y $\"");
+        // every `$` is escaped: a bare one is E0129 in source (D146)
+        assert_eq!(quote_str("${x} $y $ $5"), "\"\\${x} \\$y \\$ \\$5\"");
         assert_eq!(quote_str("\u{1}é한"), "\"\\u{1}é한\"");
     }
 

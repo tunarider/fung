@@ -141,7 +141,7 @@ import fs
 import path
 
 dir = first(args) ?? fail("usage: biggest.fung <dir> [n]")
-n = int(get_arg(1, "5"))
+n = parse_int(get_arg(1, "5"))!
 
 fn get_arg(i, default) = i < len(args) then args[i] else default
 

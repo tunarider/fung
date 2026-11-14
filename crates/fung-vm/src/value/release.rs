@@ -134,10 +134,8 @@ pub(super) fn release(mut stack: Vec<Value>) {
                     m.spill(&mut stack);
                 }
             }
-            // The last copy of an end: it does its own work (a sender
-            // closes; a receiver closes and its buffer comes onto the
-            // stack), then the channel spills if that end was its last
-            // owner.
+            // The last copy of an end closes nothing (D136): the channel
+            // spills if that end was its last owner.
             Value::Sender(rc) => {
                 if let Ok(e) = Rc::try_unwrap(rc) {
                     let ch = e.0.clone();
@@ -147,9 +145,6 @@ pub(super) fn release(mut stack: Vec<Value>) {
             }
             Value::Receiver(rc) => {
                 if let Ok(e) = Rc::try_unwrap(rc) {
-                    // The buffer onto this stack; the end's own drop then
-                    // abandons again, which finds it empty (idempotent).
-                    e.0.abandon(&mut stack);
                     let ch = e.0.clone();
                     drop(e);
                     spill_channel(ch, &mut stack);

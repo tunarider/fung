@@ -105,7 +105,7 @@ FAIL example.fung: count_level counts matching rows
 
 테스트하기 쉬운 함수는 **입력을 받아 값을 돌려주기만 하는** 함수다. 파일을 읽고, 계산하고, 출력하는 일을 한 함수에 몰면 테스트에 파일과 출력이 필요해진다. 읽기·쓰기는 얇게 두고 계산을 따로 떼어 내면, 계산은 문자열과 리스트만으로 테스트할 수 있다.
 
-10장의 모듈로 나누면 더 좋다. 계산하는 함수와 그 테스트는 라이브러리 파일에 두고, 진입 파일은 인자를 읽고 라이브러리를 불러 결과를 출력하기만 한다. 라이브러리 파일의 최상위에는 `print` 같은 문장이 올 수 없으므로(E0306), 테스트할 때 엉뚱한 일이 일어나지 않는다.
+10장의 모듈로 나누면 더 좋다. 계산하는 함수와 그 테스트는 라이브러리 파일에 두고, 진입 파일은 인자를 읽고 라이브러리를 불러 결과를 출력하기만 한다. 라이브러리 파일의 최상위에 함수와 값만 두면 테스트할 때 엉뚱한 일이 일어나지 않는다.
 
 ```file slug.fung
 # slug: turns titles into file-name-safe slugs.
@@ -221,7 +221,7 @@ for h in hosts:
   <thead><tr><th>번호</th><th>뜻</th><th>고치는 법</th></tr></thead>
   <tbody>
     <tr><td><code>E0239</code></td><td>만들고 읽지 않는 변수·매개변수·import</td><td>지우거나, 일부러면 이름 앞에 <code>_</code></td></tr>
-    <tr><td><code>E0238</code></td><td>보이는 이름(바깥 변수, 최상위 이름, prelude 함수 등)과 같은 이름을 새로 묶음</td><td>다른 이름을 짓는다</td></tr>
+    <tr><td><code>E0238</code></td><td>보이는 이름(바깥 변수, 최상위 이름, import한 이름 등)과 같은 이름을 새로 묶음</td><td>다른 이름을 짓는다</td></tr>
   </tbody>
 </table>
 
@@ -258,7 +258,7 @@ error[E0239]: unused variable `total`
  help: remove it, or start its name with `_` if it is kept on purpose
 ```
 
-`items` 대신 `lines`라고 지었다면 prelude의 `lines`를 가리므로 E0238이었을 것이다. 가린 이름이 있으면 같은 함수 안에서 나중에 prelude의 `lines(문자열)`을 부르려다 그 리스트를 부르게 되므로, fung은 처음부터 막는다.
+`items` 대신 `lines`라고 지었다면 그 함수 안에서는 prelude의 `lines`를 가린다. 그 함수에서 `lines(문자열)`을 부르면, 대입보다 앞 줄이든 뒤 줄이든 prelude 함수가 아니라 내 이름이다(앞이면 E0204, 뒤면 리스트를 부르는 E0401). 그래서 prelude 함수와 겹치지 않는 이름이 읽기 쉽다.
 
 :::exercise 크기 표시 함수 테스트
 바이트 수를 `"512 B"`, `"1.5 KiB"`, `"3.0 MiB"`처럼 바꾸는 함수 `human(n)`을 쓰고, 경계(1023, 1024, 1048576)를 확인하는 테스트 블록을 붙여 보자. 1024 미만은 `B`, 1024² 미만은 `KiB`, 그 이상은 `MiB`다. 소수 첫째 자리까지만 보이려면 `int(x * 10) / 10`처럼 자른다.

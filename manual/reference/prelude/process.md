@@ -75,7 +75,7 @@ fn run(cmd) = match exec(cmd):
 
 print(run(["echo", "fine"]))
 print(run(["sh", "-c", "exit 3"]))
-print(run(["sh", "-c", "kill -9 $$"]))
+print(run(["sh", "-c", `kill -9 $$`]))
 print(run(["no-such-command-xyz"]))
 ```
 

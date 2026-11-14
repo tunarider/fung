@@ -1,5 +1,0 @@
-# `?` in a lambda would put the Err into the list map builds: a lambda
-# `=>` cannot return early at all (D42).
-fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
-# expect-error: E0237
-print(ints(["1"]))

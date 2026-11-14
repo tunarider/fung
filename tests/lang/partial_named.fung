@@ -1,0 +1,10 @@
+# A named argument's place can be left open with `_` too (D155): the
+# holes, positional or named, become the new function's arguments in
+# the order they are written.
+fn f(a, b) = a - b
+print(map([1, 2], f(10, b: _)))
+# expect: [9, 8]
+fn addr(user, port) = "${user}:${port}"
+at = addr(port: _, user: _)
+print(at(80, "me"))
+# expect: me:80

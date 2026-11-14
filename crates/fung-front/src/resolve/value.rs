@@ -48,17 +48,13 @@ pub(super) struct PureCall {
     pub(super) own: String,
     /// Where the callee is written.
     pub(super) at: Pos,
+    /// It calls a function it is given (`map`, `fold`): its help says
+    /// where a pass for the effects goes.
+    pub(super) takes_fn: bool,
 }
 
 /// The calls of functions known to have no effect, by `(line, col)`.
 pub(super) type Pure = std::collections::HashMap<(u32, u32), PureCall>;
-
-/// The pure builtins that take a function (D90): their E0234 says where a
-/// pass for its effects goes.
-const RUNS_A_FUNCTION: &[&str] = &[
-    "map", "try_map", "filter", "fold", "sort_by", "find", "any", "all", "group_by", "iterate",
-    "until",
-];
 
 /// What the walk carries: the pure calls, and the errors found.
 struct Ctx<'a> {
@@ -383,8 +379,13 @@ fn pure_call(n: &Node, pure: &Pure) -> Option<Diag> {
     if n.head != Head::Call {
         return None;
     }
-    let PureCall { shown, own, at } = pure.get(&(n.pos.line, n.pos.col))?;
-    let help = if RUNS_A_FUNCTION.contains(&own.as_str()) {
+    let PureCall {
+        shown,
+        own,
+        at,
+        takes_fn,
+    } = pure.get(&(n.pos.line, n.pos.col))?;
+    let help = if *takes_fn {
         format!(
             "`{own}` computes a value with its function; use the value, or run the function for its effects with `each` or a `for` statement"
         )
@@ -513,17 +514,40 @@ fn operator_types<'t>(op: &str, a: &'t str, b: &'t str) -> Option<Result<(), (&'
 /// a division by zero or two lists that compare item by item are the
 /// run's to find. The type comes from `known_type`, one place for every
 /// check.
-fn literal_type_error(n: &Node) -> Option<Diag> {
-    let not_bool = |c: &Node| {
-        known_type(c)
+pub(super) fn literal_type_error(n: &Node) -> Option<Diag> {
+    literal_type_error_with(n, &|k| k)
+}
+
+/// `literal_type_error` with `view` giving the literal each operand
+/// stands for: itself, or what a name holds (D149). Errors stand where
+/// the operand is written.
+pub(super) fn literal_type_error_with<'a>(
+    n: &'a Node,
+    view: &dyn Fn(&'a Node) -> &'a Node,
+) -> Option<Diag> {
+    let ty = |c: &'a Node| known_type(view(c));
+    let not_bool = |c: &'a Node| {
+        ty(c)
             .filter(|t| *t != "bool")
             .map(|t| error("E0505", c.pos, vec![Arg::Str(t.into())]))
     };
     match n.head {
         // a value that is no function called
         Head::Call => {
-            let t = known_type(&n.kids[0]).filter(|t| *t != "fn")?;
-            Some(error("E0401", n.kids[0].pos, vec![Arg::Str(t.into())]))
+            let t = ty(&n.kids[0]).filter(|t| *t != "fn")?;
+            let e = error("E0401", n.kids[0].pos, vec![Arg::Str(t.into())]);
+            // a bare tag is its symbol: a pipe wraps with the tag's call
+            // (D144)
+            let callee = view(&n.kids[0]);
+            if callee.head == Head::Symbol
+                && lit_str(callee).starts_with(|c: char| crate::unicode::is_upper(c))
+            {
+                let tag = lit_str(callee);
+                return Some(e.with_help(&format!(
+                    "`{tag}` alone is a symbol; a tag wraps a value when called: `{tag}(x)`, or `x |> {tag}()` after a pipe"
+                )));
+            }
+            Some(e)
         }
         // a condition, and the left side of `and`/`or`
         Head::If | Head::Then => not_bool(&n.kids[0]).or_else(|| {
@@ -535,7 +559,7 @@ fn literal_type_error(n: &Node) -> Option<Diag> {
         }),
         Head::Op if n.kids.len() == 1 && lit_str(n) == "not" => not_bool(&n.kids[0]),
         Head::Op if n.kids.len() == 1 && lit_str(n) == "-" => {
-            let t = known_type(&n.kids[0])?;
+            let t = ty(&n.kids[0])?;
             if matches!(t, "int" | "float" | "dur") {
                 return None;
             }
@@ -547,7 +571,7 @@ fn literal_type_error(n: &Node) -> Option<Diag> {
             Some(run_help(e, &[t]))
         }
         Head::Op if n.kids.len() == 2 => {
-            let (a, b) = (known_type(&n.kids[0])?, known_type(&n.kids[1])?);
+            let (a, b) = (ty(&n.kids[0])?, ty(&n.kids[1])?);
             let op = lit_str(n);
             let verb = match op {
                 "+" => "add",
@@ -580,7 +604,7 @@ fn literal_type_error(n: &Node) -> Option<Diag> {
         }
         // `??` after a value that is never nil or a result
         Head::Coalesce => {
-            let what = match known_type(&n.kids[0])? {
+            let what = match ty(&n.kids[0])? {
                 "nil" | "Ok" | "Err" => return None,
                 "int" | "float" => "a number",
                 "str" => "a string",

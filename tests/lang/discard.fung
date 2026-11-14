@@ -29,11 +29,18 @@ for x in [1, 2]:
 # expect: 2
 
 # Ok and other values are discarded as before, lists without an Err too.
-# (A literal alone as a statement does nothing, E0234: compute it.)
-fn value(v) = v
+# (A literal alone as a statement does nothing, E0234, and so does a
+# call of a function with no effect, D141: these have one.)
+fn value(v):
+  assert true
+  v
+;;
 value(Ok(1))
 value([Ok(1), 2])
-fn oks() = map([1, 2], x => Ok(x))
+fn oks():
+  assert true
+  map([1, 2], x => Ok(x))
+;;
 oks()
 each([1], x => [Ok(x)])
 fn names(items): for x in items: "n${x}" ;; ;;

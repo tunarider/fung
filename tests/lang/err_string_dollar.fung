@@ -1,0 +1,5 @@
+# A bare `$` is E0129 whatever follows it, not only before a name (D146):
+# the character is written `\$`, or the text is a raw string.
+print(`cost: $5`, "cost: \$5")
+print("cost: $5")
+# expect-error: E0129

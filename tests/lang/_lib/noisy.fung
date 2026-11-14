@@ -1,1 +1,2 @@
 print("side effect")
+name = "noisy"

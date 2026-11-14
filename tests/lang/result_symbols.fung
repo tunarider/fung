@@ -12,5 +12,5 @@ fn kind(r) = match r:
 print(kind(Ok), kind(Ok(1)), kind(Err))
 # expect: the symbol a result holding 1 something else
 fn load(p) -> Ok | Err = p == "" then Err else Ok(p)
-print(load(""), load("a.txt"), 1 |> Ok)
+print(load(""), load("a.txt"), 1 |> Ok())
 # expect: Err Ok("a.txt") Ok(1)

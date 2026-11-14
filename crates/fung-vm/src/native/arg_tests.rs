@@ -170,7 +170,7 @@ fn a_bad_value_is_e0403_naming_the_argument() {
 #[test]
 fn is_token_is_the_token_rule() {
     let o = run(
-        r#"print(arg.is_token("GET"), arg.is_token("x-a!#$%&'*+.^_`|~1"), arg.is_token(""), arg.is_token("a b"), arg.is_token("é"), arg.is_token("a:"))"#,
+        r#"print(arg.is_token("GET"), arg.is_token("x-a!#\$%&'*+.^_`|~1"), arg.is_token(""), arg.is_token("a b"), arg.is_token("é"), arg.is_token("a:"))"#,
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),

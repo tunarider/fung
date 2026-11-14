@@ -185,9 +185,9 @@ prnt(&quot;disk check&quot;)</code></pre><pre class="out err plain" data-code="2
 <li><code>help:</code>: 고치는 방법에 대한 힌트. 있을 때만 나온다.</li>
 </ol>
 <p>눈여겨볼 점은 첫 줄의 <code>print(&quot;start&quot;)</code>도 <strong>실행되지 않았다</strong>는 것이다. 이름이 틀린 것 같은 실수는 실행 전 검사에서 잡히고, 그러면 프로그램은 한 줄도 돌지 않는다. 이런 에러를 <strong>컴파일 에러</strong>라고 한다.</p>
-<p>반대로 실행해 봐야 알 수 있는 문제도 있다. 아래 스크립트는 문법은 맞지만, 실행 중에 문자열과 숫자를 더하려다 멈춘다. 이런 에러를 <strong>런타임 에러(runtime error)</strong>라고 한다. 앞 줄은 이미 실행되어 출력이 남아 있다.</p>
+<p>반대로 실행해 봐야 알 수 있는 문제도 있다. 아래 스크립트는 문법은 맞지만, 실행 중에 문자열(<code>trim</code>이 돌려준 글)과 숫자를 더하려다 멈춘다. 이런 에러를 <strong>런타임 에러(runtime error)</strong>라고 한다. 앞 줄은 이미 실행되어 출력이 남아 있다.</p>
 <div class="run"><pre><code>print(&quot;checking disks&quot;)
-used = &quot;91&quot;
+used = trim(&quot; 91 &quot;)
 print(used + 1)</code></pre><pre class="out err plain" data-code="1"><code>checking disks
 error[E0501]: cannot add str and int
   --&gt; example.fung:3:12

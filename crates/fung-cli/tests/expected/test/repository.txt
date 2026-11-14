@@ -240,12 +240,6 @@
 -- stderr
 | no tests found
 -- exit: 1
-==== test tests/lang/_lib/noisy_pattern.fung
--- stdout
-| 0 passed, 0 failed
--- stderr
-| no tests found
--- exit: 1
 ==== test tests/lang/args.fung
 -- stdout
 | 0 passed, 0 failed
@@ -489,16 +483,44 @@
 -- exit: 2
 ==== test tests/lang/err_arg_type.fung
 -- stdout
-| 0 passed, 0 failed
+| FAIL tests/lang/err_arg_type.fung: <load>
+| 0 passed, 1 failed
 -- stderr
-| no tests found
--- exit: 1
+|   error[E0234]: the result of `f(…)` is computed and discarded
+|     --> tests/lang/err_arg_type.fung:3:1
+|     |
+|   3 | f(a)
+|     | ^
+|     |
+|    help: `f` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+|   error[E0403]: argument `n` must be int, got str
+|     --> tests/lang/err_arg_type.fung:3:3
+|     |
+|   3 | f(a)
+|     |   ^
+|     |
+|     note: `a` is bound to a literal on line 2
+-- exit: 2
 ==== test tests/lang/err_arg_type_tag.fung
 -- stdout
-| 0 passed, 0 failed
+| FAIL tests/lang/err_arg_type_tag.fung: <load>
+| 0 passed, 1 failed
 -- stderr
-| no tests found
--- exit: 1
+|   error[E0234]: the result of `f(…)` is computed and discarded
+|     --> tests/lang/err_arg_type_tag.fung:3:1
+|     |
+|   3 | f(n)
+|     | ^
+|     |
+|    help: `f` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+|   error[E0403]: argument `s` must be Circle, got int
+|     --> tests/lang/err_arg_type_tag.fung:3:3
+|     |
+|   3 | f(n)
+|     |   ^
+|     |
+|     note: `n` is bound to a literal on line 2
+-- exit: 2
 ==== test tests/lang/err_assert.fung
 -- stdout
 | 0 passed, 0 failed
@@ -839,13 +861,13 @@
 | FAIL tests/lang/err_discard_fung_builtin.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-|   error[E0234]: the result of `take(…)` is computed and discarded
-|     --> tests/lang/err_discard_fung_builtin.fung:5:1
+|   error[E0234]: the result of `drop(…)` is computed and discarded
+|     --> tests/lang/err_discard_fung_builtin.fung:6:1
 |     |
-|   5 | take(xs, 2)
+|   6 | drop(xs, 1)
 |     | ^^^^
 |     |
-|    help: `take` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+|    help: `drop` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
 -- exit: 2
 ==== test tests/lang/err_discard_iterate.fung
 -- stdout
@@ -884,9 +906,9 @@
 | 0 passed, 1 failed
 -- stderr
 |   error[E0234]: the result of `map(…)` is computed and discarded
-|     --> tests/lang/err_discard_map.fung:7:1
+|     --> tests/lang/err_discard_map.fung:9:1
 |     |
-|   7 | map(xs, x => print(x))
+|   9 | map(xs, x => x * 2)
 |     | ^^^
 |     |
 |    help: `map` computes a value with its function; use the value, or run the function for its effects with `each` or a `for` statement
@@ -1470,20 +1492,6 @@
 |     note: `x` is bound outside this block, on line 2
 |    help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
-==== test tests/lang/err_hide_assign_prelude.fung
--- stdout
-| FAIL tests/lang/err_hide_assign_prelude.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0238]: cannot bind `len` again: a name is bound once
-|     --> tests/lang/err_hide_assign_prelude.fung:3:3
-|     |
-|   3 |   len = 3
-|     |   ^^^
-|     |
-|     note: `len` is a prelude function
-|    help: a visible name means one thing: give the new one a name of its own
--- exit: 2
 ==== test tests/lang/err_hide_for_pattern.fung
 -- stdout
 | FAIL tests/lang/err_hide_for_pattern.fung: <load>
@@ -1510,20 +1518,6 @@
 |     |           ^
 |     |
 |     note: `x` is a top-level name bound on line 2
-|    help: a visible name means one thing: give the new one a name of its own
--- exit: 2
-==== test tests/lang/err_hide_import_prelude.fung
--- stdout
-| FAIL tests/lang/err_hide_import_prelude.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0238]: cannot bind `split` again: a name is bound once
-|     --> tests/lang/err_hide_import_prelude.fung:2:15
-|     |
-|   2 | import regex (split)
-|     |               ^^^^^
-|     |
-|     note: `split` is a prelude function
 |    help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
 ==== test tests/lang/err_hide_lambda_param.fung
@@ -1580,20 +1574,6 @@
 |     |      ^^^^^
 |     |
 |     note: `greet` is imported on line 2
-|    help: a visible name means one thing: give the new one a name of its own
--- exit: 2
-==== test tests/lang/err_hide_param_prelude.fung
--- stdout
-| FAIL tests/lang/err_hide_param_prelude.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0238]: cannot bind `len` again: a name is bound once
-|     --> tests/lang/err_hide_param_prelude.fung:3:7
-|     |
-|   3 | fn _f(len) = len + 1
-|     |       ^^^
-|     |
-|     note: `len` is a prelude function
 |    help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
 ==== test tests/lang/err_hide_param_top_fn.fung
@@ -1737,32 +1717,6 @@
 |     |            ^^^^^^^
 |     |
 |    help: names starting with `_` are not exported
--- exit: 2
-==== test tests/lang/err_import_top.fung
--- stdout
-| FAIL tests/lang/err_import_top.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
-|     --> tests/lang/_lib/noisy.fung:1:1
-|     |
-|   1 | print("side effect")
-|     | ^
-|     |
-|    help: move the statement into a function, or into the entry file
--- exit: 2
-==== test tests/lang/err_import_top_pattern.fung
--- stdout
-| FAIL tests/lang/err_import_top_pattern.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
-|     --> tests/lang/_lib/noisy_pattern.fung:3:1
-|     |
-|   3 | (_, _) = (print("loading"), 2)
-|     | ^
-|     |
-|    help: move the statement into a function, or into the entry file
 -- exit: 2
 ==== test tests/lang/err_import_twice.fung
 -- stdout
@@ -1917,32 +1871,6 @@
 |     |
 |    help: put the lambda in parentheses: `(x => …)`
 -- exit: 2
-==== test tests/lang/err_lambda_question.fung
--- stdout
-| FAIL tests/lang/err_lambda_question.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0237]: `?` inside a lambda `=>`
-|     --> tests/lang/err_lambda_question.fung:3:40
-|     |
-|   3 | fn f(xs) = filter(xs, x => parse_int(x)? > 1)
-|     |                                        ^
-|     |
-|    help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
--- exit: 2
-==== test tests/lang/err_lambda_return.fung
--- stdout
-| FAIL tests/lang/err_lambda_return.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0237]: `return` inside a lambda `=>`
-|     --> tests/lang/err_lambda_return.fung:8:37
-|     |
-|   8 | fn h(xs) = find(xs, x => x > 1 then return true else false)
-|     |                                     ^^^^^^
-|     |
-|    help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
--- exit: 2
 ==== test tests/lang/err_line_starts_minus.fung
 -- stdout
 | FAIL tests/lang/err_line_starts_minus.fung: <load>
@@ -2007,19 +1935,6 @@
 -- stderr
 | no tests found
 -- exit: 1
-==== test tests/lang/err_map_named_f_question.fung
--- stdout
-| FAIL tests/lang/err_map_named_f_question.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0237]: `?` inside a lambda `=>`
-|     --> tests/lang/err_map_named_f_question.fung:2:44
-|     |
-|   2 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
-|     |                                            ^
-|     |
-|    help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
--- exit: 2
 ==== test tests/lang/err_map_pattern_dup_key.fung
 -- stdout
 | FAIL tests/lang/err_map_pattern_dup_key.fung: <load>
@@ -2045,19 +1960,6 @@
 |     |    ^
 |     |
 |    help: `{_}` binds nothing; write `{key: _}`, or `{...}` for any map
--- exit: 2
-==== test tests/lang/err_map_question.fung
--- stdout
-| FAIL tests/lang/err_map_question.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0237]: `?` inside a lambda `=>`
-|     --> tests/lang/err_map_question.fung:3:45
-|     |
-|   3 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
-|     |                                             ^
-|     |
-|    help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
 -- exit: 2
 ==== test tests/lang/err_match_after_all.fung
 -- stdout
@@ -2196,6 +2098,19 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_named_literal.fung
+-- stdout
+| FAIL tests/lang/err_named_literal.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+|   error[E0505]: expected bool, got int
+|     --> tests/lang/err_named_literal.fung:5:4
+|     |
+|   5 | if c: print("yes") ;;
+|     |    ^
+|     |
+|     note: `c` is bound to a literal on line 3
+-- exit: 2
 ==== test tests/lang/err_native_import.fung
 -- stdout
 | FAIL tests/lang/err_native_import.fung: <load>
@@ -2398,6 +2313,19 @@
 |     |
 |    help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
+==== test tests/lang/err_pipe_bare_tag.fung
+-- stdout
+| FAIL tests/lang/err_pipe_bare_tag.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+|   error[E0401]: cannot call a value of type sym
+|     --> tests/lang/err_pipe_bare_tag.fung:5:12
+|     |
+|   5 | print(1 |> Ok)
+|     |            ^
+|     |
+|    help: `Ok` alone is a symbol; a tag wraps a value when called: `Ok(x)`, or `x |> Ok()` after a pipe
+-- exit: 2
 ==== test tests/lang/err_pipe_coalesce.fung
 -- stdout
 | FAIL tests/lang/err_pipe_coalesce.fung: <load>
@@ -2449,9 +2377,9 @@
 | 0 passed, 1 failed
 -- stderr
 |   error[E0401]: cannot call a value of type sym
-|     --> tests/lang/err_pipe_quoted_symbol.fung:5:12
+|     --> tests/lang/err_pipe_quoted_symbol.fung:6:12
 |     |
-|   5 | print(1 |> 'red)
+|   6 | print(1 |> 'red)
 |     |            ^
 |     |
 -- exit: 2
@@ -2474,19 +2402,6 @@
 -- stderr
 | no tests found
 -- exit: 1
-==== test tests/lang/err_pmap_question.fung
--- stdout
-| FAIL tests/lang/err_pmap_question.fung: <load>
-| 0 passed, 1 failed
--- stderr
-|   error[E0237]: `?` inside a lambda `=>`
-|     --> tests/lang/err_pmap_question.fung:4:47
-|     |
-|   4 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
-|     |                                               ^
-|     |
-|    help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
--- exit: 2
 ==== test tests/lang/err_positional_after_named.fung
 -- stdout
 | FAIL tests/lang/err_positional_after_named.fung: <load>
@@ -2506,6 +2421,19 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_prelude_hidden_early.fung
+-- stdout
+| FAIL tests/lang/err_prelude_hidden_early.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+|   error[E0204]: undefined name `lines`
+|     --> tests/lang/err_prelude_hidden_early.fung:5:11
+|     |
+|   5 |   lines = lines(text)
+|     |           ^^^^^ not found in this scope
+|     |
+|    help: `lines` is bound on line 5 of this block, so here it is that name, not the prelude function; read it after that line, or give the new name another name
+-- exit: 2
 ==== test tests/lang/err_pure_call_member.fung
 -- stdout
 | FAIL tests/lang/err_pure_call_member.fung: <load>
@@ -2543,7 +2471,7 @@
 |   2 | fn f(xs) = for x in xs: x? ;;
 |     |                          ^
 |     |
-|    help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+|    help: a `for` body is the body of the function `map`/`each` is given, so it cannot return from the function around it; use `try_map`, `find`, `all`/`any` or `fold`, or an anonymous `fn(x): … ;;` to return from
 -- exit: 2
 ==== test tests/lang/err_question_nil.fung
 -- stdout
@@ -2737,7 +2665,7 @@
 |   1 | fn f(xs) = for x in xs: return x ;;
 |     |                         ^^^^^^
 |     |
-|    help: a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`
+|    help: a `for` body is the body of the function `map`/`each` is given, so it cannot return from the function around it; use `try_map`, `find`, `all`/`any` or `fold`, or an anonymous `fn(x): … ;;` to return from
 -- exit: 2
 ==== test tests/lang/err_return_operand.fung
 -- stdout
@@ -2935,12 +2863,25 @@
 |     |       ^
 |     |
 -- exit: 2
+==== test tests/lang/err_string_dollar.fung
+-- stdout
+| FAIL tests/lang/err_string_dollar.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+|   error[E0129]: `$` in a string must start `${…}` or be written `\$`
+|     --> tests/lang/err_string_dollar.fung:4:14
+|     |
+|   4 | print("cost: $5")
+|     |              ^
+|     |
+|    help: write `\$` for the character, or `${…}` to put a value in; text with many `$` reads best as a raw string
+-- exit: 2
 ==== test tests/lang/err_string_dollar_name.fung
 -- stdout
 | FAIL tests/lang/err_string_dollar_name.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-|   error[E0129]: `$x` in a string is not interpolation
+|   error[E0129]: `$` in a string must start `${…}` or be written `\$`
 |     --> tests/lang/err_string_dollar_name.fung:5:8
 |     |
 |   5 | print("$x")
@@ -3225,10 +3166,17 @@
 -- exit: 2
 ==== test tests/lang/err_types_enum.fung
 -- stdout
-| 0 passed, 0 failed
+| FAIL tests/lang/err_types_enum.fung: <load>
+| 0 passed, 1 failed
 -- stderr
-| no tests found
--- exit: 1
+|   error[E0403]: argument `c` must be Red | Green, got sym
+|     --> tests/lang/err_types_enum.fung:4:11
+|     |
+|   4 | print(hex(v))
+|     |           ^
+|     |
+|     note: `v` is bound to a literal on line 3
+-- exit: 2
 ==== test tests/lang/err_unclosed_block.fung
 -- stdout
 | FAIL tests/lang/err_unclosed_block.fung: <load>
@@ -3555,6 +3503,12 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/import_top_statements.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/index_of.fung
 -- stdout
 | 0 passed, 0 failed
@@ -3591,6 +3545,12 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/lambda_early_return.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/line_continuation_brackets.fung
 -- stdout
 | 0 passed, 0 failed
@@ -3622,12 +3582,6 @@
 | no tests found
 -- exit: 1
 ==== test tests/lang/literals.fung
--- stdout
-| 0 passed, 0 failed
--- stderr
-| no tests found
--- exit: 1
-==== test tests/lang/local_lifetime.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -3717,6 +3671,12 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/partial_named.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/pass_through_ok.fung
 -- stdout
 | 0 passed, 0 failed
@@ -3754,6 +3714,12 @@
 | no tests found
 -- exit: 1
 ==== test tests/lang/pipes_partial.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/prelude_shadow.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

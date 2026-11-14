@@ -324,7 +324,8 @@ impl<'a> Parser<'a> {
         }
         let arrow = self.next(); // =>
         self.skip_newlines_after_operator();
-        // a `return` here is read so resolve names the rule (E0237, D42)
+        // the body is the lambda's end: it may be a `return`, as in
+        // `fn f() = e` (D50, D142)
         self.return_ok = true;
         let body = self.expr(0)?;
         Ok(Node::with_lit(

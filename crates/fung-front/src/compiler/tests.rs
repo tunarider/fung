@@ -265,7 +265,7 @@ fn compile_literals_and_concat() {
 
 #[test]
 fn jump_if_false_carries_condition_position() {
-    let p = comp("x = 1\nx and true");
+    let p = comp("x = [true][0]\nx and true");
     // JUMPIFFALSE points at the condition (col 1), not the operator (col 3)
     let at = p
         .code

@@ -1,5 +1,8 @@
 fn slug(s) = lower(s)
-fn fails(m) = Err(m)
+fn fails(m):
+  assert true  # an effect (D141): the call is no pure value
+  Err(m)
+;;
 
 test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
 test "pipeline on the left": assert [1, 2] |> len() > 5 ;;

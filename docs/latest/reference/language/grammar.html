@@ -112,7 +112,7 @@ assign      = destructure &quot;=&quot; expr .                (* 문장 시작�
 
 expr        = lambda | then_expr .                  (* 연산자의 피연산자 자리에서 괄호 없는 람다는 E0110 *)
 lambda      = ( NAME | &quot;_&quot; | &quot;(&quot; [ lparam { &quot;,&quot; lparam } [ &quot;,&quot; ] ] &quot;)&quot; ) &quot;=&gt;&quot; expr .
-                                                    (* 본문 안의 return·?는 E0237 *)
+                                                    (* 본문의 return·?는 그 람다에서 돌아온다 *)
 lparam      = destructure .                         (* fn의 매개변수와 같은 패턴, 기본값·타입·...rest 없음 *)
 then_expr   = or_expr [ &quot;then&quot; branch &quot;else&quot; branch ] .  (* else는 필수, 오른쪽 결합 *)
 branch      = return | expr .
@@ -122,7 +122,7 @@ and_expr    = not_expr { &quot;and&quot; not_expr } .
 not_expr    = &quot;not&quot; not_expr | cmp_expr .
 cmp_expr    = pipe_expr [ cmp_op pipe_expr ] .      (* 연쇄 없음 *)
 cmp_op      = &quot;==&quot; | &quot;!=&quot; | &quot;&lt;&quot; | &quot;&gt;&quot; | &quot;&lt;=&quot; | &quot;&gt;=&quot; | &quot;in&quot; | &quot;not&quot; &quot;in&quot; .
-pipe_expr   = coalesce { &quot;|&gt;&quot; coalesce } .          (* 괄호 없는 호출·태그만 값을 맨 앞 인자로 받는다.
+pipe_expr   = coalesce { &quot;|&gt;&quot; coalesce } .          (* 괄호 없는 호출 모양(f(…), Tag(…))만 값을 맨 앞 인자로 받는다.
                                                        괄호 없는 ??가 |&gt;의 피연산자면 E0127 *)
 coalesce    = range { &quot;??&quot; range } .
 range       = add [ ( &quot;..&quot; | &quot;..=&quot; ) add ] .        (* 범위는 범위의 피연산자가 아니다: E0118 *)
@@ -139,7 +139,7 @@ args        = pos_arg { &quot;,&quot; pos_arg } [ &quot;,&quot; spread ] { &quot
 pos_arg     = expr | &quot;_&quot; .                          (* 부분 적용 자리 *)
 spread      = &quot;...&quot; expr .                          (* 리스트·범위를 위치 인자로 펼침. 마지막 위치 인자 하나,
                                                        리스트 리터럴·태그에는 없다: E0133 *)
-named       = NAME &quot;:&quot; expr .                       (* 이름 붙인 인자(_는 없다) *)
+named       = NAME &quot;:&quot; ( expr | &quot;_&quot; ) .             (* 이름 붙인 인자, _는 부분 적용 자리 *)
 index       = &quot;[&quot; ( expr | [ add ] &quot;..&quot; [ add ] | [ add ] &quot;..=&quot; add ) &quot;]&quot; .
                                                     (* `[` 바로 안의 `..`·`..=`만 슬라이스, 두 끝은 range의 피연산자 층.
                                                        끝의 맨 위가 ??·|&gt;·비교·in·not·and·or·then이면 E0125: xs[(a ?? 0)..].

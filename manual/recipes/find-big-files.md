@@ -94,7 +94,7 @@ print(pad_left(human(found |> map(f => f.size) |> sum), 7), "total")
 
 :::box mistake `int`와 `parse_int`
 
-명령줄 값은 언제나 문자열이다. `int("abc")`는 바꿀 수 없으면 런타임 에러 E0513으로 바로 멈추고, `parse_int("abc")`는 `Err({kind: 'parse, …})`를 돌려준다. 사용자가 잘못 넣을 수 있는 값에는 `parse_int(s) ?? fail("…")`처럼 써서 무엇이 잘못됐는지 직접 말해 준다. `int`는 이미 숫자임이 확실한 값(정규식으로 고른 숫자 등)에 쓴다.
+명령줄 값은 언제나 문자열이다. `int`는 수 사이만 바꾸므로 `int("100")`은 런타임 에러 E0513이다. 글은 `parse_int`가 읽고 `Err({kind: 'parse, …})`로 실패를 알린다. 사용자가 잘못 넣을 수 있는 값에는 `parse_int(s) ?? fail("…")`처럼 써서 무엇이 잘못됐는지 직접 말해 준다. 이미 숫자임이 확실한 글(정규식으로 고른 숫자 등)은 `parse_int(s)!`로 꺼낸다.
 
 :::
 

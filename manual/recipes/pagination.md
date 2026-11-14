@@ -106,7 +106,7 @@ print(until(1, x => x * 2, x => x > 100))
 
 ## 응용 {#vary}
 
-- **페이지 번호 방식**: `?page=1`, `?page=2`…로 넘기고 빈 페이지에서 끝나는 API라면 `next` 대신 번호를 인자로 넘긴다: `is_empty(p.items) then Ok(acc) else all_items(base, acc + p.items, n + 1)`, 주소는 `"${base}?page=${n}"`.
+- **페이지 번호 방식**: `?page=1`, `?page=2`…로 넘기고 빈 페이지에서 끝나는 API라면 `next` 대신 번호를 인자로 넘긴다: `len(p.items) == 0 then Ok(acc) else all_items(base, acc + p.items, n + 1)`, 주소는 `"${base}?page=${n}"`.
 - **Link 헤더 방식**: GitHub처럼 다음 주소를 `link: <https://…?page=2>; rel="next"` 헤더로 주면 원시 문자열 정규식 `<([^>]+)>;\s*rel="next"`을 `regex.find(get(res.headers, "link", ""), pat)`에 넘겨 얻은 첫 조각이 다음 주소다. 이때 `page`는 본문과 함께 헤더도 돌려주게 바꾼다.
 - **파일로 바로**: `each` 대신 `fs.write("hosts.json", json.stringify(items, indent: 2))!`. [CSV와 JSON으로 저장하기](save-csv-json.html).
 - **필드만 골라**: 항목마다 필요한 필드만 남기려면 [JSON API에서 필드 뽑기](json-fields.html)의 `dig`를 쓴다.

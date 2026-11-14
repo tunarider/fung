@@ -391,7 +391,7 @@ fn io_is_seen_between_turns_of_a_computing_task() {
     use crate::testutil::jobs;
     let s = setup(
         &format!(
-            "{}fd = pipe_pair(\"cp\")\nfn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(pipe_read(fd)) ;;)\n  spawn(s, fn():\n    wait_for(() => waiting_io() == 1)\n    settle_mark(\"cp\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
+            "{}fd = pipe_pair(\"cp\")\nfn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(pipe_read(fd)) ;;)\n  spawn(s, fn():\n    wait_for(() => waiting_io() == 1)\n    settle_mark(\"cp\")\n    _ = fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
             crate::testutil::UNTIL
         ),
         job_opts(),
@@ -434,7 +434,7 @@ fn a_task_woken_from_another_thread_runs_beside_a_computing_task() {
     use crate::testutil::jobs;
     let s = setup(
         &format!(
-            "{}fn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(block_job(\"wb\")) ;;)\n  spawn(s, fn():\n    wait_for(() => pool_state()[0] - pool_state()[1] == 1)\n    settle_mark(\"wb\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
+            "{}fn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(block_job(\"wb\")) ;;)\n  spawn(s, fn():\n    wait_for(() => pool_state()[0] - pool_state()[1] == 1)\n    settle_mark(\"wb\")\n    _ = fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
             crate::testutil::UNTIL
         ),
         job_opts(),
@@ -610,14 +610,15 @@ fn a_deadlock_report_names_a_sending_end_the_receiver_holds() {
     );
     assert!(
         o.err.contains(
-            " help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `<lambda>`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only\n"
+            " help: this task waits to receive, and a channel closes only by `close`: it holds the sending end itself (a variable of `<lambda>`), so close it with `close` once the last value is sent\n"
         ),
         "{}",
         o.err
     );
     let o = exec("(_tx, rx) = channel()\nfor x in rx: x ;;", Opts::default());
     assert!(
-        o.err.contains("sending end itself (the global `_tx`)"),
+        o.err
+            .contains("sending end itself (the global `_tx`), so close it with `close(_tx)`"),
         "{}",
         o.err
     );
@@ -648,7 +649,7 @@ fn a_deadlock_report_names_a_sending_end_wait_closed_holds() {
     let o = exec("(_tx, rx) = channel()\nwait_closed(rx)", Opts::default());
     assert!(
         o.err.contains(
-            " help: this task waits for that channel to close, but it still holds its sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n"
+            " help: this task waits for a channel to close, and a channel closes only by `close`: it holds the sending end itself (the global `_tx`), so close it with `close(_tx)` once the last value is sent\n"
         ),
         "{}",
         o.err

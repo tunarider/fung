@@ -69,9 +69,6 @@ pub struct Loader {
     pub tests: bool,
     /// The entry is an embedded extras file: it may import `_native.*`.
     pub internal: bool,
-    /// The entry is compiled as an imported file is (a prelude file: its
-    /// public names are the prelude's, its interface, D38).
-    pub library: bool,
     /// Names added to the prelude (VM tests use it for natives that exist only in tests).
     pub extra_prelude: Vec<String>,
     /// REPL (08): the globals earlier inputs defined, for the entry file
@@ -107,7 +104,6 @@ impl Default for Loader {
             },
             tests: false,
             internal: false,
-            library: false,
             extra_prelude: Vec::new(),
             globals: Vec::new(),
             redefine: false,
@@ -189,8 +185,7 @@ impl Loader {
         };
         st.loading.insert(key.clone());
         let id = st.sources.add(file, src);
-        let (mut b, errs) =
-            st.compile_file(&key, file, id, src, self.library, self.internal, up_to);
+        let (mut b, errs) = st.compile_file(&key, file, id, src, self.internal, up_to);
         b.sources = st.sources;
         b.modules = st.modules;
         (b, errs)
@@ -207,7 +202,6 @@ impl State<'_> {
         file: &str,
         id: FileId,
         src: &str,
-        library: bool,
         is_stdlib: bool,
         up_to: Stage,
     ) -> (Build, Errs) {
@@ -250,7 +244,6 @@ impl State<'_> {
         };
         let mut ropts = resolve::Options {
             imports,
-            library,
             spec: Some(self.l.builtins()),
             ..resolve::Options::default()
         };
@@ -467,7 +460,7 @@ impl State<'_> {
         let id = self.sources.add(file, &src);
         self.loading.insert(key.to_string());
         self.stack.push((key.to_string(), file.to_string()));
-        let (b, errs) = self.compile_file(key, file, id, &src, true, is_stdlib, Stage::All);
+        let (b, errs) = self.compile_file(key, file, id, &src, is_stdlib, Stage::All);
         self.stack.pop();
         self.loading.remove(key);
         if !errs.is_empty() {
@@ -1009,17 +1002,17 @@ mod tests {
         );
     }
 
-    /// FE29: E0306 points at the start of the statement, not at a call's
-    /// `(`.
+    /// D140: an imported file's top level takes any statement; it runs
+    /// once when the file is first imported.
     #[test]
-    fn library_statement_error_points_at_the_statement() {
+    fn library_statements_compile() {
         set_files(&[("/p/lib_side.fung", "x = 1\nprint(\"side\")\n(print)(x)\n")]);
-        let (_, errs) = mem_loader().compile("/p/m.fung", "import \"./lib_side\"", Stage::All);
-        let at: Vec<(&str, u32, u32)> = errs
-            .iter()
-            .map(|e| (e.code.as_str(), e.pos.line, e.pos.col))
-            .collect();
-        assert_eq!(at, [("E0306", 2, 1), ("E0306", 3, 2)]);
+        let (_, errs) = mem_loader().compile(
+            "/p/m.fung",
+            "import \"./lib_side\"\nprint(lib_side.x)",
+            Stage::All,
+        );
+        assert_eq!(codes(&errs), [] as [&str; 0]);
     }
 
     /// FE30: a module name from a file name follows the lexer's rule for
@@ -1062,8 +1055,8 @@ mod tests {
                 "/p/usebad2.fung",
                 "import \"./bad-name\" as ok\nprint(ok.x)",
             ),
-            ("/p/lib_err.fung", "print(1)"),
-            ("/p/uselib.fung", "import \"./lib_err\""),
+            ("/p/lib_err.fung", "print(1)\nx = 1"),
+            ("/p/uselib.fung", "import \"./lib_err\"\nprint(lib_err.x)"),
             ("/p/synerr.fung", "x = ("),
             ("/p/usesyn.fung", "import \"./synerr\""),
         ]);
@@ -1074,7 +1067,7 @@ mod tests {
             ("/p/entry.fung", "E0307"),
             ("/p/usebad.fung", "E0305"),
             ("/p/usebad2.fung", ""),
-            ("/p/uselib.fung", "E0306"),
+            ("/p/uselib.fung", ""),
             ("/p/usesyn.fung", "E0110"),
         ];
         for (entry, want) in cases {
@@ -1199,7 +1192,6 @@ mod tests {
     fn prelude_fung_exports_match_the_spec() {
         let loader = Loader {
             internal: true,
-            library: true,
             ..Loader::default()
         };
         let mut exports = Vec::new();

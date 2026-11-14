@@ -49,8 +49,10 @@ fn tail_calls_do_not_grow_and_deep_recursion_is_e0804() {
 /// E0606 at the right element, also after the memo was filled.
 #[test]
 fn a_discarded_long_list_finds_its_err() {
-    // `id(…)`: a slice alone as a statement does nothing (E0234).
-    let long = "fn id(v) = v\nxs = map(0..200, x => x == 70 then Err(x) else x)\n";
+    // `id(…)`: a slice alone as a statement does nothing (E0234). It
+    // prints nothing but is no pure function: `assert true` (D141).
+    let long =
+        "fn id(v):\n  assert true\n  v\n;;\nxs = map(0..200, x => x == 70 then Err(x) else x)\n";
     let quiet = format!("{long}id(xs[71..])\nid(xs[..70])\nid(xs[71..])\nprint(\"ok\")");
     assert_eq!(run_src(&quiet), ("ok\n".into(), "".into(), 0));
     for tail in [
@@ -378,7 +380,11 @@ fn leaner_code_keeps_its_meaning() {
         ("x = 5\nif true and x: 1 else: 2 ;;", "E0505", "-e:2:13"),
         ("x = 5\nif false or x: 1 else: 2 ;;", "E0505", "-e:2:13"),
         ("x = 5\n_y = true and x", "E0505", "-e:2:15"),
-        ("fn f() = Err(1)\nif true: f() ;;\n1", "E0606", "-e:2:1"),
+        (
+            "fn f():\n  assert true\n  Err(1)\n;;\nif true: f() ;;\n1",
+            "E0606",
+            "-e:5:1",
+        ),
         (
             "fn f(c, s) -> int = c then 1 else s\nf(false, \"s\")",
             "E0404",
@@ -709,11 +715,11 @@ fn type_annotations_are_checked() {
 fn calling_convention_messages() {
     let cases = [
         (
-            "fn f(n: int) = n\na = \"a\"\nf(a)",
+            "fn f(n: int) = n\na = lower(\"a\")\nf(a)",
             "error[E0403]: argument `n` must be int, got str",
         ),
         (
-            "fn f(v: str | nil) = v\na = 1\nf(a)",
+            "fn f(v: str | nil) = v\na = len(\"a\")\nf(a)",
             "error[E0403]: argument `v` must be str | nil, got int",
         ),
         (
@@ -721,7 +727,7 @@ fn calling_convention_messages() {
             "error[E0404]: return value must be str, got int",
         ),
         (
-            "f = 1\nf()",
+            "f = len(\"a\")\nf()",
             "error[E0401]: cannot call a value of type int",
         ),
     ];
@@ -1467,7 +1473,7 @@ fn values_of_different_types_are_not_equal() {
          print([1, 'a] == [1, \"a\"], [1, \"a\"] == [2, 3], {a: 1} == {a: \"1\"})\n\
          print((1, 2) == (1, 2, 3), 1 == 1.0, nil == 1, 0..3 == [0, 1, 2])\n\
          print(1 in [1, \"a\"], \"a\" in [1, \"a\"], \"x\" in [1, 2], \"1\" in 0..3)\n\
-         print(unique([1, \"1\", 1, 'a, \"a\"]), contains([1, 2], \"1\"))",
+         print(unique([1, \"1\", 1, 'a, \"a\"]), \"1\" not in [1, 2])",
     );
     assert_eq!(
         out,
@@ -1475,7 +1481,7 @@ fn values_of_different_types_are_not_equal() {
          false false false\n\
          false true false false\n\
          true true false false\n\
-         [1, \"1\", 'a, \"a\"] false\n",
+         [1, \"1\", 'a, \"a\"] true\n",
         "{err}"
     );
     for (src, want) in [
@@ -1675,11 +1681,11 @@ fn small_value_fixes() {
         "print(len(pad_left(\"\", 100000000)), len(pad_right(\"x\", 100000000, \"abc\")), pad_left(\"7\", 4, \"ab\"), pad_right(\"7\", 5, \"ab\"))",
     );
     assert_eq!(out, "100000000 100000000 aba7 7abab\n", "{err}");
-    // VA45: a shown string reads back as source: `$` before a name or
-    // `{` is escaped, and `\u{…}` is written in lowercase.
+    // VA45, D146: a shown string reads back as source: every `$` is
+    // escaped, and `\u{…}` is written in lowercase.
     let (out, err, _) = run_src("print([\"a\\$b\", \"\\${a}\", \"\\$_x\", \"\\$5\", \"\\u{1b}\"])");
     assert_eq!(
-        out, "[\"a\\$b\", \"\\${a}\", \"\\$_x\", \"$5\", \"\\u{1b}\"]\n",
+        out, "[\"a\\$b\", \"\\${a}\", \"\\$_x\", \"\\$5\", \"\\u{1b}\"]\n",
         "{err}"
     );
     // VA42, D135: a duration and a float are computed exactly and

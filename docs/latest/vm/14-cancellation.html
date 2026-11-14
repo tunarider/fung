@@ -295,7 +295,7 @@ error[E0502]: division by zero
 <p>그래서 둘을 따로 둔다. <code>stop_signal()</code>은 정지 요청이 오면 닫히는 채널의 받는 끝을 준다. 정지 요청을 <strong>보는 쪽이 없으면</strong> 그때만 취소로 넘어간다. 그래서 정지 요청을 모르는 스크립트는 Ctrl-C에 지금처럼 곧바로 멈춘다.</p>
 <p><strong>보는 쪽이 있는지는 참조 수로 안다</strong>(<code>crates/fung-vm/src/vm/stop.rs</code>). 런타임은 정지 채널의 보내는 끝을 쥐고, 받는 끝은 약한 참조(<code>Weak</code>)로만 기억한다. 받는 끝의 사본이 하나라도 살아 있으면 약한 참조가 되살아난다. 그것이 "보는 쪽이 있다"다. 정지 요청이 오면,</p>
 <ul>
-<li>보는 쪽이 있으면: 런타임이 보내는 끝을 놓는다. 채널이 닫히고(마지막 사본이 사라졌으므로) 기다리던 쪽이 모두 깨어난다. 새 장치가 필요 없었다. 프로그램은 스스로 끝날 때 끝나고, 종료 코드는 0이다. 신호가 왔을 때 그 채널에서 기다리는 태스크가 없으면(최상위 이름이 끝을 쥐고만 있으면) 표준 에러에 <code>note: stop requested; press again to end now</code>를 쓴다. 판정을 바꾸면 쥐고 있다가 나중에 보는 정상 프로그램이 취소당하므로, 판정은 두고 침묵만 없앴다.</li>
+<li>보는 쪽이 있으면: 런타임이 쥔 보내는 끝으로 채널을 닫고(<code>close(tx)</code>와 같다) 놓는다. 기다리던 쪽이 모두 깨어난다. 새 장치가 필요 없었다. 프로그램은 스스로 끝날 때 끝나고, 종료 코드는 0이다. 신호가 왔을 때 그 채널에서 기다리는 태스크가 없으면(최상위 이름이 끝을 쥐고만 있으면) 표준 에러에 <code>note: stop requested; press again to end now</code>를 쓴다. 판정을 바꾸면 쥐고 있다가 나중에 보는 정상 프로그램이 취소당하므로, 판정은 두고 침묵만 없앴다.</li>
 <li>보는 쪽이 없으면: <code>exit</code>처럼 루트를 취소한다. 종료 코드는 128 + 신호 번호(SIGINT 130, SIGTERM 143), <code>request_stop()</code>이면 0이다.</li>
 </ul>
 <div class="run"><pre><code>stop = stop_signal()

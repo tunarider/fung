@@ -1,5 +1,8 @@
 # A for statement runs as each: its body's Err is discarded.
-fn fails(m) = Err(m)
+fn fails(m):
+  assert true  # an effect (D141): the call is a statement
+  Err(m)
+;;
 for x in [1, 2]:
   print(x)
   if x == 2: fails("two") ;;

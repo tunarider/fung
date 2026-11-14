@@ -6,7 +6,7 @@ description: fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기,
 
 ## 정규식이란 {#concepts}
 
-**정규식**(regular expression, regex)은 "문자열의 모양"을 적는 작은 언어다. "숫자가 하나 이상", "`ERROR`로 시작하는 줄", "`키=값` 꼴" 같은 조건을 짧은 패턴으로 쓴다. `grep`, `sed`, 편집기의 찾기 기능이 쓰는 그것이다. 고정된 글자를 찾을 때는 prelude의 [`contains`](../prelude/collections.html#fn-contains)·[`split`](../prelude/strings.html#fn-split)·[`replace`](../prelude/strings.html#fn-replace)가 더 간단하고 빠르다. 모양이 들쭉날쭉할 때 정규식을 쓴다.
+**정규식**(regular expression, regex)은 "문자열의 모양"을 적는 작은 언어다. "숫자가 하나 이상", "`ERROR`로 시작하는 줄", "`키=값` 꼴" 같은 조건을 짧은 패턴으로 쓴다. `grep`, `sed`, 편집기의 찾기 기능이 쓰는 그것이다. 고정된 글자를 찾을 때는 연산자 [`in`](../language/operators.html)과 prelude의 [`split`](../prelude/strings.html#fn-split)·[`replace`](../prelude/strings.html#fn-replace)가 더 간단하고 빠르다. 모양이 들쭉날쭉할 때 정규식을 쓴다.
 
 자주 쓰는 문법:
 
@@ -118,7 +118,7 @@ print(regex.is_match("a", `a(`))
 
 #### 같이 보기
 
-[`regex.find`](#fn-regex-find), [`contains`](../prelude/collections.html#fn-contains), [`starts_with`](../prelude/strings.html#fn-starts_with)
+[`regex.find`](#fn-regex-find), [`in`](../language/operators.html), [`starts_with`](../prelude/strings.html#fn-starts_with)
 
 :::
 
@@ -151,7 +151,7 @@ print(regex.is_match("a", `a(`))
 import regex
 
 m = regex.find("listen port=8080 proto=tcp", `(?P<key>port)=(?P<val>\d+)`)
-print(m.named.key, int(m.named.val) + 1)
+print(m.named.key, parse_int(m.named.val)! + 1)
 print(m.text, m.start, m.end)
 ```
 
@@ -214,7 +214,7 @@ print("참치 42개"[m.start..m.end])
 import regex
 
 ms = regex.find_all("took 12ms, 340ms and 7ms", `\d+`)
-print(ms |> map(m => int(m.text)) |> sum)
+print(ms |> map(m => parse_int(m.text)!) |> sum)
 ```
 
 **`키=값` 쌍을 맵으로**
@@ -284,7 +284,7 @@ print(rows |> map(m => m.groups) |> filter(g => g[2] != "200"))
 ```fung run
 import regex
 
-print(regex.replace("2026-10-04, 2026-10-05", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"))
+print(regex.replace("2026-10-04, 2026-10-05", `(\d+)-(\d+)-(\d+)`, `$3/$2/$1`))
 ```
 
 **비밀 가리기**
@@ -302,7 +302,7 @@ print(regex.replace(line, `(?P<key>password|token)=\S+`, `${key}=***`))
 import regex
 
 print(regex.replace("ab", `(a)`, `${1}x`))
-print(regex.replace("cost 5", `(\d+)`, "$$$1"))
+print(regex.replace("cost 5", `(\d+)`, `$$$1`))
 ```
 
 `$1x`는 이름이 `1x`인 그룹이라, 패턴에 없으므로 에러다.
@@ -310,7 +310,7 @@ print(regex.replace("cost 5", `(\d+)`, "$$$1"))
 ```fung run exit=1 error=E0521
 import regex
 
-print(regex.replace("ab", `(a)`, "$1x"))
+print(regex.replace("ab", `(a)`, `$1x`))
 ```
 
 :::box mistake 보통 문자열에 `${name}`

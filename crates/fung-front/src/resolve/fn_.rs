@@ -39,15 +39,11 @@ impl Resolver<'_> {
         };
         let mut f = FnScope::new(&decl.name);
         if !decl.name.is_empty() {
-            f.self_sig = Some(self.sig_of(decl));
+            f.self_sig = Some(self.sig_of_node(n));
         }
+        f.nparams = decl.params.len();
         f.for_body = decl.for_body;
-        f.lambda = decl.lambda;
         f.top = top;
-        // The parameters of a module's public fns are its interface: callers
-        // name them (`timeout: 5s`), so they may be prelude names (D38);
-        // a rest parameter is not named by callers.
-        let interface = f.top && self.interface_name(&decl.name);
         self.fns.push(f);
         if !decl.name.is_empty() {
             *self.open.entry(decl.name.clone()).or_default() += 1;
@@ -88,9 +84,7 @@ impl Resolver<'_> {
                 kids.push(d);
                 di += 1;
             }
-            // A rest parameter is never given by name (E0406), so it is no
-            // part of the interface (FE82).
-            self.binds_fresh(&prm.name, prm.pos, false, interface && !prm.rest);
+            self.binds_fresh(&prm.name, prm.pos, false);
             let b = Binding {
                 index: i,
                 ..Binding::default()
@@ -105,7 +99,9 @@ impl Resolver<'_> {
         let stmts = body.kids.iter().map(|k| self.stmt(k)).collect();
         kids.push(Node::new(Head::Do, body.pos, stmts));
         self.pop_block(false);
-        let f = self.fns.pop().expect("function stack");
+        let mut f = self.fns.pop().expect("function stack");
+        self.bodies
+            .insert(super::effect::key(n), std::mem::take(&mut f.effects));
         if !decl.name.is_empty() {
             self.unopen(&decl.name);
         }

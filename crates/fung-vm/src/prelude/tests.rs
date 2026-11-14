@@ -95,7 +95,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 439;
+const RUN_CASE_COUNT: usize = 441;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -240,11 +240,8 @@ fn conversions() {
         ("int", Value::Int(3), "3"),
         ("int", Value::Float(3.9), "3"),
         ("int", Value::Float(-3.9), "-3"),
-        ("int", st("42"), "42"),
-        ("int", st("-1_000"), "-1000"),
         ("float", Value::Int(2), "2.0"),
-        ("float", st("2.5"), "2.5"),
-        ("float", st("1e3"), "1000.0"),
+        ("float", Value::Float(2.5), "2.5"),
         ("str", st("a"), "\"a\""),
         ("str", Value::Int(1), "\"1\""),
         ("str", Value::Float(1.0), "\"1.0\""),
@@ -297,7 +294,8 @@ fn conversions() {
     }
     let errs: Vec<(&str, Value)> = vec![
         ("int", st("x")),
-        ("int", st(" 1")),
+        ("int", st("42")),
+        ("float", st("2.5")),
         ("int", Value::Bool(true)),
         ("int", Value::Float(f64::INFINITY)),
         ("float", st("abc")),
@@ -308,24 +306,36 @@ fn conversions() {
         assert_eq!(code(&call(name, vec![arg])), "E0513", "{name}({shown})");
     }
     assert_eq!(code(&call("parse_int", vec![Value::Int(1)])), "E0403");
+    // Text is read by `parse_int`/`parse_float`, not converted (D147).
+    for (name, help) in [("int", "parse_int(s)!"), ("float", "parse_float(s)!")] {
+        let Err(Stop::Error(d)) = call(name, vec![st("1")]) else {
+            panic!("{name}(\"1\") converted");
+        };
+        assert!(d.help.as_deref().is_some_and(|h| h.contains(help)), "{d:?}");
+    }
 }
 
 #[test]
 fn numeric_separators_are_strict() {
     for bad in ["1_", "_1", "1__2", "1_.5", "1._5"] {
-        if call("int", vec![st(bad)]).is_ok() && call("float", vec![st(bad)]).is_ok() {
-            panic!("{bad:?} accepted by both int and float");
+        if call("parse_int", vec![st(bad)]).is_ok_and(|v| format(&v).starts_with("Ok"))
+            && call("parse_float", vec![st(bad)]).is_ok_and(|v| format(&v).starts_with("Ok"))
+        {
+            panic!("{bad:?} read by both parse_int and parse_float");
         }
         assert!(
-            call("float", vec![st(bad)]).is_err(),
-            "float({bad:?}) accepted"
+            call("parse_float", vec![st(bad)]).is_ok_and(|v| format(&v).starts_with("Err")),
+            "parse_float({bad:?}) read"
         );
     }
-    assert!(matches!(
-        call("int", vec![st("1_000")]),
-        Ok(Value::Int(1000))
-    ));
-    assert!(matches!(call("float", vec![st("1_0.5")]), Ok(Value::Float(f)) if f == 10.5));
+    assert_eq!(
+        format(&call("parse_int", vec![st("1_000")]).unwrap()),
+        "Ok(1000)"
+    );
+    assert_eq!(
+        format(&call("parse_float", vec![st("1_0.5")]).unwrap()),
+        "Ok(10.5)"
+    );
 }
 
 /// `sym` takes what a symbol literal takes (01, UAX #31, SP4): a tag-shaped
@@ -477,7 +487,7 @@ fn an_empty_search_text_is_refused_everywhere() {
         let e = crate::value::index::contains(&c, &x).expect_err("an error");
         assert_eq!(said(&e), refused("x"));
     }
-    for src in [r#"print("" in "abc")"#, r#"print(contains("abc", ""))"#] {
+    for src in [r#"print("" in "abc")"#, r#"print(index_of("abc", ""))"#] {
         assert_eq!(exec(src, Opts::default()).code, "E0403", "{src}");
     }
     let o = exec(
@@ -571,15 +581,11 @@ fn collection_functions() {
 }
 
 /// The rest of the collection functions: these cases call functions of
-/// `extras/prelude.fung` (`is_empty`, `sum`, `min`, `reverse`, `zip`, …),
+/// `extras/prelude.fung` (`sum`, `min`, `reverse`, `zip`, …),
 /// which Task 9 compiles and boots.
 #[test]
 fn collection_functions_with_the_fung_prelude() {
     let cases: &[(&str, &str)] = &[
-        (
-            "print(is_empty([]), is_empty(\"a\"), is_empty({}), is_empty(0..0))",
-            "true false true true\n",
-        ),
         (
             "print(sum([1, 2.5]), sum([]), min([3, 1, 2]), max([\"b\", \"a\"]), min([]))",
             "3.5 0 1 b nil\n",
@@ -592,10 +598,6 @@ fn collection_functions_with_the_fung_prelude() {
         (
             "print(take([1, 2, 3], 2), take([1], 5), drop([1, 2, 3], 1), drop([1], 5), take([1], 0))",
             "[1, 2] [1] [2, 3] [] []\n",
-        ),
-        (
-            "print(contains([1, 2], 2), contains(\"abc\", \"b\"), contains({a: 1}, \"a\"), contains(0..3, 3))",
-            "true true true false\n",
         ),
         (
             "print(unique([1, 1.0, 2, 1]), flatten([[1], [2, [3]], [4]]))",

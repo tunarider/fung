@@ -252,7 +252,7 @@ fung의 리스트는 Python의 list나 JavaScript의 배열, 맵은 Python의 di
 specs = ["web-1:80", "db-1:5432", "cache-1:6379"]
 fn add_spec(m, spec):
   parts = split(spec, ":")
-  put(m, parts[0], int(parts[1]))
+  put(m, parts[0], parse_int(parts[1])!)
 ;;
 ports = specs |> fold({}, add_spec)
 print(ports)

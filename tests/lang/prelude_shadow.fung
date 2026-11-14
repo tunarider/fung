@@ -1,0 +1,12 @@
+# A prelude function's name can be bound anywhere (D138): in the block
+# that binds it, it is that name for the whole block (D139). An
+# assignment, a parameter (public or private), a `for` variable and an
+# imported name alike.
+import regex (split)
+fn words(text):
+  lines = split(text, `\n`)
+  len(lines)
+;;
+fn _label(xs, len = "n") = "${len}=${xs}"
+print(words("a\nb"), _label(2), for max in [3]: max + 1 ;;, split("a1b", `\d`))
+# expect: 2 n=2 [4] ["a", "b"]

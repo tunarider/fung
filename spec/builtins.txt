@@ -3,17 +3,17 @@
 # prelude fung <name>(<params>)     public name of a prelude file written in fung (a function with its parameters)
 # module <module> <name>(<params>)  member of a _native.x bridge, or public function of conc or http
 # ... pure                          a function known to have no effect: a call of it as a statement is E0234
-module _native.arg count(name, n)
-module _native.arg dur(name, d)
-module _native.arg header_problem(m)
-module _native.arg headers(name, m)
-module _native.arg is_token(s)
-module _native.arg list_of(name, xs, kind)
-module _native.arg options(bools, values)
-module _native.arg positive(name, n)
-module _native.arg result(name, v)
-module _native.arg str_map(name, m)
-module _native.arg token(name, s)
+module _native.arg count(name, n) pure
+module _native.arg dur(name, d) pure
+module _native.arg header_problem(m) pure
+module _native.arg headers(name, m) pure
+module _native.arg is_token(s) pure
+module _native.arg list_of(name, xs, kind) pure
+module _native.arg options(bools, values) pure
+module _native.arg positive(name, n) pure
+module _native.arg result(name, v) pure
+module _native.arg str_map(name, m) pure
+module _native.arg token(name, s) pure
 module _native.fs append(path, text, perm=?)
 module _native.fs close(file)
 module _native.fs copy(from, to, overwrite=?)
@@ -64,7 +64,7 @@ module _native.process exec(cmd, cwd=?, env=?, stdin=?)
 module _native.process sh(cmd, cwd=?, env=?, stdin=?)
 module _native.range items(xs, verb) pure
 module _native.range last(r) pure
-module _native.range pad(pad)
+module _native.range pad(pad) pure
 module _native.range slice(r, from, to=?) pure
 module _native.regex escape(s) pure
 module _native.regex find(s, pattern) pure
@@ -90,13 +90,11 @@ module http request(method, url, body=?, headers=?, timeout=?, max_body=?, redir
 module http serve(addr, handler, ready=?, drain=?, reuse_port=?)
 module http url_decode(s) pure
 module http url_encode(s) pure
-prelude fung contains(c, x) pure
 prelude fung drop(xs, n) pure
 prelude fung env(name) pure
 prelude fung env_all() pure
 prelude fung exec(cmd, cwd=?, env=?, stdin=?)
-prelude fung first(xs) pure
-prelude fung is_empty(x) pure
+prelude fung first(xs)
 prelude fung is_err(x) pure
 prelude fung is_ok(x) pure
 prelude fung iterate(x, f, n) pure
@@ -104,9 +102,9 @@ prelude fung last(xs) pure
 prelude fung pad_left(s, n, pad=?) pure
 prelude fung pad_right(s, n, pad=?) pure
 prelude fung sh(cmd, cwd=?, env=?, stdin=?)
-prelude fung take(xs, n) pure
+prelude fung take(xs, n)
 prelude fung until(x, f, pred) pure
-prelude fung zip(xs, ys) pure
+prelude fung zip(xs, ys)
 prelude native all(xs, f) pure
 prelude native any(xs, f) pure
 prelude native args

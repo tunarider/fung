@@ -12,11 +12,14 @@ print(recv(buf), recv(buf), send(buf_tx, "b"))
 print(tx, rx)
 # expect: <sender> <receiver>
 
-# A producer: only the task holds the sending end, so the channel
-# closes when the task ends and the loop below ends with it.
+# A producer closes its channel when it is done (a channel closes only
+# by `close`, D136), and the loop below ends with it.
 fn numbers(s, n):
   (out, ins) = channel()
-  spawn(s, () => each(0..n, i => send(out, i)))
+  spawn(s, fn():
+    each(0..n, i => send(out, i))
+    close(out)!
+  ;;)
   ins
 ;;
 

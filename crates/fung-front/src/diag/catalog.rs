@@ -73,11 +73,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "only a constant string fits here: drop the interpolation",
     ],
+    // not raised since a named argument may be left open too (D155)
     [
         "E0123",
         "`_` cannot be a named argument",
         "",
-        "`_` fills a position; for a named one write a lambda: `x => f(a: x)`",
+        "not used: `f(a: _)` is a partial application",
     ],
     [
         "E0124",
@@ -111,9 +112,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0129",
-        "`$%s` in a string is not interpolation",
+        "`$` in a string must start `${…}` or be written `\\$`",
         "",
-        "write `${name}` for the value, or `\\$name` for the text",
+        "write `\\$` for the character, or `${…}` to put a value in",
     ],
     [
         "E0130",
@@ -316,7 +317,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0237",
         "`%s` inside %s",
         "",
-        "a lambda `=>` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`",
+        "a `for` body is the body of the function `map`/`each` is given, so it cannot return from the function around it; use `try_map`, `find`, `all`/`any` or `fold`, or an anonymous `fn(x): … ;;` to return from",
     ],
     [
         "E0238",
@@ -370,11 +371,12 @@ const CATALOG: &[[&str; 4]] = &[
         "names starting with `_` are not exported",
     ],
     ["E0305", "`%s` is not a valid module name; use `as`", "", ""],
+    // not raised since an imported file's top level became the entry's (D140)
     [
         "E0306",
         "only import, fn, type, test, and assignment are allowed at the top level of an imported module",
         "",
-        "move the statement into a function, or into the entry file",
+        "not used: an imported file's top level takes any statement",
     ],
     ["E0307", "cannot import the entry file", "", ""],
     // not raised since it was merged into E0238 (D122)
@@ -687,9 +689,9 @@ mod tests {
 
     #[test]
     fn messages_match_what_the_language_allows() {
-        // A module's top level also takes `test` blocks (04).
+        // E0306 is retired: a module's top level is the entry's (D140).
         let e0306 = super::entry("E0306").unwrap();
-        assert!(e0306.message.contains("test"), "{}", e0306.message);
+        assert!(e0306.help.starts_with("not used"), "{}", e0306.help);
         // `m.k ?? d` stops at the missing key before `??` runs, so the
         // help names only `get`.
         let e0508 = super::entry("E0508").unwrap();

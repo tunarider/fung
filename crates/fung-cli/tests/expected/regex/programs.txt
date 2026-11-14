@@ -41,7 +41,7 @@
 | [{text: "aaa", start: 0, end: 3, groups: [], named: {}}] [{text: "", start: 0, end: 0, groups: [], named: {}}, {text: "aaa", start: 1, end: 4, groups: [], named: {}}, {text: "", start: 5, end: 5, groups: [], named: {}}]
 -- stderr
 -- exit: 0
-==== "import regex\nprint(regex.find(s: \"k=v\", pattern: `(\\w)=… (137 bytes, 72024d7e27e5d8d5)
+==== "import regex\nprint(regex.find(s: \"k=v\", pattern: `(\\w)=… (135 bytes, bc6a68fa601245dd)
 -- stdout
 | {text: "k=v", start: 0, end: 3, groups: ["k", "v"], named: {}} v=k
 -- stderr

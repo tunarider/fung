@@ -238,7 +238,7 @@ print(chars(&quot;a1b2c3&quot;) |&gt; filter(c =&gt; c &gt;= &quot;0&quot; and c
 <p><strong>지울 글자 고르기</strong></p>
 <div class="run"><pre><code>print(trim(&quot;--x--&quot;, &quot;-&quot;), trim(&quot;abcxcba&quot;, &quot;abc&quot;), trim(&quot;\&quot;quoted\&quot;&quot;, &quot;\&quot;&quot;))</code></pre><pre class="out plain"><code>x x quoted</code></pre></div>
 <p><strong>명령 출력에서 값 얻기</strong></p>
-<div class="run"><pre><code>count = exec([&quot;echo&quot;, &quot;42&quot;])!.out |&gt; trim |&gt; int
+<div class="run"><pre><code>count = parse_int(trim(exec([&quot;echo&quot;, &quot;42&quot;])!.out))!
 print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-replace"><code>replace</code></a>, <a href="#fn-starts_with"><code>starts_with</code></a>, <a href="#fn-lines"><code>lines</code></a></p>
@@ -363,7 +363,7 @@ print(fold(pairs(vals), tmpl, (acc, (k, v)) =&gt; replace(acc, &quot;{{${k}}}&qu
 <p><code>s</code>가 <code>prefix</code>로 시작하면 <code>true</code>.</p>
 <div class="sig"><code>starts_with(s, prefix)</code></div>
 <h4>설명</h4>
-<p>찾을 글인 <code>prefix</code>는 비어 있을 수 없다: 빈 글은 어디에나 맞으므로, 비어 있는 변수가 모든 줄에 맞는 실수를 막으려고 에러다(<code>split</code>의 <code>sep</code>, <code>index_of</code>의 <code>sub</code>, <code>in</code>과 같은 규칙). 부분 문자열이 어디에든 있는지는 <code>x in s</code>(또는 <a href="collections.html#fn-contains"><code>contains</code></a>), 패턴은 <a href="../modules/regex.html#fn-regex-is_match"><code>regex.is_match</code></a>로 본다.</p>
+<p>찾을 글인 <code>prefix</code>는 비어 있을 수 없다: 빈 글은 어디에나 맞으므로, 비어 있는 변수가 모든 줄에 맞는 실수를 막으려고 에러다(<code>split</code>의 <code>sep</code>, <code>index_of</code>의 <code>sub</code>, <code>in</code>과 같은 규칙). 부분 문자열이 어디에든 있는지는 <code>x in s</code>, 패턴은 <a href="../modules/regex.html#fn-regex-is_match"><code>regex.is_match</code></a>로 본다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
@@ -383,7 +383,7 @@ print(filter(log, l =&gt; l != &quot;&quot; and not starts_with(l, &quot;#&quot;
 <div class="run"><pre><code>tag = &quot;v1.4.2&quot;
 print(starts_with(tag, &quot;v&quot;) then tag[1..] else tag)</code></pre><pre class="out plain"><code>1.4.2</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-ends_with"><code>ends_with</code></a>, <a href="collections.html#fn-contains"><code>contains</code></a></p>
+<p><a href="#fn-ends_with"><code>ends_with</code></a>, <a href="../language/operators.html"><code>in</code></a></p>
 </section>
 <section class="entry" id="fn-index_of">
 <h3>index_of</h3>

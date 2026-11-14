@@ -52,7 +52,7 @@ fn run_on(host, command):
 usage = "usage: pssh.fung hosts.txt -- command..."
 (before, cmd) = split_args(args, [])
 file = first(before) ?? fail(usage)
-if is_empty(cmd): fail(usage) ;;
+if len(cmd) == 0: fail(usage) ;;
 hosts = fs.read_lines(file)! |> map(trim) |> filter(h => h != "" and not starts_with(h, "#"))
 
 results = conc.pmap(hosts, h => run_on(h, cmd), limit: 8)

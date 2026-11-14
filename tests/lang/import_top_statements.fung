@@ -1,0 +1,6 @@
+# An imported file's top level takes any statement, as the entry file
+# does. It runs once, top to bottom, when the file is first imported.
+import "./_lib/noisy"
+print("main", noisy.name)
+# expect: side effect
+# expect: main noisy

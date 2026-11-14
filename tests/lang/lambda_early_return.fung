@@ -1,0 +1,11 @@
+# A lambda `=>` is an anonymous `fn` of one expression (D142): `?` and
+# `return` in its body return from the lambda, as in `fn f() = e`.
+import conc
+
+doubled = map(["1", "x"], s => parse_int(s)? * 2)
+print(doubled)
+# expect: [2, Err({kind: 'parse, message: "not an integer: \"x\""})]
+print(find([1, 2, 3], x => x > 1 then return true else false))
+# expect: 2
+print(conc.pmap(["4"], f: s => parse_int(s)?))
+# expect: [4]

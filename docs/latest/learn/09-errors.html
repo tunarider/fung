@@ -135,19 +135,20 @@ error[E0603]: unhandled Err: not an integer: &quot;three&quot;
 port = env(&quot;PORT&quot;) ?? &quot;8080&quot;
 print(retries, port)</code></pre><pre class="out plain"><code>3 8080</code></pre></div>
 <h2 id="discard">버리면 안 된다</h2>
-<p>결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 <code>check_port(&quot;abc&quot;)</code> 줄은 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 <code>Err</code>면 fung은 거기서 멈춘다(E0606).</p>
-<div class="run"><pre><code>fn check_port(s) = parse_int(s)
-check_port(&quot;abc&quot;)
-print(&quot;여기까지 오지 않는다&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: &quot;abc&quot;
-  --&gt; example.fung:2:1
+<p>결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 <code>fs.remove(&quot;old.log&quot;)</code> 줄은 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 <code>Err</code>면(지울 파일이 없으면) fung은 거기서 멈춘다(E0606).</p>
+<div class="run"><pre><code>import fs
+
+fs.remove(&quot;old.log&quot;)
+print(&quot;여기까지 오지 않는다&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: cannot remove `old.log`: no such file or directory
+  --&gt; example.fung:3:1
   |
-2 | check_port(&quot;abc&quot;)
+3 | fs.remove(&quot;old.log&quot;)
   | ^ this value is discarded
   |
  call path (innermost first):
-   example.fung:2 &lt;entry&gt;
+   example.fung:3 &lt;entry&gt;
  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`</code></pre></div>
-<p><code>parse_int(&quot;abc&quot;)</code>를 그대로 문장으로 썼다면 실행하기 전에 컴파일 에러(E0234)다. <code>parse_int</code>처럼 값을 계산해 돌려줄 뿐인 내장 함수는 결과를 버리면 아무 일도 하지 않은 셈이기 때문이다.</p>
+<p><code>parse_int(&quot;abc&quot;)</code>를 그대로 문장으로 썼다면 실행하기 전에 컴파일 에러(E0234)다. <code>parse_int</code>처럼 값을 계산해 돌려줄 뿐인 함수는 결과를 버리면 아무 일도 하지 않은 셈이기 때문이다. 내가 만든 함수도 본문이 계산만 하면 같다: <code>fn check_port(s) = parse_int(s)</code> 뒤의 문장 <code>check_port(&quot;abc&quot;)</code>도 E0234다.</p>
 <p>실패를 조용히 무시하는 버그를 막으려는 규칙이다. 쉘 스크립트에서 <code>set -e</code>를 켜지 않아 실패한 명령 뒤로 스크립트가 계속 달려가는 사고를 생각하면 된다. fung에서는 늘 켜져 있는 셈이다. 파일 쓰기처럼 성공하면 쓸 값이 없는 함수(<code>Ok(nil)</code>을 돌려준다)도 마찬가지다. <code>fs.write(p, text)</code>만 쓰면 쓰기가 실패했을 때 E0606으로 멈춘다.</p>
 <p>정말 버려도 되는 실패라면 <code>_ = …</code>로 "일부러 버린다"고 적는다. 지우려던 임시 파일이 이미 없어도 상관없는 경우가 그렇다.</p>
 <div class="run"><pre><code>import fs
@@ -266,7 +267,7 @@ Err({kind: 'syntax, message: &quot;not key=value: broken&quot;})</code></pre></d
 <p>숫자 <code>42</code>나 문자열 <code>&quot;hi&quot;</code>처럼, 변수에 담고 함수에 넘기고 돌려받을 수 있는 것을 <strong>값</strong>이라고 한다(3장). "에러가 값이다"는 에러도 변수에 담고, 함수에 넘기고, 리스트에 모을 수 있다는 뜻이다. 던지고 잡는 특별한 무엇이 아니다.</p>
 </div>
 <div class="box mistake"><b>map의 람다 안에서 ?</b>
-<p><code>xs |&gt; map(x =&gt; parse_int(x)?)</code>는 컴파일 에러 E0237이다. 람다는 일찍 돌아갈 수 없다: 람다의 <code>?</code>가 돌려준 실패는 바깥 함수로 가지 않고 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 <code>try_map</code>을 쓴다. 모두 성공하면 <code>Ok(리스트)</code>, 아니면 처음 <code>Err</code>다.</p>
+<p><code>xs |&gt; map(x =&gt; parse_int(x)?)</code>의 <code>?</code>는 바깥 함수가 아니라 <strong>람다에서</strong> 돌아온다. 그래서 실패는 바깥 함수로 가지 않고 그냥 리스트의 원소가 된다(<code>[1, Err(…)]</code>). 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 <code>try_map</code>을 쓴다. 모두 성공하면 <code>Ok(리스트)</code>, 아니면 처음 <code>Err</code>다.</p>
 <div class="run"><pre><code>print(try_map([&quot;1&quot;, &quot;2&quot;, &quot;3&quot;], parse_int))
 print(try_map([&quot;1&quot;, &quot;b&quot;, &quot;c&quot;], parse_int))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])
 Err({kind: 'parse, message: &quot;not an integer: \&quot;b\&quot;&quot;})</code></pre></div>

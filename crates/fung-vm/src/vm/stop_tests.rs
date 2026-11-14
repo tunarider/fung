@@ -198,7 +198,7 @@ const SPIN: &str = "fn spin(n) = n == 0 then nil else spin(n - 1)\na = atom(0)\n
 fn a_stop_reaches_a_function_running_in_swap() {
     assert_eq!(
         exec_signals(&format!(
-            "{SPIN}swap(a, fn(x): post_stop(15); spin(200000); x ;;)\nprint(\"not here\")"
+            "{SPIN}swap(a, fn(x): post_stop(15); _ = spin(200000); x ;;)\nprint(\"not here\")"
         )),
         ("".into(), "".into(), 143)
     );
@@ -209,7 +209,7 @@ fn a_stop_reaches_a_function_running_in_swap() {
 #[test]
 fn an_interrupt_reaches_a_function_running_in_swap() {
     let src = format!(
-        "{UNTIL}{SPIN}swap(a, fn(x): post_interrupt(); spin(200000); x ;;)\nprint(\"not here\")"
+        "{UNTIL}{SPIN}swap(a, fn(x): post_interrupt(); _ = spin(200000); x ;;)\nprint(\"not here\")"
     );
     let s = crate::testutil::setup(
         &src,

@@ -211,7 +211,7 @@ fn a_second_signal_ends_the_commands_it_started() {
     let dir = scratch.0.clone();
     let f = dir.join("pid");
     let mut l = run_e(&format!(
-        "stop = stop_signal()\nscope(fn(s):\n  t = spawn(s, () => sh(\"echo $$ > {}; exec sleep 60\"))\n  print(\"ready\")\n  wait_closed(stop)\n  print(\"draining\")\n  await(t)\n;;)",
+        "stop = stop_signal()\nscope(fn(s):\n  t = spawn(s, () => sh(\"echo \\$\\$ > {}; exec sleep 60\"))\n  print(\"ready\")\n  wait_closed(stop)\n  print(\"draining\")\n  await(t)\n;;)",
         f.display()
     ));
     l.wait_for("ready");
@@ -253,7 +253,7 @@ fn a_second_signal_ends_the_commands_it_started() {
 /// it runs.
 #[test]
 fn a_child_starts_with_signals_unblocked() {
-    let l = run_e("print(sh(\"trap 'echo got' TERM; kill -TERM $$; echo after\")!.out)");
+    let l = run_e("print(sh(\"trap 'echo got' TERM; kill -TERM \\$\\$; echo after\")!.out)");
     assert_eq!(l.finish(), ("got\nafter\n\n".into(), "".into(), Some(0)));
 }
 
@@ -377,7 +377,7 @@ fn a_command_can_read_the_terminal() {
     let file = dir.join("tty.fung");
     std::fs::write(
         &file,
-        "print(sh(\"read x < /dev/tty; echo got $x\")!.out)\n",
+        "print(sh(\"read x < /dev/tty; echo got \\$x\")!.out)\n",
     )
     .unwrap();
     let bin = fung_bin();
@@ -565,7 +565,7 @@ fn an_abandoned_command_is_killed_and_reaped() {
     input
         .write_all(
             format!(
-                "with(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); sh(\"echo $$ > {}; exec sleep 60\") ;;)\n",
+                "with(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); sh(\"echo \\$\\$ > {}; exec sleep 60\") ;;)\n",
                 f.display()
             )
             .as_bytes(),
@@ -620,7 +620,7 @@ fn an_abandoned_command_group_is_killed_after_its_leader_exited() {
     input
         .write_all(
             format!(
-                "with(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); sh(\"sleep 7 & echo $! > {}\") ;;)\n",
+                "with(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); sh(\"sleep 7 & echo \\$! > {}\") ;;)\n",
                 f.display()
             )
             .as_bytes(),

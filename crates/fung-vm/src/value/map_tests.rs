@@ -651,7 +651,6 @@ fn len_cases() {
     let cases = [
         (s("참치"), 2),
         (list(ints(&[1, 2])), 2),
-        (Value::tuple(vec![]), 0),
         (range(0, 10, false), 10),
         (range(0, 10, true), 11),
         (range(5, 2, false), 0),
@@ -668,6 +667,9 @@ fn len_cases() {
     let e = index::len(&Value::Int(1)).unwrap_err();
     assert_eq!(e.code, "E0506");
     assert_eq!(msg(&e), "cannot take the length of int");
+    // A tuple is taken apart by patterns, not counted (D153).
+    let e = index::len(&Value::tuple(vec![Value::Int(1)])).unwrap_err();
+    assert_eq!(msg(&e), "cannot take the length of tuple");
 }
 
 // TestIndex

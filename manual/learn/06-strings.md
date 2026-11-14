@@ -40,7 +40,7 @@ print(chars("web"), chars("서버"))
     <tr><td><code>\r</code></td><td>캐리지 리턴(Windows 줄 끝의 앞 글자)</td></tr>
     <tr><td><code>\"</code></td><td>큰따옴표</td></tr>
     <tr><td><code>\\</code></td><td>역슬래시 하나</td></tr>
-    <tr><td><code>\$</code></td><td>달러 기호(보간을 막는다)</td></tr>
+    <tr><td><code>\$</code></td><td>달러 기호(보통 문자열의 <code>$</code>는 늘 이렇게 쓴다)</td></tr>
     <tr><td><code>\u{1F600}</code></td><td>유니코드 번호로 쓴 글자</td></tr>
     <tr><td><code>\xff</code></td><td>16진수 두 자리로 쓴 바이트 하나</td></tr>
   </tbody>
@@ -215,7 +215,7 @@ print([s, s[1]], len(s), byte_len("가"), is_utf8(s))
 
 :::box other 다른 언어는
 
-Python의 f-문자열 `f"{host}: {usage}%"`이 fung의 `"${host}: ${usage}%"`이고, Python의 `r"…"`이 fung의 <code>&#96;…&#96;</code>다. 쉘의 `"$host"`와 달리 fung은 `${…}`만 보간하고, `$host`는 그냥 글자다. 쉘 `cut -d' ' -f3`은 `split(line, " ")[2]`, `tr a-z A-Z`는 `upper`, `sed 's/a/b/g'`는 `replace`다. Python의 `len`도 코드 포인트를 세지만, JavaScript의 `length`는 UTF-16 단위라서 이모지 하나가 2로 세진다.
+Python의 f-문자열 `f"{host}: {usage}%"`이 fung의 `"${host}: ${usage}%"`이고, Python의 `r"…"`이 fung의 <code>&#96;…&#96;</code>다. 쉘의 `"$host"`와 달리 fung은 `${…}`만 보간한다. 보통 문자열의 맨 `$`는 컴파일 에러 E0129이므로 글자 `$`는 `\$`로 쓴다(`"$host"`가 값이 들어간 줄 알고 넘어가는 일이 없다). 쉘 `cut -d' ' -f3`은 `split(line, " ")[2]`, `tr a-z A-Z`는 `upper`, `sed 's/a/b/g'`는 `replace`다. Python의 `len`도 코드 포인트를 세지만, JavaScript의 `length`는 UTF-16 단위라서 이모지 하나가 2로 세진다.
 
 :::
 

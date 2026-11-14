@@ -63,12 +63,12 @@ fn out_of_range(what: &str, i: i64, n: usize) -> Diag {
     )
 }
 
-/// Runes of a string or elements of a collection (02).
+/// Runes of a string or elements of a collection (02). A tuple has no
+/// length: patterns take it apart (D153).
 pub fn len(x: &Value) -> Result<i64, Diag> {
     Ok(match x {
         Value::Str(s) => s.char_len() as i64,
         Value::List(l) => l.len() as i64,
-        Value::Tuple(t) => t.len() as i64,
         Value::Map(m) => m.len() as i64,
         Value::Range(r) => i64::try_from(r.len()).map_err(|_| overflow())?,
         _ => {

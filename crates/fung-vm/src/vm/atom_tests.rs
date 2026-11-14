@@ -21,7 +21,7 @@ fn atoms_hold_swap_and_reset() {
 fn concurrent_swaps_lose_no_update() {
     assert_eq!(
         run(
-            "a = atom(0)\nfn spin(k) = k == 0 then 0 else spin(k - 1)\nscope(fn(s): each(0..2, _ => spawn(s, () => each(0..10000, _ => swap(a, fn(x): spin(20); x + 1 ;;)))) ;;)\nprint(deref(a))"
+            "a = atom(0)\nfn spin(k) = k == 0 then 0 else spin(k - 1)\nscope(fn(s): each(0..2, _ => spawn(s, () => each(0..10000, _ => swap(a, fn(x): _ = spin(20); x + 1 ;;)))) ;;)\nprint(deref(a))"
         ),
         ("20000\n".into(), "".into(), 0)
     );
@@ -38,7 +38,7 @@ fn concurrent_swaps_lose_no_update() {
 fn a_turn_ending_inside_a_swap_is_given_after_it() {
     assert_eq!(
         run(
-            "n = atom(0)\nfn spin(k) = k == 0 then 0 else spin(k - 1)\nfn lp(k) = k == 0 then nil else lp(k - 1 + 0 * swap(n, fn(x): spin(1500); x + 1 ;;))\nscope(fn(s):\n  spawn(s, () => lp(300))\n  sleep(1ms)\n  print(deref(n) < 300)\n;;)"
+            "n = atom(0)\nfn spin(k) = k == 0 then 0 else spin(k - 1)\nfn lp(k) = k == 0 then nil else lp(k - 1 + 0 * swap(n, fn(x): _ = spin(1500); x + 1 ;;))\nscope(fn(s):\n  spawn(s, () => lp(300))\n  sleep(1ms)\n  print(deref(n) < 300)\n;;)"
         ),
         ("true\n".into(), "".into(), 0)
     );
@@ -261,7 +261,7 @@ fn atom_is_a_type_name() {
         run("fn f(a: atom) = deref(a)\nprint(f(atom(3)))"),
         ("3\n".into(), "".into(), 0)
     );
-    let o = exec("fn f(a: atom) = a\nn = 1\nf(n)", Opts::default());
+    let o = exec("fn f(a: atom) = a\nn = len(\"a\")\nf(n)", Opts::default());
     assert_eq!(o.error.expect("an error").code, "E0403", "{}", o.err);
 }
 

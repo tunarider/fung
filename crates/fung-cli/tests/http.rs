@@ -3663,7 +3663,7 @@ fn a_panicking_test_leaves_no_server_behind() {
 fn the_query_is_escaped_in_the_request_line() {
     let fake = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
     let src = format!(
-        "import http\nu = \"http://127.0.0.1:{}\"\nprint(http.get(u + \"/a b?x=1 HTTP/1.0 2\")!.status)\nprint(http.get(u + \"/p?q=한글&r=%41&s=a/b?c:d@e!$'()*+,;=-._~[]\")!.status)\nprint(http.get(u + \"/p?\")!.status)\nprint(http.get(u + \"/p?r=%zz\"))\nprint(http.get(u + \"/p?r=%\"))",
+        "import http\nu = \"http://127.0.0.1:{}\"\nprint(http.get(u + \"/a b?x=1 HTTP/1.0 2\")!.status)\nprint(http.get(u + \"/p?q=한글&r=%41&s=a/b?c:d@e!\\$'()*+,;=-._~[]\")!.status)\nprint(http.get(u + \"/p?\")!.status)\nprint(http.get(u + \"/p?r=%zz\"))\nprint(http.get(u + \"/p?r=%\"))",
         fake.port
     );
     assert_eq!(

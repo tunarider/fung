@@ -192,7 +192,7 @@ scope(fn(s):
 
 태스크끼리 값을 넘기는 통로가 **채널**(channel)이다. `channel()`은 두 끝을 튜플로 준다. 보내는 끝(`tx`)에는 `send(tx, 값)`을, 받는 끝(`rx`)에는 `recv(rx)`나 `for x in rx`를 쓴다. 받는 쪽은 값이 올 때까지 기다린다. `for x in rx`는 채널이 **닫힐** 때까지 값마다 돈다.
 
-채널은 보내는 끝의 사본이 모두 사라지면 저절로 닫힌다. 그래서 채널을 만드는 함수 안에서 보내는 끝을 생산 태스크에만 넘기면, 생산이 끝날 때 채널이 닫히고 받는 `for`도 끝난다.
+채널은 `close(tx)`로만 닫힌다. 다 보낸 쪽이 닫아야 받는 `for`가 끝난다. 그래서 생산 태스크는 마지막 값을 보낸 뒤 `close(tx)`를 부른다.
 
 ```fung run
 fn countdown(s, n):
@@ -201,6 +201,7 @@ fn countdown(s, n):
     for i in reverse(1..=n):
       send(tx, i)!
     ;;
+    close(tx)!
   ;;)
   rx
 ;;
@@ -212,9 +213,9 @@ scope(fn(s):
 ;;)
 ```
 
-`reverse(1..=n)`은 `n`부터 1까지 거꾸로 센 리스트다. `send`는 받는 쪽이 모두 사라진 채널이면 `Err({kind: 'closed})`를 돌려주므로 결과를 `!`로 다룬다.
+`reverse(1..=n)`은 `n`부터 1까지 거꾸로 센 리스트다. `send`와 `close`는 닫힌 채널이면 `Err({kind: 'closed})`를 돌려주므로 결과를 `!`로 다룬다. 받는 쪽이 먼저 그만둘 때는 받는 끝을 `close(rx)`로 닫는다. 그 뒤의 `send`는 `Err({kind: 'closed})`라 보내는 쪽도 멈출 수 있다.
 
-채널로 일감을 나누는 **일꾼**(worker) 모양도 흔하다. 일감 채널 하나를 일꾼 여럿이 함께 받고, 결과는 다른 채널로 모은다.
+채널로 일감을 나누는 **일꾼**(worker) 모양도 흔하다. 일감 채널 하나를 일꾼 여럿이 함께 받고, 결과는 다른 채널로 모은다. 일감을 다 보낸 쪽이 일감 채널을, 일꾼이 모두 끝난 뒤 결과 채널을 닫는다.
 
 ```fung run
 fn worker(id, jobs, results):
@@ -227,8 +228,14 @@ fn worker(id, jobs, results):
 done = scope(fn(s):
   (jobs_tx, jobs_rx) = channel()
   (res_tx, res_rx) = channel()
-  each([1, 2], id => spawn(s, () => worker(id, jobs_rx, res_tx)))
-  spawn(s, () => each(1..=4, j => send(jobs_tx, j)!))
+  spawn(s, fn():
+    _ = scope(w => each([1, 2], id => spawn(w, () => worker(id, jobs_rx, res_tx))))
+    close(res_tx)!
+  ;;)
+  spawn(s, fn():
+    each(1..=4, j => send(jobs_tx, j)!)
+    close(jobs_tx)!
+  ;;)
   for r in res_rx: r ;;
 ;;)!
 print(len(done), "jobs done")
@@ -324,8 +331,8 @@ print(total)
 태스크의 수명을 코드 블록에 묶는 방식을 **구조적 동시성**(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 태스크 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.
 :::
 
-:::box mistake 보내는 끝을 쥔 채 기다리기
-채널을 최상위나 받는 함수 안에서 만들고 그 함수가 보내는 끝을 계속 쥐고 있으면, 채널은 닫히지 않는다. 받는 `for`는 영원히 기다리고, 다른 태스크도 모두 기다리는 중이면 fung은 E0702(`deadlock: all tasks are waiting`, 교착)로 멈추고 누가 보내는 끝을 쥐었는지 도움말로 알려 준다. 보내는 끝은 생산하는 쪽에만 넘기거나, 다 보냈으면 `close(tx)`로 직접 닫는다.
+:::box mistake 닫는 것을 잊기
+채널은 `close`로만 닫힌다. 다 보낸 쪽이 `close(tx)`를 잊으면 받는 `for`는 영원히 기다리고, 다른 태스크도 모두 기다리는 중이면 fung은 E0702(`deadlock: all tasks are waiting`, 교착)로 멈춘다. 도움말이 채널은 `close`로만 닫힌다고 알려 주고, 기다리는 태스크가 보내는 끝을 쥐고 있으면 그 이름도 알려 준다. 고치는 법은 마지막 값을 보낸 뒤의 `close(tx)` 한 줄이다.
 
 ```fung run exit=1 error=E0702
 (tx, rx) = channel()
@@ -410,7 +417,7 @@ print(result)
 - 태스크는 `scope` 안에서 `spawn(s, f)`로 띄우고 `await`로 결과를 받는다. 실패할 수 있으므로 `await`·`scope`·`timeout`은 `Ok(값)`이나 `Err`를 돌려준다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 `Err`를 아무도 읽지 않으면 E0607이다.
 - 태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 `supervise(f, on_fail)`.
 - `timeout(f, d)`는 기한 안에 끝나면 `Ok(f의 값)`, 지나면 안의 일을 모두 취소하고 `Err({kind: 'timeout})`. `cancel`로 직접 취소한다.
-- 채널 `(tx, rx) = channel()`로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.
+- 채널 `(tx, rx) = channel()`로 값을 주고받는다. `close(tx)`로만 닫힌다(받는 쪽이 그만둘 때는 `close(rx)`). 닫는 것을 잊고 기다리면 E0702.
 - 함께 고치는 값은 `atom`·`deref`·`swap`. `swap`의 함수에는 효과를 쓸 수 없다(E0707).
 
 함수마다의 규칙은 레퍼런스의 [동시성](../reference/prelude/concurrency.html)과 [conc](../reference/modules/conc.html)에 있다. 에러는 [E0702](../reference/errors.html#E0702), [E0707](../reference/errors.html#E0707)을 보라. fung이 태스크를 어떻게 번갈아 실행하는지는 VM 책의 [스케줄러](../vm/12-scheduler.html)와 [취소](../vm/14-cancellation.html)에서 다룬다. 실무 예는 예제 모음의 [여러 서버에 ssh 보내기](../recipes/ssh-collect.html)를 보라.

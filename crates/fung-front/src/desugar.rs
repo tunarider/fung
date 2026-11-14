@@ -298,9 +298,10 @@ impl Desugarer {
     }
 
     /// A call whose operands are `kids` (callee first): a hole among the
-    /// arguments makes it a partial application.
+    /// arguments, positional or named (D155), makes it a partial
+    /// application.
     fn call(&mut self, pos: Pos, kids: &[&Node]) -> R {
-        if kids[1..].iter().any(|k| k.head == Head::Hole) {
+        if kids[1..].iter().any(|k| is_hole(k)) {
             return self.partial(pos, kids);
         }
         let mut out = Vec::with_capacity(kids.len());
@@ -328,8 +329,13 @@ impl Desugarer {
             Head::Tag => &rhs.kids[..],
             _ => &[][..],
         };
-        if let Some(h) = args.iter().find(|k| k.head == Head::Hole) {
-            return Err(Box::new(error("E0227", h.pos, vec![])));
+        if let Some(h) = args.iter().find(|k| is_hole(k)) {
+            let at = if h.head == Head::Named {
+                h.kids[0].pos
+            } else {
+                h.pos
+            };
+            return Err(Box::new(error("E0227", at, vec![])));
         }
         // A postfix `?`/`!` binds tighter than `|>`, so on the right it
         // would unwrap the function before the pipe calls it (01: E0229).
@@ -340,12 +346,11 @@ impl Desugarer {
                 vec![Arg::Str(lit_str(rhs).to_string())],
             )));
         }
-        // A tag takes the value first too: `x |> Ok` is `Ok(x)` (01).
-        let tag_name = match rhs.head {
-            Head::BareTag | Head::Tag => Some(rhs),
-            _ => None,
-        };
-        if let Some(t) = tag_name {
+        // A tag call takes the value first too: `x |> Ok()` is `Ok(x)`
+        // (01, D124). A bare tag is its symbol, called as a value is, so
+        // `x |> Ok` is E0401 when resolved (D144).
+        if rhs.head == Head::Tag {
+            let t = rhs;
             let mut kids = vec![self.walk(&n.kids[0])?];
             for k in &t.kids {
                 kids.push(self.walk(k)?);
@@ -418,6 +423,19 @@ impl Desugarer {
                     holes += 1;
                     call.push(name_leaf(k.pos, &name));
                     info.params.push(plain_param(name, k.pos));
+                }
+                // A named argument's hole is a parameter of the new
+                // function too, in written order (D155).
+                Head::Named if k.kids[0].head == Head::Hole => {
+                    let name = format!("{}h{holes}", crate::tree::HIDDEN);
+                    holes += 1;
+                    call.push(Node::with_lit(
+                        k.head,
+                        k.pos,
+                        k.lit.clone(),
+                        vec![name_leaf(k.kids[0].pos, &name)],
+                    ));
+                    info.params.push(plain_param(name, k.kids[0].pos));
                 }
                 // A named argument's or a spread's value is evaluated
                 // once, like a positional one's.
@@ -715,6 +733,12 @@ fn result_arity(name: &str, count: usize, pos: Pos) -> Box<Diag> {
     ))
 }
 
+/// Whether a call argument leaves its place open: `_`, or a named
+/// argument whose value is `_` (D155).
+fn is_hole(k: &Node) -> bool {
+    k.head == Head::Hole || (k.head == Head::Named && k.kids[0].head == Head::Hole)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -745,13 +769,14 @@ mod tests {
         assert!(s.contains("(concat \"hi \" (op + 1 1))"), "{s}");
     }
 
-    /// A tag on the right of a pipe takes the value as its first (01, L6).
+    /// A tag call on the right of a pipe takes the value as its first
+    /// (01, D124); a bare tag is a symbol, called as any value is (D144).
     #[test]
     fn pipe_into_tags() {
         check(&[
-            ("x |> Ok", "(do (tag Ok x))"),
+            ("x |> Ok", "(do (do (let $p0 x) (call 'Ok $p0)))"),
             ("x |> Pair(2)", "(do (tag Pair x 2))"),
-            ("x |> f |> Ok", "(do (tag Ok (call f x)))"),
+            ("x |> f |> Ok()", "(do (tag Ok (call f x)))"),
             ("x |> Ok()", "(do (tag Ok x))"),
             // A tag is what the parser read as one, not a guess from the
             // first letter (FE19): a quoted symbol is a value to call.
@@ -768,7 +793,6 @@ mod tests {
             ("y = Ok", "(do (let y 'Ok))"),
             ("print(Err)", "(do (call print 'Err))"),
             ("y = [1, Ok]", "(do (let y (list 1 'Ok)))"),
-            ("x |> Ok", "(do (tag Ok x))"),
         ]);
         let t = core("y = match x:\n  Ok => 1\n  Err | 'a => 2\n  _ => 3\n;;");
         assert!(t.contains("(psym Ok)") && t.contains("(psym Err)"), "{t}");
@@ -849,6 +873,12 @@ mod tests {
         let (toks, _) = lex(f, src).unwrap();
         let e = desugar(&parse(&toks).unwrap(), true).unwrap_err();
         assert_eq!((e.code.as_str(), e.pos.col), ("E0227", 8));
+        // A named argument's hole is a hole too (D155).
+        let src = "x |> h(1, b: _)";
+        let f = sm.add("u.fung", src);
+        let (toks, _) = lex(f, src).unwrap();
+        let e = desugar(&parse(&toks).unwrap(), true).unwrap_err();
+        assert_eq!((e.code.as_str(), e.pos.col), ("E0227", 14));
         // A deeper call's hole is its own partial application.
         assert!(core("x |> map(g(_))").starts_with("(do (call map x (do"));
     }
@@ -986,6 +1016,15 @@ mod tests {
             (
                 "g(_, k(1), _)",
                 "(do (do (let $p0 g) (let $p1 (call k 1)) (fn ($h0, $h1) (do (call $p0 $h0 $p1 $h1)))))",
+            ),
+            // a named argument's hole too, in written order (D155)
+            (
+                "f(1, b: _)",
+                "(do (do (let $p0 f) (let $p1 1) (fn ($h0) (do (call $p0 $p1 (named b $h0))))))",
+            ),
+            (
+                "f(_, port: _, user: _)",
+                "(do (do (let $p0 f) (fn ($h0, $h1, $h2) (do (call $p0 $h0 (named port $h1) (named user $h2))))))",
             ),
             ("xs[0] + m.k", "(do (op + (index xs 0) (field k m)))"),
             ("r!", "(do (unwrap ! r))"),

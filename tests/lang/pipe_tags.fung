@@ -1,7 +1,8 @@
-# A tag on the right of |> takes the value first, as a call does (01).
-print(1 |> Ok, 1 |> Pair(2), "x" |> Some)
+# A tag call on the right of |> takes the value first, as a call does
+# (01, D124). A bare tag is a symbol: `x |> Ok` is E0401 (D144).
+print(1 |> Ok(), 1 |> Pair(2), "x" |> Some())
 # expect: Ok(1) Pair(1, 2) Some("x")
-print(" 7 " |> trim |> parse_int |> Wrapped)
+print(" 7 " |> trim |> parse_int |> Wrapped())
 # expect: Wrapped(Ok(7))
 
 # A hole deeper than the piped call is still a partial application.

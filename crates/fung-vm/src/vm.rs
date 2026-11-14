@@ -34,6 +34,8 @@ mod failure_tests;
 mod frame;
 #[cfg(test)]
 mod gen_tests;
+#[cfg(test)]
+mod lifetime_tests;
 mod link;
 mod m4;
 #[cfg(test)]
@@ -97,7 +99,7 @@ pub use atom::Atom;
 #[cfg(test)]
 pub(crate) use atom::effect_names;
 #[cfg(test)]
-pub(crate) use atom::{CALLING_FUNG, EFFECTS, PURE, PURE_FUNG, has_no_effect, is_listed};
+pub(crate) use atom::{EFFECTS, PURE, has_no_effect, is_listed};
 pub(crate) use atom::{
     make as atom_make, read as atom_read, reset as atom_reset, run_swap as atom_swap,
 };

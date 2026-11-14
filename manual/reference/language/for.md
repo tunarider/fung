@@ -4,7 +4,7 @@ lede: <code>for</code>의 값, 순회 대상, 버려지는 자리.
 ---
 # for
 
-<p><code>for</code>는 <code>map</code>의 설탕이고 결과로 리스트를 돌려준다. 값을 버리는 자리의 <code>for</code>는 리스트를 만들지 않고 <code>each</code>처럼 돌며, 본문이 낸 <code>Err</code>는 E0606이다. 순회 대상은 리스트, 범위, 채널의 받는 끝(값이 올 때마다, 닫히면 끝)이다. 문자열과 맵은 <code>chars(s)</code>, <code>pairs(m)</code>으로 리스트로 바꿔서 돈다.</p>
+<p><code>for</code>는 <code>map</code>·<code>each</code>의 편의용 설탕이다. <code>for</code>로만 할 수 있는 일은 없고, 쓰는 사람에게 주는 것은 셋이다: 본문 끝에 값을 맞추지 않아도 됨(버리는 자리), 패턴의 괄호 한 겹(<code>for (k, v) in …</code>), 읽는 순서. 값을 쓰는 자리의 <code>for</code>는 <code>map</code>처럼 결과로 리스트를 돌려준다. 값을 버리는 자리의 <code>for</code>는 리스트를 만들지 않고 <code>each</code>처럼 돌며, 본문이 낸 <code>Err</code>는 E0606이다. 순회 대상은 리스트, 범위, 채널의 받는 끝(값이 올 때마다, 닫히면 끝)이다. 문자열과 맵은 <code>chars(s)</code>, <code>pairs(m)</code>으로 리스트로 바꿔서 돈다.</p>
 
 ```fung run
 squares = for x in 1..=3: x * x ;;
@@ -14,7 +14,7 @@ for (k, v) in pairs({a: 1, b: 2}):
 print(squares)
 ```
 
-<p>본문이 사실은 람다이므로 <code>for</code> 본문 안의 <code>return</code>과 <code>?</code>는 람다 안에서처럼 컴파일 에러 E0237이다(<a href="functions.html">함수</a>의 "람다의 본문"). 실패할 수 있는 변환은 첫 <code>Err</code>에서 멈추는 <code>try_map</code>, 찾기는 <code>find</code>, 검사는 <code>all</code>·<code>any</code>, 누적은 <code>fold</code>를 쓴다. <code>while</code>은 없다.</p>
+<p>본문은 <code>map</code>·<code>each</code>에 넘길 함수의 본문이다. 그래서 본문 안의 <code>return</code>과 <code>?</code>는 컴파일 에러 E0237이다: 쓰는 사람이 기대하는 뜻(바깥 함수에서 돌아가기)으로 옮길 수 없고, 그 원소만 끝내는 뜻으로 받으면 <code>return x</code>가 조용히 "다음 원소로"가 되기 때문이다. 이것은 설탕의 한계이고, 같은 함수를 람다나 익명 <code>fn</code>으로 쓰면 <code>return</code>·<code>?</code>가 그 함수에서 돌아온다(<a href="functions.html">함수</a>). 실패할 수 있는 변환은 첫 <code>Err</code>에서 멈추는 <code>try_map</code>, 찾기는 <code>find</code>, 검사는 <code>all</code>·<code>any</code>, 누적은 <code>fold</code>를 쓴다. <code>while</code>은 없다.</p>
 <div class="aside">
 <p><strong>누적과 재귀의 비용.</strong> 리스트와 맵은 불변이지만 사본이 원본과 구조를 공유하므로, <code>fold</code>로 <code>acc + [x]</code>·<code>[x] + acc</code>나 <code>put(acc, k, v)</code>를 쌓는 것과 <code>[x, ...rest]</code>·<code>xs[1..]</code>로 꼬리를 떼는 재귀는 모두 선형이다(2만 개에 수십 ms). 두 리스트를 이으면 짧은 쪽을 긴 쪽에 붙이므로 비용은 짧은 쪽의 길이에 비례한다. 문자열을 뒤에 붙여 쌓는 것(<code>acc + s</code>, <code>"${acc}…"</code>)과 <code>s[1..]</code>로 문자열의 앞을 떼는 재귀도 선형이다. 피할 것은 문자열을 앞에 붙여 쌓는 것(<code>s + acc</code>)이다: 매번 전체를 복사한다. 조각을 리스트에 모아 <code>join</code>한다. 자세한 것은 <a href="../../vm/internals.html#collections">컬렉션의 내부</a>.</p>
 </div>

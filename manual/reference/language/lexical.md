@@ -36,7 +36,7 @@ print(event.type, event.match)
 <h3>문자열</h3>
 <ul>
   <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code> <code>\xHH</code>뿐이고, 모르는 이스케이프(<code>"C:\data"</code>)는 컴파일 에러다. <code>\xHH</code>는 16진 숫자 꼭 둘, <code>\u{…}</code>는 중괄호 안에 16진 숫자 1~6개다(모양이 틀리면 E0103). 16진 숫자는 숫자 리터럴처럼 대소문자를 가리지 않고(<code>\xFF</code>, <code>\u{1F600}</code>), 이스케이프 글자 <code>\x</code>·<code>\u</code>는 소문자만이다. <code>\xHH</code>는 바이트 하나다(<code>"\xe9"</code>는 글자 <code>é</code>가 아니라 바이트 0xE9, 글자는 <code>"\u{e9}"</code>). 실제 줄바꿈은 넣을 수 없다.</li>
-  <li><code>$</code> 바로 뒤에 이름의 첫 글자가 오면 컴파일 에러 E0129다: <code>"$name"</code>은 보간처럼 보이지만 보간이 아니다. 값은 <code>"${name}"</code>, 글자 그대로는 <code>"\$name"</code>으로 쓴다. 그 밖의 <code>$</code>(<code>"$5"</code>, 끝의 <code>$</code>)는 글자다. 셸 명령처럼 <code>$</code>가 많은 글은 원시 문자열로 쓴다.</li>
+  <li>보통 문자열의 <code>$</code>는 <code>${</code>(보간)와 <code>\$</code>(글자)로만 쓴다. 그 밖의 맨 <code>$</code>는 뒤에 무엇이 오든 컴파일 에러 E0129다(<code>"$name"</code>, <code>"cost: $5"</code>, 끝의 <code>$</code>). 값은 <code>"${name}"</code>, 글자 그대로는 <code>"\$5"</code>로 쓴다. 셸 명령이나 정규식처럼 <code>$</code>가 많은 글은 원시 문자열로 쓴다.</li>
   <li><code>`…`</code>: 원시 문자열. 이스케이프도 보간도 없고, 여러 줄이 된다. 정규식과 Windows 경로에 쓴다. 안의 줄 끝은 파일이 <code>\r\n</code>으로 끝나도 값에서는 <code>\n</code>이다. 보간 없는 문자열이 필요한 자리(문자열 패턴, 맵 키와 맵 패턴의 키, <code>import</code> 경로, <code>test</code> 이름)에는 원시 문자열도 같은 것으로 온다.</li>
   <li>보간 안에는 어떤 식이든 온다: <code>"${m["k"]}"</code>.</li>
   <li>길이와 인덱스는 글자(유니코드 코드 포인트) 단위다. <code>len("참치") == 2</code>, <code>"참치"[0] == "참"</code>. 따로 문자 타입은 없다.</li>
@@ -107,12 +107,15 @@ print(1h30.5m)
 print(1.5h30m)
 ```
 
-`$` 뒤에 이름이 오면 보간이 아니라 에러다. 값은 `${…}`로, 글자는 `\$`로 쓴다.
+`${`가 아닌 맨 `$`는 뒤에 무엇이 오든 에러다. 값은 `${…}`로, 글자는 `\$`로 쓴다.
+
+```fung run
+user = "ann"
+print("${user} paid \$5 and \$user", `raw: $5`)
+```
 
 ```fung run exit=2 error=E0129
-user = "ann"
-print("${user} paid \$5, $5 and \$user")
-print("hello $user")
+print("cost: $5")
 ```
 
 대문자로 시작하는 심볼은 태그로 쓴다.

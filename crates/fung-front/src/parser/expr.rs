@@ -538,11 +538,14 @@ impl<'a> Parser<'a> {
                 self.next();
                 // a line ending in `:` goes on (01 rule 1)
                 self.skip_newlines_after_operator();
-                if self.at_hole() {
-                    let pos = self.peek().pos;
-                    return Err(err("E0123", pos, Vec::new()));
-                }
-                let e = self.expr(0)?;
+                // `f(a: _)` leaves that argument open, as `f(_)` does
+                // a positional one (D155).
+                let e = if self.at_hole() {
+                    let pos = self.next().pos;
+                    Node::new(Head::Hole, pos, Vec::new())
+                } else {
+                    self.expr(0)?
+                };
                 node.kids.push(Node::with_lit(
                     Head::Named,
                     name.pos,

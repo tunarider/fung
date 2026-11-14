@@ -31,6 +31,12 @@ pub struct Sig {
     /// name a module exports it under (`adder = (a, b) => a + b` is "the
     /// function"); `None` for a function exported under its own name.
     pub name: Option<String>,
+    /// With `pure`: the parameters whose function arguments it calls, so
+    /// a call of it has no effect only when those have none (D141).
+    pub calls: Vec<usize>,
+    /// A function of this file written in fung: where its body is, whose
+    /// effects say whether it is pure (D141, `effect`).
+    pub body: Option<super::effect::FnKey>,
 }
 
 /// What the errors of a function made without a name call it (`fung-vm`
@@ -74,15 +80,22 @@ impl Sig {
             params,
             pure: false,
             name: None,
+            calls: Vec::new(),
+            body: None,
         }
     }
 
-    /// `parse`, marked pure when `pure` (D39).
+    /// `parse`, marked pure when `pure` (D39); a pure one calls the
+    /// arguments of its parameters `f` and `pred` (D141).
     pub fn parse_marked(list: &str, pure: bool) -> Sig {
-        Sig {
+        let mut sig = Sig {
             pure,
             ..Sig::parse(list)
+        };
+        if pure {
+            sig.calls = super::effect::spec_calls(&sig);
         }
+        sig
     }
 
     /// The parameters of a fn as written (after desugar: a pattern
@@ -103,6 +116,8 @@ impl Sig {
             params,
             pure: false,
             name: None,
+            calls: Vec::new(),
+            body: None,
         }
     }
 
@@ -130,7 +145,7 @@ impl Sig {
     /// leaves the count to the call: only the names are checked then, and
     /// the arguments written before it when they are already too many
     /// (D110).
-    fn check(&self, name: &str, args: &[Node], pos: Pos) -> Option<Diag> {
+    pub(super) fn check(&self, name: &str, args: &[Node], pos: Pos) -> Option<Diag> {
         let n = self.params.len();
         let rest = n > 0 && self.params[n - 1].rest;
         let fixed = if rest { n - 1 } else { n };
@@ -218,6 +233,13 @@ fn no_such(name: &str, k: &str, pos: Pos) -> Diag {
 
 impl Resolver<'_> {
     /// A fn's parameters with their type annotations expanded (D113).
+    /// The parameters of the fn node `n`, with where its body is (D141).
+    pub(super) fn sig_of_node(&mut self, n: &Node) -> Sig {
+        let mut sig = self.sig_of(super::fn_info(n));
+        sig.body = Some(super::effect::key(n));
+        sig
+    }
+
     pub(super) fn sig_of(&mut self, info: &FnInfo) -> Sig {
         let mut sig = Sig::of(info);
         for (s, p) in sig.params.iter_mut().zip(&info.params) {
@@ -255,6 +277,11 @@ impl Resolver<'_> {
                 if let Some(known) = self.function_value(value, None) {
                     self.global_sigs.insert(slot, known);
                 }
+                if let Some(lit) = self.file_literal(value) {
+                    let at = k.kids[0].pos;
+                    let at = super::lits::name_pos(&k.kids[0], name).unwrap_or(at);
+                    self.global_lits.insert(slot, (lit, at));
+                }
             }
         }
     }
@@ -286,8 +313,7 @@ impl Resolver<'_> {
     /// The function `value` (as written; `got` resolved, or `None` before
     /// the file's names are resolved) is sure to be, with the name its
     /// errors give it: a lambda or an anonymous `fn`, a partial
-    /// application (pure when what it calls is), or a known function's
-    /// name (`known_callee`).
+    /// application, or a known function's name (`known_callee`).
     pub(super) fn function_value(
         &mut self,
         value: &Node,
@@ -295,21 +321,14 @@ impl Resolver<'_> {
     ) -> Option<(String, Sig)> {
         match value.head {
             Head::Fn if super::value::is_lambda(value) => {
-                Some((NAMELESS.to_string(), self.sig_of(super::fn_info(value))))
+                Some((NAMELESS.to_string(), self.sig_of_node(value)))
             }
+            // its lambda's body calls what the partial keeps, a known
+            // function when the code shows one (FE65): pure when that is
+            // (D141)
             Head::Do if super::value::partial_shape(value) => {
                 let lambda = value.kids.last()?;
-                let mut sig = self.sig_of(super::fn_info(lambda));
-                let made = lambda.kids.last().and_then(|b| b.kids.first());
-                if made.is_some_and(|m| m.head == Head::Call) {
-                    // the callee is kept first
-                    let callee = &value.kids[0].kids[1];
-                    let got = got.and_then(|g| g.kids.first()).and_then(|l| l.kids.get(1));
-                    sig.pure = self
-                        .function_value(callee, got)
-                        .is_some_and(|(_, s)| s.pure);
-                }
-                Some((NAMELESS.to_string(), sig))
+                Some((NAMELESS.to_string(), self.sig_of_node(lambda)))
             }
             _ => match got {
                 Some(got) => self.known_callee(value, got),
@@ -353,33 +372,22 @@ impl Resolver<'_> {
     /// discarded values (E0234, D39).
     pub(super) fn call(&mut self, n: &Node) -> Node {
         let kids: Vec<Node> = n.kids.iter().map(|k| self.walk(k)).collect();
-        if let Some((name, sig)) = self.function_value(&n.kids[0], Some(&kids[0])) {
-            if let Some(e) = sig.check(&name, &n.kids[1..], n.pos) {
+        let known = self.function_value(&n.kids[0], Some(&kids[0]));
+        let wrong = known
+            .as_ref()
+            .and_then(|(name, sig)| sig.check(name, &n.kids[1..], n.pos));
+        self.note_call(n, &kids, known.clone(), wrong.is_some());
+        if let Some((_, sig)) = known {
+            if let Some(e) = wrong {
                 self.errs.push(e);
-            } else if let Some(e) = super::annot::argument_error(&sig, &n.kids[1..]) {
-                // what the call binds is checked as the run does (D113)
-                self.errs.push(e);
-            }
-            if sig.pure {
-                // The underline starts where the callee is written.
-                // The error shows the callee as written, its help the
-                // function's own name (`s = sort; s(xs)`).
-                let (shown, at) = match n.kids[0].head {
-                    Head::Field => (
-                        format!("{}.{name}", lit_str(&n.kids[0].kids[0])),
-                        n.kids[0].kids[0].pos,
-                    ),
-                    Head::Name => (lit_str(&n.kids[0]).to_string(), n.kids[0].pos),
-                    _ => (name.clone(), n.kids[0].pos),
-                };
-                let own = match n.kids[0].head {
-                    Head::Field => shown.clone(),
-                    _ => name,
-                };
-                self.pure_calls.insert(
-                    (n.pos.line, n.pos.col),
-                    super::value::PureCall { shown, own, at },
-                );
+            } else {
+                // what the call binds is checked as the run does (D113),
+                // a name bound to a literal as the literal (D149)
+                let found = self.annotated_argument_error(&sig, &n.kids[1..]);
+                if let Some(mut e) = found {
+                    e.notes.extend(self.literal_note(&n.kids[1..], e.pos));
+                    self.errs.push(e);
+                }
             }
         }
         Node::with_lit(n.head, n.pos, n.lit.clone(), kids)
@@ -442,7 +450,7 @@ impl Resolver<'_> {
 /// with that value (and the value resolved, when `got` is): the name of
 /// `f = …`, the names of a tuple or list pattern over a literal of the
 /// same shape (`(f, g) = (x => x, len)`).
-fn bound_values<'n>(
+pub(super) fn bound_values<'n>(
     target: &'n Node,
     value: &'n Node,
     got: Option<&'n Node>,

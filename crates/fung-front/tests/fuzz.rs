@@ -386,7 +386,6 @@ fn loader(internal: bool, tests: bool) -> Loader {
         },
         tests,
         internal,
-        library: internal,
         ..Loader::default()
     }
 }

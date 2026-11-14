@@ -54,7 +54,7 @@ import conc
 print(conc.pmap([1, 2], x => x * 2))
 ```
 
-prelude의 이름은 어디서나 보이므로 같은 이름의 변수나 함수를 만들 수 없다(E0238). `len`이 어디서나 prelude의 `len`이라 읽기 쉽다. 이름이 겹치면 `count`·`size`처럼 다른 이름을 짓는다. 전체 목록은 [함수 목록](../reference/functions.html)에 있다.
+prelude의 이름과 같은 이름의 변수나 함수를 만들 수도 있다. 그러면 그 이름을 묶은 블록 전체에서는 그것이 내 이름이라 prelude 함수를 부를 수 없다(대입보다 앞 줄에서도: 읽으면 E0204). `lines = lines(text)`처럼 쓰고 싶어지면 `rows = lines(text)`처럼 다른 이름을 짓는다. 전체 목록은 [함수 목록](../reference/functions.html)에 있다.
 
 ## 내 파일 가져오기 {#local}
 
@@ -127,17 +127,9 @@ print(textutil._squash("a  b"))
 
 ## 라이브러리 파일의 규칙 {#library}
 
-직접 실행하는 파일(**진입 파일**, entry file)과 다른 파일이 가져오는 파일(**라이브러리 파일**)은 최상위에 쓸 수 있는 것이 다르다. 라이브러리 파일의 최상위에는 `import`, `fn`, `type`, `test`(14장), `이름 = 식`만 온다. `print("…")` 같은 문장이 있으면 가져오는 순간 무언가 일어나 버리므로 컴파일 에러 E0306이다.
+직접 실행하는 파일(**진입 파일**, entry file)과 다른 파일이 가져오는 파일(**라이브러리 파일**)은 쓰는 규칙이 같다. 라이브러리 파일은 처음 import될 때 위에서 아래로 한 번 실행된다. 최상위에 `print("…")` 같은 문장이 있으면 가져오는 순간 그 일이 일어난다.
 
 `report.fung`이 이렇게 생겼다고 하자.
-
-```fung frag
-print("loading report")
-
-fn summary(xs) = "${len(xs)} items"
-```
-
-`example.fung`에서 이것을 가져오면 실행하기 전에 컴파일 에러로 멈춘다.
 
 ```file report.fung
 print("loading report")
@@ -145,11 +137,15 @@ print("loading report")
 fn summary(xs) = "${len(xs)} items"
 ```
 
-```fung run exit=2 error=E0306
+`example.fung`에서 이것을 가져오면 진입 파일의 첫 문장보다 먼저 `loading report`가 찍힌다.
+
+```fung run
 import "./report"
 
 print(report.summary(["a"]))
 ```
+
+그래서 라이브러리 파일의 최상위에는 보통 `import`, `fn`, `type`, `test`(14장), `이름 = 식`만 둔다. 가져오기만 해도 무언가 일어나는 모듈은 쓰는 쪽이 예상하기 어렵기 때문이다. 직접 실행하던 스크립트를 라이브러리로 가져오면 그 스크립트가 하는 일(파일 지우기 등)이 그대로 일어나므로, 하는 일은 함수 안에 두고 진입 파일이 부르게 한다.
 
 `이름 = 식`의 오른쪽에는 어떤 식이든 올 수 있다. 처음 import될 때 한 번 계산된다. 설정을 한 번 읽어 두는 모듈이 이렇게 생겼다.
 
@@ -192,7 +188,7 @@ print(logstat.count_levels(rows))
 ## 짚고 넘어가기 {#notes}
 
 :::box tip 쓰지 않는 import
-가져오기만 하고 쓰지 않은 모듈은 에러 E0239다. 지우거나, 쓰는 코드를 마저 쓴다. `regex.split`처럼 prelude 함수와 같은 이름의 멤버는 `import regex (split)`로 가져오지 못하고(E0238) 모듈 이름을 붙여 읽는다.
+가져오기만 하고 쓰지 않은 모듈은 에러 E0239다. 지우거나, 쓰는 코드를 마저 쓴다. `import regex (split)`처럼 prelude 함수와 같은 이름의 멤버를 이름으로 가져오면 그 파일에서는 prelude의 `split`을 가린다. 둘 다 쓰려면 `regex.split`처럼 모듈 이름을 붙여 읽는다.
 :::
 
 :::box mistake 파일 이름에 -를 쓰면
@@ -274,9 +270,9 @@ print(p.base("/var/log/app.log"), p.ext("/var/log/app.log"))
 
 - 파일 하나가 모듈 하나이고, 모듈 이름은 파일 이름이다.
 - 표준 모듈은 `import fs`처럼 이름으로, 내 파일은 `import "./textutil"`처럼 그 파일 기준의 경로로 가져온다. `as`로 별칭을, `(이름)`으로 이름만 가져온다.
-- prelude의 함수는 import 없이 쓴다. 같은 이름을 다시 묶으면 E0238이다.
+- prelude의 함수는 import 없이 쓴다. 같은 이름을 묶으면 그 블록 전체에서 prelude 함수를 가린다.
 - `_`로 시작하는 최상위 이름은 비공개다(E0304). 나머지는 공개다.
-- 라이브러리 파일의 최상위에는 `import`·`fn`·`type`·`test`·`이름 = 식`만 온다(E0306). 처음 import될 때 한 번 실행된다.
+- 라이브러리 파일은 처음 import될 때 위에서 아래로 한 번 실행된다. 최상위의 규칙은 진입 파일과 같으므로, 가져올 때 일이 일어나지 않게 하려면 최상위에 함수와 값만 둔다.
 - 순환 import(E0302), 모듈 이름 가리기(E0238)는 컴파일 에러다.
 
 정확한 규칙은 레퍼런스의 [모듈](../reference/language/modules.html)에 있다. 표준 모듈마다의 함수는 [fs](../reference/modules/fs.html), [path](../reference/modules/path.html), [conc](../reference/modules/conc.html) 등 레퍼런스의 "표준 모듈"을 보라. 모듈을 어떻게 읽고 실행하는지는 VM 책의 [모듈](../vm/11-modules.html)에서 다룬다.

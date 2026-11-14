@@ -15,12 +15,11 @@ fn run_program(files: &[(&str, &str)], entry: &str) -> (String, String) {
 
 #[test]
 fn a_module_body_runs_once_and_keeps_its_globals() {
-    // A bare `print(...)` at a module's top level is E0306, so the body
-    // prints through an assignment.
+    // A module's top level is any statement: it runs once (D140).
     let dir = temp_dir();
     std::fs::write(
         dir.join("lib.fung"),
-        "_loaded = print(\"loaded\")\nfn twice(x) = x * 2\n",
+        "print(\"loaded\")\nfn twice(x) = x * 2\n",
     )
     .unwrap();
     // Two files import it (one file imports a module once, D96).
@@ -387,7 +386,7 @@ fn standard_modules_run() {
     let o = run_files(
         &[(
             "/p/main.fung",
-            "import http\nprint(http.get)\nn = 1\nhttp.get(n)",
+            "import http\nprint(http.get)\nn = len(\"a\")\nhttp.get(n)",
         )],
         "/p/main.fung",
     );

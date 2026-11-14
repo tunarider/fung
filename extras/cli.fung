@@ -23,8 +23,8 @@
 import _native.arg as _arg
 
 fn parse(argv: list, bools: list = [], values: list = []):
-  _arg.list_of("argv", argv, "str")
-  _arg.options(bools, values)
+  _ = _arg.list_of("argv", argv, "str")
+  _ = _arg.options(bools, values)
   _parse(argv, map(bools, _key), map(values, _key), {}, [])
 ;;
 

@@ -69,17 +69,24 @@ impl Lexer<'_> {
                     Unit::Char(c) => text.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes()),
                     Unit::Byte(b) => text.push(b),
                 },
-                // `$name` reads like interpolation but is not (D47).
-                Some('$') if is_ident_start(self.peek_at(1)) => {
+                // A `$` is `${` (interpolation) or `\$` (the character);
+                // any other is E0129, whatever follows it (D146).
+                Some('$') if self.peek_at(1) != Some('{') => {
                     let at = self.pos();
                     self.advance();
-                    let name = self.ident_text();
-                    let help =
-                        format!("write `${{{name}}}` for the value, or `\\${name}` for the text");
-                    return Err(self
-                        .err("E0129", at, &name)
-                        .with_help(&help)
-                        .span(name.chars().count() + 1));
+                    if is_ident_start(self.peek()) {
+                        let name = self.ident_text();
+                        let help = format!(
+                            "write `${{{name}}}` for the value, or `\\${name}` for the text"
+                        );
+                        return Err(self
+                            .err_no_arg("E0129", at)
+                            .with_help(&help)
+                            .span(name.chars().count() + 1));
+                    }
+                    return Err(self.err_no_arg("E0129", at).with_help(
+                        "write `\\$` for the character, or `${…}` to put a value in; text with many `$` reads best as a raw string",
+                    ));
                 }
                 Some(c) if is_bidi_control(c) => {
                     return Err(self.bidi_error());
@@ -396,15 +403,21 @@ mod tests {
         assert!(d.help.unwrap_or_default().contains("`Red`"));
     }
 
-    /// `$` before a name is not interpolation (D47); other `$` are text.
-    /// A raw string has no interpolation at all.
+    /// A `$` in an ordinary string is `${` (interpolation) or `\$` (the
+    /// character); any other `$` is E0129, whatever follows it (D146). A
+    /// raw string has no interpolation at all.
     #[test]
-    fn a_dollar_before_a_name_is_an_error() {
+    fn a_bare_dollar_is_an_error() {
         for (src, col) in [
             (r#""$x""#, 2),
             (r#""a $HOME b""#, 4),
             (r#""${x} $_y""#, 7),
             (r#""$é""#, 2),
+            (r#""cost: $5""#, 8),
+            (r#""100$""#, 5),
+            (r#""$ $""#, 2),
+            (r#""${x}$""#, 6),
+            (r#""a$(b)""#, 3),
         ] {
             let d = lex_src(src).unwrap_err();
             assert_eq!((d.code.as_str(), d.pos.col), ("E0129", col), "{src}");
@@ -415,7 +428,12 @@ mod tests {
             help.contains("${name}") && help.contains("\\$name"),
             "{help}"
         );
-        for src in [r#""$5 $ $$ $( \$x""#, "`$x`", r#""${x}$""#] {
+        let d = lex_src(r#""$5""#).unwrap_err();
+        assert!(
+            d.help.unwrap_or_default().contains("\\$"),
+            "the text is `\\$`"
+        );
+        for src in [r#""\$5 \$ \$\$ \$( \$x""#, "`$x $5`", r#""${x}\$""#] {
             assert!(lex_src(src).is_ok(), "{src}");
         }
     }

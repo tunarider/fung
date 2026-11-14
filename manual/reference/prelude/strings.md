@@ -268,7 +268,7 @@ print(trim("--x--", "-"), trim("abcxcba", "abc"), trim("\"quoted\"", "\""))
 **명령 출력에서 값 얻기**
 
 ```fung run
-count = exec(["echo", "42"])!.out |> trim |> int
+count = parse_int(trim(exec(["echo", "42"])!.out))!
 print(count + 1)
 ```
 
@@ -471,7 +471,7 @@ print(fold(pairs(vals), tmpl, (acc, (k, v)) => replace(acc, "{{${k}}}", v)))
 
 #### 설명
 
-찾을 글인 `prefix`는 비어 있을 수 없다: 빈 글은 어디에나 맞으므로, 비어 있는 변수가 모든 줄에 맞는 실수를 막으려고 에러다(`split`의 `sep`, `index_of`의 `sub`, `in`과 같은 규칙). 부분 문자열이 어디에든 있는지는 `x in s`(또는 [`contains`](collections.html#fn-contains)), 패턴은 [`regex.is_match`](../modules/regex.html#fn-regex-is_match)로 본다.
+찾을 글인 `prefix`는 비어 있을 수 없다: 빈 글은 어디에나 맞으므로, 비어 있는 변수가 모든 줄에 맞는 실수를 막으려고 에러다(`split`의 `sep`, `index_of`의 `sub`, `in`과 같은 규칙). 부분 문자열이 어디에든 있는지는 `x in s`, 패턴은 [`regex.is_match`](../modules/regex.html#fn-regex-is_match)로 본다.
 
 #### 매개변수
 
@@ -505,7 +505,7 @@ print(starts_with(tag, "v") then tag[1..] else tag)
 
 #### 같이 보기
 
-[`ends_with`](#fn-ends_with), [`contains`](collections.html#fn-contains)
+[`ends_with`](#fn-ends_with), [`in`](../language/operators.html)
 
 :::
 

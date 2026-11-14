@@ -82,9 +82,13 @@ fn fung_helpers_over_concurrency_fail_at_the_user_call() {
     let cases = [
         // the lambda's call is a tail call: the frame it left behind
         // keeps the place, at `fan_in(` (L8)
-        ("import conc\nn = 1\nscope(s => conc.fan_in(s, n))", 3, 23),
         (
-            "import conc\nprint(1)\nn = 1\nscope(s => conc.fan_in(s, n))",
+            "import conc\nn = len(\"a\")\nscope(s => conc.fan_in(s, n))",
+            3,
+            23,
+        ),
+        (
+            "import conc\nprint(1)\nn = len(\"a\")\nscope(s => conc.fan_in(s, n))",
             4,
             23,
         ),
@@ -373,7 +377,7 @@ fn commands_that_cannot_run_are_errs() {
             "Err({kind: 'not_found, message: \"cannot run `ls`: working directory `/etc/hosts`: not a directory\"})\n",
         ),
         (
-            "print(sh(\"kill -9 $$\"))",
+            "print(sh(`kill -9 $$`))",
             "Err({kind: 'exit, code: nil, signal: 9, out: \"\", err: \"\", message: \"`/bin/sh` was killed by signal 9 (SIGKILL)\"})\n",
         ),
         (
@@ -472,7 +476,7 @@ fn wide_ranges_need_no_length() {
     let w = "-9223372036854775808..=9223372036854775807";
     let cases = [
         (
-            format!("print(is_empty({w}), first({w}), last({w}))"),
+            format!("print({w} == 0..0, first({w}), last({w}))"),
             "false -9223372036854775808 9223372036854775807\n",
         ),
         (
@@ -482,7 +486,7 @@ fn wide_ranges_need_no_length() {
             "[-9223372036854775808, -9223372036854775807] [] [9223372036854775807]\n",
         ),
         (
-            "print(is_empty(3..3), last(3..3), last(3..=3), last(-2..0), take(5..8, 10), drop(5..8, 1), drop(5..8, 9), drop(5..8, 0))"
+            "print(3..3 == 0..0, last(3..3), last(3..=3), last(-2..0), take(5..8, 10), drop(5..8, 1), drop(5..8, 9), drop(5..8, 0))"
                 .to_string(),
             "true nil 3 -1 [5, 6, 7] [6, 7] [] [5, 6, 7]\n",
         ),

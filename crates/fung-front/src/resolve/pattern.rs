@@ -40,7 +40,7 @@ impl Resolver<'_> {
         {
             return Some(*b);
         }
-        if !self.binds_fresh(name, pos, false, false) {
+        if !self.binds_fresh(name, pos, false) {
             return None;
         }
         Some(self.bind_here(name, pos))

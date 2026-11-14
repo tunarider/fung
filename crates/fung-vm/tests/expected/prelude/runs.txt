@@ -978,31 +978,57 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(int(3), int(3.9), int(-3.9), int(\"42\"), int(\"-1_000\"), int(\"+7\"))"
+==== "print(int(3), int(3.9), int(-3.9), parse_int(\"42\")!, parse_int(\"-1_000\")!, parse_int(\"+7\")!)"
 -- stdout
 | 3 3 -3 42 -1000 7
 -- stderr
 -- exit: 0
-==== "print(int(\"x\"))"
+==== "print(parse_int(\"x\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "x" to int
-|   --> -e:1:10
+| error[E0603]: unhandled Err: not an integer: "x"
+|   --> -e:1:21
 |   |
-| 1 | print(int("x"))
-|   |          ^
+| 1 | print(parse_int("x")!)
+|   |                     ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(int(\" 1\"))"
+==== "print(int(\"42\"))"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert " 1" to int
+| error[E0513]: cannot convert "42" to int
 |   --> -e:1:10
 |   |
-| 1 | print(int(" 1"))
+| 1 | print(int("42"))
 |   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: `int` converts between numbers; read a number from text with `parse_int(s)!`, or handle its Err
+-- exit: 1
+==== "print(float(\"2.5\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "2.5" to float
+|   --> -e:1:12
+|   |
+| 1 | print(float("2.5"))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: `float` converts between numbers; read a number from text with `parse_float(s)!`, or handle its Err
+-- exit: 1
+==== "print(parse_int(\" 1\")!)"
+-- stdout
+-- stderr
+| error[E0603]: unhandled Err: not an integer: " 1"
+|   --> -e:1:22
+|   |
+| 1 | print(parse_int(" 1")!)
+|   |                      ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
@@ -1036,14 +1062,14 @@
 | -9223372036854775808
 -- stderr
 -- exit: 0
-==== "print(int(\"9223372036854775808\"))"
+==== "print(parse_int(\"9223372036854775808\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "9223372036854775808" to int
-|   --> -e:1:10
+| error[E0603]: unhandled Err: not an integer: "9223372036854775808"
+|   --> -e:1:39
 |   |
-| 1 | print(int("9223372036854775808"))
-|   |          ^
+| 1 | print(parse_int("9223372036854775808")!)
+|   |                                       ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
@@ -1060,50 +1086,50 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(int(\"1__0\"))"
+==== "print(parse_int(\"1__0\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "1__0" to int
-|   --> -e:1:10
+| error[E0603]: unhandled Err: not an integer: "1__0"
+|   --> -e:1:24
 |   |
-| 1 | print(int("1__0"))
-|   |          ^
+| 1 | print(parse_int("1__0")!)
+|   |                        ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(float(2), float(\"2.5\"), float(\"1e3\"), float(1.5), float(\"1_0.5\"), float(\"-.5\"))"
+==== "print(float(2), parse_float(\"2.5\")!, parse_float(\"1e3\")… (123 bytes, 57638c2c49efe5e4)
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "-.5" to float
-|   --> -e:1:78
+| error[E0603]: unhandled Err: not a number: "-.5"
+|   --> -e:1:112
 |   |
-| 1 | print(float(2), float("2.5"), float("1e3"), float(1.5), float("1_0.5"), float("-.5"))
-|   |                                                                              ^
+| 1 | print(float(2), parse_float("2.5")!, parse_float("1e3")!, float(1.5), parse_float("1_0.5")!, parse_float("-.5")!)
+|   |                                                                                                                ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(float(\"abc\"))"
+==== "print(parse_float(\"abc\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "abc" to float
-|   --> -e:1:12
+| error[E0603]: unhandled Err: not a number: "abc"
+|   --> -e:1:25
 |   |
-| 1 | print(float("abc"))
-|   |            ^
+| 1 | print(parse_float("abc")!)
+|   |                         ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(float(\"inf\"))"
+==== "print(parse_float(\"inf\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "inf" to float
-|   --> -e:1:12
+| error[E0603]: unhandled Err: not a number: "inf"
+|   --> -e:1:25
 |   |
-| 1 | print(float("inf"))
-|   |            ^
+| 1 | print(parse_float("inf")!)
+|   |                         ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
@@ -1222,9 +1248,9 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(len(\"참치\"), len([1, 2]), len({a: 1}), len((1, 2)), len(0..10), len(5..5), len(\"\"))"
+==== "print(len(\"참치\"), len([1, 2]), len({a: 1}), len(0..10), len(5..5), len(\"\"))"
 -- stdout
-| 2 2 1 2 10 0 0
+| 2 2 1 10 0 0
 -- stderr
 -- exit: 0
 ==== "print(len(1))"
@@ -1675,38 +1701,38 @@
 | -9223372036854775808
 -- stderr
 -- exit: 0
-==== "print(float(\"0x1p4\"), float(\"0x1.8p1\"), float(\"4.9e-324\"), float(\"1E5\"), float(\"00.5\"), float(\"5.\"))"
+==== "print(parse_float(\"0x1p4\")!, parse_float(\"0x1.8p1\")!, p… (156 bytes, ce8d4757fb847843)
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "0x1p4" to float
-|   --> -e:1:12
+| error[E0603]: unhandled Err: not a number: "0x1p4"
+|   --> -e:1:27
 |   |
-| 1 | print(float("0x1p4"), float("0x1.8p1"), float("4.9e-324"), float("1E5"), float("00.5"), float("5."))
-|   |            ^
+| 1 | print(parse_float("0x1p4")!, parse_float("0x1.8p1")!, parse_float("4.9e-324")!, parse_float("1E5")!, parse_float("00.5")!, parse_float("5.")!)
+|   |                           ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(float(\"0x10\"))"
+==== "print(parse_float(\"0x10\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "0x10" to float
-|   --> -e:1:12
+| error[E0603]: unhandled Err: not a number: "0x10"
+|   --> -e:1:26
 |   |
-| 1 | print(float("0x10"))
-|   |            ^
+| 1 | print(parse_float("0x10")!)
+|   |                          ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(int(\"٣\"))"
+==== "print(parse_int(\"٣\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "٣" to int
-|   --> -e:1:10
+| error[E0603]: unhandled Err: not an integer: "٣"
+|   --> -e:1:21
 |   |
-| 1 | print(int("٣"))
-|   |          ^
+| 1 | print(parse_int("٣")!)
+|   |                     ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
@@ -2396,9 +2422,9 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== "print(is_ok(Ok(1)), is_err(Err(1)), first([]), last(0..3), zip([1], [2, 3]), unique([1, 1]), contains(\"abc\", \"b\"))"
+==== "print(is_ok(Ok(1)), is_err(Err(1)), first([]), last(0..3), zip([1], [2, 3]), unique([1, 1]))"
 -- stdout
-| true true nil 2 [(1, 2)] [1] true
+| true true nil 2 [(1, 2)] [1]
 -- stderr
 -- exit: 0
 ==== "spawn()"
@@ -2712,7 +2738,7 @@
 ==== "close(1)"
 -- stdout
 -- stderr
-| error[E0403]: argument `x` must be sender | file, got int
+| error[E0403]: argument `x` must be sender | receiver | file, got int
 |   --> -e:1:6
 |   |
 | 1 | close(1)
@@ -2773,7 +2799,7 @@
 | Err({kind: 'exit, code: 44, signal: nil, out: "", err: "", message: "`/bin/sh` exited with code 44"})
 -- stderr
 -- exit: 0
-==== "print(sh(\"kill -9 $$\"))"
+==== "print(sh(`kill -9 $$`))"
 -- stdout
 | Err({kind: 'exit, code: nil, signal: 9, out: "", err: "", message: "`/bin/sh` was killed by signal 9 (SIGKILL)"})
 -- stderr
@@ -3427,7 +3453,7 @@
 ==== "print(close(1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `x` must be sender | file, got int
+| error[E0403]: argument `x` must be sender | receiver | file, got int
 |   --> -e:1:12
 |   |
 | 1 | print(close(1))
@@ -3544,48 +3570,46 @@
 | Err({kind: 'parse, message: "not a duration: \" 1s \""}) Err({kind: 'parse, message: "not a duration: \"1s\\n\""}) Err({kind: 'parse, message: "not a duration: \"\\u{a0}5s\""}) Ok(1s) Err({kind: 'parse, message: "not a duration: \"01s\" (a number does not start with 0: drop the leading zeros)"}) Ok(-1h30m)
 -- stderr
 -- exit: 0
-==== "print(int(\"-9223372036854775808\"), int(\"+7\"), int(\"0b11\"), float(\"-0.5\"), float(\"1_000\"))"
+==== "print(parse_int(\"-9223372036854775808\")!, parse_int(\"+7\… (136 bytes, 0fe3d77e17ac7c2e)
 -- stdout
 | -9223372036854775808 7 3 -0.5 1000.0
 -- stderr
 -- exit: 0
-==== "print(int(\"007\"))"
+==== "print(parse_int(\"007\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "007" to int
-|   --> -e:1:10
+| error[E0603]: unhandled Err: not an integer: "007" (a decimal number does not start with 0: write `0o755` for octal, or drop the zeros)
+|   --> -e:1:23
 |   |
-| 1 | print(int("007"))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
-|  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
--- exit: 1
-==== "print(int(\" 5\"))"
--- stdout
--- stderr
-| error[E0513]: cannot convert " 5" to int
-|   --> -e:1:10
-|   |
-| 1 | print(int(" 5"))
-|   |          ^
+| 1 | print(parse_int("007")!)
+|   |                       ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(float(\"1e-400\"))"
+==== "print(parse_int(\" 5\")!)"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert "1e-400" to float
-|   --> -e:1:12
+| error[E0603]: unhandled Err: not an integer: " 5"
+|   --> -e:1:22
 |   |
-| 1 | print(float("1e-400"))
-|   |            ^
+| 1 | print(parse_int(" 5")!)
+|   |                      ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
-|  help: the number is too small for a float; write `0.0` for zero
+-- exit: 1
+==== "print(parse_float(\"1e-400\")!)"
+-- stdout
+-- stderr
+| error[E0603]: unhandled Err: not a number: "1e-400" (the number is too small for a float; write `0.0` for zero)
+|   --> -e:1:28
+|   |
+| 1 | print(parse_float("1e-400")!)
+|   |                            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
 -- exit: 1
 ==== "print(take([1], -1))"
 -- stdout

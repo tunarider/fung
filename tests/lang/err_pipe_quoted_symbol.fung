@@ -1,6 +1,7 @@
-# A tag on a pipe's right takes the value (01): `1 |> Red` is `Red(1)`.
-# A quoted symbol is a value, not a tag (FE19): calling it is an error,
-# and a literal called is one before the program runs (D99).
-print(1 |> Red)
+# A tag call on a pipe's right takes the value (01): `1 |> Red()` is
+# `Red(1)`. A bare tag is its symbol and a quoted symbol a value (D144,
+# FE19): calling either is an error, and a literal called is one before
+# the program runs (D99).
+print(1 |> Red())
 print(1 |> 'red)
 # expect-error: E0401

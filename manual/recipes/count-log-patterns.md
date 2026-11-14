@@ -59,7 +59,7 @@ opts = cli.parse(args, values: ["top"])!
 pattern = first(opts.rest) ?? "*.log"
 top = parse_int(get(opts.flags, "top", "3")) ?? fail("--top must be a number")
 files = fs.glob(pattern)!
-if is_empty(files): fail("no files match ${pattern}") ;;
+if len(files) == 0: fail("no files match ${pattern}") ;;
 
 # file → its parsed entries
 logs = files |> map(f => (f, fs.read_lines(f)! |> map(parse) |> filter(e => e != nil)))

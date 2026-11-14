@@ -40,17 +40,17 @@ print(hosts)
 
 :::fn len(x)
 
-문자열의 글자 수, 리스트·맵·튜플·범위의 원소 수를 돌려준다.
+문자열의 글자 수, 리스트·맵·범위의 원소 수를 돌려준다.
 
 #### 설명
 
 문자열은 바이트가 아니라 **글자**(유니코드 코드 포인트)를 센다. 그래서 `len("참치")`는 2다. 결합 문자로 쓴 `"e\u{301}"`(é)는 코드 포인트 둘이라 2다. UTF-8에 속하지 않는 바이트는 하나가 한 글자다. 바이트 수는 [`byte_len`](strings.html#fn-byte_len)이 센다. 범위는 원소를 만들지 않고 계산하므로 `len(0..1_000_000_000_000)`도 바로 답한다. 빈 범위(`5..5`, `5..=4`)는 0이다. 시작이 끝보다 뒤인 범위는 만들 수 없다(E0522).
 
-채널의 받는 끝은 몇 개가 올지 미리 알 수 없으므로 길이가 없다(E0506). 다 받아 세려면 `len(map(rx, x => x))`처럼 리스트로 만든다.
+튜플은 개수가 정해진 묶음이라 패턴으로 꺼내고 세지 않는다: `len((1, 2))`는 E0506이다. 채널의 받는 끝은 몇 개가 올지 미리 알 수 없으므로 길이가 없다(E0506). 다 받아 세려면 `len(map(rx, x => x))`처럼 리스트로 만든다.
 
 #### 매개변수
 
-- `x`: `str`, `list`, `map`, `tuple`, `range`.
+- `x`: `str`, `list`, `map`, `range`.
 
 #### 돌려주는 값
 
@@ -65,7 +65,7 @@ print(hosts)
 **여러 타입의 길이**
 
 ```fung run
-print(len("참치"), len([1, 2]), len({a: 1, b: 2}), len((1, 2, 3)))
+print(len("참치"), len([1, 2]), len({a: 1, b: 2}))
 print(len(0..10), len(0..=10), len(5..5), len(0..1_000_000_000_000))
 ```
 
@@ -77,51 +77,7 @@ print(len(42))
 
 #### 같이 보기
 
-[`is_empty`](#fn-is_empty), [`chars`](strings.html#fn-chars)
-
-:::
-
-:::fn is_empty(x) fung
-
-비었으면 `true`. `len(x) == 0`과 같다.
-
-#### 설명
-
-`len`이 받는 모든 값을 받는다. 범위는 길이를 세지 않고 원소가 하나라도 있는지만 본다. `[nil]`은 원소가 하나 있으므로 비어 있지 않다.
-
-조건 자리에는 `bool`만 오므로, 리스트가 비었는지 물을 때 `if xs:`라고 쓸 수 없다. `if is_empty(xs):` 또는 `if not is_empty(xs):`로 쓴다. `len(xs) == 0`과 같은 일을 함수로 두는 것은 `filter(groups, is_empty)`처럼 함수를 넘기는 자리 때문이다.
-
-#### 매개변수
-
-- `x`: `str`, `list`, `map`, `tuple`, `range`.
-
-#### 돌려주는 값
-
-`bool`.
-
-#### 에러
-
-`len`과 같다(E0506).
-
-#### 예제
-
-**여러 값**
-
-```fung run
-print(is_empty([]), is_empty(""), is_empty({}), is_empty(0..0))
-print(is_empty([nil]), is_empty(5..=4), is_empty("x"))
-```
-
-**조건에 쓰기**
-
-```fung run
-failed = []
-print(is_empty(failed) then "all ok" else "${len(failed)} failed")
-```
-
-#### 같이 보기
-
-[`len`](#fn-len), [조건](../language/conditions.html)
+[`chars`](strings.html#fn-chars)
 
 :::
 
@@ -315,59 +271,6 @@ print(drop(rows, 1))
 
 :::
 
-:::fn contains(c, x) fung
-
-`x in c`와 같다: 리스트의 원소인지, 맵의 키인지, 부분 문자열인지.
-
-#### 설명
-
-`c`의 타입에 따라 묻는 것이 다르다.
-
-- 리스트·범위: `x`와 `==`인 원소가 있는가. 비교 규칙을 따르므로 `contains([1], 1.0)`도 참이다.
-- 맵: `x`가 키인가(값이 아니다). 키는 문자열이므로 `x`도 문자열이어야 한다.
-- 문자열: `x`가 부분 문자열인가. 찾을 글은 비어 있을 수 없다(빈 글은 어디에나 있으므로 E0403, [`index_of`](strings.html#fn-index_of)의 `sub`와 같은 규칙).
-
-심볼과 문자열은 같지 않다(`contains(['a], "a")`는 `false`). 외부에서 온 문자열은 [`sym`](convert.html#fn-sym)으로 바꿔서 찾는다.
-
-연산자 `in`이 있는데 함수를 따로 두는 것은 파이프(`xs |> contains(x)`)와 함수를 넘기는 자리(`filter(xss, xs => contains(xs, x))`)에서 쓰려는 것이다. 조건에서는 `x in c`가 읽기 쉽다.
-
-#### 매개변수
-
-- `c`: 리스트, 범위, 맵, 문자열.
-- `x`: 찾을 값.
-
-#### 돌려주는 값
-
-`bool`.
-
-#### 에러
-
-- 맵에서 문자열이 아닌 키를 찾으면 E0514(`cannot use a value of type int as a map key`), 문자열에서 문자열이 아닌 값을 찾으면 런타임 에러 E0501(`cannot search str and int`), 빈 문자열을 찾으면 E0403(``argument `x` must be a non-empty str, got ""``).
-
-#### 예제
-
-**세 가지 뜻**
-
-```fung run
-print(contains([1, 2], 2), contains({a: 1}, "a"), contains({a: 1}, "b"), contains("hello", "ell"))
-print(contains(0..10, 5), 2 in [1, 2])
-```
-
-**허용 목록 검사**
-
-```fung run
-allowed = ["prod", "staging"]
-for target in ["prod", "dev"]:
-  print(target, contains(allowed, target) then "ok" else "refused")
-;;
-```
-
-#### 같이 보기
-
-[`find`](#fn-find), [`any`](#fn-any), [`starts_with`](strings.html#fn-starts_with), [비교와 동일성](../language/values.html)
-
-:::
-
 ## 바꾸기와 고르기 {#transform}
 
 :::fn map(xs, f)
@@ -380,9 +283,9 @@ for target in ["prod", "dev"]:
 
 `f`는 인자 하나를 받는 함수다. 범위를 주면 리스트가 된다(`map(0..3, x => x)`는 `[0, 1, 2]`). 받는 끝을 주면 값이 올 때마다 `f`를 부르고 채널이 닫히면 끝난다.
 
-:::box mistake 람다 안의 ? 는 컴파일 에러다 (E0237)
+:::box mistake 람다 안의 ? 는 람다에서 돌아온다
 
-`map(xs, s => parse_int(s)?)`처럼 람다 안에 쓴 `?`는 컴파일 에러 E0237이다(람다는 일찍 돌아갈 수 없다). 허락했다면 `?`는 람다에서 돌아올 뿐이라, `Err`가 바깥 함수로 가지 않고 결과 리스트의 원소가 되어 버린다. 실패할 수 있는 변환은 [`try_map`](#fn-try_map)을 쓴다. 처음 나온 `Err`에서 멈추고 그것을 돌려준다.
+`map(xs, s => parse_int(s)?)`처럼 람다 안에 쓴 `?`는 람다에서 돌아올 뿐이라, `Err`가 바깥 함수로 가지 않고 결과 리스트의 원소가 된다. 실패할 수 있는 변환은 [`try_map`](#fn-try_map)을 쓴다. 처음 나온 `Err`에서 멈추고 그것을 돌려준다.
 
 :::
 
@@ -504,7 +407,7 @@ print(try_map(rs, r => r))
 
 #### 같이 보기
 
-[`map`](#fn-map), [결과값과 에러](../language/results.html), [E0237](../errors.html#E0237)
+[`map`](#fn-map), [결과값과 에러](../language/results.html)
 
 :::
 
@@ -776,7 +679,7 @@ print(r)
 
 #### 같이 보기
 
-[`all`](#fn-all), [`find`](#fn-find), [`contains`](#fn-contains)
+[`all`](#fn-all), [`find`](#fn-find), [`in`](../language/operators.html)
 
 :::
 
@@ -786,7 +689,7 @@ print(r)
 
 #### 설명
 
-처음 `false`가 나오면 멈춘다. 빈 컬렉션이 `true`인 것은 "어긋나는 원소가 하나도 없다"는 뜻이기 때문이다(수학의 관례와 같다). 빈 목록을 "실패"로 다루고 싶으면 `not is_empty(xs) and all(xs, f)`로 쓴다.
+처음 `false`가 나오면 멈춘다. 빈 컬렉션이 `true`인 것은 "어긋나는 원소가 하나도 없다"는 뜻이기 때문이다(수학의 관례와 같다). 빈 목록을 "실패"로 다루고 싶으면 `len(xs) > 0 and all(xs, f)`로 쓴다.
 
 #### 매개변수
 

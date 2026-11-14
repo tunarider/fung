@@ -55,7 +55,7 @@ fn the_whole_group_is_terminated() {
     let d = temp_dir();
     let f = d.join("pid");
     let src = format!(
-        "{WAIT_FILE}scope(fn(s):\n  t = spawn(s, () => sh(\"sleep 30 & echo $! > {f}.tmp; mv {f}.tmp {f}; wait\"))\n  wait_file(\"{f}\")\n  cancel(t)\n;;)\nprint(\"cancelled\")",
+        "{WAIT_FILE}scope(fn(s):\n  t = spawn(s, () => sh(\"sleep 30 & echo \\$! > {f}.tmp; mv {f}.tmp {f}; wait\"))\n  wait_file(\"{f}\")\n  cancel(t)\n;;)\nprint(\"cancelled\")",
         f = f.display()
     );
     let start = Instant::now();
@@ -133,7 +133,7 @@ fn a_cancel_after_the_command_itself_ended_ends_what_it_left() {
     let d = temp_dir();
     let f = d.join("pid");
     let src = format!(
-        "{WAIT_FILE}scope(fn(s):\n  t = spawn(s, () => sh(\"sleep 30 & echo $! > {f}.tmp; mv {f}.tmp {f}; echo hi\"))\n  wait_file(\"{f}\")\n  cancel(t)\n;;)\nprint(\"cancelled\")",
+        "{WAIT_FILE}scope(fn(s):\n  t = spawn(s, () => sh(\"sleep 30 & echo \\$! > {f}.tmp; mv {f}.tmp {f}; echo hi\"))\n  wait_file(\"{f}\")\n  cancel(t)\n;;)\nprint(\"cancelled\")",
         f = f.display()
     );
     let start = Instant::now();
@@ -339,7 +339,7 @@ fn an_env_name_with_an_equals_sign_is_refused() {
 #[test]
 fn a_signal_ending_a_command_is_named() {
     let (out, err, code) = run(
-        "print(sh(\"kill -9 $$\"))\nprint(sh(\"kill -TERM $$\"))\nprint(sh(\"exit 137\"))\nprint(sh(\"true\"))",
+        "print(sh(`kill -9 $$`))\nprint(sh(`kill -TERM $$`))\nprint(sh(\"exit 137\"))\nprint(sh(\"true\"))",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),

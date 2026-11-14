@@ -188,7 +188,7 @@ print(r)
 
 ```fung run exit=2
 missing = ["DB_HOST", "DB_USER"] |> filter(k => env(k) == nil)
-if not is_empty(missing):
+if len(missing) > 0:
   eprint("missing env:", join(missing, ", "))
   exit(2)
 ;;
@@ -246,7 +246,7 @@ match args:
 **인자가 없을 때**
 
 ```fung run exit=2
-if is_empty(args):
+if len(args) == 0:
   eprint("usage: count N")
   exit(2)
 ;;

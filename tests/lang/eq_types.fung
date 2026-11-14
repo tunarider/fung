@@ -13,7 +13,7 @@ print(unique([1, 1.0, nil, nil, "1", 'a, "a"]))
 # expect: [1, nil, "1", 'a, "a"]
 # A value that came from outside is a string: convert it to compare.
 import_like = "8080"
-print(int(import_like) == 8080, sym("ok") == 'ok)
+print(parse_int(import_like)! == 8080, sym("ok") == 'ok)
 # expect: true true
 # A literal pattern tests the type: a value of another type does not match.
 fn kind(x) = match x:

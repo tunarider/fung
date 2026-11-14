@@ -12,5 +12,5 @@ ports = split(get(opts.flags, "ports", ""), ",") |> filter(p => p != "")
 
 found = problems(parse(fs.read(file)!), required, ports)
 each(found, p => eprint(p))
-if not is_empty(found): exit(1) ;;
+if len(found) > 0: exit(1) ;;
 print("ok:", file)

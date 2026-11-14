@@ -17,10 +17,7 @@ fn assert_reports() {
             &["assertion failed: a > b", "a = 1", "b = 2"],
         ),
         ("assert false", &["assertion failed: false"]),
-        (
-            "xs = []\nassert is_empty(xs) == false",
-            &["is_empty(xs) = true"],
-        ),
+        ("xs = []\nassert first(xs) == 1", &["first(xs) = nil"]),
     ];
     for (src, wants) in cases {
         let o = exec(src, Opts::default());
@@ -143,7 +140,7 @@ fn test_blocks_run_one_after_another() {
         // global still holds the sending end (L7).
         assert_eq!(
             err.text(),
-            "error[E0702]: deadlock: all tasks are waiting\n  --> t.fung:10:19\n   |\n10 | test \"stuck\": recv(ch) ;;\n   |                   ^\n   |\n call path (innermost first):\n   t.fung:10  test: stuck\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `ch_tx`), so the channel cannot close: close it with `close(ch_tx)` first, or leave the sending end to the producers only\n"
+            "error[E0702]: deadlock: all tasks are waiting\n  --> t.fung:10:19\n   |\n10 | test \"stuck\": recv(ch) ;;\n   |                   ^\n   |\n call path (innermost first):\n   t.fung:10  test: stuck\n help: this task waits to receive, and a channel closes only by `close`: it holds the sending end itself (the global `ch_tx`), so close it with `close(ch_tx)` once the last value is sent\n"
         );
         rt.cancel_all();
         rt.wait();

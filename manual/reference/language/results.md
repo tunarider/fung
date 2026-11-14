@@ -65,15 +65,18 @@ print(parse_int("x")!)
 `Err`를 문장으로 버리면 에러다. 일부러 버리려면 `_ = …`.
 
 ```fung run exit=1 error=E0606
-fn port(s) = parse_int(s)
-_ = port("x")
-port("y")
+import fs
+_ = fs.remove("a.tmp")
+fs.remove("b.tmp")
 ```
 
 리스트·맵·튜플·태그 안의 `Err`도 버려지면 에러다.
 
 ```fung run exit=1 error=E0606
-fn check_all() = {web: Ok(1), db: Err("down")}
+fn check_all():
+  print("checking")
+  {web: Ok(1), db: Err("down")}
+;;
 check_all()
 ```
 

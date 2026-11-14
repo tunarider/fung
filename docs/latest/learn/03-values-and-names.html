@@ -119,7 +119,7 @@ true false</code></pre></div>
 <div class="run"><pre><code>print(first([&quot;web-1&quot;, &quot;web-2&quot;]), first([]))</code></pre><pre class="out plain"><code>web-1 nil</code></pre></div>
 <p><code>nil</code>로 할 수 있는 일은 적다. <code>==</code>로 비교하기, 찍기, 그리고 <code>??</code>로 기본값 바꾸기 정도다. <code>a ?? b</code>는 <code>a</code>가 <code>nil</code>이면 <code>b</code>, 아니면 <code>a</code>다. 그 밖의 연산, 예를 들어 <code>nil + 1</code>은 에러다. "없는 값"이 조용히 <code>0</code>처럼 계산되어 퍼지지 않게 하기 위해서다.</p>
 <div class="run"><pre><code>port = nil
-given = 3000
+given = first([3000])
 print(port == nil, port ?? 8080)
 print(given ?? 8080)</code></pre><pre class="out plain"><code>true 8080
 3000</code></pre></div>
@@ -137,25 +137,25 @@ print(1h30m // 1m, 2m &gt; 90s)</code></pre><pre class="out plain"><code>30s 2m 
 <h2 id="convert">타입 바꾸기</h2>
 <p>fung은 타입을 <strong>저절로 바꾸지 않는다</strong>. <code>&quot;5&quot; + 3</code>은 <code>8</code>도 <code>&quot;53&quot;</code>도 아니고 에러다. 파일이나 명령 출력, 명령줄 인자에서 온 값은 늘 문자열이라서, 숫자로 계산하려면 직접 바꿔야 한다.</p>
 <div class="run"><pre><code>used = &quot;91&quot;
-print(used + 1)</code></pre><pre class="out err plain" data-code="1"><code>error[E0501]: cannot add str and int
+print(used + 1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0501]: cannot add str and int
   --&gt; example.fung:2:12
   |
 2 | print(used + 1)
   |            ^
   |
- call path (innermost first):
-   example.fung:2 &lt;entry&gt;
+  note: `used` is bound to a literal on line 1
  help: put the value into the text with `&quot;${…}&quot;`, or convert it with `str(…)`</code></pre></div>
-<p>바꾸는 함수는 타입 이름과 같다.</p>
-<div class="run"><pre><code>print(int(&quot;91&quot;) + 1, float(&quot;2.5&quot;) * 2)
+<p>글에서 수를 읽는 함수는 <code>parse_int</code>와 <code>parse_float</code>다. 글이 수 모양이 아닐 수 있으므로 이 함수들은 결과를 상자에 담아 돌려준다. 뒤에 붙인 <code>!</code>가 상자에서 수를 꺼내고, 수 모양이 아니면 에러로 멈춘다.</p>
+<div class="run"><pre><code>print(parse_int(&quot;91&quot;)! + 1, parse_float(&quot;2.5&quot;)! * 2)
 print(str(42) + &quot; servers&quot;, int(3.9), float(2))</code></pre><pre class="out plain"><code>92 5.0
 42 servers 3 2.0</code></pre></div>
 <ul>
-<li><code>int(x)</code>: 정수로. 실수는 소수점 아래를 버린다. 정수 모양이 아닌 문자열(<code>&quot;abc&quot;</code>, <code>&quot;3.5&quot;</code>)이면 에러로 멈춘다.</li>
-<li><code>float(x)</code>: 실수로.</li>
+<li><code>parse_int(s)!</code>: 글을 정수로 읽는다. 정수 모양이 아닌 글(<code>&quot;abc&quot;</code>, <code>&quot;3.5&quot;</code>)이면 에러로 멈춘다.</li>
+<li><code>parse_float(s)!</code>: 글을 실수로 읽는다.</li>
 <li><code>str(x)</code>: 어떤 값이든 문자열로.</li>
+<li><code>int(x)</code>·<code>float(x)</code>: 수 사이를 바꾼다. <code>int</code>는 실수의 소수점 아래를 버린다. 글을 주면 에러다.</li>
 </ul>
-<p>사용자가 입력한 값처럼 숫자가 아닐 수도 있는 것을 바꿀 때는 멈추지 않고 실패를 돌려주는 <code>parse_int</code>를 쓴다. 그 결과를 다루는 법은 9장에서 배운다.</p>
+<p>사용자가 입력한 값처럼 숫자가 아닐 수도 있는 것은 <code>!</code>로 멈추는 대신 실패를 다룰 수도 있다. 상자와 <code>!</code>, 실패를 다루는 법은 9장에서 배운다.</p>
 <h2 id="names">이름 붙이기</h2>
 <p>값에 이름을 붙이면 나중에 그 이름으로 다시 쓸 수 있다. <code>이름 = 값</code> 꼴의 문장을 <strong>대입(assignment)</strong>이라고 하고, 이름을 <strong>변수(variable)</strong>라고 한다.</p>
 <div class="run"><pre><code>disk_total_gb = 50
@@ -238,7 +238,7 @@ print(sym(state) == 'ok)</code></pre><pre class="out plain"><code>true</code></p
 <p>디스크 전체가 <code>500</code> GB이고 <code>&quot;437&quot;</code> GB를 썼다(명령 출력에서 읽은 것이라 문자열이다). 사용률(%)과 남은 용량을 찍어 보자. 사용률은 실수로, 남은 용량은 정수로 찍는다.</p>
 <details><summary>풀이 보기</summary>
 <div class="run"><pre><code>total_gb = 500
-used_gb = int(&quot;437&quot;)
+used_gb = parse_int(&quot;437&quot;)!
 print(&quot;usage:&quot;, used_gb / total_gb * 100, &quot;%&quot;)
 print(&quot;free:&quot;, total_gb - used_gb, &quot;GB&quot;)</code></pre><pre class="out plain"><code>usage: 87.4 %
 free: 63 GB</code></pre></div>

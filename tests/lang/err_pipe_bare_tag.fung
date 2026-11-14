@@ -1,0 +1,6 @@
+# A bare tag is its symbol, after a pipe too (D144): the pipe calls the
+# symbol, an error before the program runs. A tag wraps with its call:
+# `1 |> Ok()`.
+print(1 |> Ok())
+print(1 |> Ok)
+# expect-error: E0401

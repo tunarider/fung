@@ -1,4 +1,7 @@
 # Inside a tag too (D54): Ok(Err(…)).
-fn f() = Ok(Err("lost"))
+fn f():
+  assert true  # an effect (D141): the call is a statement
+  Ok(Err("lost"))
+;;
 f()
 # expect-error: E0606

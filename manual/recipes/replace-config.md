@@ -41,7 +41,7 @@ setting = `^(\s*)([\w.-]+)(\s*=\s*)(.*)$`
 # "port=9090" → ("port", "9090"); the value may itself hold "=".
 fn pair(arg):
   [k, ...rest] = split(arg, "=")
-  if k == "" or is_empty(rest): fail("not KEY=VALUE: ${arg}") ;;
+  if k == "" or len(rest) == 0: fail("not KEY=VALUE: ${arg}") ;;
   (k, join(rest, "="))
 ;;
 
@@ -102,7 +102,7 @@ print(regex.replace(line, `=.*`, "= 9090"))
 ```fung run exit=1 error=E0521
 import regex
 
-print(regex.replace("price = 10", `\d+`, "$5"))
+print(regex.replace("price = 10", `\d+`, `$5`))
 ```
 
 :::

@@ -43,20 +43,18 @@
 //! queue drops them all once they are half of it (`Line`). So N waits on
 //! one channel that all end early cost O(N), not O(N²) (review C4).
 //!
-//! **The ends close the channel by going away** (concurrency v2, L4).
-//! Each end is one `Rc` (`Sender`, `Receiver`) made by `channel()`; a
-//! fung copy of an end is a copy of that `Rc`, wherever it is kept (a
-//! variable, a closure, a list, another channel's buffer). So the moment
-//! the count reaches 0, the `Drop` below, is the moment the last copy
-//! went:
+//! **A channel closes only by `close`** (D136, 2026-11-15; until then
+//! the last copy of an end closed it, concurrency v2 L4). The ends
+//! going away do nothing to the channel: a receiver waiting on a channel
+//! nobody closes waits for ever, which the deadlock check reports
+//! (E0702). `close(x)` takes either end (D137):
 //!
-//! - the last sending end: the channel closes, as by `close(tx)`; the
-//!   receivers still get what is buffered, then `closed`;
-//! - the last receiving end: the channel closes and drops its buffer
-//!   (`abandon`); nobody can receive any more, so a send fails at once.
+//! - `close(tx)`: the receivers still get what is buffered, then
+//!   `closed`;
+//! - `close(rx)`: the channel closes and drops its buffer (`abandon`);
+//!   the receiving side is done, so a send fails at once.
 //!
-//! One `closed` flag serves both: with no receiving end left, a close
-//! that keeps the buffer and one that drops it look the same.
+//! One `closed` flag serves both.
 //!
 //! A channel whose buffer holds one of its own ends would keep itself
 //! open forever: an `Rc` cycle that is never freed. So `send` refuses a
@@ -411,20 +409,6 @@ impl std::fmt::Debug for Sender {
 impl std::fmt::Debug for Receiver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("<receiver>")
-    }
-}
-
-impl Drop for Sender {
-    fn drop(&mut self) {
-        self.0.close();
-    }
-}
-
-/// The buffer goes through `release`: it may hold the receiving end of
-/// another channel, which may hold another, and so on.
-impl Drop for Receiver {
-    fn drop(&mut self) {
-        drop_children(|stack| self.0.abandon(stack));
     }
 }
 

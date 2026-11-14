@@ -326,18 +326,6 @@
 |   |                                 ^
 |   |
 -- exit: 2
-==== prelude.is_empty "print(is_empty(1))"
--- stdout
--- stderr
-| error[E0506]: cannot take the length of int
-|   --> -e:1:15
-|   |
-| 1 | print(is_empty(1))
-|   |               ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
 ==== prelude.zip "print(zip(1, [1]))"
 -- stdout
 -- stderr
@@ -394,18 +382,6 @@
 |   |
 | 1 | print(drop([1], "1"))
 |   |           ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
-==== prelude.contains "print(contains(1, 1))"
--- stdout
--- stderr
-| error[E0512]: cannot test membership in a value of type int
-|   --> -e:1:15
-|   |
-| 1 | print(contains(1, 1))
-|   |               ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>

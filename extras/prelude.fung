@@ -15,9 +15,6 @@ env_all = _p.env_all
 
 # ---- Collections ----------------------------------------------------
 
-# A range is not counted: it may hold more numbers than len can (02).
-fn is_empty(x) = type_of(x) == 'range then _r.last(x) == nil else len(x) == 0
-
 # Positional access needs a list: ranges (and receiving ends, received
 # until closed) become one. Anything else is E0506 with `verb`, the
 # function the user called ("cannot zip the elements of int").
@@ -78,13 +75,13 @@ fn zip(xs, ys):
 fn first(xs):
   if type_of(xs) == 'range: return _start(xs) ;;
   ys = type_of(xs) == 'receiver then _receive(xs, 1, []) else _list(xs, "take the first of")
-  is_empty(ys) then nil else ys[0]
+  len(ys) == 0 then nil else ys[0]
 ;;
 
 fn last(xs):
   if type_of(xs) == 'range: return _r.last(xs) ;;
   ys = _list(xs, "take the last of")
-  is_empty(ys) then nil else ys[len(ys) - 1]
+  len(ys) == 0 then nil else ys[len(ys) - 1]
 ;;
 
 # take/drop never fail on a count past the end (06): n is cut to len
@@ -92,12 +89,12 @@ fn last(xs):
 # E0403, as for a native (SP15). A string is no collection: it is cut
 # with slices (02).
 fn _clamp(n, size):
-  _arg.count("n", n)
+  _ = _arg.count("n", n)
   n > size then size else n
 ;;
 
 fn take(xs, n):
-  _arg.count("n", n)
+  _ = _arg.count("n", n)
   if type_of(xs) == 'receiver: return _receive(xs, _clamp(n, n), []) ;;
   if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp(n, n)), x => x) ;;
   ys = _list(xs, "take from")
@@ -105,13 +102,11 @@ fn take(xs, n):
 ;;
 
 fn drop(xs, n):
-  _arg.count("n", n)
+  _ = _arg.count("n", n)
   if type_of(xs) == 'range: return map(_r.slice(xs, _clamp(n, n)), x => x) ;;
   ys = _list(xs, "drop from")
   ys[_clamp(n, len(ys))..]
 ;;
-
-fn contains(c, x) = x in c
 
 # ---- Strings --------------------------------------------------------
 
@@ -121,8 +116,8 @@ fn contains(c, x) = x in c
 # An empty pad, or a width that is not a non-negative int, is E0403, as
 # for a native (_r.pad, _arg.count).
 fn _padding(s, n, pad):
-  _arg.count("n", n)
-  _r.pad(pad)
+  _ = _arg.count("n", n)
+  _ = _r.pad(pad)
   missing = n - len(s)
   width = len(pad)
   missing <= 0 then "" else repeat(pad, missing // width) + pad[..missing % width]

@@ -169,8 +169,9 @@ fn review_fixes() {
 
 #[test]
 fn partial_evaluates_fixed_args_once() {
-    let (out, _, code) =
-        run("fn f(a, b) = a + b\nfn side(): print(\"once\"); 0 ;;\ng = f(side(), _)\ng(1)\ng(2)");
+    let (out, _, code) = run(
+        "fn f(a, b) = a + b\nfn side(): print(\"once\"); 0 ;;\ng = f(side(), _)\n_ = g(1)\n_ = g(2)",
+    );
     assert_eq!((out.as_str(), code), ("once\n", 0));
 }
 
@@ -192,10 +193,10 @@ fn bare_result_tags_are_symbols() {
             "Ok Err Ok(1)\n",
         ),
         (
-            "r = Ok\nprint(\"${r}\", r ?? 1, is_ok(r), is_err(Err))",
+            "r = sym(\"Ok\")\nprint(\"${r}\", r ?? 1, is_ok(r), is_err(Err))",
             "Ok Ok false false\n",
         ),
-        ("x = 1 |> Ok\nprint(x)", "Ok(1)\n"),
+        ("x = 1 |> Ok()\nprint(x)", "Ok(1)\n"),
     ]);
     check_code(&[
         ("fn f() = Ok\nf()!", "E0605"),
@@ -213,7 +214,7 @@ fn bare_result_tags_are_symbols() {
 fn result_operators() {
     check_out(&[
         (
-            "five = 5\nprint(Ok(1)!, Ok(2) ?? 0, nil ?? 3, Err(\"e\") ?? 4, five ?? 6)",
+            "five = len(\"abcde\")\nprint(Ok(1)!, Ok(2) ?? 0, nil ?? 3, Err(\"e\") ?? 4, five ?? 6)",
             "1 2 3 4 5\n",
         ),
         (

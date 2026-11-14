@@ -173,6 +173,8 @@ fn load(id) = scope(fn(s):
 
 ## 6. 채널
 
+> **뒤집힘(2026-11-15 D136·D137, 여섯 번째 점검 SP82)**: 이 절의 "자동 닫힘"은 없어졌다. 채널은 `close`로만 닫히고, `close`는 받는 끝도 받는다(`close(rx)`는 닫고 버퍼를 버린다). 까닭은 `docs/design/05-concurrency.md` "채널의 두 끝"과 `docs/plans/2026-11-14-fresh-eyes-review-fixes.md` D136.
+
 - `channel(n = 0)`은 `(tx, rx)` 튜플을 준다. `n`의 뜻(0이면 받는 쪽이 있을 때까지 `send`가 막힘, 상한 없음)은 그대로다.
 - `send(tx, v)`, `recv(rx)`, `close(tx)`. 끝을 잘못 주면(`send(rx, …)`) 인자 타입 에러다. `type_of`는 `'sender`·`'receiver`, 타입 표기는 `sender`·`receiver`.
 - 끝은 복사할 수 있다. 여러 일꾼이 같은 `rx`에서 받는 것(여러 생산자, 여러 소비자)이 된다.

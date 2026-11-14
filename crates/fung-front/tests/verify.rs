@@ -116,7 +116,6 @@ fn everything_the_compiler_makes_from_the_repository_verifies() {
 
     let internal = Loader {
         internal: true,
-        library: true,
         tests: true,
         ..Loader::default()
     };

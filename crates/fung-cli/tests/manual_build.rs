@@ -43,7 +43,7 @@ fn fixtures_args_and_stdin() {
 
 #[test]
 fn exit_code_must_match() {
-    let got = run_one("```fung run exit=1 error=E0606\nfn p(s) = parse_int(s)\np(\"abc\")\n```\n")
+    let got = run_one("```fung run exit=1 error=E0606\nfn p(s):\n  assert true\n  parse_int(s)\n;;\np(\"abc\")\n```\n")
         .unwrap();
     assert_eq!(got.code, 1);
     assert!(got.output.contains("E0606"), "{}", got.output);
@@ -531,7 +531,7 @@ fn an_error_entry_shows_its_own_error() {
     assert!(e.contains("E0606") && e.contains("E0204"), "{e}");
     let text = text.replace(
         "```fung run exit=2 error=E0204\nprint(nope)\n```",
-        "```fung run exit=1 error=E0606\nfn p(s) = parse_int(s)\np(\"x\")\n```",
+        "```fung run exit=1 error=E0606\nfn p(s):\n  assert true\n  parse_int(s)\n;;\np(\"x\")\n```",
     );
     std::fs::write(&c, &text).unwrap();
     assert!(site::build(&m, &common::fung_bin(), &latest()).is_ok());

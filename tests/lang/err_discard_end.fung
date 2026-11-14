@@ -1,6 +1,9 @@
 # The last expression of a file is discarded too.
 print("before")
 # expect: before
-fn fails(m) = Err({kind: 'oops, message: m})
+fn fails(m):
+  assert true  # an effect (D141): the call is a statement
+  Err({kind: 'oops, message: m})
+;;
 fails("at the end")
 # expect-error: E0606

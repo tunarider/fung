@@ -13,17 +13,20 @@ import _native.arg as _arg
 
 # Merges receiving ends into one (05): a forwarding task per input, in
 # scope `s`, sends to the output's sending end; the returned receiving
-# end closes when every input has closed. Once the returned end is gone
-# (a send gives Err), every forwarder stops and the inputs are let go,
-# so their producers' sends give Err in turn.
+# end closes when every input has closed. Once the returned end is
+# closed (`close(out)`: a send gives Err), every forwarder stops and the
+# inputs are closed (D137), so their producers' sends give Err in turn.
+# fan_in takes the inputs over: it closes each one it stops reading.
 fn fan_in(s: scope, rxs: list):
-  _arg.list_of("rxs", rxs, "receiver")
+  _ = _arg.list_of("rxs", rxs, "receiver")
   (tx, rx) = channel(len(rxs))
   spawn(s, fn():
     _ = scope(fn(inner):
       each(rxs, r => spawn(inner, fn(): _forward(r, tx) then cancel(inner) else nil ;;))
     ;;)
-    # closed already when the returned end is gone (D72)
+    # the inputs that are still open are not read any more (D137)
+    each(rxs, r => close(r) ?? nil)
+    # closed already when the returned end was closed (D72)
     _ = close(tx)
     nil
   ;;)
@@ -43,7 +46,7 @@ fn _forward(r, tx) = match recv(r):
 # pmap itself gives no runtime Err (its scope fails or is cancelled
 # instead), so it gives f's values as they are, not in Ok (D65).
 fn pmap(xs, f: fn, limit: int | nil = nil):
-  if limit != nil: _arg.positive("limit", limit) ;;
+  if limit != nil: _ = _arg.positive("limit", limit) ;;
   items = xs |> map(x => x)
   limit == nil or limit >= len(items)
     then _pmap_all(items, f)
@@ -72,8 +75,8 @@ fn _work(items, f, jobs, acc) = match recv(jobs):
 # sleeping `delay` between tries; the last Err is returned (06). It looks
 # at f's result, so f returns one (D65): another value is E0605.
 fn retry(f: fn, times: int = 3, delay: dur = 0ms):
-  _arg.positive("times", times)
-  _arg.dur("delay", delay)
+  _ = _arg.positive("times", times)
+  _ = _arg.dur("delay", delay)
   _retry(f, times, delay)
 ;;
 

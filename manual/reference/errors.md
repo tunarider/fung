@@ -12,7 +12,7 @@ lede: 에러 번호는 한 번 붙이면 바뀌지 않는다. 메시지 첫 줄�
 
 ```fung run exit=1 error=E0403
 fn backoff(n: int) = n * 2
-arg = "3"
+arg = trim(" 3 ")
 print(backoff(arg))
 ```
 
@@ -408,18 +408,7 @@ print(m)
 
 :::error E0123
 
-이름 인자 자리에 `_`를 썼다. `_` 부분 적용은 위치 인자 자리만 채운다. 이름 인자 자리를 비워 둔 함수가 필요하면 람다를 쓴다.
-
-```fung run exit=2 error=E0123
-fn greet(name, greeting = "hi") = "${greeting}, ${name}"
-hello = greet("kim", greeting: _)
-```
-
-```fung run
-fn greet(name, greeting = "hi") = "${greeting}, ${name}"
-hello = g => greet("kim", greeting: g)
-print(hello("hello"))
-```
+쓰지 않는 번호다. 이름 인자 자리에 `_`를 쓸 때(`f(a: _)`) 내던 에러였는데, 이제 이름 인자 자리도 비워 둘 수 있다([부분 적용](language/functions.html)). 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
 
 :::
 
@@ -507,18 +496,18 @@ print(color == Red, type_of(color))
 
 :::error E0129
 
-보통 문자열 안에서 `$` 바로 뒤에 이름이 왔다. `"$name"`은 셸이나 다른 언어에서 보간이지만 fung에서는 보간이 아니라 글자 그대로라, 값이 들어간 줄 알기 쉽다. `$` 뒤가 이름의 첫 글자가 아니면(`"$5"`, 끝의 `$`) 글자다. 원시 문자열 `` `…` ``에는 보간이 없으므로 해당하지 않는다.
+보통 문자열 안에 `${`도 `\$`도 아닌 맨 `$`가 있다. 문자열의 `$`는 보간(`${…}`)을 시작하거나, 글자 그대로면 `\$`로 쓴다. `"$name"`처럼 셸이나 다른 언어에서 보간인 모양도, `"$5"`처럼 글자로 보이는 모양도 같은 에러다. 원시 문자열 `` `…` ``에는 보간이 없으므로 해당하지 않는다.
 
 ```fung run exit=2 error=E0129
 user = "ann"
 print("hello $user")
 ```
 
-고치는 법: 값은 `${user}`로, 글자 그대로는 `\$user`로 쓴다. `$`가 많은 셸 명령은 원시 문자열로 쓴다.
+고치는 법: 값은 `${user}`로, 글자 그대로는 `\$user`·`\$5`로 쓴다. `$`가 많은 셸 명령이나 정규식은 원시 문자열로 쓴다.
 
 ```fung run
 user = "ann"
-print("hello ${user}, not \$user")
+print("hello ${user}, not \$user, \$5", `$HOME`)
 ```
 
 :::
@@ -1101,7 +1090,7 @@ print(max_retries, home, cfg.HOME)
 
 :::error E0226
 
-쓰지 않는 번호다. `map`·`conc.pmap`에 넘긴 람다 안의 `?`에 내던 에러였는데, 어느 람다든 `return`·`?`를 막는 [E0237](#E0237)에 합쳤다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
+쓰지 않는 번호다. `map`·`conc.pmap`에 넘긴 람다 안의 `?`에 내던 에러였다. 한때 어느 람다든 막는 [E0237](#E0237)에 합쳤다가, 지금은 람다의 `?`가 익명 `fn`처럼 그 람다에서 돌아온다. 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
 
 :::
 
@@ -1207,7 +1196,7 @@ fn cleanup() = print("cleaned")
 cleanup
 ```
 
-효과가 없다고 알려진 내장 함수·표준 모듈 함수(`put`, `sort`, `replace`, `path.join`, `json.parse` 등 값을 계산해 돌려줄 뿐인 것)를 문장으로 부른 것도 같다(메시지 ``the result of `put(…)` is computed and discarded``). `put(m, k, v)`가 `m`을 바꾼다고 여긴 실수가 흔하다. 그런 호출의 인자가 모두 효과 없는 식이면 그 호출이 든 식도 효과 없는 식이다(`count == len(xs)`, `[sort(xs)]`). 함수를 받는 내장 함수(`map`·`each` 등)와 사용자 함수는 무엇을 할지 모르므로 해당하지 않는다.
+효과가 없는 함수(`put`, `sort`, `replace`, `path.join`, `json.parse`, 본문이 계산만 하는 내 함수 등 값을 계산해 돌려줄 뿐인 것)를 문장으로 부른 것도 같다(메시지 ``the result of `put(…)` is computed and discarded``). `put(m, k, v)`가 `m`을 바꾼다고 여긴 실수가 흔하다. 그런 호출의 인자가 모두 효과 없는 식이면 그 호출이 든 식도 효과 없는 식이다(`count == len(xs)`, `[sort(xs)]`). 함수를 받는 함수(`map` 등)는 받은 함수가 효과 없을 때만 해당한다. 무엇이 효과 없는 함수인지는 [블록](language/blocks.html)에 있다. 계산만 돌리려는 문장은 `_ = f(x)`로 쓴다.
 
 고치는 법: 호출이면 `()`를 붙이고, 대입이면 `=`를 쓰고, 효과 없는 함수면 결과를 이름에 담고(`m = put(m, k, v)`), 여러 줄 식이면 연산자를 줄 끝에 둔다. `fung -e`의 마지막 값도 버려지므로 보려면 `print(…)`로 감싼다. 일부러 버리려면 `_ = 식`. 맨 `nil`도 같다: 문장으로 쓴 `match`에서 할 일이 없는 절은 본문을 비워 `_ =>`로, 할 일이 없는 `else`는 빼고 쓴다. 실행 중에 계산된 `Err`를 버리는 것은 여전히 E0606이다. 0.6.0까지는 말없이 버렸다.
 
@@ -1264,21 +1253,23 @@ print(divmod(7, 2))
 
 :::error E0237
 
-람다 `=>`나 `for` 본문 안에서 `return`이나 `?`를 썼다. 람다는 일찍 돌아갈 수 없다. 허락하면 `return`·`?`는 바깥 함수가 아니라 람다에서 돌아오고, 그 값은 받은 함수가 쓰는 대로 쓰인다: `map`이면 `Err`가 결과 리스트의 원소가 되고, `filter`면 조건 자리에서 런타임 에러가 된다. `for` 본문도 `map`이 부르는 람다라 같다. 0.6.0까지는 `for` 본문(E0213·E0220)과 `map`·`conc.pmap`에 바로 넘긴 람다의 `?`(E0226)만 막았다.
+`for` 본문 안에서 `return`이나 `?`를 썼다. `for`는 `map`·`each`의 설탕이라 본문은 그 함수들에 넘길 함수의 본문이다. 그래서 `return`은 쓰는 사람이 기대하는 뜻(바깥 함수에서 돌아가기)으로 옮길 수 없고, 그 원소만 끝내는 뜻으로 받으면 `return x`가 조용히 "다음 원소로"가 된다. 람다와 익명 `fn`의 `return`·`?`는 그 함수에서 돌아오므로 이 에러가 아니다. 0.6.0까지는 `for` 본문(E0213·E0220)과 `map`·`conc.pmap`에 바로 넘긴 람다의 `?`(E0226)를 막았고, 0.6.0 뒤 한때 모든 람다도 막았다.
 
 ```fung run exit=2 error=E0237
-fn ports(xs) = map(xs, s => parse_int(s)?)
+fn first_big(xs):
+  for x in xs:
+    if x > 100: return x ;;
+  ;;
+  nil
+;;
 ```
 
-고치는 법: 실패할 수 있는 변환은 첫 `Err`에서 멈추는 `try_map`, 찾기는 `find`, 검사는 `all`·`any`, 누적은 `fold`를 쓴다. 정말 일찍 돌아가야 하면 익명 함수 `fn(x): … ;;`로 쓴다.
+고치는 법: 실패할 수 있는 변환은 첫 `Err`에서 멈추는 `try_map`, 찾기는 `find`, 검사는 `all`·`any`, 누적은 `fold`를 쓴다.
 
 ```fung run
 fn ports(xs) = try_map(xs, parse_int)
 print(ports(["80", "443"]), ports(["80", "http"]))
-fn first_big(xs) = find(xs, fn(x):
-  if x < 0: return false ;;
-  x > 100
-;;)
+fn first_big(xs) = find(xs, x => x > 100)
 print(first_big([10, 300]))
 ```
 
@@ -1286,7 +1277,7 @@ print(first_big([10, 300]))
 
 :::error E0238
 
-보이는 이름을 다시 묶었다. 이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름이든, 바깥 블록이나 바깥 함수의 이름, 최상위 이름과 최상위 `fn`, import한 이름과 모듈 이름, prelude 함수, 지역 `fn` 자신의 이름이든 같고, 묶는 방법(대입, 구조 분해, 매개변수, 람다의 매개변수, `for`의 변수, `match` 절의 패턴, 지역 `fn`, 최상위 `fn`, import)과도 상관없다. 그래서 이름은 모두 상수이고, 한 자리에서 이름 하나는 한 가지만 뜻한다: 가려진 이름을 읽으려다 내 값을 읽는 실수(`match x: x => …`는 `x`와 비교하지 않는다)가 없다. 노트가 그 이름이 어디서 왔는지 알려 준다: 같은 블록에서 처음 묶은 줄(``note: `x` is first bound on line 1``), 블록 바깥(``is bound outside this block, on line 2``), 최상위 이름, 함수(``is a function defined on line 1``), import(``is imported on line 1``), 모듈(``is the module imported on line 1``), prelude 함수(``is a prelude function``). 도움말은 무엇을 쓸지 알려 준다. 전에는 이 규칙을 갈래마다 다른 번호(E0205·E0210·E0240·E0308)로 보고했다.
+보이는 이름을 다시 묶었다. 이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름이든, 바깥 블록이나 바깥 함수의 이름, 최상위 이름과 최상위 `fn`, import한 이름과 모듈 이름, 지역 `fn` 자신의 이름이든 같고, 묶는 방법(대입, 구조 분해, 매개변수, 람다의 매개변수, `for`의 변수, `match` 절의 패턴, 지역 `fn`, 최상위 `fn`, import)과도 상관없다. 그래서 이름은 모두 상수이고, 한 자리에서 이름 하나는 한 가지만 뜻한다: 가려진 이름을 읽으려다 내 값을 읽는 실수(`match x: x => …`는 `x`와 비교하지 않는다)가 없다. 노트가 그 이름이 어디서 왔는지 알려 준다: 같은 블록에서 처음 묶은 줄(``note: `x` is first bound on line 1``), 블록 바깥(``is bound outside this block, on line 2``), 최상위 이름, 함수(``is a function defined on line 1``), import(``is imported on line 1``), 모듈(``is the module imported on line 1``). prelude 함수는 어느 블록에도 묶이지 않은 이름이라 해당하지 않는다: 묶은 블록에서 가려진다([변수와 스코프](language/scope.html)). 도움말은 무엇을 쓸지 알려 준다. 전에는 이 규칙을 갈래마다 다른 번호(E0205·E0210·E0240·E0308)로 보고했다.
 
 ```fung run exit=2 error=E0238
 retries = 3
@@ -1328,14 +1319,6 @@ fn clamp(xs, limit) = map(xs, x => x > limit then limit else x)
 print(clamp([5, 20], limit))
 ```
 
-```fung run exit=2 error=E0238
-fn summary(xs):
-  max = 0
-  len(xs) + max
-;;
-print(summary([1]))
-```
-
 ```fung run
 limit = 10
 fn clamp(xs, cap) = map(xs, x => x > cap then cap else x)
@@ -1368,7 +1351,7 @@ out_path = "/tmp/out"
 print(path.join(out_path, "a.txt"))
 ```
 
-import된 파일의 인터페이스, 곧 공개 최상위 이름과 공개 `fn`의 매개변수는 prelude 함수와 같은 이름이어도 된다(`http.get`, `path.join`, `timeout:`). 부르는 쪽은 그것을 모듈 이름을 붙여 읽거나 인자 이름으로만 쓴다([모듈](language/modules.html)). 같은 모듈을 두 번 import하는 것은 이름이 아니라 모듈의 규칙이라 [E0309](#E0309)다.
+같은 모듈을 두 번 import하는 것은 이름이 아니라 모듈의 규칙이라 [E0309](#E0309)다.
 
 :::
 
@@ -1616,33 +1599,7 @@ print(my_lib.answer())
 
 :::error E0306
 
-가져오는 모듈의 최상위에 `import`, `fn`, `type`, `test`, 이름을 묶는 대입이 아닌 문장이 있다(`_ = 식`, `(_, _) = 식`처럼 아무 이름도 묶지 않는 대입도 맨 문장이다). 모듈은 처음 가져올 때 한 번 실행되는데, 그때 출력 같은 일이 일어나면 가져오는 것만으로 부작용이 생긴다.
-
-흔한 원인: 실행 파일로 쓰던 파일을 모듈로 가져옴, 확인용 `print`를 남겨 둠.
-
-```file config.fung
-port = 8080
-print("loading config")
-```
-
-```fung run exit=2 error=E0306
-import "./config"
-
-print(config.port)
-```
-
-
-고치는 법: 그 문장을 함수 안으로 옮기거나 실행 파일(진입 파일)로 옮긴다.
-
-```file config.fung
-port = 8080
-fn describe() = "port ${port}"
-```
-
-```fung run
-import "./config"
-print(config.describe())
-```
+쓰지 않는 번호다. 가져오는 모듈의 최상위에 `import`, `fn`, `type`, `test`, 이름을 묶는 대입이 아닌 문장이 있을 때 내던 에러였다. 이제 import된 파일의 최상위는 진입 파일과 같아서, 어떤 문장이든 처음 import될 때 위에서 아래로 한 번 실행된다([모듈](language/modules.html)). 번호는 다시 쓰지 않는다. 나오지 않으므로 예가 없다.
 
 :::
 
@@ -1799,7 +1756,7 @@ print("start", json.stringify([1]))
 흔한 원인: 같은 이름의 변수가 함수를 가렸음(prelude 변수 `args`는 함수가 아니라 리스트다), 괄호를 잘못 붙임.
 
 ```fung run exit=1 error=E0401
-name = "deploy"
+name = lower("Deploy")
 print(name())
 ```
 
@@ -1841,7 +1798,7 @@ print(connect("db1", 5432, 10s))
 
 ```fung run exit=1 error=E0403
 fn backoff(n: int) = n * 2
-arg = "3"
+arg = trim(" 3 ")
 print(backoff(arg))
 ```
 
@@ -1944,7 +1901,7 @@ print(connect("db1"))
 흔한 원인: 문자열과 숫자를 `+`로 이음, `nil`(없는 값)로 계산함, 기간을 정수로 `//` 나눔.
 
 ```fung run exit=1 error=E0501
-count = 3
+count = len(["a", "b", "c"])
 print("found " + count + " files")
 ```
 
@@ -2020,7 +1977,7 @@ xs = [1, 2]
 if len(xs): print("not empty") ;;
 ```
 
-고치는 법: 비교를 직접 쓴다. 빈 컬렉션 검사는 `is_empty`도 있다.
+고치는 법: 비교를 직접 쓴다(`len(xs) > 0`, `xs != []`).
 
 ```fung run
 xs = [1, 2]
@@ -2140,17 +2097,17 @@ print(3 in 0..10, 3 in [1, 2, 3])
 
 값을 다른 타입으로 바꿀 수 없다. 메시지가 값과 바꾸려던 타입을 적는다.
 
-흔한 원인: 숫자가 아닌 문자열을 `int`로 바꿈, 공백이 든 문자열을 `sym`으로 바꿈, JSON에 없는 타입의 값(심볼, 튜플, 시각, 기간, 태그 등)을 `json.stringify`에 넘김.
+흔한 원인: 문자열을 `int`·`float`로 바꿈(글은 `parse_int`·`parse_float`가 읽는다), 공백이 든 문자열을 `sym`으로 바꿈, JSON에 없는 타입의 값(심볼, 튜플, 시각, 기간, 태그 등)을 `json.stringify`에 넘김.
 
 ```fung run exit=1 error=E0513
-print(int("8080x"))
+print(int("8080"))
 ```
 
-고치는 법: 실패할 수 있는 입력은 `Ok`/`Err`를 돌려주는 `parse_int`·`parse_float`로 바꾸고 결과를 다룬다. JSON에는 문자열이나 숫자로 바꿔서 넣는다(심볼은 `sym_name`, 튜플은 리스트, 시각은 `time.format`).
+고치는 법: 글은 `Ok`/`Err`를 돌려주는 `parse_int`·`parse_float`로 읽고 결과를 다룬다(틀릴 리 없으면 `!`). JSON에는 문자열이나 숫자로 바꿔서 넣는다(심볼은 `sym_name`, 튜플은 리스트, 시각은 `time.format`).
 
 ```fung run
 import json
-print(parse_int("8080x"))
+print(parse_int("8080")!, parse_int("8080x"))
 print(json.stringify({wait: str(5s), state: sym_name('ok)}))
 ```
 
@@ -2274,7 +2231,7 @@ read_line(f)
 
 ```fung run exit=1 error=E0521
 import regex
-print(regex.replace("k=v", `(\w)=(\w)`, "$1a"))
+print(regex.replace("k=v", `(\w)=(\w)`, `$1a`))
 ```
 
 고치는 법: 패턴에 있는 그룹을 가리킨다. 그룹 뒤에 글자를 붙이려면 `${1}a`, `$` 글자는 `$$`로 쓴다. 0.5.0까지는 빈 문자열이었다.
@@ -2556,7 +2513,7 @@ FAIL example.fung: a task exits
 
 교착(deadlock): 모든 태스크가 무언가를 기다리고 있어서 아무도 더 나아갈 수 없다. fung은 영원히 멈춰 있는 대신 이것을 알아채고 에러로 끝낸다. 상황에 따라 도움말이 원인을 짚어 준다.
 
-흔한 원인: 받는 쪽이 보내는 끝을 자기도 쥐고 있어서 채널이 닫히지 않음, 버퍼 없는 채널(`channel()`)에 받는 태스크 없이 보냄.
+흔한 원인: 다 보낸 쪽이 `close(tx)`를 잊어 받는 쪽이 영원히 기다림(채널은 `close`로만 닫힌다), 버퍼 없는 채널(`channel()`)에 받는 태스크 없이 보냄. 받는 쪽이 기다리면 도움말이 `close`를 알려 주고, 그 태스크가 보내는 끝을 쥐고 있으면 그 이름도 알려 준다.
 
 ```fung run exit=1 error=E0702
 (_tx, rx) = channel()
@@ -2572,7 +2529,7 @@ close(tx)
 for job in rx: print(job) ;;
 ```
 
-고치는 법: 보내기는 다른 태스크에 맡기고, 보내는 끝은 보내는 쪽만 쥔다. 함수 안의 변수는 마지막으로 읽힌 뒤 놓이므로, 보내는 끝을 태스크에만 넘기면 그 태스크가 끝날 때 채널이 닫혀 `for`가 끝난다. 혼자 보내고 받아야 하면 버퍼가 있는 `channel(n)`을 쓰고 다 보낸 뒤 `close`한다.
+고치는 법: 보내기는 다른 태스크에 맡기고, 마지막 값을 보낸 쪽이 `close(tx)`로 닫는다. 혼자 보내고 받아야 하면 버퍼가 있는 `channel(n)`을 쓰고 다 보낸 뒤 `close`한다.
 
 ```fung run
 fn collect() = scope(fn(s):
@@ -2580,6 +2537,7 @@ fn collect() = scope(fn(s):
   spawn(s, fn():
     send(tx, 1)!
     send(tx, 2)!
+    close(tx)!
   ;;)
   for x in rx: x ;;
 ;;)!

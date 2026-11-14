@@ -259,7 +259,7 @@ import json
 
 services = json.parse(fs.read(&quot;services.json&quot;)!)!
 down = services |&gt; filter(s =&gt; s.status == &quot;down&quot;) |&gt; map(s =&gt; s.name)
-if is_empty(down):
+if len(down) == 0:
   print(&quot;all services up&quot;)
 else:
   eprint(&quot;down:&quot;, join(down, &quot;, &quot;))

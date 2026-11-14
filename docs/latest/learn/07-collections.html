@@ -239,7 +239,7 @@ print(by_role.web)</code></pre><pre class="out plain"><code>{web: [&quot;web-1&q
 <div class="run"><pre><code>specs = [&quot;web-1:80&quot;, &quot;db-1:5432&quot;, &quot;cache-1:6379&quot;]
 fn add_spec(m, spec):
   parts = split(spec, &quot;:&quot;)
-  put(m, parts[0], int(parts[1]))
+  put(m, parts[0], parse_int(parts[1])!)
 ;;
 ports = specs |&gt; fold({}, add_spec)
 print(ports)

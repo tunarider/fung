@@ -303,8 +303,8 @@ fn a_deadlock_is_recovered() {
         assert_eq!(
             s.err.text(),
             // The REPL's globals hold the sending ends (L7).
-            "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:5:7\n  |\n5 |   recv(never)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:5   <lambda>\n   <repl>:3   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n 1 other task is waiting:\n   recv at <repl>:4:22 (<lambda>, holds its own sending end)\n\
-             error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:2:5\n  |\n2 | recv(never)\n  |     ^\n  |\n call path (innermost first):\n   <repl>:2   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n"
+            "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:5:7\n  |\n5 |   recv(never)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:5   <lambda>\n   <repl>:3   <entry>\n help: this task waits to receive, and a channel closes only by `close`: it holds the sending end itself (the global `_tx`), so close it with `close(_tx)` once the last value is sent\n 1 other task is waiting:\n   recv at <repl>:4:22 (<lambda>, holds its own sending end)\n\
+             error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:2:5\n  |\n2 | recv(never)\n  |     ^\n  |\n call path (innermost first):\n   <repl>:2   <entry>\n help: this task waits to receive, and a channel closes only by `close`: it holds the sending end itself (the global `_tx`), so close it with `close(_tx)` once the last value is sent\n"
         );
     });
 }

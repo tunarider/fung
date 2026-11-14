@@ -38,7 +38,7 @@ assign      = destructure "=" expr .                (* 문장 시작에서 `patt
 
 expr        = lambda | then_expr .                  (* 연산자의 피연산자 자리에서 괄호 없는 람다는 E0110 *)
 lambda      = ( NAME | "_" | "(" [ lparam { "," lparam } [ "," ] ] ")" ) "=>" expr .
-                                                    (* 본문 안의 return·?는 E0237 *)
+                                                    (* 본문의 return·?는 그 람다에서 돌아온다 *)
 lparam      = destructure .                         (* fn의 매개변수와 같은 패턴, 기본값·타입·...rest 없음 *)
 then_expr   = or_expr [ "then" branch "else" branch ] .  (* else는 필수, 오른쪽 결합 *)
 branch      = return | expr .
@@ -48,7 +48,7 @@ and_expr    = not_expr { "and" not_expr } .
 not_expr    = "not" not_expr | cmp_expr .
 cmp_expr    = pipe_expr [ cmp_op pipe_expr ] .      (* 연쇄 없음 *)
 cmp_op      = "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "not" "in" .
-pipe_expr   = coalesce { "|>" coalesce } .          (* 괄호 없는 호출·태그만 값을 맨 앞 인자로 받는다.
+pipe_expr   = coalesce { "|>" coalesce } .          (* 괄호 없는 호출 모양(f(…), Tag(…))만 값을 맨 앞 인자로 받는다.
                                                        괄호 없는 ??가 |>의 피연산자면 E0127 *)
 coalesce    = range { "??" range } .
 range       = add [ ( ".." | "..=" ) add ] .        (* 범위는 범위의 피연산자가 아니다: E0118 *)
@@ -65,7 +65,7 @@ args        = pos_arg { "," pos_arg } [ "," spread ] { "," named } [ "," ]
 pos_arg     = expr | "_" .                          (* 부분 적용 자리 *)
 spread      = "..." expr .                          (* 리스트·범위를 위치 인자로 펼침. 마지막 위치 인자 하나,
                                                        리스트 리터럴·태그에는 없다: E0133 *)
-named       = NAME ":" expr .                       (* 이름 붙인 인자(_는 없다) *)
+named       = NAME ":" ( expr | "_" ) .             (* 이름 붙인 인자, _는 부분 적용 자리 *)
 index       = "[" ( expr | [ add ] ".." [ add ] | [ add ] "..=" add ) "]" .
                                                     (* `[` 바로 안의 `..`·`..=`만 슬라이스, 두 끝은 range의 피연산자 층.
                                                        끝의 맨 위가 ??·|>·비교·in·not·and·or·then이면 E0125: xs[(a ?? 0)..].

@@ -14,7 +14,7 @@ fn report(input, limit):
     print(pad_right(level, 6), count)
   ;;)
   errors = top_messages(es, "ERROR", limit)
-  if not is_empty(errors):
+  if len(errors) > 0:
     print("top errors:")
     each(errors, fn(pair):
       (message, count) = pair
@@ -25,5 +25,5 @@ fn report(input, limit):
 ;;
 
 source = first(args) ?? fail("usage: logsum.fung <file|-> [top]")
-top = len(args) > 1 then int(args[1]) else 3
+top = len(args) > 1 then parse_int(args[1])! else 3
 report(read_input(source), top)
