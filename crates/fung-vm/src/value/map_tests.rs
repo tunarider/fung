@@ -763,6 +763,10 @@ fn field_cases() {
     assert_eq!(e.code, "E0508");
     let e = index::field(&s("a"), "b").unwrap_err();
     assert_eq!(msg(&e), "cannot index str with str");
+    assert_eq!(
+        e.help.as_deref(),
+        Some("a str has no fields: only maps and modules do")
+    );
 }
 
 fn slice_str(x: &Value, start: Value, end: Value, inclusive: bool) -> Result<String, String> {
@@ -812,11 +816,7 @@ fn slice_cases() {
             n.clone(),
             Err("E0507 slice start -5 is out of range (length 3)"),
         ),
-        (
-            s("a"),
-            n.clone(),
-            Err("E0501 cannot slice with int and str"),
-        ),
+        (s("a"), n.clone(), Err("E0509 cannot index list with str")),
     ];
     for (a, b, want) in cases {
         let got = slice_str(&xs, a.clone(), b.clone(), false);
@@ -824,7 +824,7 @@ fn slice_cases() {
     }
     assert_eq!(
         slice_str(&xs, i(0), s("b"), false).unwrap_err(),
-        "E0501 cannot slice with int and str"
+        "E0509 cannot index list with str"
     );
     // an explicit nil is not open (`nil_slice_bound_is_a_type_error`)
     let nil = Value::Nil;
@@ -832,7 +832,7 @@ fn slice_cases() {
         index::slice(&xs, Some(&nil), Some(&nil), false)
             .unwrap_err()
             .code,
-        "E0501"
+        "E0509"
     );
     assert_eq!(
         slice_str(&s("참치회"), i(1), n.clone(), false).unwrap(),
@@ -857,12 +857,14 @@ fn slice_inclusive_cases() {
     let xs = list(ints(&[1, 2, 3]));
     let n = Value::Nil;
     let i = Value::Int;
-    let cases: [(Value, Value, Result<&str, &str>); 6] = [
+    let cases: [(Value, Value, Result<&str, &str>); 7] = [
         (i(1), i(2), Ok("[2, 3]")),
+        // `a..=b` is `a..b+1` (D117): `0..=-1` is empty, `..=-2` out
+        (i(0), i(-1), Ok("[]")),
         (
             i(0),
-            i(-1),
-            Err("E0507 slice end -1 is out of range (length 3)"),
+            i(-2),
+            Err("E0507 slice end -2 is out of range (length 3)"),
         ),
         (n.clone(), i(0), Ok("[1]")),
         (

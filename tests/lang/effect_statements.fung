@@ -22,10 +22,10 @@ else:
 ;;
 print(y)
 # expect: big
-# `nil` says "nothing" in a discarded branch.
+# An arm with an empty body does nothing (D121).
 match x:
   2 => print("two")
-  _ => nil
+  _ =>
 ;;
 # expect: two
 # An `if` without `else` as a statement, and `or`/`and` with a call.

@@ -50,9 +50,9 @@ for e in errors:
 import fs
 
 match fs.read("settings.ini"):
-  Ok(text)                => print(len(text), "chars")
-  Err({kind: 'not_found}) => print("no settings.ini, using defaults")
-  Err(e)                  => print("cannot read:", e.message)
+  Ok(text)                     => print(len(text), "chars")
+  Err({kind: 'not_found, ...}) => print("no settings.ini, using defaults")
+  Err(e)                       => print("cannot read:", e.message)
 ;;
 ```
 
@@ -291,7 +291,7 @@ for (p, size) in found:
 :::
 
 :::box mistake 블록 안에서 바깥 변수 늘리기
-쉘에서는 `total=$((total + size))`를 반복문 안에서 쓴다. fung에서 `for` 본문 안에 `total = total + size`를 쓰면 컴파일 에러 E0205다. 블록 안에서는 바깥 변수에 다시 대입할 수 없기 때문이다(3장). 합계는 반복이 만든 리스트로 계산한다: `sizes |> map(((_, s)) => s) |> sum`, 또는 `fold`.
+쉘에서는 `total=$((total + size))`를 반복문 안에서 쓴다. fung에서 `for` 본문 안에 `total = total + size`를 쓰면 컴파일 에러 E0238이다. 블록 안에서는 바깥 변수에 다시 대입할 수 없기 때문이다(3장). 합계는 반복이 만든 리스트로 계산한다: `sizes |> map(((_, s)) => s) |> sum`, 또는 `fold`.
 :::
 
 :::box mistake 명령을 문자열 하나로 주기

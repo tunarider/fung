@@ -22,7 +22,7 @@ data = json.parse(text)?                      # 함수 안: 실패를 호출자�
 port = env("PORT") ?? "8080"                  # 없거나 실패하면 기본값(모든 Err)
 match fs.read(p):
   Ok(text)                => use(text)
-  Err({kind: 'not_found}) => print("no file")
+  Err({kind: 'not_found, ...}) => print("no file")
   Err(e)                  => print(e.message)
 ;;
 ```
@@ -47,7 +47,7 @@ _ = fs.remove(tmp)         # 실패해도 상관없다
 each(rxs, r => send(tx, r))   # 닫힌 tx면 E0606
 ```
 
-<p><code>Ok</code>·<code>Err</code>는 값을 <strong>정확히 하나</strong> 담는다. 식·패턴·파이프(<code>x |&gt; Ok(2)</code>는 <code>Ok(x, 2)</code>)에서 개수가 다르면 컴파일 에러 E0236이다. 여러 값을 돌려주려면 <code>Ok((a, b))</code>처럼 튜플 하나에 담는다. 그래서 이름이 <code>Ok</code>·<code>Err</code>인 태그는 모두 결과값이고, 연산자·패턴·<code>is_ok</code>·보간이 결과값을 같게 본다. 타입 표기 <code>Ok</code>·<code>Err</code>도 결과값만 받는다(<code>sym("Ok")</code> 같은 심볼은 받지 않는다). 값이 없는 맨 <code>Ok</code>·<code>Err</code>는 식에도 패턴에도 쓸 수 없고(E0236), 파이프의 오른쪽 <code>x |&gt; Ok</code>만 된다(파이프가 값을 채우므로). 결과값인지는 <code>is_ok</code>·<code>is_err</code>나 <code>match</code>로 가린다.</p>
+<p><code>Ok</code>·<code>Err</code>는 값을 <strong>정확히 하나</strong> 담는다. 값을 담은 <code>Ok</code>·<code>Err</code>의 값이 하나가 아니면 식·패턴·파이프(<code>x |&gt; Ok(2)</code>는 <code>Ok(x, 2)</code>)에서 컴파일 에러 E0236이다. 여러 값을 돌려주려면 <code>Ok((a, b))</code>처럼 튜플 하나에 담는다. 그래서 값을 담은 <code>Ok</code>·<code>Err</code> 태그 값은 모두 결과값이고, 연산자·패턴·<code>is_ok</code>·보간이 결과값을 같게 본다. 값이 없는 맨 <code>Ok</code>·<code>Err</code>는 다른 대문자 이름처럼 심볼이다(<code>Red</code>처럼): 결과값이 아니라 <code>!</code>·<code>?</code>는 E0605이고 <code>is_ok(Ok)</code>는 <code>false</code>다. 타입 표기 <code>Ok</code>·<code>Err</code>는 다른 태그 이름처럼 결과값과 그 이름의 심볼을 받는다. 결과값인지는 <code>is_ok</code>·<code>is_err</code>나 <code>match</code>로 가린다.</p>
 <p><code>??</code>는 <strong>모든</strong> <code>Err</code>를 기본값으로 바꾼다. <code>fs.read(p) ?? "{}"</code>는 파일이 없을 때만이 아니라 권한 오류일 때도 <code>"{}"</code>다. 종류를 가리려면 <code>match</code>로 <code>Err({kind: 'not_found}) =&gt; "{}"</code>처럼 쓰고 나머지는 <code>!</code>로 멈춘다.</p>
 <p><code>??</code>는 <code>nil</code>과 결과값을 한 연산자로 다루므로(위 표), 왼쪽이 <code>Ok(v)</code>이면 언제나 <code>v</code>로 벗긴다. 맵에 결과값을 담아 두었다면 <code>get({k: Ok(1)}, "k") ?? 0</code>은 <code>Ok(1)</code>이 아니라 <code>1</code>이다. 결과값 그대로 꺼내려면 <code>get</code>의 <code>nil</code>을 <code>== nil</code>로 따로 본다.</p>
 <p><strong>결과값과 <code>nil</code>은 글에 말없이 넣지 않는다.</strong> 문자열 보간과 <code>join</code>에 결과값(<code>Ok</code>·<code>Err</code>), <code>nil</code>, 핸들(함수·모듈·태스크·범위·채널 끝·atom·파일·소켓)이 들어가면, 리스트·맵·튜플·태그 안 어느 깊이에 있어도 E0519다. 풀기를 잊은 <code>"http://${recv(rx)}/"</code>가 <code>http://Ok("…")/</code>라는 주소가, 없는 환경 변수가 <code>http://nil/</code>이 되지 않게 하려는 것이다. 결과는 <code>!</code>·<code>?</code>로 풀고 <code>nil</code>에는 <code>??</code>로 기본값을 준다. 값을 그대로 글로 쓰려면(로그) <code>str(x)</code>로 바꾸고, <code>print(x)</code>는 무엇이든 그대로 보인다.</p>

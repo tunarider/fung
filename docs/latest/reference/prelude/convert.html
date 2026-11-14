@@ -95,7 +95,7 @@
 <div class="sig"><code>type_of(x)</code></div>
 <h4>설명</h4>
 <p>돌려주는 심볼은 <a href="../language/values.html">값과 타입</a> 표의 이름이다: <code>'int</code> <code>'float</code> <code>'str</code> <code>'bool</code> <code>'nil</code> <code>'sym</code> <code>'dur</code> <code>'time</code> <code>'list</code> <code>'map</code> <code>'tuple</code> <code>'range</code> <code>'fn</code> <code>'module</code> <code>'file</code> <code>'task</code> <code>'scope</code> <code>'sender</code> <code>'receiver</code> <code>'atom</code>. 내장 함수와 람다는 모두 <code>'fn</code>이다.</p>
-<p>태그 값(<code>Ok(1)</code>, <code>Circle(3)</code>)은 태그 이름 자체가 타입이라 <code>Ok</code>, <code>Circle</code>이라는 심볼을 돌려준다(<code>type_of(Circle(3)) == Circle</code>). 결과값의 이름은 맨 <code>Ok</code>로 쓸 수 없으므로(E0236) 결과값인지는 <a href="results.html#fn-is_ok"><code>is_ok</code></a>·<code>is_err</code>로 가린다.</p>
+<p>태그 값(<code>Ok(1)</code>, <code>Circle(3)</code>)은 태그 이름 자체가 타입이라 <code>Ok</code>, <code>Circle</code>이라는 심볼을 돌려준다(<code>type_of(Circle(3)) == Circle</code>). 결과값이면 <code>Ok</code>나 <code>Err</code>다(<code>type_of(Ok(1)) == Ok</code>). 결과값인지는 <a href="results.html#fn-is_ok"><code>is_ok</code></a>·<code>is_err</code>로도 가린다.</p>
 <p>값의 모양에 따라 갈라지는 코드는 보통 <code>match</code>가 더 읽기 좋다. <code>type_of</code>는 에러 메시지에 타입을 보여 주거나, 여러 타입을 받는 함수의 입구에서 검사할 때 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
@@ -178,7 +178,7 @@ print(int(3.9), int(-3.9), int(2.5e3))</code></pre><pre class="out plain"><code>
 <h4>설명</h4>
 <ul>
 <li>정수: 같은 값의 실수(<code>float(3)</code>은 <code>3.0</code>).</li>
-<li>문자열: 실수 리터럴 문법(정수 리터럴도 된다)에 앞의 부호 하나를 더한 것을 받는다(<a href="#fn-int"><code>int</code></a>와 같은 규칙). 정수 꼴, 지수, <code>_</code>가 된다: <code>&quot;2.5&quot;</code>, <code>&quot;-1e3&quot;</code>, <code>&quot;42&quot;</code>, <code>&quot;1_000.5&quot;</code>. 점 앞이나 뒤가 빈 꼴(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>), 대문자 지수(<code>&quot;1E5&quot;</code>), 앞의 0(<code>&quot;01.5&quot;</code>), 16진 실수, 앞뒤 공백, <code>&quot;NaN&quot;</code>·<code>&quot;inf&quot;</code>, 실수 범위를 넘는 수(<code>&quot;1e400&quot;</code>), 0이 아닌데 0으로 반올림되는 수(<code>&quot;1e-400&quot;</code>)는 거부한다. fung의 실수는 <code>NaN</code>·<code>Inf</code>가 될 수 없고, 리터럴처럼 값을 말없이 잃지 않기 때문이다.</li>
+<li>문자열: 실수 리터럴 문법(정수 리터럴도 된다)에 앞의 부호 하나를 더한 것을 받는다(<a href="#fn-int"><code>int</code></a>와 같은 규칙). 정수 꼴, 지수, <code>_</code>가 된다: <code>&quot;2.5&quot;</code>, <code>&quot;-1e3&quot;</code>, <code>&quot;42&quot;</code>, <code>&quot;1_000.5&quot;</code>. 정수 꼴은 뒤에 <code>.0</code>을 붙인 실수 리터럴로 읽으므로 범위는 정수가 아니라 실수의 것이다: <code>&quot;18446744073709551615&quot;</code>도 되고, 2^53을 넘어 정확히 담기지 않는 수는 리터럴 <code>10000000000000000001.0</code>처럼 가장 가까운 실수가 된다. <code>&quot;-0&quot;</code>은 <code>-0.0</code>이다. 점 앞이나 뒤가 빈 꼴(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>), 대문자 지수(<code>&quot;1E5&quot;</code>), 앞의 0(<code>&quot;01.5&quot;</code>), 16진 실수, 앞뒤 공백, <code>&quot;NaN&quot;</code>·<code>&quot;inf&quot;</code>, 실수 범위를 넘는 수(<code>&quot;1e400&quot;</code>), 0이 아닌데 0으로 반올림되는 수(<code>&quot;1e-400&quot;</code>)는 거부한다. fung의 실수는 <code>NaN</code>·<code>Inf</code>가 될 수 없고, 리터럴처럼 값을 말없이 잃지 않기 때문이다.</li>
 <li>실수: 그대로.</li>
 </ul>
 <h4>매개변수</h4>
@@ -343,7 +343,7 @@ Err({kind: 'parse, message: &quot;not an integer: \&quot;two\&quot;&quot;})</cod
 <p>문자열을 실수로 읽어 <code>Ok(실수)</code> 또는 <code>Err({kind: 'parse, message})</code>를 돌려준다.</p>
 <div class="sig"><code>parse_float(s)</code></div>
 <h4>설명</h4>
-<p>문법은 <a href="#fn-float"><code>float</code></a>의 문자열 규칙과 같다(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>, 앞뒤 공백, 앞의 0, <code>NaN</code>은 거부). 정수 꼴(<code>&quot;3&quot;</code>)은 <code>Ok(3.0)</code>이다.</p>
+<p>문법은 <a href="#fn-float"><code>float</code></a>의 문자열 규칙과 같다(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>, 앞뒤 공백, 앞의 0, <code>NaN</code>은 거부). 정수 꼴(<code>&quot;3&quot;</code>)은 <code>Ok(3.0)</code>이고, 정수 범위를 넘어도 실수로 읽힌다(<code>parse_float(&quot;18446744073709551615&quot;)</code>는 <code>Ok(18446744073709552000.0)</code>).</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>

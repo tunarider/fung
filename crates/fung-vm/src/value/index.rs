@@ -15,6 +15,21 @@ fn err(code: &str, args: Vec<Arg>) -> Diag {
     error(code, no_pos(), args)
 }
 
+/// E0403: argument `name` must be a non-empty str, showing the value
+/// given. A text to search for (`in` on a string, `index_of`,
+/// `starts_with`, `split`'s `sep` …) is never empty: an empty one is
+/// everywhere (D118).
+pub fn not_nonempty(name: &str, v: &Value) -> Diag {
+    let got = match v {
+        Value::Str(_) => super::format(v),
+        _ => type_name(v),
+    };
+    err(
+        "E0403",
+        vec![str_arg(name), str_arg("a non-empty str"), Arg::Str(got)],
+    )
+}
+
 fn str_arg(s: &str) -> Arg {
     Arg::Str(s.to_string())
 }
@@ -168,54 +183,57 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
 /// `x.name`: an index by the name as a string key.
 pub fn field(x: &Value, name: &str) -> Result<Value, Diag> {
     let k = Value::str(name);
-    index(x, &k).map_err(|d| field_help(d, x, &k))
+    index(x, &k).map_err(|d| field_error(d, x, &k))
 }
 
-/// The help of `x.name`'s E0509: only a map and a module have names, so
-/// `xs.len` meant a call of the prelude's `len` (VA39).
-pub fn field_help(d: Diag, x: &Value, name: &Value) -> Diag {
+/// The error of `x.name` from the index's: `x.name` is `x["name"]`
+/// (access), so on a value that is no map or module it is the index's
+/// E0509 (one rule, one code); the help says the value has no fields,
+/// and for `xs.len` that it meant a call of the prelude's `len` (VA39).
+pub fn field_error(d: Diag, x: &Value, name: &Value) -> Diag {
     let (true, Value::Str(k)) = (d.code == "E0509", name) else {
         return d;
     };
-    let Some(name) = k.as_str() else {
-        return d;
-    };
-    if fung_front::builtins::builtins()
-        .prelude_signature(name)
-        .is_none()
-    {
-        return d;
-    }
     let t = type_name(x);
-    d.with_help(&format!(
-        "a {t} has no fields; to call `{name}` on it, write `{name}(…)`"
-    ))
+    let a = if t.starts_with(|c: char| "aeiouAEIOU".contains(c)) {
+        "an"
+    } else {
+        "a"
+    };
+    let call = k.as_str().filter(|name| {
+        fung_front::builtins::builtins()
+            .prelude_signature(name)
+            .is_some()
+    });
+    match call {
+        Some(name) => d.with_help(&format!(
+            "{a} {t} has no fields; to call `{name}` on it, write `{name}(…)`"
+        )),
+        None => d.with_help(&format!("{a} {t} has no fields: only maps and modules do")),
+    }
 }
 
 /// One end of a slice: `None` is open (`SLICE` marks a missing end),
 /// otherwise an int. nil is not an open end: it is an error like any
 /// other use of nil as an index (02).
-fn bound(v: Option<&Value>) -> Result<Option<i64>, Diag> {
+/// An end that is no int is the index's E0509, naming the sliced value
+/// and the end's type (FE82).
+fn bound(x: &Value, v: Option<&Value>) -> Result<Option<i64>, Diag> {
     match v {
         None => Ok(None),
         Some(Value::Int(n)) => Ok(Some(*n)),
-        Some(other) => Err(err(
-            "E0501",
-            vec![
-                str_arg("slice with"),
-                str_arg("int"),
-                Arg::Str(type_name(other)),
-            ],
-        )),
+        Some(other) => Err(index_error(x, other)),
     }
 }
 
 /// Resolves the ends against length `n`. Both ends may equal `n`; start
 /// may not exceed end (E0516). Ends count from the start, so a negative
-/// one is out of range (D37), and an inclusive end takes one more. An end
-/// out of range is reported as the program wrote it (counted in i128, so
-/// nothing wraps).
+/// one is out of range (D37). An inclusive end is the half-open end one
+/// past it, and nothing else (D117): `xs[a..=b]` is `xs[a..b+1]`, so
+/// `xs[0..=-1]` is empty. An end out of range is reported as the program
+/// wrote it (counted in i128, so nothing wraps).
 fn slice_bounds(
+    x: &Value,
     start: Option<&Value>,
     end: Option<&Value>,
     n: usize,
@@ -223,24 +241,15 @@ fn slice_bounds(
 ) -> Result<(usize, usize), Diag> {
     let len = n as i128;
     let resolve = i128::from;
-    let start = bound(start)?;
-    let end = bound(end)?;
+    let start = bound(x, start)?;
+    let end = bound(x, end)?;
     let lo = start.map_or(0, resolve);
     let written = |b: Option<i64>, dflt: i128| b.unwrap_or(dflt as i64);
     if !(0..=len).contains(&lo) {
         return Err(out_of_range("slice start", written(start, 0), n));
     }
-    // An inclusive end is an element's index (`0..len`), checked before
-    // the one is added: `xs[..=3]` of three, or `[][..=0]`, is out of
-    // range rather than empty (VA2).
     let hi = match end {
-        Some(e) if inclusive => {
-            let i = resolve(e);
-            if !(0..len).contains(&i) {
-                return Err(out_of_range("slice end", e, n));
-            }
-            i + 1
-        }
+        Some(e) if inclusive => resolve(e) + 1,
         _ => end.map_or(len, resolve),
     };
     if !(0..=len).contains(&hi) {
@@ -270,31 +279,55 @@ pub fn slice(
 ) -> Result<Value, Diag> {
     match x {
         Value::List(l) => {
-            let (lo, hi) = slice_bounds(start, end, l.len(), inclusive)?;
+            let (lo, hi) = slice_bounds(x, start, end, l.len(), inclusive)?;
             if lo == 0 && hi == l.len() {
                 return Ok(x.clone());
             }
             Ok(Value::List(Rc::new(List::slice(l, lo, hi))))
         }
         Value::Str(s) => {
-            let (lo, hi) = slice_bounds(start, end, s.char_len(), inclusive)?;
-            let from = s.offset_of(lo);
-            let to = s.byte_at(from, hi - lo);
-            if from == 0 && to == s.len() {
+            let n = s.char_len();
+            let (lo, hi) = slice_bounds(x, start, end, n, inclusive)?;
+            if lo == 0 && hi == n {
                 return Ok(x.clone());
             }
+            // Each end is found from the nearest known place (the start,
+            // the end, the last lookup, the marks), so eating a string
+            // from either end reads a few characters a step (VA68).
+            let from = s.offset_of(lo);
+            let to = if hi == lo { from } else { s.offset_of(hi) };
             // A slice of valid UTF-8 at character boundaries is valid
-            // UTF-8, ASCII if the whole is: not looked at again (VA32).
-            Ok(match s.as_str() {
-                Some(t) if s.is_ascii() => {
-                    Value::Str(Rc::new(Text::ascii(t[from..to].to_string(), true)))
-                }
-                Some(t) => Value::Str(Rc::new(Text::utf8(t[from..to].to_string()))),
-                None => Value::bytes(s[from..to].to_vec()),
-            })
+            // UTF-8, ASCII if the whole is: not looked at again (VA32),
+            // and a view of the same bytes when it is big (VA69).
+            Ok(Value::Str(Text::slice(s, from, to, hi - lo)))
         }
         _ => Err(err("E0511", vec![Arg::Str(type_name(x))])),
     }
+}
+
+/// `slice` of a value the caller owns (the VM's SLICE): a big list that
+/// nothing else holds is cut in place when that is one short step
+/// (`List::cut`), with what is cut off let go as `slice` lets it go.
+/// Everything else is `slice`.
+pub fn slice_owned(
+    x: Value,
+    start: Option<&Value>,
+    end: Option<&Value>,
+    inclusive: bool,
+) -> Result<Value, Diag> {
+    let Value::List(l) = &x else {
+        return slice(&x, start, end, inclusive);
+    };
+    let (lo, hi) = slice_bounds(&x, start, end, l.len(), inclusive)?;
+    let Value::List(mut rc) = x else {
+        unreachable!("matched above")
+    };
+    if let Some(l) = Rc::get_mut(&mut rc)
+        && l.cut(lo, hi)
+    {
+        return Ok(Value::List(rc));
+    }
+    slice(&Value::List(rc), start, end, inclusive)
 }
 
 /// `x in c` (07): list elements, substrings, map keys, integers of a range.
@@ -303,6 +336,12 @@ pub fn slice(
 pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
     match c {
         Value::List(l) => {
+            // `==` item by item (D116: an item that holds a function
+            // meeting an `x` that holds one is E0501); `x` is looked at
+            // once.
+            if !x.holds_fn() {
+                return Ok(l.iter().any(|item| super::equal(item, x)));
+            }
             for item in l.iter() {
                 if super::eq(item, x)? {
                     return Ok(true);
@@ -311,6 +350,8 @@ pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
             Ok(false)
         }
         Value::Str(s) => match x {
+            // `x`, as `contains(c, x)` names it (D118).
+            Value::Str(sub) if sub.is_empty() => Err(not_nonempty("x", x)),
             Value::Str(sub) => Ok(find(s, sub).is_some()),
             _ => Err(type_error("search", c, x)),
         },

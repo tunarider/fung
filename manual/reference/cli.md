@@ -150,7 +150,7 @@ error[E0204]: undefined name `nope`
 
 ## 검사: `check` {#check}
 
-`fung check script.fung`은 **실행하지 않고** 컴파일만 해서 문법 에러, 없는 이름, 잘못된 `import`, 부르는 함수가 정해진 호출의 인자 개수·이름(E0402·E0405~E0407), 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0240)를 찾는다. 이것들은 `run`에서도 같은 컴파일 에러다(언어에 경고는 없다). 서버에 올리기 전이나 편집기의 저장 훅에서 쓴다. 파일은 하나만 받고 디렉터리는 받지 않는다. `fung check -e '코드'`도 된다.
+`fung check script.fung`은 **실행하지 않고** 컴파일만 해서 문법 에러, 없는 이름, 잘못된 `import`, 부르는 함수가 정해진 호출의 인자 개수·이름(E0402·E0405~E0407), 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0238)를 찾는다. 이것들은 `run`에서도 같은 컴파일 에러다(언어에 경고는 없다). 서버에 올리기 전이나 편집기의 저장 훅에서 쓴다. 파일은 하나만 받고 디렉터리는 받지 않는다. `fung check -e '코드'`도 된다.
 
 ```shell
 $ fung check w.fung
@@ -315,7 +315,7 @@ $ echo $?
     <tr><td><a href="errors.html#e06"><code>E06xx</code></a></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>)</td></tr>
     <tr><td><a href="errors.html#e07"><code>E07xx</code></a></td><td>동시성(취소, 교착, 닫힌 태스크 범위, atom 규칙)</td></tr>
     <tr><td><a href="errors.html#e08"><code>E08xx</code></a></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
-    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>은퇴한 경고 번호(지금은 E0239·E0240 에러)</td></tr>
+    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>은퇴한 경고 번호(지금은 E0239·E0238 에러)</td></tr>
   </tbody>
 </table>
 

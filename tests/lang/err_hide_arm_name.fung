@@ -3,4 +3,4 @@ fn f(x) = match x:
   x => x
 ;;
 print(f(1))
-# expect-error: E0240
+# expect-error: E0238

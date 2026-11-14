@@ -292,12 +292,20 @@ impl Task<'_> {
     /// the value of the tail call that follows is a bool, the right side
     /// of an `and`/`or` (D97). A call to the frame's own closure needs
     /// it too: nothing else checks that value.
+    /// When the frame's latest check is this one already (a function
+    /// whose `or` calls itself in a loop), taking it again would leave
+    /// the checks as they are, so nothing is made (VM52).
     #[inline(never)]
     pub(super) fn tail_check_bool(&mut self, fi: usize) {
+        let pos = self.here(fi);
+        let f = &self.fiber.frames[fi];
+        if f.last_check_is(f.proto(), None, pos) {
+            return;
+        }
         let check = Check {
-            proto: self.fiber.frames[fi].proto().clone(),
+            proto: f.proto().clone(),
             ty: None,
-            pos: self.here(fi),
+            pos,
         };
         self.fiber.frames[fi].add_check(check);
     }

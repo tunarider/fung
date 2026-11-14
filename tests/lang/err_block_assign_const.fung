@@ -8,4 +8,4 @@ fn g():
   c
 ;;
 print(g())
-# expect-error: E0205
+# expect-error: E0238

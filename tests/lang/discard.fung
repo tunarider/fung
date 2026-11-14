@@ -32,7 +32,6 @@ for x in [1, 2]:
 # (A literal alone as a statement does nothing, E0234: compute it.)
 fn value(v) = v
 value(Ok(1))
-nil
 value([Ok(1), 2])
 fn oks() = map([1, 2], x => Ok(x))
 oks()

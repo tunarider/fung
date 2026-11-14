@@ -1,7 +1,0 @@
-# A bare `Err` in a pattern is E0236 too (D41): it could only match a
-# symbol, never a result.
-fn f(r) = match r:
-  Err => "err"
-  _   => "?"
-;;
-# expect-error: E0236

@@ -155,10 +155,10 @@ web-2 10.0.1.12</code></pre>
 <pre><code>import http
 
 fn probe(url) = match http.get(url, timeout: 3s):
-  Ok(r) when r.status &lt; 400 =&gt; &quot;up (${r.status})&quot;
-  Ok(r)                     =&gt; &quot;error (${r.status})&quot;
-  Err({kind: 'timeout})     =&gt; &quot;timeout&quot;
-  Err(e)                    =&gt; &quot;down: ${e.message}&quot;
+  Ok(r) when r.status &lt; 400  =&gt; &quot;up (${r.status})&quot;
+  Ok(r)                      =&gt; &quot;error (${r.status})&quot;
+  Err({kind: 'timeout, ...}) =&gt; &quot;timeout&quot;
+  Err(e)                     =&gt; &quot;down: ${e.message}&quot;
 ;;
 
 print(probe(&quot;https://example.com&quot;))

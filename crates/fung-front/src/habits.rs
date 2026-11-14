@@ -107,7 +107,7 @@ pub const OPERATORS: &[(&str, &str)] = &[
     ),
     (
         "++",
-        "fung has no `++`: write the new value, `n = n + 1` (a function's local name may be bound again), or bind a new name",
+        "fung has no `++`: bind a new name (`m = n + 1`) or compute it in one expression",
     ),
 ];
 
@@ -118,10 +118,11 @@ pub fn operator(op: &str) -> Option<&'static str> {
 
 /// The help for a compound assignment (`+=`).
 pub fn compound(op: &str) -> String {
-    format!(
-        "fung has no `{op}=`: write the new value, `n = n {op} …` (a function's local name may be bound again), or bind a new name"
-    )
+    format!("fung has no `{op}=`: bind a new name (`m = n {op} 1`) or compute it in one expression")
 }
+
+/// The help for `++` between two values (`"a" ++ "b"`).
+pub const JOIN: &str = "strings and lists join with `+`";
 
 /// The help for a reserved word written where a name is bound.
 pub fn reserved(word: &str) -> String {

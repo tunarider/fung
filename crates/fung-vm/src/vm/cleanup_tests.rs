@@ -116,6 +116,17 @@ fn a_use_error_keeps_the_release_error_as_a_note() {
         "{err}"
     );
     assert_eq!(code, 1);
+    // A release that cannot even be called keeps the use's failure too
+    // (D109): the arity is checked when it is called, as for any call.
+    let (_, err, code) = run("with(() => 1, _r => fail(\"use\"), () => 1)");
+    assert!(err.starts_with("error[E0803]: use"), "{err}");
+    assert!(
+        err.contains(
+            "note: also failed in release: error[E0402]: the function takes 0 argument(s), got 1"
+        ),
+        "{err}"
+    );
+    assert_eq!(code, 1);
 }
 
 #[test]

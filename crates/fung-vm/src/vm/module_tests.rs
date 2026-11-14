@@ -385,7 +385,10 @@ fn a_module_member_is_found_in_nfc() {
 fn standard_modules_run() {
     // `http` runs since stage 4d (its client: the arguments are checked).
     let o = run_files(
-        &[("/p/main.fung", "import http\nprint(http.get)\nhttp.get(1)")],
+        &[(
+            "/p/main.fung",
+            "import http\nprint(http.get)\nn = 1\nhttp.get(n)",
+        )],
         "/p/main.fung",
     );
     assert_eq!((o.out.as_str(), o.code.as_str()), ("<fn get>\n", "E0403"));

@@ -348,11 +348,7 @@ pub fn wrong_arg(name: &str, want: &str, v: &Value) -> Stop {
 /// given when it is the empty string (`got ""`) and the type otherwise,
 /// as [`not_count`] shows a negative int.
 pub fn not_nonempty(name: &str, v: &Value) -> Stop {
-    let got = match v {
-        Value::Str(_) => crate::value::format(v),
-        _ => type_name(v),
-    };
-    fail("E0403", vec![s(name), s("a non-empty str"), Arg::Str(got)])
+    crate::value::index::not_nonempty(name, v).into()
 }
 
 /// E0403: argument `name` must be a non-negative int, showing the value

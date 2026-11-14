@@ -2264,8 +2264,8 @@
 |   match e:
 |     {kind: "deploy", service, version} => print("deployed ${service} ${version}")
 |     {kind: "alert", level: 3, text}    => print("PAGE: ${text}")
-|     {kind: "alert", text}              => print("note: ${text}")
-|     {kind}                             => print("ignored ${kind}")
+|     {kind: "alert", text, ...}         => print("note: ${text}")
+|     {kind, ...}                        => print("ignored ${kind}")
 |   ;;
 | ;;
 -- stderr
@@ -2273,8 +2273,8 @@
 ==== manual learn/08-patterns.md:7
 -- stdout
 | fn first_port(svc) = match svc:
-|   {name, ports: [p, ...]} => "${name} listens on ${p}"
-|   {name, ports: []}       => "${name} has no ports"
+|   {name, ports: [p, ...], ...} => "${name} listens on ${p}"
+|   {name, ports: [], ...}       => "${name} has no ports"
 | ;;
 |
 | print(first_port({name: "api", ports: [8080, 8443]}))
@@ -2298,9 +2298,9 @@
 ==== manual learn/08-patterns.md:9
 -- stdout
 | fn classify(svc) = match svc:
-|   {port} when port < 1024  => "${svc.name}: system port"
-|   {port} when port > 49151 => "${svc.name}: dynamic port"
-|   {port}                   => "${svc.name}: registered port ${port}"
+|   {port, ...} when port < 1024  => "${svc.name}: system port"
+|   {port, ...} when port > 49151 => "${svc.name}: dynamic port"
+|   {port, ...}                   => "${svc.name}: registered port ${port}"
 | ;;
 |
 | print(classify({name: "ssh", port: 22}))
@@ -2312,7 +2312,7 @@
 -- stdout
 | (quotient, remainder) = (17 // 5, 17 % 5)
 | [host, port] = split("db.internal:5432", ":")
-| {name, replicas: n} = {name: "api", replicas: 3, image: "api:1.4"}
+| {name, replicas: n, ...} = {name: "api", replicas: 3, image: "api:1.4"}
 | [top, ...rest] = ["a.log", "b.log", "c.log"]
 |
 | print(quotient, remainder)
@@ -2472,9 +2472,9 @@
 | import fs
 |
 | fn load_config(p) = match fs.read(p):
-|   Ok(text)                => text
-|   Err({kind: 'not_found}) => "{}"
-|   Err(e)                  => fail(e.message)
+|   Ok(text)                     => text
+|   Err({kind: 'not_found, ...}) => "{}"
+|   Err(e)                       => fail(e.message)
 | ;;
 |
 | print(load_config("app.json"))
@@ -2759,9 +2759,9 @@
 | import fs
 |
 | match fs.read("settings.ini"):
-|   Ok(text)                => print(len(text), "chars")
-|   Err({kind: 'not_found}) => print("no settings.ini, using defaults")
-|   Err(e)                  => print("cannot read:", e.message)
+|   Ok(text)                     => print(len(text), "chars")
+|   Err({kind: 'not_found, ...}) => print("no settings.ini, using defaults")
+|   Err(e)                       => print("cannot read:", e.message)
 | ;;
 -- stderr
 -- exit: 0
@@ -3148,10 +3148,10 @@
 | rows = zip(hosts, results)
 | for (host, r) in rows:
 |   status = match r:
-|     Ok(Ok(s))             => s
-|     Ok(Err(e))            => "ERROR ${e.message}"
-|     Err({kind: 'timeout}) => "TIMEOUT"
-|     Err(e)                => "ERROR ${e.message}"
+|     Ok(Ok(s))                  => s
+|     Ok(Err(e))                 => "ERROR ${e.message}"
+|     Err({kind: 'timeout, ...}) => "TIMEOUT"
+|     Err(e)                     => "ERROR ${e.message}"
 |   ;;
 |   print(pad_right(host, 6), status)
 | ;;
@@ -3238,8 +3238,8 @@
 | services = json.parse(fs.read("services.json")!)!
 | for svc in services:
 |   match svc:
-|     {name, status: "down"} => print("DOWN", name)
-|     {name, replicas}       => print("up  ", name, "x${replicas}")
+|     {name, status: "down", ...} => print("DOWN", name)
+|     {name, replicas, ...}       => print("up  ", name, "x${replicas}")
 |   ;;
 | ;;
 -- stderr
@@ -4073,7 +4073,7 @@
 -- stdout
 | n = 0
 | for f in ["a.txt", "b.txt"]:
-|   n = n + 1  # E0205
+|   n = n + 1  # E0238
 | ;;
 -- stderr
 -- exit: 0
@@ -4222,9 +4222,9 @@
 | ;;
 |
 | fn why(e) = match e:
-|   {kind: 'timeout}   => "no answer in 20s"
-|   {kind: 'exit, err} => trim(err)
-|   _                  => e.message
+|   {kind: 'timeout, ...}   => "no answer in 20s"
+|   {kind: 'exit, err, ...} => trim(err)
+|   _                       => e.message
 | ;;
 |
 | # Rows of strings → aligned lines, two spaces between columns.
@@ -4285,10 +4285,10 @@
 | fn run_on(host, command):
 |   ssh = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host]
 |   match timeout(() => exec(ssh + command), 30s):
-|     Ok(Ok(res))                       => Ok(res.out)
-|     Ok(Err({kind: 'exit, code, err})) => Err("exit ${code}: ${trim(err)}")
-|     Ok(Err(e))                        => Err(e.message)
-|     Err(_)                            => Err("no answer in 30s")
+|     Ok(Ok(res))                            => Ok(res.out)
+|     Ok(Err({kind: 'exit, code, err, ...})) => Err("exit ${code}: ${trim(err)}")
+|     Ok(Err(e))                             => Err(e.message)
+|     Err(_)                                 => Err("no answer in 30s")
 |   ;;
 | ;;
 |
@@ -4330,8 +4330,8 @@
 | entry = `^\S+ \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) [^"]*" (\d{3}) \d+ ([\d.]+)$`
 |
 | fn parse(line) = match regex.find(line, entry):
-|   nil                                      => nil
-|   {groups: [at, method, path, code, secs]} =>
+|   nil                                           => nil
+|   {groups: [at, method, path, code, secs], ...} =>
 |     {at, method, path, status: int(code), took: parse_float(secs)! * 1s}
 | ;;
 |
@@ -4376,10 +4376,10 @@
 | fn try_once(host):
 |   cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, "true"]
 |   match timeout(() => exec(cmd), 10s):
-|     Ok(Ok(_))                   => Ok(nil)
-|     Ok(Err({kind: 'exit, err})) => Err(trim(err))
-|     Ok(Err(e))                  => Err(e.message)
-|     Err(_)                      => Err("no answer in 10s")
+|     Ok(Ok(_))                        => Ok(nil)
+|     Ok(Err({kind: 'exit, err, ...})) => Err(trim(err))
+|     Ok(Err(e))                       => Err(e.message)
+|     Err(_)                           => Err("no answer in 10s")
 |   ;;
 | ;;
 |
@@ -4396,7 +4396,7 @@
 |   print("DOWN", d.host, "-", d.why)
 | ;;
 | match env("ALERT_WEBHOOK"):
-|   nil => nil
+|   nil =>
 |   url =>
 |     text = "${len(down)} of ${len(hosts)} servers down: ${down |> map(d => d.host) |> join(", ")}"
 |     http.post(url, json.stringify({text}), headers: {"content-type": "application/json"})!
@@ -4413,7 +4413,7 @@
 -- stderr
 -- exit: 0
 ==== manual recipes/webhook-server.md:1
--- stdout (2162 bytes, fnv1a64 19a99e1b715681f7)
+-- stdout (2177 bytes, fnv1a64 1d2ff49bc6a7cadf)
 -- stderr
 -- exit: 0
 ==== manual recipes/webhook-server.md:2
@@ -4461,7 +4461,8 @@
 ==== manual reference/errors.md:1
 -- stdout
 | fn backoff(n: int) = n * 2
-| print(backoff("3"))
+| arg = "3"
+| print(backoff(arg))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:2
@@ -4505,7 +4506,7 @@
 ==== manual reference/errors.md:7
 -- stdout
 -- stderr
-| error[E0103]: unknown escape `\l` in string
+| error[E0103]: invalid escape `\l` in string
 |   --> <stdin>:1:15
 |   |
 | 1 | print("C:\temp\logs")
@@ -4933,6 +4934,17 @@
 -- exit: 2
 ==== manual reference/errors.md:58
 -- stdout
+-- stderr
+| error[E0131]: this statement comes after `return`, so it never runs
+|   --> <stdin>:3:3
+|   |
+| 3 |   print("checked")
+|   |   ^ never runs
+|   |
+|  help: remove it, or move the `return` after it
+-- exit: 2
+==== manual reference/errors.md:59
+-- stdout
 | fn check(n):
 |   print("checked")
 |   n > 0
@@ -4940,7 +4952,7 @@
 | print(check(1))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:59
+==== manual reference/errors.md:60
 -- stdout
 -- stderr
 | error[E0132]: `return` used as a value
@@ -4951,7 +4963,7 @@
 |   |
 |  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
 -- exit: 2
-==== manual reference/errors.md:60
+==== manual reference/errors.md:61
 -- stdout
 | fn port(cfg):
 |   if cfg.port == nil: return 80 ;;
@@ -4960,7 +4972,7 @@
 | print(port({port: nil}), port({port: 8000}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:61
+==== manual reference/errors.md:62
 -- stdout
 -- stderr
 | error[E0133]: a spread `...` cannot stand in a list literal
@@ -4971,14 +4983,14 @@
 |   |
 |  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
 -- exit: 2
-==== manual reference/errors.md:62
+==== manual reference/errors.md:63
 -- stdout
 | base = ["-v"]
 | print(base + ["-q"])
 | print("args:", ...base + ["-q"])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:63
+==== manual reference/errors.md:64
 -- stdout
 -- stderr
 | error[E0134]: `elif` is not a keyword in fung
@@ -4989,7 +5001,7 @@
 |   |
 |  help: fung writes `else if`
 -- exit: 2
-==== manual reference/errors.md:64
+==== manual reference/errors.md:65
 -- stdout
 | x = 2
 | if x == 1:
@@ -4999,7 +5011,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:65
+==== manual reference/errors.md:66
 -- stdout
 -- stderr
 | error[E0135]: number "99999999999999999999" is out of range
@@ -5010,13 +5022,13 @@
 |   |
 |  help: an int holds -9223372036854775808 to 9223372036854775807
 -- exit: 2
-==== manual reference/errors.md:66
+==== manual reference/errors.md:67
 -- stdout
 | limit = 1e20
 | print(limit)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:67
+==== manual reference/errors.md:68
 -- stdout
 -- stderr
 | error[E0136]: a statement after another cannot begin its line with `-`
@@ -5027,7 +5039,7 @@
 |   |
 |  help: to continue the line before, end that line with the `-`; a negative value on a line of its own is written in parentheses: `(-x)`
 -- exit: 2
-==== manual reference/errors.md:68
+==== manual reference/errors.md:69
 -- stdout
 | fn scale(n) = n * 10
 | fn f(a):
@@ -5041,37 +5053,19 @@
 | print(f(5), g(1))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:69
+==== manual reference/errors.md:70
 -- stdout
 | files = ["a.log", "b.log"]
 | print(len(fiels))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:70
+==== manual reference/errors.md:71
 -- stdout
 | files = ["a.log", "b.log"]
 | print(len(files))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:71
--- stdout
-| files = ["a.log", "b.txt", "c.log"]
-| count = 0
-| for f in files:
-|   if ends_with(f, ".log"): count = count + 1 ;;
-| ;;
-| print(count)
--- stderr
--- exit: 0
 ==== manual reference/errors.md:72
--- stdout
-| files = ["a.log", "b.txt", "c.log"]
-| count = files |> filter(f => ends_with(f, ".log")) |> len
-| total = fold(files, 0, (n, f) => n + len(f))
-| print(count, total)
--- stderr
--- exit: 0
-==== manual reference/errors.md:73
 -- stdout
 | port = 8080
 | if port < 1024:
@@ -5082,7 +5076,7 @@
 | print(kind)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:74
+==== manual reference/errors.md:73
 -- stdout
 | port = 8080
 | kind = if port < 1024:
@@ -5093,7 +5087,7 @@
 | print(kind)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:75
+==== manual reference/errors.md:74
 -- stdout
 | fn main():
 |   fn is_even(n) = n == 0 then true else is_odd(n - 1)
@@ -5103,7 +5097,7 @@
 | main()
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:76
+==== manual reference/errors.md:75
 -- stdout
 | fn is_even(n) = n == 0 then true else is_odd(n - 1)
 | fn is_odd(n) = n == 0 then false else is_even(n - 1)
@@ -5112,20 +5106,7 @@
 | main()
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:77
--- stdout
-| fn area(w, h) = w * h
-| fn area(r) = 3.14 * r * r
--- stderr
--- exit: 0
-==== manual reference/errors.md:78
--- stdout
-| fn rect_area(w, h) = w * h
-| fn circle_area(r) = 3.14 * r * r
-| print(rect_area(2, 3), circle_area(1))
--- stderr
--- exit: 0
-==== manual reference/errors.md:79
+==== manual reference/errors.md:76
 -- stdout
 | if len(args) == 0:
 |   print("usage: tool FILE")
@@ -5133,7 +5114,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:80
+==== manual reference/errors.md:77
 -- stdout
 | if len(args) == 0:
 |   print("usage: tool FILE")
@@ -5142,34 +5123,34 @@
 | print("working")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:81
+==== manual reference/errors.md:78
 -- stdout
 | fn retry(times: integer) = times
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:82
+==== manual reference/errors.md:79
 -- stdout
 | fn retry(times: int) = times
 | print(retry(3))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:83
+==== manual reference/errors.md:80
 -- stdout
 | port = parse_int("8080")?
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:84
+==== manual reference/errors.md:81
 -- stdout
 | port = parse_int("8080")!
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:85
+==== manual reference/errors.md:82
 -- stdout
 | add_one = _ + 1
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:86
+==== manual reference/errors.md:83
 -- stdout
 | add_one = x => x + 1
 | add = (a, b) => a + b
@@ -5177,14 +5158,14 @@
 | print(add_one(1), add_ten(5))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:87
+==== manual reference/errors.md:84
 -- stdout
 | fn describe(r) = match r:
 |   Ok(v) | Err(e) => "done"
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:88
+==== manual reference/errors.md:85
 -- stdout
 | fn describe(r) = match r:
 |   Ok(_) | Err(_) => "done"
@@ -5192,13 +5173,13 @@
 | print(describe(Ok(1)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:89
+==== manual reference/errors.md:86
 -- stdout
 | type id = int
 | type id = str
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:90
+==== manual reference/errors.md:87
 -- stdout
 | type user_id = int
 | type token = str
@@ -5206,13 +5187,13 @@
 | print(show(7, "abc"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:91
+==== manual reference/errors.md:88
 -- stdout
 | type tree = tree
 | fn size(t: tree) = 1
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:92
+==== manual reference/errors.md:89
 -- stdout
 | type tree = Leaf | Node
 | fn size(t: tree) = match t:
@@ -5222,7 +5203,7 @@
 | print(size(Node(Leaf, Node(Leaf, Leaf))))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:93
+==== manual reference/errors.md:90
 -- stdout
 | fn area(s):
 |   type shape = Circle | Rect
@@ -5230,7 +5211,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:94
+==== manual reference/errors.md:91
 -- stdout
 | type shape = Circle | Rect
 |
@@ -5241,7 +5222,7 @@
 | print(area(Rect(2, 3)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:95
+==== manual reference/errors.md:92
 -- stdout
 | fn same(pair) = match pair:
 |   [a, a] => true
@@ -5249,7 +5230,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:96
+==== manual reference/errors.md:93
 -- stdout
 | fn same(pair) = match pair:
 |   [a, b] when a == b => true
@@ -5258,24 +5239,24 @@
 | print(same([1, 1]), same([1, 2]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:97
+==== manual reference/errors.md:94
 -- stdout
 | type str = int
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:98
+==== manual reference/errors.md:95
 -- stdout
 | type name = str
 | fn hello(n: name) = "hello, ${n}"
 | print(hello("fung"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:99
+==== manual reference/errors.md:96
 -- stdout
 | fn label(code) = if code >= 500: "server error" ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:100
+==== manual reference/errors.md:97
 -- stdout
 | fn label(code) = if code >= 500: "server error" else: "ok" ;;
 | print(label(503), label(200))
@@ -5286,7 +5267,7 @@
 | alert(503)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:101
+==== manual reference/errors.md:98
 -- stdout
 | x = if true:
 |   y = 1
@@ -5295,12 +5276,21 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:102
+==== manual reference/errors.md:99
 -- stdout
 | x = if false: 1 else: ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:103
+==== manual reference/errors.md:100
+-- stdout
+| f = match 1:
+|   1 => y => y + 1
+|   _ => (y => y)
+| ;;
+| print(f(1))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:101
 -- stdout
 | x = if true:
 |   y = 1
@@ -5312,7 +5302,7 @@
 | print(x, z)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:104
+==== manual reference/errors.md:102
 -- stdout
 -- stderr
 | error[E0225]: `HOME` starts with an uppercase letter, so it is a tag and cannot name a variable
@@ -5323,7 +5313,7 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
-==== manual reference/errors.md:105
+==== manual reference/errors.md:103
 -- stdout
 | max_retries = 3
 | cfg = {HOME: "/home/me"}
@@ -5331,43 +5321,43 @@
 | print(max_retries, home, cfg.HOME)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:106
+==== manual reference/errors.md:104
 -- stdout
 | import path
 | print("a.txt" |> path.join("/tmp", _))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:107
+==== manual reference/errors.md:105
 -- stdout
 | import path
 | print("a.txt" |> (path.join("/tmp", _)))
 | print("a.txt" |> (f => path.join("/tmp", f)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:108
+==== manual reference/errors.md:106
 -- stdout
 | fn total(...ns: int) = fold(ns, 0, (a, b) => a + b)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:109
+==== manual reference/errors.md:107
 -- stdout
 | fn total(...ns: list) = fold(ns, 0, (a, b) => a + b)
 | print(total(1, 2, 3))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:110
+==== manual reference/errors.md:108
 -- stdout
 | nums = ["1", "2"] |> try_map(parse_int)!
 | print(nums)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:111
+==== manual reference/errors.md:109
 -- stdout
 | nums = (["1", "2"] |> try_map(parse_int))!
 | print(nums)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:112
+==== manual reference/errors.md:110
 -- stdout
 | test "parses":
 |   assert 1 == 1
@@ -5377,19 +5367,19 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:113
+==== manual reference/errors.md:111
 -- stdout
 | fn cleanup() = print("cleaned")
 | cleanup
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:114
+==== manual reference/errors.md:112
 -- stdout
 | fn cleanup() = print("cleaned")
 | cleanup()
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:115
+==== manual reference/errors.md:113
 -- stdout
 | limit = 5
 | fn f(x) = match x:
@@ -5399,7 +5389,7 @@
 | print(f(3))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:116
+==== manual reference/errors.md:114
 -- stdout
 | limit = 5
 | fn f(x) = match x:
@@ -5409,24 +5399,24 @@
 | print(f(3), f(5))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:117
+==== manual reference/errors.md:115
 -- stdout
 | fn divmod(a, b) = b == 0 then Err("division by zero") else Ok(a // b, a % b)
 | print(divmod(7, 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:118
+==== manual reference/errors.md:116
 -- stdout
 | fn divmod(a, b) = b == 0 then Err("division by zero") else Ok((a // b, a % b))
 | print(divmod(7, 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:119
+==== manual reference/errors.md:117
 -- stdout
 | fn ports(xs) = map(xs, s => parse_int(s)?)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:120
+==== manual reference/errors.md:118
 -- stdout
 | fn ports(xs) = try_map(xs, parse_int)
 | print(ports(["80", "443"]), ports(["80", "http"]))
@@ -5437,45 +5427,46 @@
 | print(first_big([10, 300]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:121
+==== manual reference/errors.md:119
 -- stdout
 | retries = 3
 | retries = retries + 1
 | print(retries)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:122
+==== manual reference/errors.md:120
 -- stdout
 | retries = 3
 | max_tries = retries + 1
 | print(max_tries)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:123
+==== manual reference/errors.md:121
 -- stdout
-| fn total(xs):
-|   count = len(xs)
-|   fold(xs, 0, (a, b) => a + b)
+| files = ["a.log", "b.txt", "c.log"]
+| count = 0
+| for f in files:
+|   if ends_with(f, ".log"): count = count + 1 ;;
 | ;;
-| print(total([1, 2]))
+| print(count)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:124
+==== manual reference/errors.md:122
 -- stdout
-| fn total(xs) = fold(xs, 0, (a, b) => a + b)
-| fn on_fail(_e) = nil
-| (name, _size) = ("a.txt", 3)
-| print(total([1, 2]), on_fail(1), name)
+| files = ["a.log", "b.txt", "c.log"]
+| count = files |> filter(f => ends_with(f, ".log")) |> len
+| total = fold(files, 0, (n, f) => n + len(f))
+| print(count, total)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:125
+==== manual reference/errors.md:123
 -- stdout
 | limit = 10
 | fn clamp(xs, limit) = map(xs, x => x > limit then limit else x)
 | print(clamp([5, 20], limit))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:126
+==== manual reference/errors.md:124
 -- stdout
 | fn summary(xs):
 |   max = 0
@@ -5484,14 +5475,57 @@
 | print(summary([1]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:127
+==== manual reference/errors.md:125
 -- stdout
 | limit = 10
 | fn clamp(xs, cap) = map(xs, x => x > cap then cap else x)
 | print(clamp([5, 20], limit))
 -- stderr
 -- exit: 0
+==== manual reference/errors.md:126
+-- stdout
+| fn area(w, h) = w * h
+| fn area(r) = 3.14 * r * r
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:127
+-- stdout
+| fn rect_area(w, h) = w * h
+| fn circle_area(r) = 3.14 * r * r
+| print(rect_area(2, 3), circle_area(1))
+-- stderr
+-- exit: 0
 ==== manual reference/errors.md:128
+-- stdout
+| import path
+| path = "/tmp/out"
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:129
+-- stdout
+| import path
+| out_path = "/tmp/out"
+| print(path.join(out_path, "a.txt"))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:130
+-- stdout
+| fn total(xs):
+|   count = len(xs)
+|   fold(xs, 0, (a, b) => a + b)
+| ;;
+| print(total([1, 2]))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:131
+-- stdout
+| fn total(xs) = fold(xs, 0, (a, b) => a + b)
+| fn on_fail(_e) = nil
+| (name, _size) = ("a.txt", 3)
+| print(total([1, 2]), on_fail(1), name)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:132
 -- stdout
 | fn kind(code) = match code:
 |   200 | 200 => "ok"
@@ -5500,7 +5534,7 @@
 | print(kind(201))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:129
+==== manual reference/errors.md:133
 -- stdout
 | fn kind(code) = match code:
 |   200 | 201 => "ok"
@@ -5509,7 +5543,7 @@
 | print(kind(201))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:130
+==== manual reference/errors.md:134
 -- stdout
 | fn half(n) = n // 2
 |
@@ -5517,7 +5551,7 @@
 | print(half(5))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:131
+==== manual reference/errors.md:135
 -- stdout
 | fn half(n) = n // 2
 |
@@ -5527,93 +5561,93 @@
 | print(half(5))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:132
+==== manual reference/errors.md:136
 -- stdout
 | port = 8080 ?? 80
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:133
+==== manual reference/errors.md:137
 -- stdout
 | port = env("FUNG_NO_SUCH_PORT") ?? "8080"
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:134
+==== manual reference/errors.md:138
 -- stdout
 | import util
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:135
+==== manual reference/errors.md:139
 -- stdout
 | import "./util"
 | print(util.shout("hi"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:136
+==== manual reference/errors.md:140
 -- stdout
 | import "./a"
 |
 | print(a.one())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:137
+==== manual reference/errors.md:141
 -- stdout
 | import "./a"
 | import "./b"
 | print(a.one(), b.two())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:138
+==== manual reference/errors.md:142
 -- stdout
 | import fs
 | print(fs.read_file("notes.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:139
+==== manual reference/errors.md:143
 -- stdout
 | import fs
 | print(fs.read("notes.txt")!)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:140
+==== manual reference/errors.md:144
 -- stdout
 | import "./greet"
 |
 | print(greet._prefix())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:141
+==== manual reference/errors.md:145
 -- stdout
 | import "./greet"
 | print(greet.hello("fung"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:142
+==== manual reference/errors.md:146
 -- stdout
 | import "./my-lib"
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:143
+==== manual reference/errors.md:147
 -- stdout
 | import "./my-lib" as my_lib
 | print(my_lib.answer())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:144
+==== manual reference/errors.md:148
 -- stdout
 | import "./config"
 |
 | print(config.port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:145
+==== manual reference/errors.md:149
 -- stdout
 | import "./config"
 | print(config.describe())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:146
+==== manual reference/errors.md:150
 -- stdout
 | import "./helper"
 |
@@ -5621,26 +5655,13 @@
 | print(helper.twice(limit))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:147
+==== manual reference/errors.md:151
 -- stdout
 | import "./helper"
 | print(helper.doubled_limit())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:148
--- stdout
-| import path
-| path = "/tmp/out"
--- stderr
--- exit: 0
-==== manual reference/errors.md:149
--- stdout
-| import path
-| out_path = "/tmp/out"
-| print(path.join(out_path, "a.txt"))
--- stderr
--- exit: 0
-==== manual reference/errors.md:150
+==== manual reference/errors.md:152
 -- stdout
 | import fs
 | import "./fs"
@@ -5648,19 +5669,19 @@
 | print(1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:151
+==== manual reference/errors.md:153
 -- stdout
 | import fs
 | import "./fs" as local_fs
 | print(type_of(fs), local_fs.x())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:152
+==== manual reference/errors.md:154
 -- stdout
 | import _native.fs
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:153
+==== manual reference/errors.md:155
 -- stdout
 | fn load(p):
 |   import fs
@@ -5668,7 +5689,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:154
+==== manual reference/errors.md:156
 -- stdout
 | import fs
 |
@@ -5676,12 +5697,12 @@
 | print(load("missing.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:155
+==== manual reference/errors.md:157
 -- stdout
 | print(["caf\xe9", "caf\u{e9}"])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:156
+==== manual reference/errors.md:158
 -- stdout
 -- stderr
 | error[E0313]: `import` after another statement
@@ -5692,316 +5713,324 @@
 |   |
 |  help: put every import at the top of the file, before the other statements
 -- exit: 2
-==== manual reference/errors.md:157
+==== manual reference/errors.md:159
 -- stdout
 | import json
 |
 | print("start", json.stringify([1]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:158
+==== manual reference/errors.md:160
 -- stdout
 | name = "deploy"
 | print(name())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:159
+==== manual reference/errors.md:161
 -- stdout
 | fn deploy() = "deploying"
 | print(deploy())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:160
--- stdout
-| fn connect(host, port) = "${host}:${port}"
-| print(connect("db1", 5432, 10s))
--- stderr
--- exit: 0
-==== manual reference/errors.md:161
--- stdout
-| connect = (host, port) => "${host}:${port}"
-| print(connect("db1", 5432, 10s))
--- stderr
--- exit: 0
 ==== manual reference/errors.md:162
 -- stdout
-| fn connect(host, port, wait = 5s) = "${host}:${port} (${wait})"
+| fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", 5432, 10s))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:163
 -- stdout
-| fn backoff(n: int) = n * 2
-| print(backoff("3"))
+| fn dial(connect) = connect("db1", 5432, 10s)
+| print(dial((host, port) => "${host}:${port}"))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:164
+-- stdout
+| fn connect(host, port, wait = 5s) = "${host}:${port} (${wait})"
+| print(connect("db1", 5432, 10s))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:165
+-- stdout
+| fn backoff(n: int) = n * 2
+| arg = "3"
+| print(backoff(arg))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:166
+-- stdout
+| fn backoff(n: int = "1") = n * 2
+| print(backoff(3))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:167
 -- stdout
 | fn backoff(n: int) = n * 2
 | print(backoff(parse_int("3")!))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:165
+==== manual reference/errors.md:168
 -- stdout
 | fn port_of(url) -> int = split(url, ":")[1]
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:166
+==== manual reference/errors.md:169
 -- stdout
 | fn port_of(url) -> int = parse_int(split(url, ":")[1])!
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:167
+==== manual reference/errors.md:170
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", host: "db2"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:168
+==== manual reference/errors.md:171
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", port: 5432))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:169
+==== manual reference/errors.md:172
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", prot: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:170
+==== manual reference/errors.md:173
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", port: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:171
+==== manual reference/errors.md:174
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:172
+==== manual reference/errors.md:175
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:173
+==== manual reference/errors.md:176
 -- stdout
 | count = 3
 | print("found " + count + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:174
+==== manual reference/errors.md:177
 -- stdout
 | count = 3
 | print("found ${count} files")
 | print("found " + str(count) + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:175
+==== manual reference/errors.md:178
 -- stdout
 | fn average(xs) = sum(xs) / len(xs)
 | print(average([]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:176
+==== manual reference/errors.md:179
 -- stdout
 | fn average(xs) = len(xs) == 0 then 0 else sum(xs) / len(xs)
 | print(average([]), average([2, 4]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:177
+==== manual reference/errors.md:180
 -- stdout
 | print(9223372036854775807 + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:178
+==== manual reference/errors.md:181
 -- stdout
 | fn add_safe(a, b) = a > 9223372036854775807 - b then Err("too big") else Ok(a + b)
 | print(add_safe(9223372036854775807, 1))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:179
+==== manual reference/errors.md:182
 -- stdout
 | print(1e308 * 10)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:180
+==== manual reference/errors.md:183
 -- stdout
 | xs = [1, 2]
 | if len(xs): print("not empty") ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:181
+==== manual reference/errors.md:184
 -- stdout
 | xs = [1, 2]
 | if len(xs) > 0: print("not empty") ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:182
+==== manual reference/errors.md:185
 -- stdout
-| print(-"5")
+| fn neg(x) = -x
+| print(neg("5"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:183
+==== manual reference/errors.md:186
 -- stdout
 | print(-parse_int("5")!)
 | print(first(chars("abc")))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:184
+==== manual reference/errors.md:187
 -- stdout
 | hosts = ["web1", "web2"]
 | print(hosts[2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:185
+==== manual reference/errors.md:188
 -- stdout
 | hosts = ["web1", "web2"]
 | print(last(hosts), len(hosts) > 2 then hosts[2] else "none")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:186
+==== manual reference/errors.md:189
 -- stdout
 | cfg = {host: "db1"}
 | print(cfg.port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:187
+==== manual reference/errors.md:190
 -- stdout
 | cfg = {host: "db1"}
 | print(get(cfg, "port", 5432), get(cfg, "port") ?? 5432, "port" in cfg)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:188
+==== manual reference/errors.md:191
 -- stdout
 | pair = ("db1", 5432)
 | print(pair[0])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:189
+==== manual reference/errors.md:192
 -- stdout
 | pair = ("db1", 5432)
 | (host, port) = pair
 | print(host, port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:190
+==== manual reference/errors.md:193
 -- stdout
 | print((1, 2, 3)[0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:191
+==== manual reference/errors.md:194
 -- stdout
 | print([1, 2, 3][0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:192
+==== manual reference/errors.md:195
 -- stdout
 | print(3 in 10)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:193
+==== manual reference/errors.md:196
 -- stdout
 | print(3 in 0..10, 3 in [1, 2, 3])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:194
+==== manual reference/errors.md:197
 -- stdout
 | print(int("8080x"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:195
+==== manual reference/errors.md:198
 -- stdout
 | import json
 | print(parse_int("8080x"))
 | print(json.stringify({wait: str(5s), state: sym_name('ok)}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:196
+==== manual reference/errors.md:199
 -- stdout
 | print(group_by([1, 2, 3, 4], x => x % 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:197
+==== manual reference/errors.md:200
 -- stdout
 | print(group_by([1, 2, 3, 4], x => str(x % 2)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:198
+==== manual reference/errors.md:201
 -- stdout
 | import regex
 | print(regex.is_match("a(b", "(b"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:199
+==== manual reference/errors.md:202
 -- stdout
 | import regex
 | print(regex.is_match("a(b", `\(b`))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:200
+==== manual reference/errors.md:203
 -- stdout
 | xs = [1, 2, 3, 4]
 | print(xs[3..1])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:201
+==== manual reference/errors.md:204
 -- stdout
 | xs = [1, 2, 3, 4]
 | print(xs[1..3], take(drop(xs, 2), 10))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:202
+==== manual reference/errors.md:205
 -- stdout
 | import json
 | print(json.stringify({name: "caf\xe9"}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:203
+==== manual reference/errors.md:206
 -- stdout
 | import json
 | s = "caf\xe9"
 | print(is_utf8(s), json.stringify({name: is_utf8(s) then s else bytes(s)}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:204
+==== manual reference/errors.md:207
 -- stdout
 | r = Ok("127.0.0.1:8080")
 | print("http://${r}/")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:205
+==== manual reference/errors.md:208
 -- stdout
 | r = Ok("127.0.0.1:8080")
 | host = nil
 | print("http://${r!}/", str(r), "host=${host ?? "localhost"}")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:206
+==== manual reference/errors.md:209
 -- stdout
 | import fs
 | f = fs.open("w.txt", 'write)!
 | read_line(f)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:207
+==== manual reference/errors.md:210
 -- stdout
 | import regex
 | print(regex.replace("k=v", `(\w)=(\w)`, "$1a"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:208
+==== manual reference/errors.md:211
 -- stdout
 | import regex
 | print(regex.replace("k=v", `(\w)=(\w)`, `${1}a`))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:209
+==== manual reference/errors.md:212
 -- stdout
 | n = 3
 | for i in n..0:
@@ -6009,7 +6038,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:210
+==== manual reference/errors.md:213
 -- stdout
 | n = 3
 | for i in reverse(1..=n):
@@ -6017,31 +6046,31 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:211
+==== manual reference/errors.md:214
 -- stdout
 | id = 9007199254740993
 | print(id + 0.5)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:212
+==== manual reference/errors.md:215
 -- stdout
 | id = 9007199254740993
 | print(float(id) + 0.5, id + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:213
+==== manual reference/errors.md:216
 -- stdout
 | n = -1
 | print(2 ** n)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:214
+==== manual reference/errors.md:217
 -- stdout
 | n = -1
 | print(2 ** float(n), 2.0 ** n)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:215
+==== manual reference/errors.md:218
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -6050,7 +6079,7 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:216
+==== manual reference/errors.md:219
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -6060,67 +6089,67 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:217
+==== manual reference/errors.md:220
 -- stdout
 | line = "web1 10.0.0.1"
 | [_name, _addr, _role] = split(line, " ")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:218
+==== manual reference/errors.md:221
 -- stdout
 | line = "web1 10.0.0.1"
 | [name, addr, ...rest] = split(line, " ")
 | print(name, addr, rest)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:219
+==== manual reference/errors.md:222
 -- stdout
 | import fs
 | _text = fs.read("config.json")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:220
+==== manual reference/errors.md:223
 -- stdout
 | import fs
 | text = match fs.read("config.json"):
-|   Ok(t)                   => t
-|   Err({kind: 'not_found}) => "{}"
-|   Err(e)                  => fail(e.message)
+|   Ok(t)                        => t
+|   Err({kind: 'not_found, ...}) => "{}"
+|   Err(e)                       => fail(e.message)
 | ;;
 | print(text)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:221
+==== manual reference/errors.md:224
 -- stdout
 | cfg = {host: "db1"}
 | _port = get(cfg, "port")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:222
+==== manual reference/errors.md:225
 -- stdout
 | cfg = {host: "db1"}
 | port = get(cfg, "port") ?? 5432
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:223
+==== manual reference/errors.md:226
 -- stdout
 | print(try_map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:224
+==== manual reference/errors.md:227
 -- stdout
 | print(try_map(["1", "2"], parse_int), map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:225
+==== manual reference/errors.md:228
 -- stdout
 | import fs
 | fs.write("missing/out.txt", "data")
 | print("saved")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:226
+==== manual reference/errors.md:229
 -- stdout
 | import fs
 | match fs.write("missing/out.txt", "data"):
@@ -6131,14 +6160,14 @@
 | print("done")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:227
+==== manual reference/errors.md:230
 -- stdout
 | import fs
 | scope(s => spawn(s, () => fs.write("missing/out.txt", "data")))
 | print("saved")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:228
+==== manual reference/errors.md:231
 -- stdout
 | import fs
 | scope(fn(s):
@@ -6154,13 +6183,13 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:229
+==== manual reference/errors.md:232
 -- stdout
 | (_tx, rx) = channel()
 | print(recv(rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:230
+==== manual reference/errors.md:233
 -- stdout
 | (tx, rx) = channel()
 | send(tx, "job")!
@@ -6168,7 +6197,7 @@
 | for job in rx: print(job) ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:231
+==== manual reference/errors.md:234
 -- stdout
 | fn collect() = scope(fn(s):
 |   (tx, rx) = channel()
@@ -6181,58 +6210,58 @@
 | print(collect())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:232
+==== manual reference/errors.md:235
 -- stdout
 | s = scope(s => s)!
 | spawn(s, () => print("late"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:233
+==== manual reference/errors.md:236
 -- stdout
 | s = scope(s => s)!
 | cancel(s)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:234
+==== manual reference/errors.md:237
 -- stdout
 | scope(fn(s):
 |   spawn(s, () => print("inside"))
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:235
+==== manual reference/errors.md:238
 -- stdout
 | hits = atom(0)
 | swap(hits, n => dbg(n) + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:236
+==== manual reference/errors.md:239
 -- stdout
 | hits = atom(0)
 | new = swap(hits, n => n + 1)
 | print("hits:", new)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:237
+==== manual reference/errors.md:240
 -- stdout
 | (tx, _rx) = channel()
 | _latest = atom(tx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:238
+==== manual reference/errors.md:241
 -- stdout
 | latest = atom({host: "web1", up: true})
 | swap(latest, m => put(m, "up", false))
 | print(deref(latest))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:239
+==== manual reference/errors.md:242
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, rx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:240
+==== manual reference/errors.md:243
 -- stdout
 | (ta, ra) = channel(1)
 | (tb, rb) = channel(1)
@@ -6240,7 +6269,7 @@
 | send(tb, ra)!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:241
+==== manual reference/errors.md:244
 -- stdout
 | (req_tx, req_rx) = channel(4)
 | scope(fn(s):
@@ -6255,55 +6284,55 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:242
+==== manual reference/errors.md:245
 -- stdout
 | fn port_of(cfg) = cfg.port ?? fail("config.port is required")
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:243
+==== manual reference/errors.md:246
 -- stdout
 | fn port_of(cfg) = cfg.port ?? 8080
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:244
+==== manual reference/errors.md:247
 -- stdout
 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:245
+==== manual reference/errors.md:248
 -- stdout
 | fn depth(n, acc = 0) = n == 0 then acc else depth(n - 1, acc + 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:246
+==== manual reference/errors.md:249
 -- stdout
 | _line = repeat("=", 200_000_000)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:247
+==== manual reference/errors.md:250
 -- stdout
 | line = repeat("=", 20)
 | print(line)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:248
+==== manual reference/errors.md:251
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 3
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:249
+==== manual reference/errors.md:252
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 2
 | print("ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:250
+==== manual reference/errors.md:253
 -- stdout
 | x = twice()
 | limit = 10
@@ -6311,7 +6340,7 @@
 | print(x)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:251
+==== manual reference/errors.md:254
 -- stdout
 | limit = 10
 | fn twice() = limit * 2
@@ -6319,7 +6348,7 @@
 | print(x)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:252
+==== manual reference/errors.md:255
 -- stdout
 | import fs
 | r = fs.with_open("report.txt", fn(h):
@@ -6358,11 +6387,18 @@
 ==== manual reference/language/access.md:5
 -- stdout
 | xs = [1, 2, 3]
+| print(xs[0..=-1], xs[1..=0], xs[..=2])
+| print(xs[..=3])
+-- stderr
+-- exit: 0
+==== manual reference/language/access.md:6
+-- stdout
+| xs = [1, 2, 3]
 | r = 1..3
 | print(xs[r], "fung"[(0..=1)])
 -- stderr
 -- exit: 0
-==== manual reference/language/access.md:6
+==== manual reference/language/access.md:7
 -- stdout
 -- stderr
 | error[E0125]: `??` binds looser than `..`, so it cannot be an end of a slice
@@ -6373,7 +6409,7 @@
 |   |
 |  help: put the end in parentheses: `xs[(a or b)..]`
 -- exit: 2
-==== manual reference/language/access.md:7
+==== manual reference/language/access.md:8
 -- stdout
 | m = {name: "a"}
 | print(get(m, "age", 0))
@@ -6437,12 +6473,22 @@
 -- exit: 2
 ==== manual reference/language/blocks.md:6
 -- stdout
+-- stderr
+| error[E0112]: expected `:` after the map key, found newline
+|   --> <stdin>:2:7
+|   |
+| 2 |   name
+|   |       ^
+|   |
+-- exit: 2
+==== manual reference/language/blocks.md:7
+-- stdout
 | fn f(a) = a -
 |   2
 | print(f(5))
 -- stderr
 -- exit: 0
-==== manual reference/language/blocks.md:7
+==== manual reference/language/blocks.md:8
 -- stdout
 -- stderr
 | error[E0112]: expected `;;` to close the function, found end of file
@@ -6454,7 +6500,7 @@
 |   note: the `fn` opened at 1:1
 |   note: line 3 is not indented under the `fn`: was the block meant to close before it?
 -- exit: 2
-==== manual reference/language/blocks.md:8
+==== manual reference/language/blocks.md:9
 -- stdout
 | fn f(x):
 |   y = x + 1
@@ -6462,11 +6508,19 @@
 | print(f(1))
 -- stderr
 -- exit: 0
-==== manual reference/language/blocks.md:9
+==== manual reference/language/blocks.md:10
 -- stdout
 | m = {a: 1}
 | put(m, "b", 2)
 | print(m)
+-- stderr
+-- exit: 0
+==== manual reference/language/blocks.md:11
+-- stdout
+| xs = [1, 2]
+| count = 0
+| count == len(xs)
+| print(count)
 -- stderr
 -- exit: 0
 ==== manual reference/language/conditions.md:1
@@ -6607,18 +6661,26 @@
 ==== manual reference/language/functions.md:9
 -- stdout
 | fn add(a, b) = a + b
+| plus = add
+| print("ran")
+| print(plus(1, 2, 3))
+-- stderr
+-- exit: 0
+==== manual reference/language/functions.md:10
+-- stdout
+| fn add(a, b) = a + b
 | xs = [1, 2]
 | print(add(...xs))
 | print(add(...xs + [3]))
 -- stderr
 -- exit: 0
-==== manual reference/language/functions.md:10
+==== manual reference/language/functions.md:11
 -- stdout
 | print(...1..4)
 | print(..."abc")
 -- stderr
 -- exit: 0
-==== manual reference/language/functions.md:11
+==== manual reference/language/functions.md:12
 -- stdout
 -- stderr
 | error[E0133]: a spread `...` cannot stand before another positional argument
@@ -6629,7 +6691,7 @@
 |   |
 |  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
 -- exit: 2
-==== manual reference/language/functions.md:12
+==== manual reference/language/functions.md:13
 -- stdout
 -- stderr
 | error[E0116]: argument `a` given twice
@@ -6639,14 +6701,14 @@
 |   |               ^
 |   |
 -- exit: 2
-==== manual reference/language/functions.md:13
+==== manual reference/language/functions.md:14
 -- stdout
 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 | print(depth(1000))
 | print(depth(200000))
 -- stderr
 -- exit: 0
-==== manual reference/language/functions.md:14
+==== manual reference/language/functions.md:15
 -- stdout
 | fn say(x):
 |   print(x)
@@ -6659,14 +6721,14 @@
 | print(map([[1, 2], [3]], len(_)))
 -- stderr
 -- exit: 0
-==== manual reference/language/functions.md:15
+==== manual reference/language/functions.md:16
 -- stdout
 | fn ints(xs) = try_map(xs, fn(s): Ok(parse_int(s)? * 2) ;;)
 | print(ints(["1", "2"]))
 | fn bad(xs) = map(xs, s => parse_int(s)? * 2)
 -- stderr
 -- exit: 0
-==== manual reference/language/functions.md:16
+==== manual reference/language/functions.md:17
 -- stdout
 -- stderr
 | error[E0131]: this statement comes after `return`, so it never runs
@@ -6677,7 +6739,7 @@
 |   |
 |  help: remove it, or move the `return` after it
 -- exit: 2
-==== manual reference/language/functions.md:17
+==== manual reference/language/functions.md:18
 -- stdout
 -- stderr
 | error[E0123]: `_` cannot be a named argument
@@ -6710,12 +6772,18 @@
 -- exit: 0
 ==== manual reference/language/lexical.md:4
 -- stdout
+| ns = 1ms / 1000000
+| print(1s / 3, 90m * 1.5, (2600h + ns) * 1.0, ns * 0.5, 1s * 0.0000000001)
+-- stderr
+-- exit: 0
+==== manual reference/language/lexical.md:5
+-- stdout
 | ǅx = 1
 | Ⅷ = 2
 | print(ǅx + Ⅷ, type_of(Red))
 -- stderr
 -- exit: 0
-==== manual reference/language/lexical.md:5
+==== manual reference/language/lexical.md:6
 -- stdout
 -- stderr
 | error[E0102]: malformed number "1_"
@@ -6725,7 +6793,7 @@
 |   |       ^^
 |   |
 -- exit: 2
-==== manual reference/language/lexical.md:6
+==== manual reference/language/lexical.md:7
 -- stdout
 -- stderr
 | error[E0105]: malformed duration "30m1h"
@@ -6735,18 +6803,18 @@
 |   |       ^^^^^
 |   |
 -- exit: 2
-==== manual reference/language/lexical.md:7
+==== manual reference/language/lexical.md:8
 -- stdout
 -- stderr
-| error[E0102]: malformed number "0xFF"
+| error[E0102]: malformed number "0XFF"
 |   --> <stdin>:2:7
 |   |
-| 2 | print(0xFF)
+| 2 | print(0XFF)
 |   |       ^^^^
 |   |
-|  help: write the hexadecimal digits in lowercase: `0xff`
+|  help: write the base prefix in lowercase: `0xFF`
 -- exit: 2
-==== manual reference/language/lexical.md:8
+==== manual reference/language/lexical.md:9
 -- stdout
 -- stderr
 | error[E0105]: malformed duration "1.5h30m"
@@ -6757,7 +6825,7 @@
 |   |
 |  help: only the last part of a duration has a fraction: write `1h30.5m`, not `1.5h30m`
 -- exit: 2
-==== manual reference/language/lexical.md:9
+==== manual reference/language/lexical.md:10
 -- stdout
 -- stderr
 | error[E0129]: `$user` in a string is not interpolation
@@ -6768,7 +6836,7 @@
 |   |
 |  help: write `${user}` for the value, or `\$user` for the text
 -- exit: 2
-==== manual reference/language/lexical.md:10
+==== manual reference/language/lexical.md:11
 -- stdout
 -- stderr
 | error[E0128]: a symbol is not written with an uppercase letter: `'Red`
@@ -6779,10 +6847,10 @@
 |   |
 |  help: an uppercase symbol is written as the tag, without the quote: `Red`
 -- exit: 2
-==== manual reference/language/lexical.md:11
+==== manual reference/language/lexical.md:12
 -- stdout
 -- stderr
-| error[E0103]: unknown escape `\q` in string
+| error[E0103]: invalid escape `\q` in string
 |   --> <stdin>:2:8
 |   |
 | 2 | print("\q")
@@ -6816,6 +6884,45 @@
 -- exit: 0
 ==== manual reference/language/match.md:4
 -- stdout
+| {name: n} = {name: "api", port: 8080}
+| print(n)
+-- stderr
+-- exit: 0
+==== manual reference/language/match.md:5
+-- stdout
+| {name: n, ...} = {name: "api", port: 8080}
+| {name: m, ...rest} = {name: "web", port: 80, tls: true}
+| print(n, m, rest)
+| fn shape(v) = match v:
+|   {}    => "empty map"
+|   {...} => "map"
+|   _     => "not a map"
+| ;;
+| print(shape({}), shape({a: 1}), shape([]))
+-- stderr
+-- exit: 0
+==== manual reference/language/match.md:6
+-- stdout
+| fn f(r) = match r:
+|   Ok(_) => "ok"
+|   Ok(0) => "zero"
+|   _     => "error"
+| ;;
+| print(f(Ok(0)))
+-- stderr
+-- exit: 0
+==== manual reference/language/match.md:7
+-- stdout
+| fn f(code) = match code:
+|   200 | 201 => "ok"
+|   201 | 204 => "no content"
+|   _         => "other"
+| ;;
+| print(f(204))
+-- stderr
+-- exit: 0
+==== manual reference/language/match.md:8
+-- stdout
 | limit = 5
 | fn f(x) = match x:
 |   limit => "at limit"
@@ -6824,7 +6931,7 @@
 | print(f(3))
 -- stderr
 -- exit: 0
-==== manual reference/language/match.md:5
+==== manual reference/language/match.md:9
 -- stdout
 | limit = 5
 | fn f(x) = match x:
@@ -6834,7 +6941,7 @@
 | print(f(3), f(5))
 -- stderr
 -- exit: 0
-==== manual reference/language/match.md:6
+==== manual reference/language/match.md:10
 -- stdout
 | fn pick(m) = match m:
 |   1 =>
@@ -6845,7 +6952,7 @@
 | print(pick(2)(1))
 -- stderr
 -- exit: 0
-==== manual reference/language/match.md:7
+==== manual reference/language/match.md:11
 -- stdout
 | fn pick(m) = match m:
 |   1 => (y => y + 1)
@@ -6854,7 +6961,7 @@
 | print(pick(1)(1), pick(2)(1))
 -- stderr
 -- exit: 0
-==== manual reference/language/match.md:8
+==== manual reference/language/match.md:12
 -- stdout
 | fn f(v) = match v:
 |   (a, 0) | (0, b) => 1
@@ -6863,7 +6970,7 @@
 | print(f((1, 0)))
 -- stderr
 -- exit: 0
-==== manual reference/language/match.md:9
+==== manual reference/language/match.md:13
 -- stdout
 | xs = [1, 5]
 | fn f(v) = match v:
@@ -6873,7 +6980,7 @@
 | print(f(2), f(9))
 -- stderr
 -- exit: 0
-==== manual reference/language/match.md:10
+==== manual reference/language/match.md:14
 -- stdout
 | fn adder(n) = match n:
 |   0 =>
@@ -7291,11 +7398,25 @@
 ==== manual reference/language/types.md:2
 -- stdout
 | fn twice(n: int) -> int = n * 2
+| count = "4"
 | print(twice(4))
-| print(twice("4"))
+| print(twice(count))
 -- stderr
 -- exit: 0
 ==== manual reference/language/types.md:3
+-- stdout
+| fn twice(n: int) -> int = n * 2
+| print("ran")
+| print(twice("4"))
+-- stderr
+-- exit: 0
+==== manual reference/language/types.md:4
+-- stdout
+| fn port(name) -> int = name == "db" then 5432 else "none"
+| print(port("db"))
+-- stderr
+-- exit: 0
+==== manual reference/language/types.md:5
 -- stdout
 -- stderr
 | error[E0130]: a type annotation has no element type
@@ -7306,7 +7427,7 @@
 |   |
 |  help: write `list` or `map` alone: the elements are not checked, so they are not written
 -- exit: 2
-==== manual reference/language/types.md:4
+==== manual reference/language/types.md:6
 -- stdout
 | fn half(n: int) -> int = n / 2
 | print(half(4))
@@ -7333,7 +7454,8 @@
 ==== manual reference/language/values.md:4
 -- stdout
 | f = x => x
-| print(f == f)
+| print([1, f] == [1, 2], f in [1, 2], f != nil)
+| print([1, f] == [2, f])
 -- stderr
 -- exit: 0
 ==== manual reference/language/values.md:5
@@ -7534,9 +7656,9 @@
 | import fs
 |
 | match fs.read("config.txt"):
-|   Ok(text)                => print(text)
-|   Err({kind: 'not_found}) => print("no config, using defaults")
-|   Err(e)                  => print(e.message)
+|   Ok(text)                     => print(text)
+|   Err({kind: 'not_found, ...}) => print("no config, using defaults")
+|   Err(e)                       => print(e.message)
 | ;;
 -- stderr
 -- exit: 0
@@ -7893,10 +8015,10 @@
 | import http
 |
 | fn probe(url) = match http.get(url, timeout: 3s):
-|   Ok(r) when r.status < 400 => "up (${r.status})"
-|   Ok(r)                     => "error (${r.status})"
-|   Err({kind: 'timeout})     => "timeout"
-|   Err(e)                    => "down: ${e.message}"
+|   Ok(r) when r.status < 400  => "up (${r.status})"
+|   Ok(r)                      => "error (${r.status})"
+|   Err({kind: 'timeout, ...}) => "timeout"
+|   Err(e)                     => "down: ${e.message}"
 | ;;
 |
 | print(probe("https://example.com"))
@@ -8902,8 +9024,8 @@
 | r = timeout(() => sleep(1s), 10ms)
 | print(r)
 | match r:
-|   Err({kind: 'timeout}) => print("slow")
-|   _                     => print("done")
+|   Err({kind: 'timeout, ...}) => print("slow")
+|   _                          => print("done")
 | ;;
 -- stderr
 -- exit: 0
@@ -9180,8 +9302,8 @@
 |   ;;)
 |   send(tx, "a")!
 |   r = match send(tx, "b"):
-|     Ok(_)                => "sent"
-|     Err({kind: 'closed}) => "receiver gone"
+|     Ok(_)                     => "sent"
+|     Err({kind: 'closed, ...}) => "receiver gone"
 |   ;;
 |   print(r)
 | ;;)
@@ -9216,9 +9338,9 @@
 | send(tx, "job-1")!
 | for _ in 1..=2:
 |   match recv_now(rx):
-|     Ok(job)             => print("doing", job)
-|     Err({kind: 'empty}) => print("nothing queued")
-|     Err(_)              => print("closed")
+|     Ok(job)                  => print("doing", job)
+|     Err({kind: 'empty, ...}) => print("nothing queued")
+|     Err(_)                   => print("closed")
 |   ;;
 | ;;
 -- stderr
@@ -9304,9 +9426,7 @@
 | stop = stop_signal()
 | scope(fn(s):
 |   spawn(s, fn():
-|     for _ in stop:
-|       nil
-|     ;;
+|     for _ in stop: ;;
 |     print("worker: finished current job, stopping")
 |   ;;)
 |   spawn(s, fn():
@@ -9846,10 +9966,10 @@
 ==== manual reference/prelude/process.md:2
 -- stdout
 | fn run(cmd) = match exec(cmd):
-|   Ok(r)                                 => "ok: ${trim(r.out)}"
-|   Err({kind: 'exit, code: nil, signal}) => "killed by signal ${signal}"
-|   Err({kind: 'exit, code})              => "exited with ${code}"
-|   Err({kind: 'not_found})               => "no such command"
+|   Ok(r)                                      => "ok: ${trim(r.out)}"
+|   Err({kind: 'exit, code: nil, signal, ...}) => "killed by signal ${signal}"
+|   Err({kind: 'exit, code, ...})              => "exited with ${code}"
+|   Err({kind: 'not_found, ...})               => "no such command"
 | ;;
 |
 | print(run(["echo", "fine"]))
@@ -10176,7 +10296,7 @@
 -- exit: 0
 ==== manual reference/prelude/strings.md:22
 -- stdout
-| print(starts_with("fung.toml", "fung"), starts_with("a", ""))
+| print(starts_with("fung.toml", "fung"), starts_with("a", "ab"))
 | log = ["# comment", "host=a", "", "# x", "port=1"]
 | print(filter(log, l => l != "" and not starts_with(l, "#")))
 -- stderr
@@ -10552,9 +10672,9 @@
 -- exit: 0
 ==== manual vm/09-closures.md:4
 -- stdout
-| f = (a, b) => a + b
+| fn apply(f) = f(1)
 |
-| print(f(1))
+| print(apply((a, b) => a + b))
 -- stderr
 -- exit: 0
 ==== manual vm/09-closures.md:5
@@ -11353,7 +11473,7 @@
 |   (a, b) = v
 |   match a:
 |     [h, ...t] when len(t) > 0 => h + b
-|     {k: kv}                   => kv
+|     {k: kv, ...}              => kv
 |     Ok(n) | Err(n)            => n
 |     _                         => 0
 |   ;;
@@ -11383,7 +11503,7 @@
 -- exit: 0
 ==== crates/fung-cli/tests/data/check/shadow.fung
 -- stdout
-| # E0240 (formerly the warning W0103): new names that hide a prelude
+| # E0238 (formerly the warning W0103, then E0240): new names that hide a prelude
 | # function (D38).
 | fn map(xs) = xs
 | len = 1
@@ -11981,7 +12101,7 @@
 -- stderr
 -- exit: 0
 ==== examples/staticfiles.fung
--- stdout (2776 bytes, fnv1a64 75acdebccad865e9)
+-- stdout (2801 bytes, fnv1a64 715ab9f40b1f0421)
 -- stderr
 -- exit: 0
 ==== examples/tidy.fung
@@ -12135,7 +12255,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (77364 bytes, fnv1a64 fdab7537e78caf60)
+-- stdout (77509 bytes, fnv1a64 282d5292d8850351)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -12163,7 +12283,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (4797 bytes, fnv1a64 ae123453f413c02b)
+-- stdout (5372 bytes, fnv1a64 a95bec304d689380)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -12224,6 +12344,13 @@
 | print("side effect")
 -- stderr
 -- exit: 0
+==== tests/lang/_lib/noisy_pattern.fung
+-- stdout
+| # A destructuring that binds no name keeps nothing: at the top level of an
+| # imported file it is a bare statement, run only for its effect.
+| (_, _) = (print("loading"), 2)
+-- stderr
+-- exit: 0
 ==== tests/lang/args.fung
 -- stdout
 | fn f(a, b = a * 2) = a + b
@@ -12236,6 +12363,18 @@
 | log(1)
 | log()
 | # expect: default evaluated
+|
+| # Names a default binds are its own: they never take a later
+| # parameter's slot (VM48).
+| fn pair(a, b = (match a: (t, k) => t + k ;;), c = 5) = (a, b, c)
+| print(pair((1, 2)), pair((1, 2), c: 9), pair((1, 2), 7, 9))
+| # expect: ((1, 2), 3, 5) ((1, 2), 3, 9) ((1, 2), 7, 9)
+| fn step(a, b = (if a > 0: y = a + 1; z = y + 1; z else: 0 ;;), c = 7) = (a, b, c)
+| print(step(2), step(2, c: 1))
+| # expect: (2, 4, 7) (2, 4, 1)
+| fn rest(a, b = (match (a, a): (x, y) => x + y ;;), ...more) = (a, b, more)
+| print(rest(1), rest(1, 2, 3))
+| # expect: (1, 2, []) (1, 2, [3])
 -- stderr
 -- exit: 0
 ==== tests/lang/args_and_exit.fung
@@ -12342,6 +12481,30 @@
 |
 | with(() => nil, _ => nil, _ => print("released", deref(counter)))
 | # expect: released 400
+-- stderr
+-- exit: 0
+==== tests/lang/bracket_newlines.fung
+-- stdout
+| # Inside brackets a newline is space next to the brackets and around `,`
+| # (FE78); inside an item a line goes on only by the two rules: it ends in
+| # a token that cannot end an expression (`:`, `=`, `..`), or the next
+| # begins with one that cannot begin a statement.
+| m = {
+|   a:
+|   1
+|   , b: 2
+| }
+| xs = [10, 20, 30]
+| fn f(
+|   a: int,
+|   b =
+|   5
+| ) = a + b
+| print(m, xs[1..
+| ], f(
+|   1
+| ))
+| # expect: {a: 1, b: 2} [20, 30] 6
 -- stderr
 -- exit: 0
 ==== tests/lang/bytes.fung
@@ -12628,7 +12791,7 @@
 ==== tests/lang/destructure.fung
 -- stdout
 | [head, ...rest] = [1, 2, 3]
-| {name: n} = {name: "a", x: 1}
+| {name: n, ...} = {name: "a", x: 1}
 | Ok(text) = Ok("hi")
 | print(head, rest, n, text)
 | # expect: 1 [2, 3] a hi
@@ -12688,7 +12851,6 @@
 | # (A literal alone as a statement does nothing, E0234: compute it.)
 | fn value(v) = v
 | value(Ok(1))
-| nil
 | value([Ok(1), 2])
 | fn oks() = map([1, 2], x => Ok(x))
 | oks()
@@ -12734,6 +12896,13 @@
 | # expect: -2 30s
 | print(4 * (elapsed / 1s) * 1ms)
 | # expect: 360ms
+| # A duration and a float are computed exactly and rounded once to the
+| # nanosecond, halves away from zero (D135): no duration is too long for
+| # a float, and the order of the operands does not matter.
+| ns = 1ms / 1000000
+| long = 2600h + ns
+| print(long * 1.0, 1.0 * long, long / 2.0, ns * 0.5, -ns * 0.5, 1s * 0.0000000001)
+| # expect: 2600h0.000001ms 2600h0.000001ms 1300h0.000001ms 0.000001ms -0.000001ms 0s
 -- stderr
 -- exit: 0
 ==== tests/lang/durations.fung
@@ -12773,10 +12942,10 @@
 | ;;
 | print(y)
 | # expect: big
-| # `nil` says "nothing" in a discarded branch.
+| # An arm with an empty body does nothing (D121).
 | match x:
 |   2 => print("two")
-|   _ => nil
+|   _ =>
 | ;;
 | # expect: two
 | # An `if` without `else` as a statement, and `or`/`and` with a call.
@@ -12873,14 +13042,16 @@
 ==== tests/lang/err_arg_type.fung
 -- stdout
 | fn f(n: int) = n
-| f("a")
+| a = "a"
+| f(a)
 | # expect-error: E0403
 -- stderr
 -- exit: 0
 ==== tests/lang/err_arg_type_tag.fung
 -- stdout
 | fn f(s: Circle) = s
-| f(1)
+| n = 1
+| f(n)
 | # expect-error: E0403
 -- stderr
 -- exit: 0
@@ -12910,7 +13081,7 @@
 |   count
 | ;;
 | print(f() + count())
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_assign_top_name_in_fn.fung
@@ -12923,7 +13094,7 @@
 |   limit
 | ;;
 | print(f() + limit)
-| # expect-error: E0205
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_atom_effect.fung
@@ -12965,26 +13136,6 @@
 | # expect-error: E0605
 -- stderr
 -- exit: 0
-==== tests/lang/err_bare_err_pattern.fung
--- stdout
--- stderr
-| error[E0236]: `Err` takes exactly one value, found 0
-|   --> <stdin>:4:3
-|   |
-| 4 |   Err => "err"
-|   |   ^
-|   |
-|  help: give it its value, `Ok(x)`; to test for a result, use `is_ok(r)`/`is_err(r)` or the pattern `Ok(_)`
--- exit: 2
-==== tests/lang/err_bare_ok.fung
--- stdout
-| # A result holds exactly one value (D41): a bare `Ok` is not a symbol.
-| # Only a pipe gives it its value: `x |> Ok`.
-| print(1 |> Ok)
-| x = Ok
-| # expect-error: E0236
--- stderr
--- exit: 0
 ==== tests/lang/err_block_assign_const.fung
 -- stdout
 | # A block of a top-level fn cannot assign the file's constant (FE23, D38).
@@ -12997,7 +13148,7 @@
 |   c
 | ;;
 | print(g())
-| # expect-error: E0205
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_block_leak.fung
@@ -13013,6 +13164,16 @@
 | # expect-error: E0505
 -- stderr
 -- exit: 0
+==== tests/lang/err_bracket_item_newline.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `:` after the map key, found newline
+|   --> <stdin>:5:4
+|   |
+| 5 |   a
+|   |    ^
+|   |
+-- exit: 2
 ==== tests/lang/err_bracket_missing_comma.fung
 -- stdout
 -- stderr
@@ -13238,7 +13399,7 @@
 | fn fails(m) = Err(m)
 | for x in [1, 2]:
 |   print(x)
-|   x == 2 then fails("two") else Ok(x)
+|   if x == 2: fails("two") ;;
 | ;;
 | # expect: 1
 | # expect: 2
@@ -13253,6 +13414,15 @@
 | xs = [1, 2, 3]
 | print(take(xs, 2))
 | take(xs, 2)
+| # expect-error: E0234
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_iterate.fung
+-- stdout
+| # `iterate` and `until` compute a value with their function as `fold`
+| # does (VA63): as a statement they only drop it.
+| print(iterate(0, x => x + 1, 3))
+| iterate(0, x => x + 1, 3)
 | # expect-error: E0234
 -- stderr
 -- exit: 0
@@ -13325,6 +13495,15 @@
 | print("not reached")
 -- stderr
 -- exit: 0
+==== tests/lang/err_discard_until.fung
+-- stdout
+| # `until` computes a value with its functions (VA63): as a statement it
+| # only drops it.
+| print(until(0, x => x + 1, x => x > 3))
+| until(0, x => x + 1, x => x > 3)
+| # expect-error: E0234
+-- stderr
+-- exit: 0
 ==== tests/lang/err_div_inexact.fung
 -- stdout
 | # `/` is float arithmetic, so an int that a float cannot hold exactly is
@@ -13367,7 +13546,7 @@
 -- stdout
 | fn f() = 1
 | fn f() = 2
-| # expect-error: E0210
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_dup_key.fung
@@ -13479,6 +13658,18 @@
 | # expect-error: E0234
 -- stderr
 -- exit: 0
+==== tests/lang/err_effect_free_nil.fung
+-- stdout
+| # A bare `nil` as a statement does nothing, like any literal: E0234
+| # (D121). A branch with nothing to do is left out or left empty.
+| x = 1
+| match x:
+|   1 => print("one")
+|   _ => nil
+| ;;
+| # expect-error: E0234
+-- stderr
+-- exit: 0
 ==== tests/lang/err_effect_free_operator.fung
 -- stdout
 | # Operators, fields, indexes, lists, maps and tuples of names and
@@ -13502,6 +13693,17 @@
 | x = 1
 | print(x, _)
 | # expect-error: E0234
+-- stderr
+-- exit: 0
+==== tests/lang/err_effect_free_pure_call.fung
+-- stdout
+| # A comparison of a call to a builtin with no effect does nothing either:
+| # `==` where `=` was meant, or a missing `assert`.
+| xs = [1, 2]
+| count = 0
+| count == len(xs)
+| # expect-error: E0234
+| print(count)
 -- stderr
 -- exit: 0
 ==== tests/lang/err_effect_free_tag.fung
@@ -13535,6 +13737,19 @@
 |   |
 |  help: write `list` or `map` alone: the elements are not checked, so they are not written
 -- exit: 2
+==== tests/lang/err_empty_search.fung
+-- stdout
+| # A text to search for is never empty (D118): an empty one is found
+| # everywhere, so `in` on a string refuses it as `starts_with`,
+| # `ends_with`, `index_of`, `split` and `replace` do. A list's `in` finds
+| # elements, so `"" in [""]` is fine.
+| fn has(s, sub) = sub in s
+| print(has("abc", "b"), "" in ["", "a"], starts_with("abc", "a"))
+| # expect: true true true
+| print(has("abc", ""))
+| # expect-error: E0403
+-- stderr
+-- exit: 0
 ==== tests/lang/err_env_name.fung
 -- stdout
 | # env's name is a variable name, as exec's env checks it (D76): not
@@ -13553,10 +13768,22 @@
 | # expect-error: E0501
 -- stderr
 -- exit: 0
+==== tests/lang/err_eq_fn_held.fung
+-- stdout
+| # Two values that both hold a function have no equality, whatever else
+| # they hold and wherever the functions stand (D116): the error does not
+| # depend on the other items nor on the order of a map's keys.
+| f = x => x + 1
+| print([1, f] == [1, 2], f in [1, 2], {cb: f} == {cb: nil})
+| # expect: false false false
+| print({a: 1, cb: f} == {a: 2, cb: f})
+| # expect-error: E0501
+-- stderr
+-- exit: 0
 ==== tests/lang/err_escape.fung
 -- stdout
 -- stderr
-| error[E0103]: unknown escape `\p` in string
+| error[E0103]: invalid escape `\p` in string
 |   --> <stdin>:1:10
 |   |
 | 1 | print("C:\path")
@@ -13574,6 +13801,18 @@
 |   |
 |  help: `\u{…}` takes a code point up to 10FFFF that is not a surrogate (D800–DFFF); for a byte, write `\xHH`
 -- exit: 2
+==== tests/lang/err_exec_env_name.fung
+-- stdout
+| # A variable name is checked once, alike everywhere (D132): `exec`'s
+| # and `sh`'s `env` refuse a name with a NUL as `env(name)` does, not
+| # with an Err from the system. A NUL in a value is still that Err.
+| fn run(vars) = exec(["true"], env: vars)
+| print(match run({A: "x\x00"}): Err({kind, ...}) => kind; Ok(_) => 'ok ;;)
+| # expect: 'invalid
+| print(run({"A\x00": "x"}))
+| # expect-error: E0403
+-- stderr
+-- exit: 0
 ==== tests/lang/err_exit_negative.fung
 -- stdout
 | # A negative exit code is refused too (TL1).
@@ -13612,6 +13851,16 @@
 | # Only a map and a module have fields: `xs.len` is `len(xs)` (VA39).
 | xs = [1, 2]
 | print(xs.len)
+| # expect-error: E0509
+-- stderr
+-- exit: 0
+==== tests/lang/err_field_of_nil.fung
+-- stdout
+| # Only a map and a module have fields: `cfg.host` is `cfg["host"]`, so a
+| # field of another value is the index's E0509, with a help that says the
+| # value has no fields.
+| fn host(cfg) = cfg.host
+| print(host(nil))
 | # expect-error: E0509
 -- stderr
 -- exit: 0
@@ -13698,7 +13947,7 @@
 |   x = 2
 |   x
 | ;;
-| # expect-error: E0205
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_group_key.fung
@@ -13751,17 +14000,6 @@
 |   |
 |  help: `match` is a reserved word, so it cannot be a name; pick another one
 -- exit: 2
-==== tests/lang/err_hex_upper.fung
--- stdout
--- stderr
-| error[E0102]: malformed number "0xFF"
-|   --> <stdin>:3:7
-|   |
-| 3 | print(0xFF)
-|   |       ^^^^
-|   |
-|  help: write the hexadecimal digits in lowercase: `0xff`
--- exit: 2
 ==== tests/lang/err_hide_arm_name.fung
 -- stdout
 | # A `match` arm cannot bind the name of its subject again (D38).
@@ -13769,7 +14007,7 @@
 |   x => x
 | ;;
 | print(f(1))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_assign_prelude.fung
@@ -13780,7 +14018,7 @@
 |   len + xs
 | ;;
 | print(f(1))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_for_pattern.fung
@@ -13790,7 +14028,7 @@
 |   for (a, b) in [(1, 2)]: a + b ;;
 | ;;
 | print(f(1))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_for_var.fung
@@ -13798,7 +14036,7 @@
 | # A `for` variable cannot hide an outer name (D38).
 | x = 10
 | print(for x in [1, 2]: x ;;, x)
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_import_prelude.fung
@@ -13806,7 +14044,7 @@
 | # An imported name cannot hide a prelude function (D38).
 | import regex (split)
 | print(split("a", "b"))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_lambda_param.fung
@@ -13818,7 +14056,7 @@
 |   g(x)
 | ;;
 | print(f())
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_local_fn.fung
@@ -13830,7 +14068,7 @@
 |   c()
 | ;;
 | print(f() + c)
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_own_name.fung
@@ -13841,7 +14079,7 @@
 |   go(1)
 | ;;
 | print(outer())
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_param_import.fung
@@ -13850,7 +14088,7 @@
 | import "./_lib/greet" (greet)
 | fn f(greet) = greet + 1
 | print(f(1), greet("x"))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_param_prelude.fung
@@ -13859,7 +14097,7 @@
 | # function (D38, D86).
 | fn _f(len) = len + 1
 | print(_f(1))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_param_top_fn.fung
@@ -13868,7 +14106,7 @@
 | fn g() = 1
 | fn f(g) = g + 1
 | print(f(g()))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hide_param_top_name.fung
@@ -13877,7 +14115,7 @@
 | fn f(limit) = limit + 1
 | limit = 10
 | print(f(limit))
-| # expect-error: E0240
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_hole.fung
@@ -13891,6 +14129,29 @@
 -- stdout
 | import "./_lib/cyc_a"
 | # expect-error: E0302
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_directory.fung
+-- stdout
+| # A path that ends in `/` names a directory, not a module file (FE82).
+| import "./_lib/"
+| # expect-error: E0301
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_extension.fung
+-- stdout
+| # The loader adds `.fung` to every import path (D125), so a path that already
+| # ends in it names `greet.fung.fung`, which is not there.
+| import "./_lib/greet.fung" as greet
+| # expect-error: E0301
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_extension_name.fung
+-- stdout
+| # The loader adds `.fung` to every import path (D125); the file name that is
+| # left, `greet.fung`, is no module name.
+| import "./_lib/greet.fung"
+| # expect-error: E0305
 -- stderr
 -- exit: 0
 ==== tests/lang/err_import_in_fn.fung
@@ -13926,6 +14187,14 @@
 ==== tests/lang/err_import_top.fung
 -- stdout
 | import "./_lib/noisy"
+| # expect-error: E0306
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_top_pattern.fung
+-- stdout
+| # An imported file's top level takes no bare statement, and an assignment
+| # that binds no name is one (FE80).
+| import "./_lib/noisy_pattern"
 | # expect-error: E0306
 -- stderr
 -- exit: 0
@@ -14140,6 +14409,16 @@
 | # expect-error: E0806
 -- stderr
 -- exit: 0
+==== tests/lang/err_literal_kind.fung
+-- stdout
+| # What the syntax shows of a value settles a type error before the run
+| # (D99, FE81): a list literal has no order with a tuple, under the run's
+| # number and words.
+| fn f() = [1] < (1,)
+| print(f())
+| # expect-error: E0501
+-- stderr
+-- exit: 0
 ==== tests/lang/err_local_fn_later.fung
 -- stdout
 | fn outer():
@@ -14159,7 +14438,7 @@
 |   a()
 | ;;
 | print(g())
-| # expect-error: E0210
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_local_never_read.fung
@@ -14194,6 +14473,17 @@
 |   |          ^
 |   |
 |   note: the key `a` is first written at 3:4
+-- exit: 2
+==== tests/lang/err_map_pattern_wild.fung
+-- stdout
+-- stderr
+| error[E0112]: expected a name to bind, found `_`
+|   --> <stdin>:4:4
+|   |
+| 4 |   {_} => 1
+|   |    ^
+|   |
+|  help: `{_}` binds nothing; write `{key: _}`, or `{...}` for any map
 -- exit: 2
 ==== tests/lang/err_map_question.fung
 -- stdout
@@ -14268,7 +14558,7 @@
 -- stdout
 | # A name in a pattern binds a new name: it does not compare with `limit`,
 | # so it matches everything and the arms after it never run (E0235, whose
-| # help shows the guard); binding the visible `limit` again is E0240 too.
+| # help shows the guard); binding the visible `limit` again is E0238 too.
 | limit = 5
 | fn f(x) = match x:
 |   limit => "at limit"
@@ -14392,7 +14682,7 @@
 | 2 | print(0XFF)
 |   |       ^^^^
 |   |
-|  help: write the base prefix in lowercase: `0xff`
+|  help: write the base prefix in lowercase: `0xFF`
 -- exit: 2
 ==== tests/lang/err_ok_two_values.fung
 -- stdout
@@ -14659,10 +14949,10 @@
 ==== tests/lang/err_reassign_outer.fung
 -- stdout
 | # A block cannot bind a name of an outer block again (D38, D88): written
-| # as an assignment, the counter in a loop, it is E0205.
+| # as an assignment, the counter in a loop, it is E0238 (D122).
 | total = 0
 | if true: total = total + 1 ;;
-| # expect-error: E0205
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_rebind_local.fung
@@ -14742,15 +15032,6 @@
 | # expect-error: E0501
 -- stderr
 -- exit: 0
-==== tests/lang/err_result_type_symbol.fung
--- stdout
-| # The annotation `Ok | Err` takes a result, a tag with one value; the symbol
-| # named Ok is not one (SP12; another tag name takes its symbol too, 07 T1).
-| fn load() -> Ok | Err = sym("Ok")
-| print(load())
-| # expect-error: E0404
--- stderr
--- exit: 0
 ==== tests/lang/err_retry_not_result.fung
 -- stdout
 | # conc.retry looks at f's result to decide whether to try again (D65): f
@@ -14799,8 +15080,8 @@
 -- exit: 2
 ==== tests/lang/err_return_type.fung
 -- stdout
-| fn f() -> str = 1
-| f()
+| fn f(x) -> str = x
+| f(1)
 | # expect-error: E0404
 -- stderr
 -- exit: 0
@@ -14816,7 +15097,7 @@
 | import fs
 | print(type_of(fs))
 | fs = 1
-| # expect-error: E0308
+| # expect-error: E0238
 -- stderr
 -- exit: 0
 ==== tests/lang/err_slice_coalesce_end.fung
@@ -14855,12 +15136,12 @@
 ==== tests/lang/err_slice_nil_end.fung
 -- stdout
 | # A written `nil` at a slice's end is a value, like a nil from `find`:
-| # it is E0501, not an open end (02, VA3). An open end is left out.
+| # it is E0509, as any bad index, not an open end (02, VA3, FE82). An open end is left out.
 | xs = [1, 2, 3]
 | print(xs[1..])
 | print(xs[1..nil])
 | # expect: [2, 3]
-| # expect-error: E0501
+| # expect-error: E0509
 -- stderr
 -- exit: 0
 ==== tests/lang/err_slice_pipe_end.fung
@@ -14893,12 +15174,14 @@
 -- exit: 0
 ==== tests/lang/err_sort_mixed_rows.fung
 -- stdout
-| # The functions that order their elements check every one against the
-| # first before they start (D87): rows whose second fields do not compare
-| # are an error even when the first fields alone would settle the order.
+| # The functions that order their elements fold every one into one shape
+| # before they start (D87, VA60): rows whose second fields do not compare
+| # are an error even when the first fields alone would settle the order,
+| # and whatever the order of the rows (a short row says nothing of the
+| # fields it lacks).
 | print(sort([[2, "b"], [1, "a"]]))
 | # expect: [[1, "a"], [2, "b"]]
-| print(sort([[1, "a"], [2, 2]]))
+| print(sort([[], [1, "a"], [2], [3, 0]]))
 | # expect-error: E0501
 -- stderr
 -- exit: 0
@@ -15112,8 +15395,8 @@
 ==== tests/lang/err_tail_return_type.fung
 -- stdout
 | # The return check still runs, once, where the self tail calls end.
-| fn down(n) -> int = n == 0 then "done" else down(n - 1)
-| print(down(3))
+| fn down(n, done) -> int = n == 0 then done else down(n - 1, done)
+| print(down(3, "done"))
 | # expect-error: E0404
 -- stderr
 -- exit: 0
@@ -15173,7 +15456,7 @@
 ==== tests/lang/err_test_name_twice.fung
 -- stdout
 | # A test name tells which test failed, so it is used once in a file and is
-| # not empty (FE20), as a top-level fn name is (E0210).
+| # not empty (FE20), as a top-level fn name is (E0238).
 | test "parses":
 |   assert 1 == 1
 | ;;
@@ -15286,7 +15569,8 @@
 -- stdout
 | type color = Red | Green
 | fn hex(c: color) = c
-| print(hex(Blue))
+| v = Blue
+| print(hex(v))
 | # expect-error: E0403
 -- stderr
 -- exit: 0
@@ -15554,6 +15838,18 @@
 | # expect: true
 -- stderr
 -- exit: 0
+==== tests/lang/hex_digits.fung
+-- stdout
+| # Hex digits take either case, in number literals and escapes alike;
+| # the prefix and escape letters are lowercase syntax (D127).
+| print(0xff, 0xFF, 0xCafe, 0xaB_cD)
+| # expect: 255 255 51966 43981
+| print("\xFF" == "\xff", "\u{1F600}" == "\u{1f600}", [0xFF] == [255])
+| # expect: true true true
+| print(parse_int("0xFF"), int("-0xCafe"))
+| # expect: Ok(255) -51966
+-- stderr
+-- exit: 0
 ==== tests/lang/http_serve.fung
 -- stdout
 | # A server that counts its requests with an atom.
@@ -15728,7 +16024,7 @@
 | # expect:   ]
 | # expect: }
 | match json.parse("{bad}"):
-|   Err({kind: 'parse, line: l, col: c}) => print("parse error at", l, c)
+|   Err({kind: 'parse, line: l, col: c, ...}) => print("parse error at", l, c)
 | ;;
 | # expect: parse error at 1 2
 | print(json.parse("12345678901234567890"))
@@ -15821,7 +16117,7 @@
 | print(m.type, m["test"], m.nil)
 | # expect: x 2 3
 | match m:
-|   {type: t, test: n} => print(t, n)
+|   {type: t, test: n, ...} => print(t, n)
 | ;;
 | # expect: x 2
 -- stderr
@@ -15935,7 +16231,30 @@
 -- stderr
 -- exit: 0
 ==== tests/lang/local_lifetime.fung
--- stdout (6388 bytes, fnv1a64 ffaaa9ef15a72a4a)
+-- stdout (7699 bytes, fnv1a64 b42244dd21bca3ef)
+-- stderr
+-- exit: 0
+==== tests/lang/map_pattern_open.fung
+-- stdout
+| # A map pattern matches a map with exactly the keys written; `...` opens
+| # it to other keys and `...rest` binds them, like a list pattern (D114).
+| fn shape(m) = match m:
+|   {}          => "empty"
+|   {a: x}      => "only a=${x}"
+|   {a: x, ...} => "a=${x} and more"
+|   {...}       => "a map"
+|   _           => "not a map"
+| ;;
+| print(shape({}), shape({a: 1}), shape({a: 2, b: 3}), shape({b: 4}), shape([]))
+| # expect: empty only a=1 a=2 and more a map not a map
+| {name: n, ...others} = {port: 80, name: "web", tls: true}
+| print(n, others)
+| # expect: web {port: 80, tls: true}
+| match Err({kind: 'not_found, message: "no such file"}):
+|   Err({kind: 'not_found, ...}) => print("missing")
+|   _                            => print("other")
+| ;;
+| # expect: missing
 -- stderr
 -- exit: 0
 ==== tests/lang/map_pattern_string_keys.fung
@@ -15959,7 +16278,7 @@
 | cfg = make("fung", 8080)
 | print(cfg)
 | # expect: {name: "fung", number: 8080, debug: false}
-| {name: n, number: port} = cfg
+| {name: n, number: port, ...} = cfg
 | print(n, port)
 | # expect: fung 8080
 | match {kind: 'parse, line: 3}:
@@ -15973,7 +16292,7 @@
 | m = {DB_HOST: "localhost", Port: 80}
 | print(m, m.DB_HOST, m["Port"])
 | # expect: {DB_HOST: "localhost", Port: 80} localhost 80
-| {DB_HOST: h} = m
+| {DB_HOST: h, ...} = m
 | print(h)
 | # expect: localhost
 -- stderr
@@ -15990,17 +16309,17 @@
 ==== tests/lang/match.fung
 -- stdout
 | fn describe(v) = match v:
-|   0            => "zero"
-|   1 | 2        => "small"
-|   "s"          => "string"
-|   'ok          => "ok symbol"
-|   Ok(x)        => "ok ${x}"
-|   (x, 0)       => "x-axis ${x}"
-|   []           => "empty"
-|   [head, ...]  => "list from ${head}"
-|   {name: n}    => "named ${n}"
-|   n when n < 0 => "negative"
-|   _            => "other"
+|   0              => "zero"
+|   1 | 2          => "small"
+|   "s"            => "string"
+|   'ok            => "ok symbol"
+|   Ok(x)          => "ok ${x}"
+|   (x, 0)         => "x-axis ${x}"
+|   []             => "empty"
+|   [head, ...]    => "list from ${head}"
+|   {name: n, ...} => "named ${n}"
+|   n when n < 0   => "negative"
+|   _              => "other"
 | ;;
 | print(describe(0), describe(-5), describe(2), describe("s"), describe('ok))
 | # expect: zero negative small string ok symbol
@@ -16033,6 +16352,19 @@
 | # expect: 2 1
 -- stderr
 -- exit: 0
+==== tests/lang/match_guard_plain_alternatives.fung
+-- stdout
+| # A guard with `|` alternatives that bind no names (D131) needs no spreading.
+| # Nine of them in a row are one pattern, far past the limit that counts
+| # alternatives that bind names (256).
+| fn hit(xs) = match xs:
+|   [1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, a] when a > 0 => "hit " + str(a)
+|   _                                                                             => "miss"
+| ;;
+| print(hit([1, 2, 1, 2, 1, 2, 1, 2, 1, 5]), hit([1, 2, 1, 2, 1, 2, 1, 2, 3, 5]), hit([1, 2, 1, 2, 1, 2, 1, 2, 1, 0]))
+| # expect: hit 5 miss miss
+-- stderr
+-- exit: 0
 ==== tests/lang/minint.fung
 -- stdout
 | print(-9223372036854775808, -9223372036854775807 - 1 == -9223372036854775808)
@@ -16050,28 +16382,43 @@
 -- exit: 0
 ==== tests/lang/nfc_keys.fung
 -- stdout
-| # A key is a string as written: a name in a key place is not made NFC
-| # (01). Here e + U+0301 (decomposed) and U+00E9 (composed) both show as e-acute.
-| m = {"café": 1}
-| print(m["café"], m.café)
-| # expect: 1 1
-| print({café: 1} == {"café": 1}, {café: 1} == {"café": 1})
+| # An identifier-shaped map key is read as NFC like every name (D130), so the
+| # composed and the decomposed spelling of a key are one key. A quoted key is a
+| # string and stays byte for byte. Here café is e + U+0301 (decomposed) and
+| # café is U+00E9 (composed); both show as e-acute.
+| m = {"café": 1}
+| print(m["café"], m.café, m.café)
+| # expect: 1 1 1
+| print({café: 1} == {"café": 1}, {café: 1} == {"café": 1})
 | # expect: true false
 |
 | # What print shows reads back as the same key.
-| print({"é": 1})
-| # expect: {é: 1}
-| print({é: 1} == {"é": 1})
+| print({"é": 1})
+| # expect: {é: 1}
+| print({é: 1} == {"é": 1})
 | # expect: true
 |
-| # A shorthand: the key as written, the variable's name in NFC.
-| café = 5
+| # A shorthand: the key and the variable's name are both NFC.
+| café = 5
 | k = {café}
-| print(k["café"], café, get(k, "café", "none"))
-| # expect: 5 5 none
+| print(k["café"], café, get(k, "café", "none"))
+| # expect: 5 5 5
 | {café: v} = k
 | print(v)
 | # expect: 5
+|
+| # A literal key and a pattern key meet at the same key; two spellings of one
+| # key in a literal are a duplicate.
+| match {café: 2}:
+|   {café: w} => print(w)
+| ;;
+| # expect: 2
+|
+| # A key that is not NFC prints quoted: bare it would read back as the NFC key.
+| print({"cafe\u{301}": 1})
+| # expect: {"café": 1}
+| print({"caf\u{e9}": 1})
+| # expect: {café: 1}
 -- stderr
 -- exit: 0
 ==== tests/lang/nil.fung
@@ -16341,6 +16688,25 @@
 | # expect: [1, 2] [1, 2] [2] él []
 -- stderr
 -- exit: 0
+==== tests/lang/raw_string_positions.fung
+-- stdout
+| # A raw string is a string without interpolation, so it stands wherever
+| # one is required (D129): import path, map key, map pattern key, string
+| # pattern, test name.
+| import `./_lib/greet` as g
+| m = {`x-id`: 7, plain: 1}
+| {`x-id`: id, ...} = m
+| what = match "a b":
+|   `a b` => "raw pattern"
+|   _     => "other"
+| ;;
+| print(g.greet("r"), m[`x-id`], id, what)
+| test `raw name`:
+|   assert id == 7
+| ;;
+| # expect: hi, r 7 7 raw pattern
+-- stderr
+-- exit: 0
 ==== tests/lang/recv_now.fung
 -- stdout
 | # recv_now and send_now look once, without waiting (05).
@@ -16350,9 +16716,9 @@
 | print(send_now(tx, "job"), send_now(tx, "more"))
 | # expect: Ok(nil) Err({kind: 'full, message: "channel full"})
 | match recv_now(rx):
-|   Ok(v)                => print("got", v)
-|   Err({kind: 'empty})  => print("nothing yet")
-|   Err({kind: 'closed}) => print("done")
+|   Ok(v)                     => print("got", v)
+|   Err({kind: 'empty, ...})  => print("nothing yet")
+|   Err({kind: 'closed, ...}) => print("done")
 | ;;
 | # expect: got job
 | close(tx)
@@ -16421,7 +16787,7 @@
 | ([c, ...], [d, ...]) = ([1, 2], [3, 4])
 | print(c, d)
 | match [5, 6]:
-|   [a, ...] | [a] => print(a)
+|   [a] | [a, _, ...] => print(a)
 | ;;
 | # expect: 4
 | # expect: 1 3
@@ -16441,6 +16807,26 @@
 | fn load(r: Ok | Err) -> Ok | Err = r
 | print(load(Err('x)))
 | # expect: Err('x)
+-- stderr
+-- exit: 0
+==== tests/lang/result_symbols.fung
+-- stdout
+| # A bare `Ok` or `Err` is its symbol, like any bare tag (D123): in an
+| # expression, a pattern and an annotation. Only a tag that holds a value
+| # is a result, and a pipe gives the tag its value.
+| x = Ok
+| print(x, [Err], x == sym("Ok"), type_of(Ok(1)) == Ok, is_ok(x))
+| # expect: Ok [Err] true true false
+| fn kind(r) = match r:
+|   Ok    => "the symbol"
+|   Ok(v) => "a result holding ${v}"
+|   _     => "something else"
+| ;;
+| print(kind(Ok), kind(Ok(1)), kind(Err))
+| # expect: the symbol a result holding 1 something else
+| fn load(p) -> Ok | Err = p == "" then Err else Ok(p)
+| print(load(""), load("a.txt"), 1 |> Ok)
+| # expect: Err Ok("a.txt") Ok(1)
 -- stderr
 -- exit: 0
 ==== tests/lang/result_text.fung
@@ -16570,6 +16956,12 @@
 | i = nil
 | print(xs[1..=2], xs[0..=2], xs[i ?? 0], xs[true then 1 else 2])
 | # expect: [2, 3] [1, 2, 3] 1 2
+| # `xs[a..=b]` is exactly `xs[a..b + 1]` (D117): an empty slice from any
+| # start, the range value of the same ends too.
+| fn front(ys, n) = ys[0..=n - 1]
+| r = 0..=-1
+| print([front(xs, 0), front("abc", 0), front(xs, 2), xs[3..=2], xs[r], "abc"[r]])
+| # expect: [[], "", [1, 2], [], [], ""]
 -- stderr
 -- exit: 0
 ==== tests/lang/spread_args.fung
@@ -17205,8 +17597,8 @@
 -- exit: 0
 ==== tests/lang/zip_receiver.fung
 -- stdout
-| # `zip` takes from a receiving end only what the other side can pair
-| # (D105): the values after that stay in the channel.
+| # `zip` takes from a receiving end only what it pairs (D105, D119),
+| # whatever the other side is: the values after that stay in the channel.
 | (tx, rx) = channel(5)
 | each(0..5, i => send(tx, i)!)
 | close(tx)!
@@ -17217,6 +17609,28 @@
 | # Lists of different lengths are cut to the shorter, a range to the list.
 | print(zip([1, 2, 3], ["a"]), zip(0..1000000, ["x", "y"]))
 | # expect: [(1, "a")] [(0, "x"), (1, "y")]
+| # Beside a range too, and on a channel still open: numbering the first
+| # two leaves the third.
+| (tx2, rx2) = channel(3)
+| each(["a", "b", "c"], s => send(tx2, s)!)
+| print(zip(rx2, 0..2), zip(1..2, rx2))
+| # expect: [("a", 0), ("b", 1)] [(1, "c")]
+| close(tx2)!
+| print(recv(rx2))
+| # expect: Err({kind: 'closed, message: "channel closed"})
+| # Two receiving ends are read in turn until either is closed: a value
+| # the first gave when the second had closed is the one lost.
+| (tx3, rx3) = channel(3)
+| (tx4, rx4) = channel(3)
+| each([1, 2, 3], n => send(tx3, n)!)
+| each(["x"], s => send(tx4, s)!)
+| close(tx3)!
+| close(tx4)!
+| print(zip(rx3, rx4), recv(rx3))
+| # expect: [(1, "x")] Ok(3)
+| # A range wider than the int range pairs on either side.
+| print(zip(-9223372036854775807..9223372036854775807, [1]), zip([1], -9223372036854775807..9223372036854775807))
+| # expect: [(-9223372036854775807, 1)] [(1, -9223372036854775807)]
 -- stderr
 -- exit: 0
 ==== fmt --check - "x=1\n"

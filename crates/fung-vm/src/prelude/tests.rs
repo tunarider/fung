@@ -95,7 +95,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 435;
+const RUN_CASE_COUNT: usize = 439;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -438,6 +438,55 @@ fn string_functions() {
     assert_eq!(code(&call("join", vec![Value::Int(1), st("")])), "E0506");
 }
 
+/// A text to search for is never empty (D118): an empty one matches
+/// everywhere, so every function and operator that searches a string
+/// refuses it with the one E0403, naming the argument. A list's `in`
+/// finds elements, not text: `"" in [""]` is `true`.
+#[test]
+fn an_empty_search_text_is_refused_everywhere() {
+    use fung_front::diag::message;
+    let said = |e: &diag::Diag| (e.code.clone(), message(&e.code, &e.args));
+    let shown = |r: Result<Value, Stop>| match r {
+        Err(Stop::Error(e)) => said(&e),
+        _ => panic!("not an error"),
+    };
+    let refused = |arg: &str| {
+        (
+            "E0403".to_string(),
+            format!("argument `{arg}` must be a non-empty str, got \"\""),
+        )
+    };
+    for (name, arg) in [
+        ("starts_with", "prefix"),
+        ("ends_with", "suffix"),
+        ("index_of", "sub"),
+        ("split", "sep"),
+    ] {
+        assert_eq!(
+            shown(call(name, vec![st("abc"), st("")])),
+            refused(arg),
+            "{name}"
+        );
+        assert_eq!(
+            shown(call(name, vec![st(""), st("")])),
+            refused(arg),
+            "{name}"
+        );
+    }
+    for (c, x) in [(st("abc"), st("")), (st(""), st(""))] {
+        let e = crate::value::index::contains(&c, &x).expect_err("an error");
+        assert_eq!(said(&e), refused("x"));
+    }
+    for src in [r#"print("" in "abc")"#, r#"print(contains("abc", ""))"#] {
+        assert_eq!(exec(src, Opts::default()).code, "E0403", "{src}");
+    }
+    let o = exec(
+        r#"print("" in ["", "a"], "a" in "abc", starts_with("abc", "a"))"#,
+        Opts::default(),
+    );
+    assert_eq!((o.code.as_str(), o.out.as_str()), ("", "true true true\n"));
+}
+
 #[test]
 fn string_size_limits() {
     assert_eq!(
@@ -643,6 +692,11 @@ fn prelude_in_fung_checks_like_a_native() {
             "print(zip(0..200_000_000, [\"a\", \"b\"]), zip([1], 5..9), zip(0..3, 10..12))",
             "[(0, \"a\"), (1, \"b\")] [(1, 5)] [(0, 10), (1, 11)]\n",
         ),
+        // D119: a range wider than the int range on either side.
+        (
+            "print(zip(-9223372036854775807..9223372036854775807, [1]), zip(0..=9223372036854775807, 5..7))",
+            "[(-9223372036854775807, 1)] [(0, 5), (1, 6)]\n",
+        ),
         (
             "print(sum([1s, 2s]), sum([]), sum([1, 2.5]), sum(1..=4))",
             "3s 0 3.5 10\n",
@@ -661,6 +715,13 @@ fn prelude_in_fung_checks_like_a_native() {
         assert_eq!((o.code.as_str(), o.out.as_str()), ("", *want), "{src}");
     }
     let errs: &[(&str, &str, &str)] = &[
+        // A side zip cannot take fails before a receiving end is read
+        // (an open, empty channel would wait forever).
+        (
+            "(_tx, rx) = channel(1)\nprint(zip(rx, 5))",
+            "E0506",
+            "zip the elements of int",
+        ),
         ("pad_right(\"ab\", 5, [\"x\"])", "E0403", "`pad`"),
         ("pad_left(\"ab\", 5, 1)", "E0403", "`pad`"),
         ("pad_left(\"a\", 3.5)", "E0403", "`n`"),
@@ -1054,9 +1115,42 @@ fn sort_of_sorted_input_is_linear() {
         };
         let Value::List(l) = out else { panic!() };
         assert_eq!(l.len(), n as usize);
-        // n comparisons with the first key (D87) and n to find the run,
+        // n keys folded into one shape (VA60) and n to find the run,
         // then the result at STEP_COMPARES / 2 items a piece
         let limit = 9 * (n as usize) / (2 * STEP_COMPARES);
         assert!(pieces <= limit, "{pieces} pieces, limit {limit}");
     }
+}
+
+/// D132: one check for a variable name wherever one is given: `env`'s
+/// `name` and the names of `exec`'s and `sh`'s `env` map. Empty, `=` and
+/// NUL are each E0403 with the same condition in the message; a NUL in a
+/// value stays the system's refusal, an `Err('invalid)`.
+#[test]
+fn variable_names_are_checked_alike() {
+    for name in ["", "A=B", "A\\x00"] {
+        for src in [
+            format!("print(env(\"{name}\"))"),
+            format!("print(exec([\"true\"], env: {{\"{name}\": \"x\"}}))"),
+            format!("print(sh(\"true\", env: {{\"{name}\": \"x\"}}))"),
+        ] {
+            let o = exec(&src, Opts::default());
+            assert_eq!(o.code, "E0403", "{src}: {}", o.err);
+            assert!(
+                o.err.contains("not empty, no `=` or NUL"),
+                "{src}: {}",
+                o.err
+            );
+        }
+    }
+    let o = exec(
+        "print(match exec([\"true\"], env: {A: \"x\\x00\"}): Err({kind, ...}) => kind ;;)",
+        Opts::default(),
+    );
+    assert_eq!(
+        (o.code.as_str(), o.out.as_str()),
+        ("", "'invalid\n"),
+        "{}",
+        o.err
+    );
 }

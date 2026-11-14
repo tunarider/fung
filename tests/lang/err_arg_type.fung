@@ -1,3 +1,4 @@
 fn f(n: int) = n
-f("a")
+a = "a"
+f(a)
 # expect-error: E0403

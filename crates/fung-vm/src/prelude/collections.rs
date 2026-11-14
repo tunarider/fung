@@ -12,7 +12,7 @@ use std::rc::Rc;
 use crate::native::nat::{self, def, def_step, fail, opt, param};
 use crate::native::walk::{Collect, Cursor, PerItem, drain_with, walk};
 use crate::value::{
-    Args, List, ListBuilder, Lit, MapBuilder, Range, Text, Value, compare, eq, hash_value,
+    Args, List, ListBuilder, Lit, MapBuilder, Range, Shapes, Text, Value, compare, eq, hash_value,
 };
 use crate::vm::pieces::{self, STEP_COMPARES, STEP_COPIES, STEP_ITEMS, Work};
 use crate::vm::{Flow, Stop, Task, discarded_err};
@@ -186,8 +186,10 @@ pub(super) struct Sort {
     /// Once sorted: the result so far, grown in place (a builder would
     /// make its vector in one go at the end).
     out: Option<List>,
-    /// How many keys were checked against the first (D87).
+    /// How many keys were folded into `shapes` (VA60).
     checked: usize,
+    /// The one shape of the keys, until all are in it.
+    shapes: Option<Shapes>,
 }
 
 /// The shortest run the merging starts from.
@@ -213,7 +215,8 @@ impl Sort {
             j: 0,
             k: 0,
             out: None,
-            checked: 1,
+            checked: 0,
+            shapes: Some(Shapes::default()),
         }
     }
 }
@@ -230,21 +233,21 @@ impl Sort {
         let n = self.src.len();
         let mut budget = STEP_COMPARES;
         let keys = self.keys.as_deref().unwrap_or(&self.xs[..]);
-        // A lone key is never compared with another: it must still have
-        // an order, as `x < x` asks (VA18, D16).
-        if let [k] = keys {
-            compare(k, k)?;
-        }
-        // Every key has an order with the first before any is moved
-        // (D87): which pairs the sort happens to compare depends on the
-        // data, and a key that does not compare must not slip through.
-        while self.checked < n {
-            if budget == 0 {
-                return Ok(None);
+        // Every key folds into one shape before any is moved (VA60):
+        // which pairs the sort happens to compare depends on the data,
+        // and a key that does not compare must not slip through. A lone
+        // key must still have an order, as `x < x` asks (VA18, D16).
+        if let Some(shapes) = &mut self.shapes {
+            while self.checked < n {
+                if budget == 0 {
+                    return Ok(None);
+                }
+                budget -= 1;
+                shapes.add(&keys[self.checked])?;
+                self.checked += 1;
             }
-            budget -= 1;
-            compare(&keys[0], &keys[self.checked])?;
-            self.checked += 1;
+            shapes.finish()?;
+            self.shapes = None;
         }
         // finding the runs
         while self.pos < n {
@@ -865,9 +868,10 @@ fn range_sum(r: &Range) -> Result<Value, Stop> {
     Ok(Value::Int(partial(n).expect("checked") as i64))
 }
 
-/// `min(xs)` and `max(xs)`: nil when empty. The first element seeds the
-/// search, so an element without an order fails as `<` does, and a lone
-/// one is asked `x < x` (VA18). A range is answered from its ends.
+/// `min(xs)` and `max(xs)`: nil when empty. Every element folds into
+/// one shape as it comes (VA60), so one without an order fails as `<`
+/// does, a lone one too (`x < x`, VA18), whatever the order of the
+/// elements. A range is answered from its ends.
 fn best(t: &mut Task<'_>, a: &[Value], verb: &str, want: std::cmp::Ordering) -> Result<Flow, Stop> {
     nat::check_items(&a[0], verb)?;
     if let Value::Range(r) = &a[0] {
@@ -880,24 +884,16 @@ fn best(t: &mut Task<'_>, a: &[Value], verb: &str, want: std::cmp::Ordering) -> 
     }
     struct Best {
         best: Option<Value>,
-        /// The first element: every other is checked against it (D87).
-        first: Option<Value>,
-        lone: bool,
+        shapes: Shapes,
         want: std::cmp::Ordering,
     }
     impl Collect for Best {
         fn item(&mut self, x: Value) -> Result<bool, Stop> {
+            self.shapes.add(&x)?;
             match &self.best {
-                None => {
-                    self.first = Some(x.clone());
-                    self.best = Some(x);
-                }
+                None => self.best = Some(x),
+                // ties keep the earlier element
                 Some(b) => {
-                    self.lone = false;
-                    if let Some(first) = &self.first {
-                        compare(&x, first)?;
-                    }
-                    // ties keep the earlier element
                     if compare(&x, b)? == self.want {
                         self.best = Some(x);
                     }
@@ -906,19 +902,13 @@ fn best(t: &mut Task<'_>, a: &[Value], verb: &str, want: std::cmp::Ordering) -> 
             Ok(false)
         }
         fn result(&mut self, _: &mut Task<'_>) -> Result<Flow, Stop> {
-            let Some(best) = self.best.take() else {
-                return Ok(Flow::Done(Value::Nil));
-            };
-            if self.lone {
-                compare(&best, &best)?;
-            }
-            Ok(Flow::Done(best))
+            self.shapes.finish()?;
+            Ok(Flow::Done(self.best.take().unwrap_or(Value::Nil)))
         }
     }
     let p = Best {
         best: None,
-        first: None,
-        lone: true,
+        shapes: Shapes::default(),
         want,
     };
     drain_with(t, Cursor::new(&a[0]), p)

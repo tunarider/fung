@@ -1,0 +1,9 @@
+# A guard with `|` alternatives that bind no names (D131) needs no spreading.
+# Nine of them in a row are one pattern, far past the limit that counts
+# alternatives that bind names (256).
+fn hit(xs) = match xs:
+  [1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, 1 | 2, a] when a > 0 => "hit " + str(a)
+  _                                                                             => "miss"
+;;
+print(hit([1, 2, 1, 2, 1, 2, 1, 2, 1, 5]), hit([1, 2, 1, 2, 1, 2, 1, 2, 3, 5]), hit([1, 2, 1, 2, 1, 2, 1, 2, 1, 0]))
+# expect: hit 5 miss miss

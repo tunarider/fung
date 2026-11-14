@@ -97,13 +97,13 @@ fn sh_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 fn env_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let name = nat::need_bytes("name", &a[0])?;
     // No variable can have such a name: the code is wrong, as for
-    // `exec`'s `env` (D76), not a variable that is unset.
-    if name.is_empty() || name.contains(&b'=') || name.contains(&0) {
+    // `exec`'s `env` (D76, D132), not a variable that is unset.
+    if !var_name(name) {
         return Err(nat::fail(
             "E0403",
             vec![
                 nat::s("name"),
-                nat::s("a variable name (not empty, no `=` or NUL)"),
+                nat::s(VAR_NAME),
                 Arg::Str(crate::value::format(&a[0])),
             ],
         ));
@@ -138,8 +138,20 @@ fn env_all_fn(_: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
 /// the group gets SIGTERM, and SIGKILL if it is still there 2 s later
 /// (L6), and the call unwinds with the cancellation instead of giving the
 /// output.
-/// What `env` must be (E0403).
-const ENV_WANT: &str = "a map of variable names (not empty, no `=`) to strings";
+/// What a variable name must be, wherever one is given (D132): `env`'s
+/// `name` and the names of `exec`'s and `sh`'s `env` map.
+const VAR_NAME: &str = "a variable name (not empty, no `=` or NUL)";
+
+/// What `env` must be (E0403): the names as `VAR_NAME` says.
+const ENV_WANT: &str = "a map of variable names (not empty, no `=` or NUL) to strings";
+
+/// The one check of a variable name (D132): the system reads a name up
+/// to its first `=` (such a name would set another one) and cannot hold
+/// a NUL, and an empty name names no variable. A program that gives one
+/// is wrong, E0403, as for `env(name)`.
+fn var_name(name: &[u8]) -> bool {
+    !(name.is_empty() || name.contains(&b'=') || name.contains(&0))
+}
 
 fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow, Stop> {
     let cwd = nat::opt_bytes("cwd", &a[1])?.map(<[u8]>::to_vec);
@@ -162,10 +174,9 @@ fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow
                         ],
                     ));
                 };
-                // The system reads a name up to its first `=`: such a name
-                // would set another one. (NUL is the system's refusal, an
-                // `Err`, as in a value or `cwd`.)
-                if k.is_empty() || k.contains(&b'=') {
+                // A NUL in a value or `cwd` stays the system's refusal,
+                // an `Err('invalid)`.
+                if !var_name(k) {
                     return Err(nat::fail(
                         "E0403",
                         vec![

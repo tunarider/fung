@@ -210,7 +210,7 @@ print(max_retries, log_dir)
 
 **블록 안에서는 바깥 이름을 읽을 수 있지만, 바깥 이름에 다시 대입할 수는 없다.** 다른 언어에서 흔히 쓰는 아래 코드는 fung에서 컴파일 에러다.
 
-```fung run exit=2 error=E0205
+```fung run exit=2 error=E0238
 files = ["a.log", "b.log"]
 count = 0
 for f in files:
@@ -236,9 +236,9 @@ print(count, level)
 
 :::
 
-:::box mistake 블록 안에서 합계 쌓기 (E0205)
+:::box mistake 블록 안에서 합계 쌓기 (E0238)
 
-쉘이나 Python 습관대로 반복문 안에서 `total = total + x`를 쓰면 E0205다. 값이 바뀌지 않는 언어에서 이 코드를 허용하면, 블록 안의 대입은 바깥 변수를 고치지 못하고 **블록 안에 같은 이름의 새 변수를 만드는** 수밖에 없다. 그러면 반복이 끝난 뒤 바깥의 `total`은 조용히 `0`으로 남는다. 조용히 틀리는 대신 에러로 막은 것이다. 합계는 `sum(xs)`, 개수는 `len(xs)`, 그 밖의 누적은 4장의 `fold`로 쓴다.
+쉘이나 Python 습관대로 반복문 안에서 `total = total + x`를 쓰면 E0238이다. 값이 바뀌지 않는 언어에서 이 코드를 허용하면, 블록 안의 대입은 바깥 변수를 고치지 못하고 **블록 안에 같은 이름의 새 변수를 만드는** 수밖에 없다. 그러면 반복이 끝난 뒤 바깥의 `total`은 조용히 `0`으로 남는다. 조용히 틀리는 대신 에러로 막은 것이다. 합계는 `sum(xs)`, 개수는 `len(xs)`, 그 밖의 누적은 4장의 `fold`로 쓴다.
 
 :::
 
@@ -312,6 +312,6 @@ print(a, b, c, d)
 - `nil`은 "없음"이고, `??`로 기본값을 준다.
 - 이름은 소문자로 시작하고, 쓰기 전에 대입한다. 최상위의 이름은 한 번만 붙고(E0238) 모두 상수다.
 - 값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.
-- 블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.
+- 블록 안에서는 바깥 이름에 대입할 수 없다(E0238). 블록이 낸 값을 대입한다.
 
-레퍼런스: [값과 타입](../reference/language/values.html), [연산자](../reference/language/operators.html), [변수와 스코프](../reference/language/scope.html), [변환 함수](../reference/prelude/convert.html), [E0205](../reference/errors.html#E0205), [E0238](../reference/errors.html#E0238), [비교와 동일성](../reference/language/values.html). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.
+레퍼런스: [값과 타입](../reference/language/values.html), [연산자](../reference/language/operators.html), [변수와 스코프](../reference/language/scope.html), [변환 함수](../reference/prelude/convert.html), [E0238](../reference/errors.html#E0238), [비교와 동일성](../reference/language/values.html). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.

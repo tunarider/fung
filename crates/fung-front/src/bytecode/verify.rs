@@ -23,7 +23,12 @@
 //!    JUMPIFSET asks whether a slot is empty, of a parameter with a
 //!    default (the prologue's test),
 //! 6. a call that gives every argument starts at `Proto::body`: an
-//!    instruction of the proto, reached with an empty stack.
+//!    instruction of the proto, reached with an empty stack,
+//! 7. in the prologue (before `Proto::body`), a store or a pattern writes
+//!    no parameter's slot but that of the parameter whose default it is
+//!    (after its JUMPIFSET): a default's names and temporaries live past
+//!    the parameters, or a later argument the call named is overwritten
+//!    (VM48).
 //!
 //! The compiler emits forward jumps only (there are no loops, 03), so one
 //! pass in code order sees every path into an instruction before the
@@ -42,14 +47,6 @@ use crate::bytecode::PatKind;
 use crate::consts::Const;
 use crate::tree::CaptureKind;
 
-/// What the verifier learned about a proto that passed.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Verified {
-    /// The deepest the operand stack gets in any one frame of it (its
-    /// children included).
-    pub max_stack: usize,
-}
-
 /// A broken promise: in which function, at which instruction, and what.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Violation {
@@ -67,10 +64,8 @@ impl fmt::Display for Violation {
 }
 
 /// Verifies `main`, a file's compiled program, and all functions in it.
-pub fn verify(main: &Proto) -> Result<Verified, Violation> {
-    let mut max_stack = 0;
-    one(main, main.global_names.len(), &mut max_stack)?;
-    Ok(Verified { max_stack })
+pub fn verify(main: &Proto) -> Result<(), Violation> {
+    one(main, main.global_names.len())
 }
 
 fn display_name(name: &str) -> &str {
@@ -143,6 +138,16 @@ fn binds(p: &Pattern, out: &mut Vec<usize>) {
     }
 }
 
+/// Every local slot a pattern may bind, of either side of `a | b` too.
+fn every_bind(p: &Pattern, out: &mut Vec<usize>) {
+    if p.kind == PatKind::Bind && !p.global {
+        out.push(p.index);
+    }
+    for k in p.kids.iter().chain(p.rest.as_deref()) {
+        every_bind(k, out);
+    }
+}
+
 /// What is wrong with pattern `p` of a proto with `locals` slots, if
 /// anything: a name bound past the slots or the globals, a map pattern
 /// whose keys and patterns differ in number, a literal without one.
@@ -164,6 +169,16 @@ fn pattern_fault(p: &Pattern, locals: usize, globals: usize) -> Option<String> {
         PatKind::Lit if p.lit.is_none() => {
             return Some(": a literal pattern without its literal".into());
         }
+        _ if p.rest.is_some() && !matches!(p.kind, PatKind::List | PatKind::Map) => {
+            return Some(": a rest in a pattern that is not a list or map".into());
+        }
+        _ if p
+            .rest
+            .as_deref()
+            .is_some_and(|r| !matches!(r.kind, PatKind::Wild | PatKind::Bind)) =>
+        {
+            return Some(": a rest that is neither `...` nor a name".into());
+        }
         _ => {}
     }
     p.kids
@@ -180,7 +195,7 @@ fn is_str(c: &Const) -> bool {
 /// Verifies one proto and its children. A violation names its function;
 /// each function it is in adds its own name on the way out, so a deep
 /// nest of functions writes no path unless something is wrong.
-fn one(p: &Proto, globals: usize, max_stack: &mut usize) -> Result<(), Violation> {
+fn one(p: &Proto, globals: usize) -> Result<(), Violation> {
     let fail = |at: usize, what: String| Violation {
         proto: display_name(&p.name).to_string(),
         at,
@@ -329,6 +344,35 @@ fn one(p: &Proto, globals: usize, max_stack: &mut usize) -> Result<(), Violation
         }
     }
 
+    // (7) The prologue: each default writes its own parameter and slots
+    // past the parameters only (VM48).
+    let mut defaulting = None;
+    for at in 0..p.body {
+        let ins = &p.code[at];
+        let (op, arg) = (ins.op(), ins.arg());
+        let mut written = Vec::new();
+        match op {
+            Op::JumpIfSet => defaulting = Some(ins.b()),
+            Op::StoreLocal => written.push(arg),
+            Op::MatchOrFail => every_bind(&p.patterns[arg], &mut written),
+            Op::Match => every_bind(&p.patterns[ins.b()], &mut written),
+            _ => {}
+        }
+        if let Some(slot) = written
+            .into_iter()
+            .find(|&s| s < p.params.len() && Some(s) != defaulting)
+        {
+            let whose = match defaulting {
+                Some(d) => format!("the default of parameter {d}"),
+                None => "the prologue".into(),
+            };
+            return Err(fail(
+                at,
+                format!("{} {arg}: {whose} writes parameter {slot}", op.name()),
+            ));
+        }
+    }
+
     // (3) to (5): one pass in code order. `incoming` holds, for each
     // instruction a jump reaches, the meet of the states the jumps bring.
     let mut incoming: HashMap<usize, State> = HashMap::new();
@@ -460,26 +504,25 @@ fn one(p: &Proto, globals: usize, max_stack: &mut usize) -> Result<(), Violation
                 binding = Some(bound);
             }
             // The VM reads the call TAILCHECK hands its check to (D44).
-            // The bool check goes along with the same call, before the
-            // return type's (D97).
-            Op::TailCheckBool
-                if !matches!(
-                    next_op,
-                    Some(Op::TailCheck | Op::TailCall | Op::TailCallSpread)
-                ) =>
-            {
+            // The bool check goes along with the same call, after the
+            // return type's, so it runs first (D97, VM49).
+            Op::TailCheckBool if !matches!(next_op, Some(Op::TailCall | Op::TailCallSpread)) => {
                 return Err(fail(
                     at,
                     "TAILCHECKBOOL is not followed by a tail call".into(),
                 ));
             }
-            Op::TailCheck if !matches!(next_op, Some(Op::TailCall | Op::TailCallSpread)) => {
+            Op::TailCheck
+                if !matches!(
+                    next_op,
+                    Some(Op::TailCheckBool | Op::TailCall | Op::TailCallSpread)
+                ) =>
+            {
                 return Err(fail(at, "TAILCHECK is not followed by a tail call".into()));
             }
             _ => {}
         }
         s.height = s.height - pops + pushes;
-        *max_stack = (*max_stack).max(s.height);
         let flow = op.info().flow;
         let taken = || {
             let mut t = s.clone();
@@ -512,7 +555,7 @@ fn one(p: &Proto, globals: usize, max_stack: &mut usize) -> Result<(), Violation
         }
     }
     for child in &p.protos {
-        one(child, globals, max_stack).map_err(|mut v| {
+        one(child, globals).map_err(|mut v| {
             v.proto = format!("{}/{}", display_name(&p.name), v.proto);
             v
         })?;

@@ -1,0 +1,4 @@
+# The loader adds `.fung` to every import path (D125); the file name that is
+# left, `greet.fung`, is no module name.
+import "./_lib/greet.fung"
+# expect-error: E0305

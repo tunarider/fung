@@ -1,4 +1,4 @@
 import fs
 print(type_of(fs))
 fs = 1
-# expect-error: E0308
+# expect-error: E0238

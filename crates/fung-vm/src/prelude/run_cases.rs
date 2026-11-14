@@ -151,9 +151,12 @@ print(put(m, "b", 2), put(m, "a", 3), m)"#,
     (r#"print(replace("a", "b", 1))"#, ""),
     (r#"print(replace(1, 2, 3))"#, ""),
     (
-        r#"print(starts_with("abc", "ab"), starts_with("참치", "참"), ends_with("abc", "bc"), ends_with("a", ""), starts_with("", "a"))"#,
+        r#"print(starts_with("abc", "ab"), starts_with("참치", "참"), ends_with("abc", "bc"), ends_with("a", "a"), starts_with("", "a"))"#,
         "",
     ),
+    (r#"print(ends_with("a", ""))"#, ""),
+    (r#"print(starts_with("", ""))"#, ""),
+    (r#"print("" in "abc")"#, ""),
     (r#"print(starts_with(1, "a"))"#, ""),
     (r#"print(ends_with("a", 1))"#, ""),
     (
@@ -720,9 +723,11 @@ map(c, 3)"#,
         "",
     ),
     (
-        r#"print(exec(["sh"], env: {"A\u{0}": "x"}), exec(["sh"], env: {"A": "x\u{0}"}), exec(["ls"], cwd: "/\u{0}"))"#,
+        r#"print(exec(["sh"], env: {"A": "x\u{0}"}), exec(["ls"], cwd: "/\u{0}"))"#,
         "",
     ),
+    // a NUL in a name is E0403, as `env`'s (D132)
+    (r#"print(exec(["sh"], env: {"A\u{0}": "x"}))"#, ""),
     (r#"print(exec(["ls"], cwd: "/\u{0}", env: {}))"#, ""),
     (
         r#"print(exec(["./definitely-not-here"]), exec(["sh/"]))"#,

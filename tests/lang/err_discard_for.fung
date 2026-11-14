@@ -2,7 +2,7 @@
 fn fails(m) = Err(m)
 for x in [1, 2]:
   print(x)
-  x == 2 then fails("two") else Ok(x)
+  if x == 2: fails("two") ;;
 ;;
 # expect: 1
 # expect: 2

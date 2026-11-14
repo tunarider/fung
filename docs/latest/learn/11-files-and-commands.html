@@ -91,9 +91,9 @@ for e in errors:
 <div class="run"><pre><code>import fs
 
 match fs.read(&quot;settings.ini&quot;):
-  Ok(text)                =&gt; print(len(text), &quot;chars&quot;)
-  Err({kind: 'not_found}) =&gt; print(&quot;no settings.ini, using defaults&quot;)
-  Err(e)                  =&gt; print(&quot;cannot read:&quot;, e.message)
+  Ok(text)                     =&gt; print(len(text), &quot;chars&quot;)
+  Err({kind: 'not_found, ...}) =&gt; print(&quot;no settings.ini, using defaults&quot;)
+  Err(e)                       =&gt; print(&quot;cannot read:&quot;, e.message)
 ;;</code></pre><pre class="out plain"><code>no settings.ini, using defaults</code></pre></div>
 <h2 id="write">파일 쓰기</h2>
 <p><code>fs.write(경로, 문자열)</code>은 파일을 만들거나 덮어쓰고, <code>fs.append(경로, 문자열)</code>은 끝에 덧붙인다(없으면 만든다). 줄바꿈은 자동으로 붙지 않으니 <code>&quot;\n&quot;</code>을 직접 넣는다. 성공하면 <code>Ok(nil)</code>이다. 쓰기가 실패했는데 모르고 지나가면 안 되므로, 결과를 버리면 9장의 E0606이다. 스크립트에서는 <code>!</code>를 붙인다.</p>
@@ -276,7 +276,7 @@ for (p, size) in found:
 <p><code>fs.read</code>는 파일을 통째로 메모리에 읽는다. 아주 큰 파일을 한 줄씩 다루거나 많은 줄을 차례로 쓸 때는 파일 <strong>핸들</strong>(handle, 열린 파일을 가리키는 값)을 연다. <code>fs.with_open(경로, f, mode: 'write)</code>는 파일을 열어 <code>f(핸들)</code>을 부르고, <code>f</code>가 어떻게 끝나든 닫아 준다. 핸들에는 <code>read_line(h)</code>·<code>fs.write_line(h, 줄)</code>을 쓴다. 자세한 것은 <a href="../reference/modules/fs.html#fn-fs-with_open">fs 레퍼런스</a>에 있다.</p>
 </div>
 <div class="box mistake"><b>블록 안에서 바깥 변수 늘리기</b>
-<p>쉘에서는 <code>total=$((total + size))</code>를 반복문 안에서 쓴다. fung에서 <code>for</code> 본문 안에 <code>total = total + size</code>를 쓰면 컴파일 에러 E0205다. 블록 안에서는 바깥 변수에 다시 대입할 수 없기 때문이다(3장). 합계는 반복이 만든 리스트로 계산한다: <code>sizes |&gt; map(((_, s)) =&gt; s) |&gt; sum</code>, 또는 <code>fold</code>.</p>
+<p>쉘에서는 <code>total=$((total + size))</code>를 반복문 안에서 쓴다. fung에서 <code>for</code> 본문 안에 <code>total = total + size</code>를 쓰면 컴파일 에러 E0238이다. 블록 안에서는 바깥 변수에 다시 대입할 수 없기 때문이다(3장). 합계는 반복이 만든 리스트로 계산한다: <code>sizes |&gt; map(((_, s)) =&gt; s) |&gt; sum</code>, 또는 <code>fold</code>.</p>
 </div>
 <div class="box mistake"><b>명령을 문자열 하나로 주기</b>
 <p><code>exec(&quot;ls -l&quot;)</code>은 런타임 에러 E0403(<code>argument </code>cmd<code> must be a list of strings</code>)이다. <code>exec</code>는 쉘처럼 문자열을 쪼개 주지 않는다. <code>exec([&quot;ls&quot;, &quot;-l&quot;])</code>로 나눠 쓰거나, 쉘 문법이 필요하면 <code>sh(&quot;ls -l | head&quot;)</code>를 쓴다. 바깥에서 온 값(파일 이름, 사용자 입력)을 <code>sh</code>의 문자열에 끼워 넣으면 쉘이 그것을 명령으로 해석할 수 있으니, 그런 값은 <code>exec</code>의 리스트 원소로 넘긴다.</p>

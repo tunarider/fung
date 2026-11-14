@@ -224,10 +224,11 @@ mod tests {
         // too (D90); `each` runs its function for what it does.
         for name in [
             "map", "filter", "fold", "find", "any", "all", "sort_by", "group_by", "try_map",
+            "iterate", "until",
         ] {
             assert!(b.prelude_pure(name), "{name}");
         }
-        for name in ["each", "print", "fail", "send", "until", "scope", "with"] {
+        for name in ["each", "print", "fail", "send", "exec", "scope", "with"] {
             assert!(!b.prelude_pure(name), "{name}");
         }
         assert!(b.module_pure("_native.path", "join"));

@@ -1,0 +1,3 @@
+# A path that ends in `/` names a directory, not a module file (FE82).
+import "./_lib/"
+# expect-error: E0301

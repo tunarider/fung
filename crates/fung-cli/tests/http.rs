@@ -578,13 +578,13 @@ const NO_SERVER: &[&str] = &[
 const ARG_ERRORS: &[(&str, &str, &str)] = &[
     (
         "print(1)\nhttp.get(1)",
-        "error[E0403]: argument `url` must be str, got int\n  --> -e:3:9\n  |\n3 | http.get(1)\n  |         ^\n  |\n",
-        "   -e:3       <entry>\n",
+        "error[E0403]: argument `url` must be str, got int\n  --> -e:3:10\n  |\n3 | http.get(1)\n  |          ^\n  |\n",
+        "",
     ),
     (
         "fn f() = print(http.post(\"x\", 1))\nf()",
-        "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:25\n  |\n2 | fn f() = print(http.post(\"x\", 1))\n  |                         ^\n  |\n",
-        "   -e:2       f\n   -e:3       <entry>\n",
+        "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:31\n  |\n2 | fn f() = print(http.post(\"x\", 1))\n  |                               ^\n  |\n",
+        "",
     ),
     (
         "http.get(\"http://x\", headers: {a: 1})",
@@ -593,47 +593,48 @@ const ARG_ERRORS: &[(&str, &str, &str)] = &[
     ),
     (
         "http.get(\"http://x\", headers: 1)",
-        "error[E0403]: argument `headers` must be map, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", headers: 1)\n  |         ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `headers` must be map, got int\n  --> -e:2:31\n  |\n2 | http.get(\"http://x\", headers: 1)\n  |                               ^\n  |\n",
+        "",
     ),
     (
         "http.get(\"http://x\", timeout: 1)",
-        "error[E0403]: argument `timeout` must be dur | nil, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", timeout: 1)\n  |         ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `timeout` must be dur | nil, got int\n  --> -e:2:31\n  |\n2 | http.get(\"http://x\", timeout: 1)\n  |                               ^\n  |\n",
+        "",
     ),
     (
         "http.request(1, \"x\")",
-        "error[E0403]: argument `method` must be str, got int\n  --> -e:2:13\n  |\n2 | http.request(1, \"x\")\n  |             ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `method` must be str, got int\n  --> -e:2:14\n  |\n2 | http.request(1, \"x\")\n  |              ^\n  |\n",
+        "",
     ),
     (
         "http.request(\"GET\", 1)",
-        "error[E0403]: argument `url` must be str, got int\n  --> -e:2:13\n  |\n2 | http.request(\"GET\", 1)\n  |             ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `url` must be str, got int\n  --> -e:2:21\n  |\n2 | http.request(\"GET\", 1)\n  |                     ^\n  |\n",
+        "",
     ),
     (
         "http.request(\"GET\", \"x\", 1)",
-        "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:13\n  |\n2 | http.request(\"GET\", \"x\", 1)\n  |             ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:26\n  |\n2 | http.request(\"GET\", \"x\", 1)\n  |                          ^\n  |\n",
+        "",
     ),
     // `serve` (Task 5); `ready` is `fn | nil`, checked at the call (L13)
     (
         "http.serve(1, r => r)",
-        "error[E0403]: argument `addr` must be str, got int\n  --> -e:2:11\n  |\n2 | http.serve(1, r => r)\n  |           ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `addr` must be str, got int\n  --> -e:2:12\n  |\n2 | http.serve(1, r => r)\n  |            ^\n  |\n",
+        "",
     ),
     (
         "http.serve(\"a\", 1)",
-        "error[E0403]: argument `handler` must be fn, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", 1)\n  |           ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `handler` must be fn, got int\n  --> -e:2:17\n  |\n2 | http.serve(\"a\", 1)\n  |                 ^\n  |\n",
+        "",
     ),
     (
         "http.serve(\"a\", r => r, ready: 1)",
-        "error[E0403]: argument `ready` must be fn | nil, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |           ^\n  |\n",
-        "   -e:2       <entry>\n",
+        "error[E0403]: argument `ready` must be fn | nil, got int\n  --> -e:2:32\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |                                ^\n  |\n",
+        "",
     ),
     // the call itself is wrong: caught when the file is compiled (D43),
-    // so there is no call path and the exit code is 2
+    // so there is no call path and the exit code is 2; so is a literal
+    // argument its parameter's annotation refuses (D113, above)
     (
         "http.get()",
         "error[E0407]: missing argument `url`\n  --> -e:2:9\n  |\n2 | http.get()\n  |         ^\n  |\n",
@@ -869,7 +870,7 @@ fn argument_errors_point_at_the_call() {
             (" call path (innermost first):\n", 1)
         };
         let want = (
-            if prog.starts_with("print(1)") {
+            if prog.starts_with("print(1)") && !frames.is_empty() {
                 "1\n"
             } else {
                 ""

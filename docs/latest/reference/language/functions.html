@@ -109,8 +109,8 @@ run</code></pre></div>
   <li>기본값은 호출할 때마다 왼쪽부터 평가되고, 앞 인자를 참조할 수 있다. 기본값과 <code>...rest</code>는 <code>fn</code>과 익명 <code>fn(…):</code>에서 쓴다(람다 <code>=&gt;</code>에는 없다).</li>
   <li>호출할 때 위치 인자 뒤에 이름 붙인 인자를 쓴다: <code>exec(cmd, cwd: dir)</code>. 내장 함수와 람다도 똑같다(<code>f = (a, b) =&gt; a - b</code>이면 <code>f(b: 1, a: 10)</code>은 9).</li>
   <li>호출의 마지막 위치 인자 자리에 <code>...xs</code>를 하나 쓰면 리스트나 범위 <code>xs</code>의 원소가 그 자리부터의 위치 인자가 된다: <code>f(a, ...xs, k: v)</code>. 다른 위치 인자 앞, 리스트 리터럴(<code>[a, ...xs]</code>는 <code>[a] + xs</code>로), 태그의 값에는 쓸 수 없다(E0133). 리스트·범위가 아닌 값을 펼치면 런타임 에러 E0506.</li>
-  <li>인자 개수가 맞지 않거나(E0402·E0407), 같은 인자를 위치와 이름으로 두 번 주거나(E0405), 모르는 이름이면(E0406) 에러다. 호출 대상이 컴파일 때 정해지면(가려지지 않은 최상위 <code>fn</code>, 블록 안의 <code>fn</code>, prelude 함수, import한 모듈의 함수, 그리고 이들의 부분 적용 <code>f(a, _)</code>) 컴파일 때 같은 번호와 문구로 잡고, 그 밖(변수에 든 함수 값, 펼친 인자의 개수)은 호출할 때 잡는다.</li>
-  <li>매개변수는 본문의 지역 이름이다. 보이는 바깥 이름(바깥 지역, 최상위 이름, import한 이름, prelude 함수)과 같은 이름이면 E0240이고(공개 최상위 <code>fn</code>의 매개변수만은 prelude 함수와 같은 이름일 수 있다, <a href="modules.html">모듈</a>), 본문과 뒤 매개변수의 기본값 어디서도 읽지 않으면 E0239다(<a href="scope.html">변수와 스코프</a>). 받기만 하는 매개변수는 <code>_</code>로 시작한다: <code>on_fail: _e =&gt; nil</code>. 람다·<code>for</code>·<code>match</code> 패턴이 묶는 이름도 같다.</li>
+  <li>인자 개수가 맞지 않거나(E0402·E0407), 같은 인자를 위치와 이름으로 두 번 주거나(E0405), 모르는 이름이면(E0406) 에러다. 호출 대상이 소스에 드러나면 컴파일 때 같은 번호와 문구로 잡는다: 가려지지 않은 최상위 <code>fn</code>, 블록 안의 <code>fn</code>, prelude 함수, import한 모듈의 함수, 바로 부르는 함수 리터럴(<code>(x =&gt; x)(1)</code>), 그리고 단 하나의 묶기가 이런 함수(람다, 익명 <code>fn</code>, 함수의 이름, 모듈 멤버, 이들의 부분 적용 <code>f(a, _)</code>)인 이름이다. 이름은 어디서나 한 번만 묶이므로 어느 블록의 이름이든 같다(<code>plus = add</code>, <code>f = x =&gt; x</code>, <code>(f, g) = (x =&gt; x, len)</code>). 그 밖(매개변수로 받은 함수, 고르거나 계산한 함수 <code>c then g else h</code>·<code>pick()</code>, 펼친 인자의 개수)은 호출할 때 잡는다. 다만 펼친 인자 앞에 적은 위치 인자만으로 이미 넘치면 컴파일 때 E0402다(<code>got at least N</code>). 아는 함수의 순수 표시(<a href="blocks.html">E0234</a>)도 같은 판정이다: <code>s = sort</code>이면 문장 <code>s(xs)</code>는 E0234.</li>
+  <li>매개변수는 본문의 지역 이름이다. 보이는 바깥 이름(바깥 지역, 최상위 이름, import한 이름, prelude 함수)과 같은 이름이면 E0238이고(공개 최상위 <code>fn</code>의 매개변수만은 prelude 함수와 같은 이름일 수 있다, <a href="modules.html">모듈</a>), 본문과 뒤 매개변수의 기본값 어디서도 읽지 않으면 E0239다(<a href="scope.html">변수와 스코프</a>). 받기만 하는 매개변수는 <code>_</code>로 시작한다: <code>on_fail: _e =&gt; nil</code>. 람다·<code>for</code>·<code>match</code> 패턴이 묶는 이름도 같다.</li>
   <li>매개변수 자리에 구조 분해 패턴(<code>_</code>, 튜플, 리스트, 맵, 태그)을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>. <code>fn</code>과 람다가 같고, 대입·<code>for</code>와 같은 <a href="match.html">구조 분해 패턴</a>이라 맨 바깥의 리터럴(<code>(1) =&gt; …</code>, 인자 없는 태그 <code>fn f(Red)</code>)은 매개변수가 될 수 없다(E0112, 값으로 고르려면 <code>match</code>).</li>
 </ul>
 <div class="run"><pre><code>fn greet(name, greeting = &quot;hello&quot;, ...extra) = &quot;${greeting}, ${name}${join(extra)}&quot;
@@ -141,7 +141,7 @@ print(xs, n, v, w)</code></pre><pre class="out plain"><code>1
 print(f(1), f(-1))</code></pre><pre class="out plain"><code>pos neg</code></pre></div>
 <h3>반환</h3>
 <p>마지막 식의 값을 돌려준다. 일찍 빠져나갈 때는 <code>return 식</code>(값 없으면 <code>nil</code>). <code>return</code>은 감싸는 <code>fn</code>(이름 있는 것이나 익명)에서 돌아온다. 람다와 <code>for</code> 본문(E0237), 진입 파일 최상위, 매개변수 기본값 안에서는 쓸 수 없다(최상위에서는 <code>exit()</code>; 기본값은 본문보다 먼저 계산되므로 E0211). 함수에서 일찍 돌아가는 <code>?</code>도 같다.</p>
-<p><code>return</code>은 <strong>문장</strong>이거나 <strong>가지의 끝</strong>(<code>if</code>·<code>match</code> 절의 본문, <code>then … else</code>의 가지, <code>fn f() = …</code>의 본문)이다. 연산자의 피연산자, 인자, 리스트·맵의 원소, 대입의 오른쪽에 쓰면 E0132다(<code>x = a ?? return nil</code>은 <code>if a == nil: return nil ;;</code>로). 같은 블록에서 <code>return</code> 문장 뒤의 문장은 결코 실행되지 않으므로 E0131이다.</p>
+<p><code>return</code>은 <strong>문장</strong>이거나 <strong>가지의 끝</strong>(<code>if</code>·<code>match</code> 절의 본문, <code>then … else</code>의 가지, <code>fn f() = …</code>의 본문)이다. 연산자의 피연산자, 인자, 리스트·맵의 원소, 대입의 오른쪽에 쓰면 E0132다(<code>x = a ?? return nil</code>은 <code>if a == nil: return nil ;;</code>로). 같은 블록에서 끝까지 갈 수 없는 문장 뒤의 문장은 결코 실행되지 않으므로 E0131이다. 끝까지 갈 수 없는 문장은 <code>return</code>, 그리고 모든 가지가 그런 문장으로 끝나는 <code>if</code>(<code>else</code>가 있는 것)·<code>match</code>·<code>then … else</code>다. <code>fail(…)</code>·<code>exit(…)</code>는 호출이라 들지 않는다.</p>
 <h3>부분 적용</h3>
 <p>호출 인자의 <code>_</code>는 그 자리를 비운 새 함수를 만든다. <code>f(a, _)</code>는 <code>x =&gt; f(a, x)</code>이고, <code>a</code>는 그 자리에서 한 번, 왼쪽부터 평가된다(새 함수를 부를 때마다가 아니다). 태그도 호출 형태라 같다: <code>map(xs, Ok(_))</code>. 자동 커링은 없다.</p>
 <ul>
@@ -170,7 +170,17 @@ print(add(1))</code></pre><pre class="out err plain" data-code="2"><code>error[E
 3 | print(add(1))
   |          ^
   |</code></pre></div>
-<p>변수에 든 함수 값이나 펼친 인자는 부를 때 센다.</p>
+<p>함수가 묶인 이름으로 불러도 같다(이름의 묶기가 하나뿐이므로).</p>
+<div class="run"><pre><code>fn add(a, b) = a + b
+plus = add
+print(&quot;ran&quot;)
+print(plus(1, 2, 3))</code></pre><pre class="out err plain" data-code="2"><code>error[E0402]: add takes 2 argument(s), got 3
+  --&gt; example.fung:4:11
+  |
+4 | print(plus(1, 2, 3))
+  |           ^
+  |</code></pre></div>
+<p>매개변수로 받은 함수 값이나 펼친 인자는 부를 때 센다.</p>
 <div class="run"><pre><code>fn add(a, b) = a + b
 xs = [1, 2]
 print(add(...xs))
@@ -256,7 +266,7 @@ fn bad(xs) = map(xs, s =&gt; parse_int(s)? * 2)</code></pre><pre class="out err 
   |                                       ^
   |
  help: a lambda `=&gt;` and a `for` body cannot return early; write an anonymous `fn(x): … ;;` to return from, or use `try_map`, `find`, `all`/`any` or `fold`</code></pre></div>
-<p><code>return</code> 문장 뒤의 문장은 실행되지 않으므로 에러다.</p>
+<p><code>return</code> 문장 뒤의 문장은 실행되지 않으므로 에러다. 모든 가지가 <code>return</code>으로 끝나는 <code>if</code>·<code>match</code> 뒤도 같다.</p>
 <div class="run"><pre><code>fn sign(n):
   if n &lt; 0: return -1 ;;
   1

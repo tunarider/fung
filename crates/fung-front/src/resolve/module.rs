@@ -9,13 +9,20 @@ use crate::tree::{Head, Lit, Node};
 use super::ModuleInfo;
 
 impl Resolver<'_> {
-    /// E0308 for hiding the module bound to `name`; the help writes its
-    /// import with the module as imported, not the name it is bound to.
-    pub(super) fn shadow_error(&self, name: &str, pos: Pos) -> Diag {
+    /// E0238 for binding the module name `name` again (D122, was E0308):
+    /// the note says where it is imported, and the help writes its import
+    /// with the module as imported, not the name it is bound to.
+    pub(super) fn module_again(&self, name: &str, pos: Pos) -> Diag {
         let target = self.module_specs.get(name).map_or(name, String::as_str);
-        name_error("E0308", pos, name).with_help(&format!(
+        let mut e = name_error("E0238", pos, name).with_help(&format!(
             "import it under another name: `import {target} as m`"
-        ))
+        ));
+        let note = match self.fns[0].blocks[0].pos.get(name) {
+            Some(p) => format!("note: `{name}` is the module imported on line {}", p.line),
+            None => format!("note: `{name}` is a module"),
+        };
+        e.notes.push(note);
+        e
     }
 
     /// Binds an import's names as constant globals — module names marked
@@ -102,8 +109,8 @@ impl Resolver<'_> {
                 if let Some(sig) = info.sigs.get(name)
                     && !self.opts.redefine
                 {
-                    self.global_sigs
-                        .insert(b.index, (name.clone(), sig.clone()));
+                    let own = sig.name.clone().unwrap_or_else(|| name.clone());
+                    self.global_sigs.insert(b.index, (own, sig.clone()));
                 }
                 kids.push(Node::with_lit(
                     Head::Member,
@@ -145,7 +152,7 @@ impl Resolver<'_> {
             let e = if b.module {
                 name_error("E0309", pos, name)
             } else {
-                self.shadow_error(name, pos)
+                self.bound_again(name, pos, true, false)
             };
             self.errs.push(e.span(len));
             return None;
@@ -165,12 +172,8 @@ impl Resolver<'_> {
     /// Binds a listed import name as a constant global: hoisted fns see
     /// it, and like every name it is bound once (E0238).
     fn bind_const(&mut self, name: &str, pos: Pos) -> Option<Binding> {
-        if let Some(b) = self.root_scope().names.get(name).copied() {
-            let e = if b.module {
-                self.shadow_error(name, pos)
-            } else {
-                name_error("E0238", pos, name)
-            };
+        if self.root_scope().names.contains_key(name) {
+            let e = self.bound_again(name, pos, true, false);
             self.errs.push(e);
             return None;
         }

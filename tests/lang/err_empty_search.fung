@@ -1,0 +1,9 @@
+# A text to search for is never empty (D118): an empty one is found
+# everywhere, so `in` on a string refuses it as `starts_with`,
+# `ends_with`, `index_of`, `split` and `replace` do. A list's `in` finds
+# elements, so `"" in [""]` is fine.
+fn has(s, sub) = sub in s
+print(has("abc", "b"), "" in ["", "a"], starts_with("abc", "a"))
+# expect: true true true
+print(has("abc", ""))
+# expect-error: E0403

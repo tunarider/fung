@@ -62,7 +62,15 @@ pub(crate) fn not_text(v: &Value, place: &str) -> Option<Diag> {
             | Value::Receiver(_)
             | Value::File(_)
             | Value::Conn(_)
-            | Value::Listener(_) => format!("a {} handle", type_name(v)),
+            | Value::Listener(_) => {
+                let t = type_name(v);
+                let a = if t.starts_with(['a', 'e', 'i', 'o', 'u']) {
+                    "an"
+                } else {
+                    "a"
+                };
+                format!("{a} {t} handle")
+            }
             _ => return None,
         })
     };
@@ -412,7 +420,7 @@ impl Task<'_> {
                 let end = if arg & 2 != 0 { Some(self.pop()) } else { None };
                 let start = if arg & 1 != 0 { Some(self.pop()) } else { None };
                 let v = self.pop();
-                let r = index::slice(&v, start.as_ref(), end.as_ref(), arg & 4 != 0)
+                let r = index::slice_owned(v, start.as_ref(), end.as_ref(), arg & 4 != 0)
                     .map_err(|d| at(d, pos))?;
                 self.push(r);
             }
@@ -422,7 +430,7 @@ impl Task<'_> {
                 // for no such member, E0304 for a private one.
                 let name = &self.fiber.frames[fi].proto().consts[arg];
                 let r =
-                    index::index(&v, name).map_err(|d| at(index::field_help(d, &v, name), pos))?;
+                    index::index(&v, name).map_err(|d| at(index::field_error(d, &v, name), pos))?;
                 self.push(r);
             }
             Op::In => {

@@ -98,13 +98,11 @@ impl TypeSet {
         t
     }
 
-    /// A tag name also takes its symbol (07, T1), except `Ok` and `Err`:
-    /// they name a result, which is always a tag with one value (02, SP12).
+    /// A tag name also takes its symbol (07, T1), `Ok` and `Err` too (D123).
     pub fn matches(&self, v: &Value) -> bool {
-        let result = |name: &Sym| matches!(*name, Sym::OK | Sym::ERR);
         match v {
             Value::Tag(tag) => self.kinds == ALL || self.tags.contains(&tag.name),
-            Value::Sym(s) => self.kinds & SYM != 0 || (self.tags.contains(s) && !result(s)),
+            Value::Sym(s) => self.kinds & SYM != 0 || self.tags.contains(s),
             _ => self.kinds & kind_of(v) != 0,
         }
     }
@@ -133,11 +131,10 @@ mod tests {
         }))
     }
 
-    /// The annotation `Ok`/`Err` names a result, not the symbol `'Ok`
-    /// (02, SP12). `sym` still takes the symbol, and another tag name
-    /// takes both forms (T1).
+    /// The annotation `Ok`/`Err` is a tag name like any other (D123): it
+    /// takes the results and the symbol of that name (T1).
     #[test]
-    fn result_annotations_take_only_results() {
+    fn result_annotations_take_the_tag_and_its_symbol() {
         let t = |names: &[&str]| names.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         let ok1 = tag(Sym::OK, vec![Value::Int(1)]);
         let err1 = tag(Sym::ERR, vec![Value::Int(1)]);
@@ -145,7 +142,7 @@ mod tests {
         let res = t(&["Ok", "Err"]);
         assert!(matches_type(&ok1, Some(&res)));
         assert!(matches_type(&err1, Some(&res)));
-        assert!(!matches_type(&ok_sym, Some(&res)));
+        assert!(matches_type(&ok_sym, Some(&res)));
         assert!(matches_type(&ok_sym, Some(&t(&["Ok", "sym"]))));
         assert!(matches_type(&ok1, Some(&t(&["any"]))));
         let red = intern("Red");

@@ -6,7 +6,8 @@
 //! statements and as values, `match` with guards, alternatives and list
 //! patterns, `??`, `and`/`or`/`not` conditions, lambdas that capture,
 //! reassignment, `return` from inside branches, tail calls and return
-//! types. Every value that matters is printed on the way (`t(x)`), and a
+//! types, parameter defaults that bind names of their own (VM48) and
+//! calls that skip, give or name them. Every value that matters is printed on the way (`t(x)`), and a
 //! direct evaluator of the same tree, written without any of the
 //! compiler's machinery, says what the program must print and how it must
 //! end. The compiler verifies every program it makes, so a verifier
@@ -105,7 +106,8 @@ enum Expr {
     Match(Box<Expr>, Vec<Arm>),
     /// `m(a) ?? b`: `m` gives nil for an even number.
     Coalesce(Box<Expr>, Box<Expr>),
-    Call(String, Vec<Expr>),
+    /// A call: positional arguments, then named ones.
+    Call(String, Vec<Expr>, Vec<(String, Expr)>),
     LamCall(String),
     Len(Box<Expr>),
     List(Vec<Expr>),
@@ -160,16 +162,22 @@ struct Block {
 struct Func {
     name: String,
     params: Vec<String>,
+    /// Each parameter's default, if it has one (the last ones).
+    defaults: Vec<Option<Expr>>,
     body: Block,
     typed: bool,
 }
+
+/// What a call needs to know of a function: its name, and each
+/// parameter's name and whether it has a default.
+type Sig = (String, Vec<(String, bool)>);
 
 // ---------- the generator ----------
 
 struct Gen<'a> {
     rng: &'a mut Rng,
     /// The functions made so far: a call goes to one of them.
-    funcs: Vec<(String, usize)>,
+    funcs: Vec<Sig>,
     /// The names of each open block, in the order they were made.
     scopes: Vec<Vec<(String, Ty)>>,
     in_lambda: usize,
@@ -275,9 +283,27 @@ impl Gen<'_> {
         Expr::Int(self.rng.range(0, 4))
     }
 
+    /// A call: a parameter with a default is skipped, given by position
+    /// (while none before it was skipped or named) or named.
     fn call(&mut self, d: i32) -> Expr {
-        let (name, arity) = self.rng.pick(&self.funcs).clone();
-        Expr::Call(name, (0..arity).map(|_| self.int(d - 1)).collect())
+        let (name, params) = self.rng.pick(&self.funcs).clone();
+        let (mut positional, mut named) = (Vec::new(), Vec::new());
+        let mut by_name = false;
+        for (param, has_default) in params {
+            let r = self.rng.unit();
+            if has_default && r < 0.4 {
+                by_name = true;
+                continue;
+            }
+            by_name |= has_default && r < 0.7;
+            let e = self.int(d - 1);
+            if by_name {
+                named.push((param, e));
+            } else {
+                positional.push(e);
+            }
+        }
+        Expr::Call(name, positional, named)
     }
 
     fn list(&mut self, d: i32) -> Expr {
@@ -371,6 +397,10 @@ impl Gen<'_> {
         let subject = self.int(d - 1);
         let n = self.rng.range(1, 4);
         let mut arms = Vec::new();
+        // The values an earlier arm without a guard takes: an arm they
+        // cover never runs (E0235, E0241; D112), so it becomes a guarded
+        // name instead.
+        let mut taken: HashSet<i64> = HashSet::new();
         for i in 0..n {
             let r = self.rng.unit();
             self.scopes.push(Vec::new());
@@ -383,7 +413,7 @@ impl Gen<'_> {
                 };
                 guard = None;
             } else {
-                pat = if r < 0.35 {
+                let p = if r < 0.35 {
                     Pat::Lit(self.rng.range(0, 4))
                 } else if r < 0.6 {
                     let first = self.rng.range(0, 3);
@@ -393,8 +423,21 @@ impl Gen<'_> {
                 } else {
                     Pat::Wild
                 };
+                let values = match &p {
+                    Pat::Lit(v) => vec![*v],
+                    Pat::Alt(vs) => vs.clone(),
+                    _ => Vec::new(),
+                };
+                pat = if values.iter().any(|v| taken.contains(v)) {
+                    Pat::Bind(self.bind(Ty::Int))
+                } else {
+                    p
+                };
                 let open = matches!(pat, Pat::Bind(_) | Pat::Wild);
                 guard = (open || self.rng.chance(0.5)).then(|| self.bool(d - 2));
+                if guard.is_none() {
+                    taken.extend(values);
+                }
             }
             arms.push(self.arm(d, ty, pat, guard));
         }
@@ -405,6 +448,11 @@ impl Gen<'_> {
         let subject = self.list(d - 1);
         let n = self.rng.range(1, 4);
         let mut arms = Vec::new();
+        // The shapes of the earlier arms without a guard: an arm one of
+        // them covers never runs (E0235, E0241; D112), so it becomes a
+        // guarded name instead. `[h, ...]` covers every non-empty shape,
+        // `[a, b]` and `[a] | [_, a] | …` each other.
+        let (mut empty, mut cons, mut some) = (false, false, false);
         for i in 0..n {
             self.scopes.push(Vec::new());
             let mut guard = None;
@@ -417,7 +465,19 @@ impl Gen<'_> {
                 };
             } else {
                 let r = self.rng.unit();
-                pat = if r < 0.2 {
+                // decided before any name is bound
+                let covered = if r < 0.2 {
+                    empty
+                } else if r < 0.5 {
+                    cons
+                } else if r < 0.9 {
+                    cons || some
+                } else {
+                    false
+                };
+                pat = if covered || r >= 0.9 {
+                    Pat::Bind(self.bind(Ty::List))
+                } else if r < 0.2 {
                     Pat::Empty
                 } else if r < 0.5 {
                     let head = self.bind(Ty::Int);
@@ -425,13 +485,19 @@ impl Gen<'_> {
                     Pat::Cons(head, rest)
                 } else if r < 0.7 {
                     Pat::Two(self.bind(Ty::Int), self.bind(Ty::Int))
-                } else if r < 0.9 {
-                    Pat::Last(self.bind(Ty::Int))
                 } else {
-                    Pat::Bind(self.bind(Ty::List))
+                    Pat::Last(self.bind(Ty::Int))
                 };
                 if matches!(pat, Pat::Bind(_)) || self.rng.chance(0.5) {
                     guard = Some(self.bool(d - 2));
+                }
+                if guard.is_none() {
+                    match pat {
+                        Pat::Empty => empty = true,
+                        Pat::Cons(..) => cons = true,
+                        Pat::Two(..) | Pat::Last(_) => some = true,
+                        _ => {}
+                    }
                 }
             }
             arms.push(self.arm(d, ty, pat, guard));
@@ -515,23 +581,49 @@ impl Gen<'_> {
     }
 }
 
-fn program(rng: &mut Rng) -> (Vec<Func>, Vec<(usize, Vec<i64>)>) {
+fn sig(f: &Func) -> Sig {
+    let params = f.params.iter().zip(&f.defaults);
+    let params = params.map(|(p, d)| (p.clone(), d.is_some())).collect();
+    (f.name.clone(), params)
+}
+
+/// A top-level call of one of the functions: positional arguments, then
+/// named ones.
+type TopCall = (usize, Vec<i64>, Vec<(String, i64)>);
+
+fn program(rng: &mut Rng) -> (Vec<Func>, Vec<TopCall>) {
     let mut funcs: Vec<Func> = Vec::new();
     for i in 0..rng.range(1, 4) {
         let mut g = Gen {
-            funcs: funcs
-                .iter()
-                .map(|f| (f.name.clone(), f.params.len()))
-                .collect(),
+            funcs: funcs.iter().map(sig).collect(),
             rng,
             scopes: Vec::new(),
             in_lambda: 0,
             used: HashSet::new(),
             names: 0,
         };
-        let params: Vec<String> = (0..g.rng.range(1, 3)).map(|_| g.fresh("p")).collect();
-        g.scopes
-            .push(params.iter().map(|p| (p.clone(), Ty::Int)).collect());
+        // The parameters, the last ones with defaults: a default sees the
+        // parameters before it and binds names of its own in its `match`
+        // arms and `if` blocks (VM48). It cannot `return` (E0220).
+        let required = g.rng.range(1, 3);
+        let optional = *g.rng.pick(&[0, 0, 1, 1, 2]);
+        let (mut params, mut defaults) = (Vec::new(), Vec::new());
+        g.scopes.push(Vec::new());
+        for k in 0..required + optional {
+            let default = (k >= required).then(|| {
+                g.in_lambda += 1;
+                let e = g.int(2);
+                g.in_lambda -= 1;
+                e
+            });
+            let p = g.fresh("p");
+            g.scopes
+                .last_mut()
+                .expect("the parameters")
+                .push((p.clone(), Ty::Int));
+            params.push(p);
+            defaults.push(default);
+        }
         let depth = g.rng.range(2, 4) as i32;
         let mut body = g.block(depth, Ty::Int, true);
         let scope = g.scopes.pop().expect("the parameters");
@@ -542,6 +634,7 @@ fn program(rng: &mut Rng) -> (Vec<Func>, Vec<(usize, Vec<i64>)>) {
         funcs.push(Func {
             name: format!("f{i}"),
             params,
+            defaults,
             body,
             typed,
         });
@@ -549,7 +642,23 @@ fn program(rng: &mut Rng) -> (Vec<Func>, Vec<(usize, Vec<i64>)>) {
     let mut calls = Vec::new();
     for (i, f) in funcs.iter().enumerate() {
         for _ in 0..3 {
-            calls.push((i, f.params.iter().map(|_| rng.range(0, 4)).collect()));
+            let (mut positional, mut named) = (Vec::new(), Vec::new());
+            let mut by_name = false;
+            for (p, d) in f.params.iter().zip(&f.defaults) {
+                let r = rng.unit();
+                if d.is_some() && r < 0.4 {
+                    by_name = true;
+                    continue;
+                }
+                by_name |= d.is_some() && r < 0.7;
+                let v = rng.range(0, 4);
+                if by_name {
+                    named.push((p.clone(), v));
+                } else {
+                    positional.push(v);
+                }
+            }
+            calls.push((i, positional, named));
         }
     }
     (funcs, calls)
@@ -592,7 +701,11 @@ fn show_expr(e: &Expr) -> String {
             s + ";;"
         }
         Expr::Coalesce(a, b) => format!("(m({}) ?? {})", show_expr(a), show_expr(b)),
-        Expr::Call(f, args) => format!("{f}({})", list_of(args, show_expr)),
+        Expr::Call(f, args, named) => {
+            let mut all: Vec<String> = args.iter().map(show_expr).collect();
+            all.extend(named.iter().map(|(k, e)| format!("{k}: {}", show_expr(e))));
+            format!("{f}({})", all.join(", "))
+        }
         Expr::LamCall(f) => format!("{f}()"),
         Expr::Len(e) => format!("len({})", show_expr(e)),
         Expr::List(xs) => format!("[{}]", list_of(xs, show_expr)),
@@ -644,25 +757,30 @@ fn show_block(b: &Block) -> String {
     lines.join("\n")
 }
 
-fn source(funcs: &[Func], calls: &[(usize, Vec<i64>)]) -> String {
+fn source(funcs: &[Func], calls: &[TopCall]) -> String {
     let mut s = String::from(
         "fn t(x):\n  print(x)\n  x\n;;\nfn tb(k, b):\n  print(k)\n  b\n;;\n\
          fn m(x) = x % 2 == 0 then nil else x\n",
     );
     for f in funcs {
         let ret = if f.typed { " -> int" } else { "" };
+        let params = f.params.iter().zip(&f.defaults).map(|(p, d)| match d {
+            Some(d) => format!("{p} = ({})", show_expr(d)),
+            None => p.clone(),
+        });
         writeln!(
             s,
             "fn {}({}){ret}:\n{}\n;;",
             f.name,
-            f.params.join(", "),
+            params.collect::<Vec<_>>().join(", "),
             show_block(&f.body)
         )
         .unwrap();
     }
-    for (i, args) in calls {
-        let args = list_of(args, i64::to_string);
-        writeln!(s, "print({}({args}))", funcs[*i].name).unwrap();
+    for (i, args, named) in calls {
+        let mut all: Vec<String> = args.iter().map(i64::to_string).collect();
+        all.extend(named.iter().map(|(k, v)| format!("{k}: {v}")));
+        writeln!(s, "print({}({}))", funcs[*i].name, all.join(", ")).unwrap();
     }
     s
 }
@@ -808,13 +926,17 @@ impl Eval<'_> {
                     Val::Int(v)
                 }
             }
-            Expr::Call(f, args) => {
+            Expr::Call(f, args, named) => {
                 let mut vals = Vec::new();
                 for a in args {
                     vals.push(self.int(a, env)?);
                 }
+                let mut by_name = Vec::new();
+                for (k, e) in named {
+                    by_name.push((k.clone(), self.int(e, env)?));
+                }
                 let i = self.funcs.iter().position(|x| &x.name == f).expect("fn");
-                Val::Int(self.call(i, &vals)?)
+                Val::Int(self.call(i, &vals, &by_name)?)
             }
             Expr::LamCall(f) => {
                 let Val::Lam(body, captured) = env[f].clone() else {
@@ -891,7 +1013,9 @@ impl Eval<'_> {
         self.expr(&b.value, env)
     }
 
-    fn call(&mut self, i: usize, args: &[i64]) -> Result<i64, Stop> {
+    /// Calls function `i`: the arguments given by position and by name
+    /// are bound first, then each missing one's default runs, in order.
+    fn call(&mut self, i: usize, args: &[i64], named: &[(String, i64)]) -> Result<i64, Stop> {
         self.calls += 1;
         if self.calls > MAX_CALLS {
             return Err(Stop::TooLong);
@@ -903,6 +1027,17 @@ impl Eval<'_> {
             .cloned()
             .zip(args.iter().map(|&a| Val::Int(a)))
             .collect();
+        for (k, v) in named {
+            env.insert(k.clone(), Val::Int(*v));
+        }
+        for (p, d) in f.params.iter().zip(&f.defaults) {
+            if let Some(d) = d
+                && !env.contains_key(p)
+            {
+                let v = self.expr(d, &mut env)?;
+                env.insert(p.clone(), v);
+            }
+        }
         match self.block(&f.body, &mut env) {
             Ok(Val::Int(n)) | Err(Stop::Return(Val::Int(n))) => Ok(n),
             Ok(_) | Err(Stop::Return(_)) => unreachable!("a function gives an int"),
@@ -913,17 +1048,14 @@ impl Eval<'_> {
 
 /// What the program must print and the error it must end with, or
 /// `None` when it runs too long to be worth it.
-fn reference(
-    funcs: &[Func],
-    calls: &[(usize, Vec<i64>)],
-) -> Option<(Vec<String>, Option<&'static str>)> {
+fn reference(funcs: &[Func], calls: &[TopCall]) -> Option<(Vec<String>, Option<&'static str>)> {
     let mut ev = Eval {
         funcs,
         out: Vec::new(),
         calls: 0,
     };
-    for (i, args) in calls {
-        match ev.call(*i, args) {
+    for (i, args, named) in calls {
+        match ev.call(*i, args, named) {
             Ok(n) => ev.out.push(n.to_string()),
             Err(Stop::Error(code)) => return Some((ev.out, Some(code))),
             Err(Stop::TooLong) => return None,

@@ -304,6 +304,22 @@ fn pattern_string_rest_bind_and_single_tuple() {
         ..pat(PatKind::Tuple)
     };
     assert_eq!(t.to_string(), "(_,)");
+    // a map pattern with a rest (D114)
+    let m = Pattern {
+        keys: vec!["a".into()],
+        kids: vec![pat(PatKind::Wild)],
+        rest: Some(Box::new(Pattern {
+            index: 2,
+            ..pat(PatKind::Bind)
+        })),
+        ..pat(PatKind::Map)
+    };
+    assert_eq!(m.to_string(), "{a: _, ...$2}");
+    let open = Pattern {
+        rest: Some(Box::new(pat(PatKind::Wild))),
+        ..pat(PatKind::Map)
+    };
+    assert_eq!(open.to_string(), "{...}");
 }
 
 #[test]
@@ -503,7 +519,7 @@ fn the_verifier_passes_good_code_and_reports_the_deepest_stack() {
             (Op::Return, 0),
         ],
     );
-    assert_eq!(verify(&p), Ok(Verified { max_stack: 2 }));
+    assert_eq!(verify(&p), Ok(()));
 }
 
 #[test]
@@ -596,6 +612,19 @@ fn the_verifier_catches_each_kind_of_broken_promise() {
                 p.add_type(vec!["int".into()]);
                 p.emit(Op::TailCheck, 0, pos(1, 1));
                 p.emit(Op::Return, 0, pos(1, 1));
+                p
+            },
+        ),
+        (
+            // The bool check goes after the return type's, to run first
+            // (VM49): only the tail call may follow it.
+            "TAILCHECKBOOL is not followed by a tail call",
+            {
+                let mut p = code(0, &[(Op::Const, 0)]);
+                p.add_type(vec!["int".into()]);
+                p.emit(Op::TailCheckBool, 0, pos(1, 1));
+                p.emit(Op::TailCheck, 0, pos(1, 1));
+                p.emit(Op::TailCall, 0, pos(1, 1));
                 p
             },
         ),
@@ -760,6 +789,26 @@ fn the_verifier_checks_what_the_operands_mean() {
             matching(0, pat(PatKind::Lit)),
         ),
         (
+            "pattern 0: a rest in a pattern that is not a list or map",
+            matching(
+                0,
+                Pattern {
+                    rest: Some(Box::new(pat(PatKind::Wild))),
+                    ..pat(PatKind::Tuple)
+                },
+            ),
+        ),
+        (
+            "pattern 0: a rest that is neither `...` nor a name",
+            matching(
+                0,
+                Pattern {
+                    rest: Some(Box::new(pat(PatKind::Tuple))),
+                    ..pat(PatKind::Map)
+                },
+            ),
+        ),
+        (
             "the body starts at 999: past the end",
             Proto {
                 body: 999,
@@ -841,4 +890,144 @@ fn the_verifier_checks_what_the_operands_mean() {
         &[(Op::Map, 1, 1), (Op::Tag, 1, 2), (Op::Field, 3, 0)],
     );
     assert!(verify(&good).is_ok(), "{:?}", verify(&good));
+}
+
+/// A default writes its own parameter and slots past the parameters,
+/// never another parameter's slot: a call that named a later argument
+/// would find it overwritten (VM48).
+#[test]
+fn the_verifier_keeps_a_default_off_the_other_parameters() {
+    let at = pos(1, 1);
+    // fn f(a, b = …, c = …) with four slots: `ops` (JUMPIFSET's slot as
+    // the second operand), then the body `CONST; RETURN`.
+    let proto = |ops: &[(Op, usize, usize)], pattern: Option<usize>| {
+        let mut p = code(4, &[]);
+        for (name, has_default) in [("a", false), ("b", true), ("c", true)] {
+            p.params.push(Param {
+                name: name.into(),
+                has_default,
+                ty: -1,
+                ..Param::default()
+            });
+        }
+        if let Some(index) = pattern {
+            p.patterns.push(Pattern {
+                index,
+                ..pat(PatKind::Bind)
+            });
+        }
+        for &(op, arg, b) in ops {
+            p.emit_with(op, arg, b, at);
+        }
+        p.body = p.code.len();
+        p.emit(Op::Const, 0, at);
+        p.emit(Op::Return, 0, at);
+        p
+    };
+    // b's default stores into `slot`, then into b.
+    let store = |slot| {
+        proto(
+            &[
+                (Op::JumpIfSet, 5, 1),
+                (Op::Const, 0, 0),
+                (Op::StoreLocal, slot, 0),
+                (Op::Const, 0, 0),
+                (Op::StoreLocal, 1, 0),
+            ],
+            None,
+        )
+    };
+    // b's default binds `slot` by a pattern, then stores it into b.
+    let bind = |slot| {
+        proto(
+            &[
+                (Op::JumpIfSet, 5, 1),
+                (Op::Const, 0, 0),
+                (Op::MatchOrFail, 0, 0),
+                (Op::LoadLocal, slot, 0),
+                (Op::StoreLocal, 1, 0),
+            ],
+            Some(slot),
+        )
+    };
+    // Slot 3 is past the parameters: a name of the default.
+    for p in [store(3), bind(3)] {
+        assert!(verify(&p).is_ok(), "{:?}", verify(&p));
+    }
+    for slot in [0, 2] {
+        let got = violation(&store(slot));
+        let want = format!("STORELOCAL {slot}: the default of parameter 1 writes parameter {slot}");
+        assert!(got.contains(&want), "{got}");
+    }
+    let got = violation(&bind(2));
+    let want = "MATCHORFAIL 0: the default of parameter 1 writes parameter 2";
+    assert!(got.contains(want), "{got}");
+    // Before the first default the prologue writes no parameter.
+    let early = proto(
+        &[
+            (Op::Const, 0, 0),
+            (Op::StoreLocal, 2, 0),
+            (Op::JumpIfSet, 5, 1),
+            (Op::Const, 0, 0),
+            (Op::StoreLocal, 1, 0),
+        ],
+        None,
+    );
+    let got = violation(&early);
+    assert!(
+        got.contains("STORELOCAL 2: the prologue writes parameter 2"),
+        "{got}"
+    );
+}
+
+/// `Proto::thread_jumps` as it was before VM51: each jump follows its
+/// chain of JUMPs again. The one pass from the back must leave the same
+/// code.
+fn thread_jumps_one_by_one(code: &mut [Instr]) {
+    for at in 0..code.len() {
+        let op = code[at].op();
+        if !op.jumps() {
+            continue;
+        }
+        let mut to = code[at].arg();
+        while let Some(next) = code.get(to)
+            && next.op() == Op::Jump
+            && next.arg() > to
+        {
+            to = next.arg();
+        }
+        if op == Op::Jump && code.get(to).is_some_and(|i| i.op() == Op::Return) {
+            code[at] = Instr::new(Op::Return, 0);
+        } else if to != code[at].arg() {
+            code[at] = Instr::with(op, to, code[at].b());
+        }
+    }
+}
+
+#[test]
+fn threading_jumps_in_one_pass_changes_nothing_else() {
+    // a small xorshift: chains, jumps to RETURN, past the end, backwards
+    let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut next = |n: usize| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed % n as u64) as usize
+    };
+    for round in 0..3000 {
+        let n = 1 + round % 60;
+        let mut p = main_proto();
+        for _ in 0..n {
+            match next(5) {
+                0 | 1 => p.emit(Op::Jump, next(n + 2), pos(1, 1)),
+                2 => p.emit(Op::JumpIfFalse, next(n + 2), pos(1, 1)),
+                3 => p.emit(Op::Return, 0, pos(1, 1)),
+                _ => p.emit(Op::Pop, 0, pos(1, 1)),
+            };
+        }
+        let mut want = p.code.clone();
+        thread_jumps_one_by_one(&mut want);
+        p.thread_jumps();
+        assert_eq!(p.code, want, "round {round}");
+    }
 }

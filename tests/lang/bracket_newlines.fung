@@ -1,0 +1,20 @@
+# Inside brackets a newline is space next to the brackets and around `,`
+# (FE78); inside an item a line goes on only by the two rules: it ends in
+# a token that cannot end an expression (`:`, `=`, `..`), or the next
+# begins with one that cannot begin a statement.
+m = {
+  a:
+  1
+  , b: 2
+}
+xs = [10, 20, 30]
+fn f(
+  a: int,
+  b =
+  5
+) = a + b
+print(m, xs[1..
+], f(
+  1
+))
+# expect: {a: 1, b: 2} [20, 30] 6

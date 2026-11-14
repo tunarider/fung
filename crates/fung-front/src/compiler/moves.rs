@@ -72,38 +72,92 @@ pub(super) struct Lives {
     /// The always-matching `name =>` arms that move the subject, a local
     /// nothing reads after, into the name.
     pub subject_moves: HashSet<u32>,
-    /// The slots read from the body's start on. A parameter that only a
-    /// default read is not among them: it is let go as the body starts.
-    pub live_at_start: BTreeSet<usize>,
+    /// The slots a function lets go as its body starts, once its
+    /// parameters' types are checked: what a default read last on a path
+    /// that skipped later defaults, and a typed parameter whose last read
+    /// was in a default (its type check reads it after the defaults).
+    /// Both a call that ran the defaults and one that gave every argument
+    /// pass there (VM39, VM48).
+    pub at_body: Vec<usize>,
 }
 
-/// The lifetimes in `body`, a function's body or a program's. `tests`
-/// says whether `test` blocks are compiled (their functions capture);
-/// `tail`, whether the body's value is returned (a function's).
-pub(super) fn lives(body: &Node, tests: bool, tail: bool) -> Lives {
-    let mut back = Back {
-        live: Vec::new(),
-        log: Vec::new(),
-        moves: HashSet::new(),
-        deaths: HashMap::new(),
-        captures: HashMap::new(),
-        tests,
-    };
+/// The lifetimes in `body`, a function's body or a program's. `tail` says
+/// whether the body's value is returned (a function's).
+pub(super) fn lives(body: &Node, tail: bool) -> Lives {
+    let mut back = Back::new();
     back.walk(body);
-    let live_at_start = (0..back.live.len()).filter(|&s| back.live[s]).collect();
-    let mut fwd = Fwd {
-        deaths: &back.deaths,
-        captures: &back.captures,
-        pending: BTreeSet::new(),
-        out: Lives {
-            moves: std::mem::take(&mut back.moves),
-            live_at_start,
-            ..Lives::default()
-        },
-        tests,
-        calls: HashMap::new(),
-    };
+    let mut fwd = Fwd::new(&mut back);
     fwd.expr(body, tail);
+    fwd.out
+}
+
+/// The lifetimes in a function: its `defaults` (`(parameter, default)`,
+/// in order), each run only when its parameter was not given, then the
+/// type checks of the `typed` parameters, then its `body`. A default is
+/// a branch like an `if` without `else`: its names and its last reads
+/// are let go as in the body (VM48), and what it read last is let go on
+/// the path that skipped it at the next place that lets go, at the
+/// latest as the body starts (`Lives::at_body`).
+pub(super) fn fn_lives(defaults: &[(usize, &Node)], typed: &[usize], body: &Node) -> Lives {
+    let mut back = Back::new();
+    back.walk(body);
+    let live_body: BTreeSet<usize> = (0..back.live.len()).filter(|&s| back.live[s]).collect();
+    // The type checks read their parameters after the defaults: a
+    // default's read of one is not its last.
+    for &s in typed {
+        back.set(s, true);
+    }
+    let mut skips = Vec::new();
+    for &(slot, d) in defaults.iter().rev() {
+        let mark = back.log.len();
+        back.set(slot, false);
+        back.walk(d);
+        let at = back.delta(mark);
+        back.undo(mark);
+        let branch = |at| Branch {
+            id: 0,
+            start: HashMap::clone(&at),
+            at,
+            read_first: Vec::new(),
+        };
+        let mut dead = back.join(vec![branch(at), branch(HashMap::new())], &[]);
+        let skipped = dead.pop().expect("the skipped path");
+        // The default's own parameter is empty as it starts: nothing to
+        // let go there.
+        let ran: Vec<usize> = dead
+            .pop()
+            .expect("the default")
+            .into_iter()
+            .filter(|&s| s != slot)
+            .collect();
+        if !ran.is_empty() && d.id != 0 {
+            back.deaths.insert(d.id, ran);
+        }
+        skips.push(skipped);
+    }
+    skips.reverse();
+    let mut fwd = Fwd::new(&mut back);
+    for (&(slot, d), skipped) in defaults.iter().zip(skips) {
+        let before = fwd.pending.clone();
+        fwd.enter(d.id, false, None);
+        fwd.expr(d, false);
+        fwd.pending.remove(&slot);
+        let ran = std::mem::replace(&mut fwd.pending, before);
+        fwd.pending.extend(skipped);
+        fwd.meet(ran);
+    }
+    let mut at_body = std::mem::take(&mut fwd.pending);
+    let mut read = BTreeSet::new();
+    for &(_, d) in defaults {
+        local_reads(d, &mut read);
+    }
+    at_body.extend(
+        typed
+            .iter()
+            .filter(|s| read.contains(s) && !live_body.contains(s)),
+    );
+    fwd.out.at_body = at_body.into_iter().collect();
+    fwd.expr(body, true);
     fwd.out
 }
 
@@ -146,7 +200,6 @@ struct Back {
     deaths: HashMap<u32, Vec<usize>>,
     /// For each `fn` node, the slots whose last read is its capture.
     captures: HashMap<u32, Vec<usize>>,
-    tests: bool,
 }
 
 /// How one branch of a choice changed the live set: each slot it changed,
@@ -162,6 +215,16 @@ struct Branch {
 }
 
 impl Back {
+    fn new() -> Back {
+        Back {
+            live: Vec::new(),
+            log: Vec::new(),
+            moves: HashSet::new(),
+            deaths: HashMap::new(),
+            captures: HashMap::new(),
+        }
+    }
+
     fn get(&self, s: usize) -> bool {
         self.live.get(s).copied().unwrap_or(false)
     }
@@ -246,7 +309,9 @@ impl Back {
                 self.walk(&n.kids[1]);
             }
             Head::Import => {}
-            Head::Test if !self.tests => {}
+            // A `test` block is top level only (E0114): it holds no slot
+            // of this frame.
+            Head::Test => {}
             Head::If | Head::Then => {
                 self.choice(&[&n.kids[1], &n.kids[2]], &[n.kids[1].id, n.kids[2].id]);
                 self.walk(&n.kids[0]);
@@ -350,7 +415,8 @@ impl Back {
     /// before the choice, on every path: a match's subject). A slot read
     /// from the choice on and not where a branch starts is dead there.
     /// The live set is the one after the choice when called.
-    fn join(&mut self, branches: Vec<Branch>, reads: &[usize]) {
+    /// Returns what each branch lets go as it starts, in order.
+    fn join(&mut self, branches: Vec<Branch>, reads: &[usize]) -> Vec<Vec<usize>> {
         // Slots whose value before the choice differs from after it.
         let mut changed: HashMap<usize, bool> = HashMap::new();
         for b in &branches {
@@ -389,18 +455,21 @@ impl Back {
                     .map(|e| *e.0),
             );
             dead.extend(&b.read_first);
+            dead.sort_unstable();
+            dead.dedup();
+            found.push(dead);
+        }
+        for (b, dead) in branches.iter().zip(&found) {
             if !dead.is_empty() && b.id != 0 {
-                dead.sort_unstable();
-                dead.dedup();
-                found.push((b.id, dead));
+                self.deaths.insert(b.id, dead.clone());
             }
         }
-        self.deaths.extend(found);
         let mut changed: Vec<(usize, bool)> = changed.into_iter().collect();
         changed.sort_unstable();
         for (s, on) in changed {
             self.set(s, on);
         }
+        found
     }
 }
 
@@ -412,12 +481,24 @@ struct Fwd<'a> {
     captures: &'a HashMap<u32, Vec<usize>>,
     pending: BTreeSet<usize>,
     out: Lives,
-    tests: bool,
     /// Whether each node's code may call a function (`calls`).
     calls: HashMap<u32, bool>,
 }
 
-impl Fwd<'_> {
+impl<'a> Fwd<'a> {
+    fn new(back: &'a mut Back) -> Fwd<'a> {
+        Fwd {
+            pending: BTreeSet::new(),
+            out: Lives {
+                moves: std::mem::take(&mut back.moves),
+                ..Lives::default()
+            },
+            deaths: &back.deaths,
+            captures: &back.captures,
+            calls: HashMap::new(),
+        }
+    }
+
     fn deaths(&self, id: u32) -> &[usize] {
         self.deaths.get(&id).map_or(&[], Vec::as_slice)
     }
@@ -511,7 +592,6 @@ impl Fwd<'_> {
                     }
                     Head::Import => self.store(k),
                     Head::Assert => self.expr(&k.kids[0], false),
-                    _ if self.tests => self.expr(&k.kids[0], false),
                     _ => {}
                 }
             } else if i < last && is_if_without_else(k) {
@@ -560,6 +640,10 @@ impl Fwd<'_> {
                 self.meet(kept);
             }
             Head::Match => self.match_expr(n, tail),
+            // The checked right side of an `and`/`or` is the value
+            // itself: it returns, or tail calls, where the `and`/`or`
+            // does (VM53).
+            Head::Op if lit_str(n) == crate::tree::BOOL_CHECK => self.expr(&n.kids[0], tail),
             Head::Return => {
                 self.expr(&n.kids[0], true);
                 self.pending.clear();

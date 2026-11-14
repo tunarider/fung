@@ -153,7 +153,7 @@ error[E0803]: bad port: 70000 (want 1..65535)
 </ol>
 <p><code>acquire</code>가 <code>Err</code>를 돌려줘도 그것이 "얻은 값"이다. <code>use</code>와 <code>release</code>는 그 <code>Err</code>를 그대로 받으므로 열기에 실패할 수 있는 자원은 둘 다에서 <code>match</code>로 가른다. <a href="../modules/fs.html#fn-fs-with_open"><code>fs.with_open</code></a>과 <a href="../modules/fs.html#fn-fs-with_temp_dir"><code>fs.with_temp_dir</code></a>이 이것을 대신 해 주는 <code>with</code>이므로 파일과 임시 디렉터리에는 그쪽을 쓴다.</p>
 <p><code>release</code>는 그것을 부르게 만든 취소나 기한(<a href="concurrency.html#fn-timeout"><code>timeout</code></a>)에 끊기지 않는다. 정리가 반쯤 하다 마는 일이 없게 하려는 것이다.</p>
-<p><code>release</code>의 실패는 버리지 않는다. <code>use</code>도 실패했으면 <code>use</code>의 에러에 <code>note: also failed in release</code>로 붙고, 아니면 <code>release</code>의 에러가 난다. <code>release</code>의 결과는 버리는 값이라 <code>Err</code>를 돌려주면 E0606이다. 실패해도 되는 정리는 <code>fn(c): _ = close(c) ;;</code>처럼 일부러 버린다. 프로그램이 끝날 때의 정리도 <code>with</code>로 한다(따로 <code>at_exit</code> 같은 것은 없다). 프로그램 전체를 <code>with</code>의 <code>use</code> 안에 두면 된다.</p>
+<p><code>release</code>의 실패는 버리지 않는다. <code>use</code>도 실패했으면 <code>use</code>의 에러에 <code>note: also failed in release</code>로 붙고(<code>release</code>를 부를 수조차 없을 때, 곧 인자 개수가 틀렸을 때도 같다), 아니면 <code>release</code>의 에러가 난다. <code>release</code>의 결과는 버리는 값이라 <code>Err</code>를 돌려주면 E0606이다. 실패해도 되는 정리는 <code>fn(c): _ = close(c) ;;</code>처럼 일부러 버린다. 프로그램이 끝날 때의 정리도 <code>with</code>로 한다(따로 <code>at_exit</code> 같은 것은 없다). 프로그램 전체를 <code>with</code>의 <code>use</code> 안에 두면 된다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>acquire</code>: 인자 없이 불려 자원을 돌려주는 함수.</li>

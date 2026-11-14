@@ -1,15 +1,15 @@
 fn describe(v) = match v:
-  0            => "zero"
-  1 | 2        => "small"
-  "s"          => "string"
-  'ok          => "ok symbol"
-  Ok(x)        => "ok ${x}"
-  (x, 0)       => "x-axis ${x}"
-  []           => "empty"
-  [head, ...]  => "list from ${head}"
-  {name: n}    => "named ${n}"
-  n when n < 0 => "negative"
-  _            => "other"
+  0              => "zero"
+  1 | 2          => "small"
+  "s"            => "string"
+  'ok            => "ok symbol"
+  Ok(x)          => "ok ${x}"
+  (x, 0)         => "x-axis ${x}"
+  []             => "empty"
+  [head, ...]    => "list from ${head}"
+  {name: n, ...} => "named ${n}"
+  n when n < 0   => "negative"
+  _              => "other"
 ;;
 print(describe(0), describe(-5), describe(2), describe("s"), describe('ok))
 # expect: zero negative small string ok symbol

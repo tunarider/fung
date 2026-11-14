@@ -5,4 +5,4 @@ fn f():
   g(x)
 ;;
 print(f())
-# expect-error: E0240
+# expect-error: E0238

@@ -89,7 +89,7 @@ print(check_port(70000))
 
 `release`는 그것을 부르게 만든 취소나 기한([`timeout`](concurrency.html#fn-timeout))에 끊기지 않는다. 정리가 반쯤 하다 마는 일이 없게 하려는 것이다.
 
-`release`의 실패는 버리지 않는다. `use`도 실패했으면 `use`의 에러에 `note: also failed in release`로 붙고, 아니면 `release`의 에러가 난다. `release`의 결과는 버리는 값이라 `Err`를 돌려주면 E0606이다. 실패해도 되는 정리는 `fn(c): _ = close(c) ;;`처럼 일부러 버린다. 프로그램이 끝날 때의 정리도 `with`로 한다(따로 `at_exit` 같은 것은 없다). 프로그램 전체를 `with`의 `use` 안에 두면 된다.
+`release`의 실패는 버리지 않는다. `use`도 실패했으면 `use`의 에러에 `note: also failed in release`로 붙고(`release`를 부를 수조차 없을 때, 곧 인자 개수가 틀렸을 때도 같다), 아니면 `release`의 에러가 난다. `release`의 결과는 버리는 값이라 `Err`를 돌려주면 E0606이다. 실패해도 되는 정리는 `fn(c): _ = close(c) ;;`처럼 일부러 버린다. 프로그램이 끝날 때의 정리도 `with`로 한다(따로 `at_exit` 같은 것은 없다). 프로그램 전체를 `with`의 `use` 안에 두면 된다.
 
 #### 매개변수
 

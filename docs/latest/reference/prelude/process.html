@@ -96,7 +96,7 @@
 <li><strong>성공</strong>(종료 코드 0): <code>Ok({out, err, code: 0, signal: nil})</code>.</li>
 <li><strong>0이 아닌 종료</strong>: <code>Err({kind: 'exit, code, signal: nil, out, err, message})</code>. 출력도 들어 있으므로 실패 이유를 <code>e.err</code>로 보여 줄 수 있다. <code>exec(…)!</code>로 쓰면 실패할 때 멈추므로 쉘의 <code>set -e</code>와 같고, 문장으로만 쓴 <code>exec(…)</code>도 <code>Err</code>를 버리면 E0606으로 멈춘다.</li>
 <li><strong>신호로 끝남</strong>: <code>Err({kind: 'exit, code: nil, signal: n, out, err, message})</code>. 종료 코드가 없으므로 <code>code</code>는 <code>nil</code>이고 <code>signal</code>이 신호 번호다(SIGKILL이면 9: 메모리가 모자라 운영체제가 끝낸 명령이 흔히 이렇다). 메시지는 <code>message: &quot;`/bin/sh` was killed by signal 9 (SIGKILL)&quot;</code>이다. 셸의 <code>$?</code>처럼 128 + n으로 바꾸지 않으므로, 실제로 137로 끝난 명령과 섞이지 않는다. 결과는 성공이든 실패든 늘 <code>code</code>와 <code>signal</code>을 둘 다 가진다.</li>
-<li><strong>실행할 수 없음</strong>: 시작하지 못하면 <code>Err({kind, message})</code>. <code>kind</code>는 <a href="results.html#kinds"><code>fs</code>와 같은 표</a>를 따른다: 명령이나 <code>cwd</code>가 없으면(디렉터리가 아니어도) <code>'not_found</code>, 실행 권한이 없으면 <code>'permission</code>, NUL이 든 인자·환경 변수·<code>cwd</code>는 <code>'invalid</code>, 실행 파일이 아닌 파일(<code>ENOEXEC</code>) 등 그 밖은 <code>'io</code>. 이유는 <code>command not found in PATH</code>, <code>permission denied</code>, <code>working directory `/nope`: no such file or directory</code> 등이다. 실행 권한이 없는 스크립트는 <code>[&quot;sh&quot;, &quot;script.sh&quot;]</code>로 돌린다.</li>
+<li><strong>실행할 수 없음</strong>: 시작하지 못하면 <code>Err({kind, message})</code>. <code>kind</code>는 <a href="results.html#kinds"><code>fs</code>와 같은 표</a>를 따른다: 명령이나 <code>cwd</code>가 없으면(디렉터리가 아니어도) <code>'not_found</code>, 실행 권한이 없으면 <code>'permission</code>, NUL이 든 인자·환경 변수의 값·<code>cwd</code>는 <code>'invalid</code>, 실행 파일이 아닌 파일(<code>ENOEXEC</code>) 등 그 밖은 <code>'io</code>. 이유는 <code>command not found in PATH</code>, <code>permission denied</code>, <code>working directory `/nope`: no such file or directory</code> 등이다. 실행 권한이 없는 스크립트는 <code>[&quot;sh&quot;, &quot;script.sh&quot;]</code>로 돌린다.</li>
 <li><strong>출력이 너무 김</strong>: 표준 출력이나 표준 에러가 문자열 한도(1억 글자)를 넘으면 그 자리에서 명령을 끝내고(취소처럼 SIGTERM, 2초 뒤 SIGKILL) <code>Err({kind: 'io, message})</code>를 돌려준다(<code>standard output of `yes` is longer than the string limit (100000000 characters)</code>). 읽은 출력은 버린다. 끝없이 쓰는 명령도 메모리를 한도 근처까지만 쓴다.</li>
 </ul>
 <p><code>cwd</code>를 주면 그 디렉터리에서 실행하고, 환경 변수 <code>PWD</code>도 그 절대 경로로 맞춘다(<code>env</code>를 줘도 그렇다; <code>env</code>에 <code>PWD</code>가 있으면 그 값). <code>env</code>는 지금 환경에 <strong>덧붙일</strong> 맵이다(같은 이름은 덮어쓴다). <code>stdin</code>을 주면 그 문자열을 명령의 표준 입력으로 넣고 닫는다. <code>stdin</code>이 <code>nil</code>이면 명령은 빈 입력을 받는다. fung이 받은 표준 입력을 명령에 넘기지 않는다. 이름 붙인 인자로 쓰면 읽기 좋다: <code>exec([&quot;make&quot;], cwd: &quot;/src&quot;, env: {CC: &quot;clang&quot;})</code>.</p>
@@ -107,13 +107,13 @@
 <ul>
 <li><code>cmd</code>: 비지 않은 문자열 리스트. <code>[프로그램, 인자…]</code>.</li>
 <li><code>cwd</code>: 실행할 디렉터리, 또는 <code>nil</code>(지금 디렉터리). 빈 문자열은 E0403이다(지금 디렉터리는 <code>nil</code>이나 <code>&quot;.&quot;</code>).</li>
-<li><code>env</code>: 덧붙일 환경 변수(값이 문자열인 맵), 또는 <code>nil</code>. 이름은 비지 않고 <code>=</code>가 없어야 한다.</li>
+<li><code>env</code>: 덧붙일 환경 변수(값이 문자열인 맵), 또는 <code>nil</code>. 이름은 <a href="#fn-env"><code>env</code></a>의 <code>name</code>과 같은 규칙으로 비지 않고 <code>=</code>·NUL이 없어야 한다.</li>
 <li><code>stdin</code>: 표준 입력으로 넣을 문자열, 또는 <code>nil</code>.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p><code>Ok({out: 문자열, err: 문자열, code: 0, signal: nil})</code>, 또는 <code>Err({kind: 'exit, code, signal, out, err, message})</code>(종료 코드면 <code>signal: nil</code>, 신호면 <code>code: nil</code>), 또는 시작하지 못한 <code>Err({kind, message})</code>(<code>'not_found</code>·<code>'permission</code>·<code>'invalid</code>·<code>'io</code>), 또는 <code>Err({kind: 'io, message})</code>(출력이 문자열 한도를 넘음).</p>
 <h4>에러</h4>
-<p>인자의 타입이 틀리면 런타임 에러 E0403: <code>cmd</code>가 문자열이거나(<code>exec(&quot;ls -l&quot;)</code>은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(<code>exec([&quot;&quot;])</code>), 문자열이 아닌 원소가 있을 때, <code>cwd</code>가 빈 문자열일 때, <code>env</code>의 값이 문자열이 아니거나 이름에 <code>=</code>가 있을 때 등.</p>
+<p>인자의 타입이 틀리면 런타임 에러 E0403: <code>cmd</code>가 문자열이거나(<code>exec(&quot;ls -l&quot;)</code>은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(<code>exec([&quot;&quot;])</code>), 문자열이 아닌 원소가 있을 때, <code>cwd</code>가 빈 문자열일 때, <code>env</code>의 값이 문자열이 아니거나 이름이 비었거나 <code>=</code>·NUL이 있을 때 등.</p>
 <h4>예제</h4>
 <p><strong>출력 얻기</strong></p>
 <div class="run"><pre><code>r = exec([&quot;echo&quot;, &quot;hi&quot;])!
@@ -122,10 +122,10 @@ print(trim(r.out))</code></pre><pre class="out plain"><code>{out: &quot;hi\n&quo
 hi</code></pre></div>
 <p><strong>실패를 가르기</strong></p>
 <div class="run"><pre><code>fn run(cmd) = match exec(cmd):
-  Ok(r)                                 =&gt; &quot;ok: ${trim(r.out)}&quot;
-  Err({kind: 'exit, code: nil, signal}) =&gt; &quot;killed by signal ${signal}&quot;
-  Err({kind: 'exit, code})              =&gt; &quot;exited with ${code}&quot;
-  Err({kind: 'not_found})               =&gt; &quot;no such command&quot;
+  Ok(r)                                      =&gt; &quot;ok: ${trim(r.out)}&quot;
+  Err({kind: 'exit, code: nil, signal, ...}) =&gt; &quot;killed by signal ${signal}&quot;
+  Err({kind: 'exit, code, ...})              =&gt; &quot;exited with ${code}&quot;
+  Err({kind: 'not_found, ...})               =&gt; &quot;no such command&quot;
 ;;
 
 print(run([&quot;echo&quot;, &quot;fine&quot;]))
@@ -171,7 +171,7 @@ true</code></pre></div>
 </section>
 <section class="entry" id="fn-sh">
 <h3>sh</h3>
-<p>문자열 <code>cmd</code>를 <code>/bin/sh -c cmd</code>로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다.</p>
+<p>문자열 <code>cmd</code>를 <code>/bin/sh -c cmd</code>로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다. 문자열은 쉘에 그대로 넘기고 그 뜻은 쉘이 정한다(<code>sh(&quot;&quot;)</code>는 쉘이 아무 일도 하지 않고 끝나 <code>code: 0</code>이다).</p>
 <div class="sig"><code>sh(cmd, cwd = nil, env = nil, stdin = nil)</code></div>
 <h4>설명</h4>
 <p><code>exec([&quot;/bin/sh&quot;, &quot;-c&quot;, cmd], …)</code>와 같다. 돌려주는 값, <code>cwd</code>·<code>env</code>·<code>stdin</code>, 취소의 규칙이 모두 <a href="#fn-exec"><code>exec</code></a>와 같다. 종료 코드는 쉘의 것, 곧 파이프라인의 마지막 명령의 것이다.</p>
@@ -216,12 +216,12 @@ print(trim(r.out))</code></pre><pre class="out plain"><code>two; echo injected</
 <p>모든 환경 변수가 필요하면 <a href="#fn-env_all"><code>env_all</code></a>을 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>name</code>: 변수 이름(문자열).</li>
+<li><code>name</code>: 변수 이름(문자열). 비지 않고 <code>=</code>·NUL이 없어야 한다.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p>문자열 또는 <code>nil</code>.</p>
 <h4>에러</h4>
-<p><code>name</code>이 문자열이 아니면 런타임 에러 E0403.</p>
+<p><code>name</code>이 문자열이 아니거나 변수 이름이 될 수 없으면(빈 이름, <code>=</code>나 NUL이 든 이름) 런타임 에러 E0403. 그런 변수는 있을 수 없으므로 <code>nil</code>이 아니라 코드의 실수다. <a href="#fn-exec"><code>exec</code></a>·<a href="#fn-sh"><code>sh</code></a>의 <code>env</code> 맵의 이름도 같은 검사다.</p>
 <h4>예제</h4>
 <p><strong>기본값과 함께</strong></p>
 <div class="run"><pre><code>port = env(&quot;PORT&quot;) ?? &quot;8080&quot;

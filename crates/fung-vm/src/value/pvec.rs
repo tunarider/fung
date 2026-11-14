@@ -88,6 +88,22 @@ impl<T> Node<T> {
         }
     }
 
+    /// Takes the first `k` items off a leaf. What the memo says no to
+    /// stays no, since no item came in; a yes may be gone, so it is
+    /// forgotten.
+    fn drop_vals_front(&mut self, k: usize) {
+        let Node::Leaf(v, m) = self else {
+            unreachable!("pvec: branch where a leaf belongs")
+        };
+        drop(v.drain(..k));
+        let no = [Probe::Mutable, Probe::Err, Probe::Fn]
+            .map(shift)
+            .into_iter()
+            .filter(|&s| (m.get() >> s) & 3 == NO)
+            .fold(0, |acc, s| acc | NO << s);
+        m.set(no);
+    }
+
     fn vals_mut(&mut self) -> &mut Vec<T> {
         match self {
             Node::Leaf(v, m) => {
@@ -173,7 +189,15 @@ fn suffix<T>(node: &Rc<Node<T>>, level: u32, from: usize) -> Rc<Node<T>> {
     let (full, rem) = (from / per, from % per);
     let kids = node.kids();
     let mut out: Vec<Rc<Node<T>>> = Vec::with_capacity(kids.len());
-    out.extend((0..full).map(|_| placeholder()));
+    // A slot that is a placeholder already keeps it: a vector eaten from
+    // the front makes one new placeholder a leaf, not one per slot.
+    out.extend(kids[..full].iter().map(|k| {
+        if is_placeholder(k) {
+            k.clone()
+        } else {
+            placeholder()
+        }
+    }));
     if rem > 0 {
         out.push(suffix(&kids[full], level - BITS, rem));
         out.extend(kids[full + 1..].iter().cloned());
@@ -465,8 +489,12 @@ impl<T: Clone> Pvec<T> {
         }
         let h = self.head_len();
         if k <= h {
-            let rest = self.head.vals()[k..].to_vec();
-            self.head = leaf(rest);
+            // A head this vector holds alone loses its first items where
+            // it is; a shared one is copied.
+            match Rc::get_mut(&mut self.head) {
+                Some(head) => head.drop_vals_front(k),
+                None => self.head = leaf(self.head.vals()[k..].to_vec()),
+            }
             self.cnt -= k;
             return;
         }
@@ -548,41 +576,12 @@ impl<T: Clone> Pvec<T> {
 impl<T: Probed> Pvec<T> {
     /// Whether an item answers `p` (`Probed::has`): the trie's nodes
     /// remember the answer, so after a change only the copied path is
-    /// looked at again; the tail (at most 32) is scanned.
+    /// looked at again. The head and the tail (at most 32 each) remember
+    /// it too: a list eaten from the front one item at a time keeps its
+    /// head's no (`Node::drop_vals_front`) instead of scanning the head
+    /// at every step.
     pub(crate) fn holds(&self, p: Probe) -> bool {
-        self.head.vals().iter().any(|x| x.has(p))
-            || node_holds(&self.root, p)
-            || self.tail.vals().iter().any(|x| x.has(p))
-    }
-}
-
-impl<T: Probed + Clone> Pvec<T> {
-    /// `holds` for the items `lo..hi` only (a list's slice): the subtrees
-    /// inside the range answer from their memo, and only the leaves the
-    /// range cuts are scanned, so a slice costs about what the whole
-    /// vector does.
-    pub(crate) fn holds_in(&self, lo: usize, hi: usize, p: Probe) -> bool {
-        let h = self.head_len();
-        if lo < h && self.head.vals()[lo..hi.min(h)].iter().any(|x| x.has(p)) {
-            return true;
-        }
-        let off = self.tail_off();
-        if hi > off {
-            let from = lo.max(off) - off;
-            if self.tail.vals()[from..hi - off].iter().any(|x| x.has(p)) {
-                return true;
-            }
-        }
-        let (a, b) = (lo.max(h), hi.min(off));
-        a < b
-            && range_holds(
-                &self.root,
-                self.shift,
-                0,
-                self.pos(a),
-                self.pos(b - 1) + 1,
-                p,
-            )
+        node_holds(&self.head, p) || node_holds(&self.root, p) || node_holds(&self.tail, p)
     }
 }
 
@@ -590,7 +589,7 @@ impl<T: Probed> Pvec<T> {
     /// Hands `f` each item of `lo..hi` that answers `p`, a node at a time:
     /// a subtree whose memo says no is passed by, and a shared node that
     /// `seen` has met already (it returns false) is not entered again, so
-    /// many views on one vector cost about their cut leaves each (L5, the
+    /// many slices of one vector cost about their cut leaves each (L5, the
     /// `send` walk).
     pub(crate) fn each_holding(
         &self,
@@ -655,35 +654,6 @@ fn range_each<T: Probed>(
                 }
                 range_each(kid, level - BITS, ks, lo.max(ks), hi.min(ke), p, seen, f);
             }
-        }
-    }
-}
-
-/// Whether an item `lo..hi` of the subtree `n` (at `level`, whose first
-/// item is `start`) answers `p`.
-fn range_holds<T: Probed>(
-    n: &Node<T>,
-    level: u32,
-    start: usize,
-    lo: usize,
-    hi: usize,
-    p: Probe,
-) -> bool {
-    match n {
-        Node::Leaf(v, _) => v[lo - start..hi - start].iter().any(|x| x.has(p)),
-        Node::Branch(k, _) => {
-            let width = 1usize << level;
-            k.iter().enumerate().any(|(j, kid)| {
-                let ks = start + j * width;
-                let ke = ks + width;
-                if ke <= lo || ks >= hi {
-                    false
-                } else if lo <= ks && ke <= hi {
-                    node_holds(kid, p)
-                } else {
-                    range_holds(kid, level - BITS, ks, lo.max(ks), hi.min(ke), p)
-                }
-            })
         }
     }
 }

@@ -1,6 +1,6 @@
 //! Source files and positions.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Index of a file registered in a [`SourceMap`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -21,6 +21,10 @@ struct File {
     /// The byte offset where each line starts: a diagnostic finds its
     /// line without reading the file from the start (FE16).
     starts: Box<[usize]>,
+    /// The number of characters on each line, counted the first time a
+    /// diagnostic asks (VM51: many errors on one long line each looked
+    /// at the whole line).
+    chars: OnceLock<Box<[usize]>>,
 }
 
 impl SourceMap {
@@ -36,6 +40,7 @@ impl SourceMap {
             name: name.into(),
             text: text.into(),
             starts,
+            chars: OnceLock::new(),
         }));
         self.last_id()
     }
@@ -67,6 +72,21 @@ impl SourceMap {
         let start = *f.starts.get(i)?;
         let end = f.starts.get(i + 1).map_or(f.text.len(), |e| e - 1);
         Some(&f.text[start..end])
+    }
+
+    /// The number of characters on line `n` (1-based) of file `id`,
+    /// without its `\n`: the lines are counted once, all in one pass.
+    pub fn line_chars(&self, id: FileId, n: u32) -> Option<usize> {
+        let f = &self.files[id.0 as usize];
+        let chars = f.chars.get_or_init(|| {
+            (0..f.starts.len())
+                .map(|i| {
+                    let end = f.starts.get(i + 1).map_or(f.text.len(), |e| e - 1);
+                    f.text[f.starts[i]..end].chars().count()
+                })
+                .collect()
+        });
+        chars.get((n as usize).checked_sub(1)?).copied()
     }
 
     /// The number of files registered.

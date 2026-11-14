@@ -19,7 +19,7 @@ print(json.stringify({a: [1, {b: "s"}], t: [1, 2]}, indent: 2))
 # expect:   ]
 # expect: }
 match json.parse("{bad}"):
-  Err({kind: 'parse, line: l, col: c}) => print("parse error at", l, c)
+  Err({kind: 'parse, line: l, col: c, ...}) => print("parse error at", l, c)
 ;;
 # expect: parse error at 1 2
 print(json.parse("12345678901234567890"))

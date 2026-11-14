@@ -63,18 +63,12 @@ fn build(n: &Node) -> Result<Pattern, Diag> {
         Head::Ptuple => kids(pattern(PatKind::Tuple), &n.kids),
         Head::Plist => {
             let mut p = pattern(PatKind::List);
-            let mut items = &n.kids[..];
-            if let Some((last, init)) = items.split_last()
-                && last.head == Head::Prest
-            {
-                p.rest = Some(Box::new(build(last)?));
-                items = init;
-            }
+            let items = split_rest(&mut p, &n.kids)?;
             kids(p, items)
         }
         Head::Pmap => {
             let mut p = pattern(PatKind::Map);
-            for entry in &n.kids {
+            for entry in split_rest(&mut p, &n.kids)? {
                 p.kids.push(build(&entry.kids[0])?);
                 p.keys.push(match &entry.lit {
                     Lit::Bytes(b) => b.clone(),
@@ -91,17 +85,31 @@ fn build(n: &Node) -> Result<Pattern, Diag> {
     }
 }
 
-/// How many alternatives a guarded pattern may spread into (each nested
-/// `|` multiplies them).
+/// How many alternatives that bind names a guarded pattern may spread
+/// into (each nested `|` that binds multiplies them).
 const MAX_ALTERNATIVES: usize = 256;
 
-/// The alternatives of `n` with every `|` moved to the top, in the order
-/// they are tried: `Ok((a, _) | (_, a))` is `Ok((a, _))`, `Ok((_, a))`.
-/// A guarded arm tries the guard with each in turn (03), so a guard that
-/// fails on one alternative's bindings still lets a later one match.
-/// More than [`MAX_ALTERNATIVES`] is E0230.
+/// Whether a pattern binds a name: `_` and `..._` do not.
+fn binds(n: &Node) -> bool {
+    match n.head {
+        Head::Pbind => true,
+        Head::Prest => !n.kids.is_empty(),
+        _ => n.kids.iter().any(binds),
+    }
+}
+
+/// The alternatives of `n` that bind names, every such `|` moved to the
+/// top, in the order they are tried: `Ok((a, _) | (_, a))` is
+/// `Ok((a, _))`, `Ok((_, a))`. A guarded arm tries the guard with each in
+/// turn (03), so a guard that fails on one alternative's bindings still
+/// lets a later one match. A `|` that binds nothing (`1 | 2`) cannot
+/// change what the guard sees, so it stays one `Alt` inside the pattern
+/// (D131). More than [`MAX_ALTERNATIVES`] spread ones is E0230.
 pub(super) fn alternatives(n: &Node) -> Result<Vec<Node>, Diag> {
     fn spread(n: &Node, limit: usize) -> Option<Vec<Node>> {
+        if !binds(n) {
+            return Some(vec![n.clone()]);
+        }
         if n.head == Head::Palt {
             let mut out = Vec::new();
             for k in &n.kids {
@@ -141,11 +149,23 @@ pub(super) fn alternatives(n: &Node) -> Result<Vec<Node>, Diag> {
             "E0230",
             n.pos,
             vec![
-                crate::diag::Arg::Str("alternatives in a guarded pattern".into()),
+                crate::diag::Arg::Str("alternatives that bind names in a guarded pattern".into()),
                 crate::diag::Arg::Int(MAX_ALTERNATIVES as i64),
             ],
         )
     })
+}
+
+/// The items of a list or map pattern before its `...rest`, if it has
+/// one: the rest goes into `p.rest`.
+fn split_rest<'a>(p: &mut Pattern, items: &'a [Node]) -> Result<&'a [Node], Diag> {
+    match items.split_last() {
+        Some((last, init)) if last.head == Head::Prest => {
+            p.rest = Some(Box::new(build(last)?));
+            Ok(init)
+        }
+        _ => Ok(items),
+    }
 }
 
 fn kids(mut p: Pattern, kids: &[Node]) -> Result<Pattern, Diag> {

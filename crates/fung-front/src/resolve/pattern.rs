@@ -1,6 +1,6 @@
 //! Pattern bindings: destructuring assignments and match arms.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::scope::{Binding, Made};
 use super::{Resolver, lit_str, name_error, ref_node, rune_len};
@@ -14,7 +14,7 @@ pub(super) enum Mode {
     /// Like assignment (`bind_new`).
     Assign,
     /// Always a new name in the current block (a `match` arm, a `for`
-    /// or parameter pattern); hiding an outer name is E0240 (D38).
+    /// or parameter pattern); hiding an outer name is E0238 (D38, D122).
     Fresh,
 }
 
@@ -138,16 +138,22 @@ impl Resolver<'_> {
             .iter()
             .position(|a| a.kids[1].head == Head::Nil && matches_all(&a.kids[0]))
         {
-            let prev = i.checked_sub(1).map(|j| &arms[j].kids[0]);
+            let prev = i.checked_sub(1).map(|j| &arms[j]);
             self.errs
                 .push(self.unreachable_after(&arms[i].kids[0], prev));
         }
-        self.repeated_literals(arms);
+        self.covered_arms(arms);
         for arm in arms {
+            if arm.kids[0].head == Head::Pbind {
+                let at = arm.kids[0].pos;
+                self.catch_all.insert((at.line, at.col));
+            }
             let body = &arm.kids[2];
             self.push_block(body, false);
             self.cur_block().made = Made::Arm;
+            self.guarded = arm.kids[1].head != Head::Nil;
             let pat = self.bind_pattern(&arm.kids[0], Mode::Fresh);
+            self.guarded = false;
             let guard = self.walk(&arm.kids[1]);
             let body = if body.head == Head::Do {
                 let stmts = body.kids.iter().map(|k| self.stmt(k)).collect();
@@ -172,10 +178,19 @@ impl Resolver<'_> {
         let name = lit_str(pat);
         let what = "matches everything, so the arms after it never run";
         let e = error("E0235", pat.pos, vec![Arg::Str(what.into())]).span(rune_len(name).max(1));
-        if prev.is_some_and(|p| pat.pos.line > p.pos.line && pat.pos.col > p.pos.col) {
+        let prev_pat = prev.map(|a| &a.kids[0]);
+        if prev_pat.is_some_and(|p| pat.pos.line > p.pos.line && pat.pos.col > p.pos.col) {
             return e.with_help(
                 "a line of the form `pattern =>` starts a new arm; a lambda as the value of the arm above goes in parentheses: `(y => y + 1)`",
             );
+        }
+        // `1 => y => y + 1`: `y =>` was read as the next arm, so the arm
+        // before it is empty (FE25, D121).
+        if pat.head == Head::Pbind
+            && prev.is_some_and(|a| a.kids[2].kids.is_empty() && a.kids[0].pos.line == pat.pos.line)
+        {
+            return e
+                .with_help("a lambda as an arm's value goes in parentheses: `1 => (y => y + 1)`");
         }
         if pat.head != Head::Pbind {
             return e;
@@ -192,23 +207,26 @@ impl Resolver<'_> {
 }
 
 impl Resolver<'_> {
-    /// E0241 at an alternative an earlier one of the same `|` takes every
-    /// value of: one after an alternative that matches everything, or the
-    /// same alternative written again (FE61).
+    /// E0241 at an alternative an earlier one of the same `|` covers
+    /// (D112): one after an alternative that matches everything, the same
+    /// alternative written again, or one whose every value an earlier one
+    /// matches.
     fn dead_alternatives(&mut self, alt: &Node) {
-        // one pass: what the earlier ones are is kept as it goes (FE75)
-        let mut takes_all = false;
-        let mut written: HashSet<String> = HashSet::new();
-        for a in &alt.kids {
-            let text = a.to_string();
-            let what = if takes_all {
+        // Under a guard each alternative is tried with the guard, so an
+        // earlier one covers nothing (a guarded pattern never covers).
+        if self.guarded {
+            return;
+        }
+        for (i, a) in alt.kids.iter().enumerate() {
+            let Some(by) = alt.kids[..i].iter().find(|b| covers(b, a)) else {
+                continue;
+            };
+            let what = if matches_all(by) {
                 "an alternative before it matches everything"
-            } else if written.contains(&text) {
+            } else if by.to_string() == a.to_string() || (is_literal(by) && is_literal(a)) {
                 "it repeats an alternative before it"
             } else {
-                takes_all = matches_all(a);
-                written.insert(text);
-                continue;
+                "an alternative before it matches all it matches"
             };
             self.errs
                 .push(error("E0241", a.pos, vec![Arg::Str(what.into())]));
@@ -216,36 +234,119 @@ impl Resolver<'_> {
         }
     }
 
-    /// E0235 at an arm whose pattern is a literal an earlier arm without a
-    /// guard already matches (alone or as an alternative): it never runs
-    /// (D51). Numbers are the same by value, as `match` compares them:
-    /// `1.0` after `1` never runs (FE70).
-    fn repeated_literals(&mut self, arms: &[Node]) {
-        let mut seen: HashMap<String, u32> = HashMap::new();
-        for arm in arms {
+    /// E0235 at an arm an earlier arm without a guard covers (D112): it
+    /// never runs. A literal arm after the same literal names that arm's
+    /// line (D51), so does any other. An arm after one that matches
+    /// everything is reported there instead (`unreachable_after`). An arm
+    /// of alternatives only some of which are covered keeps the others:
+    /// E0241 at the first covered one.
+    fn covered_arms(&mut self, arms: &[Node]) {
+        for (j, arm) in arms.iter().enumerate() {
             let pat = &arm.kids[0];
-            if is_literal(pat)
-                && let Some(line) = seen.get(&literal_key(pat))
-            {
-                let what =
-                    format!("never runs: the arm on line {line} matches the same literal first");
+            let earlier = arms[..j].iter().filter(|a| a.kids[1].head == Head::Nil);
+            if let Some(by) = earlier.clone().find(|a| covers(&a.kids[0], pat)) {
+                if matches_all(&by.kids[0]) {
+                    continue; // reported at the arm that matches everything
+                }
+                let line = by.kids[0].pos.line;
+                let what = if is_literal(pat) && is_literal(&by.kids[0]) {
+                    format!("never runs: the arm on line {line} matches the same literal first")
+                } else {
+                    format!("never runs: the arm on line {line} matches all it matches first")
+                };
                 self.errs.push(
                     error("E0235", pat.pos, vec![Arg::Str(what)])
                         .with_help("remove one of the two arms, or join their bodies in one"),
                 );
-            }
-            if arm.kids[1].head != Head::Nil {
                 continue;
             }
-            let alts = match pat.head {
-                Head::Palt => &pat.kids[..],
-                _ => std::slice::from_ref(pat),
-            };
-            for a in alts.iter().filter(|a| is_literal(a)) {
-                seen.entry(literal_key(a)).or_insert(a.pos.line);
+            if pat.head != Head::Palt {
+                continue;
+            }
+            let dead = pat.kids.iter().find_map(|a| {
+                let by = earlier.clone().find(|b| covers(&b.kids[0], a))?;
+                Some((a, by.kids[0].pos.line))
+            });
+            if let Some((a, line)) = dead {
+                let what = format!("the arm on line {line} matches all it matches first");
+                self.errs.push(error("E0241", a.pos, vec![Arg::Str(what)]));
             }
         }
     }
+}
+
+/// Whether every value `b` matches, `a` matches too (D112), seen from the
+/// patterns alone: `_` or a name covers anything; a literal an equal
+/// literal; a tuple, a tag value, a list or a map one of the same shape
+/// whose parts it covers (a list or map pattern opened with `...` covers
+/// longer lists, or maps with more keys); `a | b` when one alternative
+/// does; and a pattern covers alternatives when it covers each. Several
+/// patterns that together cover one are not looked at.
+fn covers(a: &Node, b: &Node) -> bool {
+    if b.head == Head::Palt {
+        return b.kids.iter().all(|x| covers(a, x));
+    }
+    match a.head {
+        Head::Pwild | Head::Pbind => true,
+        Head::Palt => a.kids.iter().any(|x| covers(x, b)),
+        Head::Plit | Head::Pnil | Head::Psym => is_literal(b) && literal_key(a) == literal_key(b),
+        Head::Ptuple => b.head == Head::Ptuple && all_cover(&a.kids, &b.kids),
+        Head::Ptag => {
+            b.head == Head::Ptag && lit_str(a) == lit_str(b) && all_cover(&a.kids, &b.kids)
+        }
+        Head::Plist => b.head == Head::Plist && list_covers(a, b),
+        Head::Pmap => b.head == Head::Pmap && map_covers(a, b),
+        _ => false,
+    }
+}
+
+/// Patterns of the same count, each covering its place.
+fn all_cover(a: &[Node], b: &[Node]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| covers(x, y))
+}
+
+/// A map pattern entry's key as written (a string or, not valid UTF-8,
+/// its bytes).
+fn key(e: &Node) -> Option<&[u8]> {
+    match &e.lit {
+        Lit::Str(s) => Some(s.as_bytes()),
+        Lit::Bytes(b) => Some(b),
+        _ => None,
+    }
+}
+
+/// A pattern's items and whether it ends in `...` (a list or a map).
+fn split_rest(p: &Node) -> (&[Node], bool) {
+    match p.kids.split_last() {
+        Some((last, items)) if last.head == Head::Prest => (items, true),
+        _ => (&p.kids[..], false),
+    }
+}
+
+/// A closed list pattern covers one of the same length; an open one with
+/// `k` items covers any whose first `k` items it covers (so at least that
+/// many), open or not.
+fn list_covers(a: &Node, b: &Node) -> bool {
+    let ((ai, ar), (bi, br)) = (split_rest(a), split_rest(b));
+    if !ar {
+        return !br && all_cover(ai, bi);
+    }
+    bi.len() >= ai.len() && all_cover(ai, &bi[..ai.len()])
+}
+
+/// A closed map pattern covers a closed one with the same keys; an open
+/// one covers any (open or closed) that has its keys; the values of its
+/// keys covering in each case. A closed one never covers an open one.
+fn map_covers(a: &Node, b: &Node) -> bool {
+    let ((ai, ar), (bi, br)) = (split_rest(a), split_rest(b));
+    if !ar && (br || ai.len() != bi.len()) {
+        return false;
+    }
+    ai.iter().all(|e| {
+        bi.iter()
+            .find(|f| key(f) == key(e))
+            .is_some_and(|f| covers(&e.kids[0], &f.kids[0]))
+    })
 }
 
 /// What a literal pattern matches, as a key: a number by its value (an

@@ -27,7 +27,7 @@ description: fung prelude 프로세스와 환경: exec, sh, env, env_all.
 - **성공**(종료 코드 0): `Ok({out, err, code: 0, signal: nil})`.
 - **0이 아닌 종료**: `Err({kind: 'exit, code, signal: nil, out, err, message})`. 출력도 들어 있으므로 실패 이유를 `e.err`로 보여 줄 수 있다. `exec(…)!`로 쓰면 실패할 때 멈추므로 쉘의 `set -e`와 같고, 문장으로만 쓴 `exec(…)`도 `Err`를 버리면 E0606으로 멈춘다.
 - **신호로 끝남**: `Err({kind: 'exit, code: nil, signal: n, out, err, message})`. 종료 코드가 없으므로 `code`는 `nil`이고 `signal`이 신호 번호다(SIGKILL이면 9: 메모리가 모자라 운영체제가 끝낸 명령이 흔히 이렇다). 메시지는 ``message: "`/bin/sh` was killed by signal 9 (SIGKILL)"``이다. 셸의 `$?`처럼 128 + n으로 바꾸지 않으므로, 실제로 137로 끝난 명령과 섞이지 않는다. 결과는 성공이든 실패든 늘 `code`와 `signal`을 둘 다 가진다.
-- **실행할 수 없음**: 시작하지 못하면 `Err({kind, message})`. `kind`는 [`fs`와 같은 표](results.html#kinds)를 따른다: 명령이나 `cwd`가 없으면(디렉터리가 아니어도) `'not_found`, 실행 권한이 없으면 `'permission`, NUL이 든 인자·환경 변수·`cwd`는 `'invalid`, 실행 파일이 아닌 파일(`ENOEXEC`) 등 그 밖은 `'io`. 이유는 `command not found in PATH`, `permission denied`, ``working directory `/nope`: no such file or directory`` 등이다. 실행 권한이 없는 스크립트는 `["sh", "script.sh"]`로 돌린다.
+- **실행할 수 없음**: 시작하지 못하면 `Err({kind, message})`. `kind`는 [`fs`와 같은 표](results.html#kinds)를 따른다: 명령이나 `cwd`가 없으면(디렉터리가 아니어도) `'not_found`, 실행 권한이 없으면 `'permission`, NUL이 든 인자·환경 변수의 값·`cwd`는 `'invalid`, 실행 파일이 아닌 파일(`ENOEXEC`) 등 그 밖은 `'io`. 이유는 `command not found in PATH`, `permission denied`, ``working directory `/nope`: no such file or directory`` 등이다. 실행 권한이 없는 스크립트는 `["sh", "script.sh"]`로 돌린다.
 - **출력이 너무 김**: 표준 출력이나 표준 에러가 문자열 한도(1억 글자)를 넘으면 그 자리에서 명령을 끝내고(취소처럼 SIGTERM, 2초 뒤 SIGKILL) `Err({kind: 'io, message})`를 돌려준다(``standard output of `yes` is longer than the string limit (100000000 characters)``). 읽은 출력은 버린다. 끝없이 쓰는 명령도 메모리를 한도 근처까지만 쓴다.
 
 `cwd`를 주면 그 디렉터리에서 실행하고, 환경 변수 `PWD`도 그 절대 경로로 맞춘다(`env`를 줘도 그렇다; `env`에 `PWD`가 있으면 그 값). `env`는 지금 환경에 **덧붙일** 맵이다(같은 이름은 덮어쓴다). `stdin`을 주면 그 문자열을 명령의 표준 입력으로 넣고 닫는다. `stdin`이 `nil`이면 명령은 빈 입력을 받는다. fung이 받은 표준 입력을 명령에 넘기지 않는다. 이름 붙인 인자로 쓰면 읽기 좋다: `exec(["make"], cwd: "/src", env: {CC: "clang"})`.
@@ -42,7 +42,7 @@ description: fung prelude 프로세스와 환경: exec, sh, env, env_all.
 
 - `cmd`: 비지 않은 문자열 리스트. `[프로그램, 인자…]`.
 - `cwd`: 실행할 디렉터리, 또는 `nil`(지금 디렉터리). 빈 문자열은 E0403이다(지금 디렉터리는 `nil`이나 `"."`).
-- `env`: 덧붙일 환경 변수(값이 문자열인 맵), 또는 `nil`. 이름은 비지 않고 `=`가 없어야 한다.
+- `env`: 덧붙일 환경 변수(값이 문자열인 맵), 또는 `nil`. 이름은 [`env`](#fn-env)의 `name`과 같은 규칙으로 비지 않고 `=`·NUL이 없어야 한다.
 - `stdin`: 표준 입력으로 넣을 문자열, 또는 `nil`.
 
 #### 돌려주는 값
@@ -51,7 +51,7 @@ description: fung prelude 프로세스와 환경: exec, sh, env, env_all.
 
 #### 에러
 
-인자의 타입이 틀리면 런타임 에러 E0403: `cmd`가 문자열이거나(`exec("ls -l")`은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(`exec([""])`), 문자열이 아닌 원소가 있을 때, `cwd`가 빈 문자열일 때, `env`의 값이 문자열이 아니거나 이름에 `=`가 있을 때 등.
+인자의 타입이 틀리면 런타임 에러 E0403: `cmd`가 문자열이거나(`exec("ls -l")`은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(`exec([""])`), 문자열이 아닌 원소가 있을 때, `cwd`가 빈 문자열일 때, `env`의 값이 문자열이 아니거나 이름이 비었거나 `=`·NUL이 있을 때 등.
 
 #### 예제
 
@@ -67,10 +67,10 @@ print(trim(r.out))
 
 ```fung run
 fn run(cmd) = match exec(cmd):
-  Ok(r)                                 => "ok: ${trim(r.out)}"
-  Err({kind: 'exit, code: nil, signal}) => "killed by signal ${signal}"
-  Err({kind: 'exit, code})              => "exited with ${code}"
-  Err({kind: 'not_found})               => "no such command"
+  Ok(r)                                      => "ok: ${trim(r.out)}"
+  Err({kind: 'exit, code: nil, signal, ...}) => "killed by signal ${signal}"
+  Err({kind: 'exit, code, ...})              => "exited with ${code}"
+  Err({kind: 'not_found, ...})               => "no such command"
 ;;
 
 print(run(["echo", "fine"]))
@@ -127,7 +127,7 @@ print(timeout(() => exec(["sleep", "5"]), 100ms))
 
 :::fn sh(cmd, cwd = nil, env = nil, stdin = nil)
 
-문자열 `cmd`를 `/bin/sh -c cmd`로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다.
+문자열 `cmd`를 `/bin/sh -c cmd`로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다. 문자열은 쉘에 그대로 넘기고 그 뜻은 쉘이 정한다(`sh("")`는 쉘이 아무 일도 하지 않고 끝나 `code: 0`이다).
 
 #### 설명
 
@@ -202,7 +202,7 @@ print(sh("exit 2"))
 
 #### 매개변수
 
-- `name`: 변수 이름(문자열).
+- `name`: 변수 이름(문자열). 비지 않고 `=`·NUL이 없어야 한다.
 
 #### 돌려주는 값
 
@@ -210,7 +210,7 @@ print(sh("exit 2"))
 
 #### 에러
 
-`name`이 문자열이 아니면 런타임 에러 E0403.
+`name`이 문자열이 아니거나 변수 이름이 될 수 없으면(빈 이름, `=`나 NUL이 든 이름) 런타임 에러 E0403. 그런 변수는 있을 수 없으므로 `nil`이 아니라 코드의 실수다. [`exec`](#fn-exec)·[`sh`](#fn-sh)의 `env` 맵의 이름도 같은 검사다.
 
 #### 예제
 

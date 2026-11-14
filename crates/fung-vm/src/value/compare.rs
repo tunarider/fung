@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::rc::Rc;
 
@@ -15,18 +15,17 @@ use super::format::{Items, is_collection};
 /// handles by identity, different types are never equal. Collections are
 /// walked pair by pair with an explicit stack (L9): the Rust stack does
 /// not grow with the values' depth. The walk stops at the first
-/// difference.
+/// difference: whether `==` is an error does not depend on the walk
+/// (`check_fns`, D116).
 pub fn equal(a: &Value, b: &Value) -> bool {
-    walk(a, b, false).unwrap_or(false)
+    walk(a, b)
 }
 
 /// The one walk behind `equal` and `eq`. Values of different types are
-/// not equal (D91). With `strict`, two functions the walk compares are
-/// E0501 (D62): they have no equality. The check and the comparison are
-/// one step, so they stop at the same pair (VA8, VA22).
-fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
+/// not equal (D91).
+fn walk(a: &Value, b: &Value) -> bool {
     if !(is_collection(a) && is_collection(b)) {
-        return leaf(a, b, strict);
+        return equal_leaf(a, b);
     }
     let mut open: Vec<Pairs<'_>> = Vec::new();
     // The pairs of shared collections already walked (VA44): the walk
@@ -36,34 +35,28 @@ fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
     let mut walked = Walked::default();
     let mut next = Some((a, b));
     loop {
-        // A shared collection equals itself without a look inside,
-        // unless the look would find a function: `==` on functions is an
-        // error whether or not the two sides share their storage, which
-        // a program cannot see (VA43).
+        // A shared collection equals itself without a look inside.
         if let Some((a, b)) = next.take()
-            && !(same_object(a, b) && !(strict && a.holds_fn()))
+            && !same_object(a, b)
             && walked.first_time(a, b)
         {
-            if strict {
-                check_fns(a, b)?;
-            }
             match kids(a, b) {
                 Kids::Pairs(p) => open.push(p),
-                Kids::Mismatch => return Ok(false),
+                Kids::Mismatch => return false,
                 Kids::None => {
                     if !equal_leaf(a, b) {
-                        return Ok(false);
+                        return false;
                     }
                 }
             }
         }
         let Some(top) = open.last_mut() else {
-            return Ok(true);
+            return true;
         };
         match top.next() {
             Some((x, Some(y))) => next = Some((x, y)),
             // a key of the left map that the right one lacks
-            Some((_, None)) => return Ok(false),
+            Some((_, None)) => return false,
             None => {
                 open.pop();
             }
@@ -78,22 +71,21 @@ fn tuple_sizes(a: &Value, b: &Value) -> Diag {
         .with_help("tuples of different sizes are different types: a tuple's size is fixed")
 }
 
-/// `==` on two values that are not both collections.
-fn leaf(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
-    if strict {
-        check_fns(a, b)?;
-    }
-    Ok(equal_leaf(a, b))
-}
-
-/// Functions have no equality (D62): two of them met by `==` are E0501.
-/// Any other two values compare: those of different types are not
-/// equal, like any two different values (D91).
+/// Functions have no equality (D62), and neither has a value that holds
+/// one: two values that both hold a function, at any depth of their
+/// lists, maps, tuples and tags, are E0501 for `==` whatever else they
+/// hold and wherever the functions stand (D116). The answer depends on
+/// the two values as wholes, not on the order of their items, their sizes
+/// or what they share (VA43). A function on one side only is a
+/// difference like any other: `cb == nil` is `false` (D91).
 fn check_fns(a: &Value, b: &Value) -> Result<(), Diag> {
-    if is_fn(a) && is_fn(b) {
-        return Err(compare_error(a, b).with_help(
-            "functions have no equality; compare a name or a value that stands for each",
-        ));
+    if a.holds_fn() && b.holds_fn() {
+        let help = if is_fn(a) && is_fn(b) {
+            "functions have no equality; compare a name or a value that stands for each"
+        } else {
+            "both values hold a function, and functions have no equality; compare the parts that are not functions"
+        };
+        return Err(compare_error(a, b).with_help(help));
     }
     Ok(())
 }
@@ -201,12 +193,12 @@ fn kids<'a>(a: &'a Value, b: &'a Value) -> Kids<'a> {
 }
 
 /// `==` and `!=` as programs see them (02): `equal`, except that two
-/// functions anywhere the comparison looks (inside lists, tuples, tags
-/// and maps too) are E0501 (D62). Values of different types are not
-/// equal, like any two different values (D91; E0517, which D40 made of
-/// them, is retired). Patterns keep `equal`.
+/// values that both hold a function are E0501 (D62, D116). Values of
+/// different types are not equal, like any two different values (D91;
+/// E0517, which D40 made of them, is retired). Patterns keep `equal`.
 pub fn eq(a: &Value, b: &Value) -> Result<bool, Diag> {
-    walk(a, b, true)
+    check_fns(a, b)?;
+    Ok(walk(a, b))
 }
 
 /// Whether `a` and `b` are the same shared collection (P5): such a value
@@ -281,6 +273,264 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
                 found = found.then((*xn).cmp(yn));
                 open.pop();
             }
+        }
+    }
+}
+
+/// The one shape of the values an ordering function sorts or searches
+/// (VA60): `sort`, `sort_by`, `min` and `max` fold every element (key)
+/// into it before they order any, and the first that does not fit is
+/// E0501. Two values order exactly when their shapes unify (`compare`
+/// looks at every pair the two sides line up, D87), so the elements
+/// order pairwise exactly when all of them unify into one shape, which
+/// does not depend on their order nor on their values. A number, a
+/// string, a duration and a time are each a shape; a tuple is its size
+/// and a shape per position; a list a shape per position, as many as
+/// its longest element has (a shorter list says nothing of the positions
+/// it lacks). A value of any other type has no order: it fails as soon
+/// as anything meets it, or at the end (`finish`) as `x < x` would.
+///
+/// The nodes never change: folding a value in makes new nodes where the
+/// shape grows and shares the rest, so a node can stand at many places.
+/// Within one element, folding a collection with more than one holder
+/// into a node is remembered (VA44): a value that shares its parts many
+/// times over is folded once per (node, part), as `compare` walks such a
+/// pair once. So the work is linear in the size of the elements,
+/// counting a shared part once per node it meets.
+pub struct Shapes {
+    /// The nodes; the first is the fresh node no value has made.
+    nodes: Vec<Shape>,
+    /// The shape so far.
+    root: usize,
+    /// The first node made by a value with no order (`Kind::None`).
+    unordered: Option<usize>,
+    /// What folding a shared collection into a node gave.
+    folded: HashMap<(usize, *const ()), usize>,
+}
+
+/// A node of the shape and the first value that made it, which the
+/// errors name as `compare` would.
+struct Shape {
+    kind: Kind,
+    first: Value,
+}
+
+enum Kind {
+    /// No value has made the node yet (the first node only).
+    Fresh,
+    Num,
+    Str,
+    Dur,
+    Time,
+    Tuple(Rc<[usize]>),
+    List(Rc<[usize]>),
+    /// A value with no order.
+    None,
+}
+
+/// The fresh node.
+const FRESH: usize = 0;
+
+/// A collection being folded into a node: its items still to fold, the
+/// kids they go into, and what the kids became so far.
+struct Fold<'v> {
+    node: usize,
+    value: &'v Value,
+    items: Items<'v>,
+    kids: Vec<usize>,
+    done: usize,
+}
+
+impl Default for Shapes {
+    fn default() -> Shapes {
+        Shapes {
+            nodes: vec![Shape {
+                kind: Kind::Fresh,
+                first: Value::Nil,
+            }],
+            root: FRESH,
+            unordered: None,
+            folded: HashMap::new(),
+        }
+    }
+}
+
+impl Shapes {
+    /// Folds `v` into the shape: E0501 where it does not fit.
+    pub fn add(&mut self, v: &Value) -> Result<(), Diag> {
+        // An element itself is folded in whoever else holds it (the
+        // caller's cursor does); what it shares inside is remembered.
+        let mut open: Vec<Fold<'_>> = Vec::new();
+        // An address only stands for one value while an element holds it.
+        self.folded.clear();
+        let mut got = match self.open(self.root, v)? {
+            Ok(f) => {
+                open.push(f);
+                None
+            }
+            Err(n) => Some(n),
+        };
+        while let Some(top) = open.last_mut() {
+            if let Some(n) = got.take() {
+                top.kids[top.done] = n;
+                top.done += 1;
+            }
+            let Some(x) = top.items.next() else {
+                let f = open.pop().expect("the top");
+                let n = self.close(f);
+                got = Some(n);
+                continue;
+            };
+            let k = top.kids[top.done];
+            let key = shared(x).map(|p| (k, p));
+            if let Some(n) = key.and_then(|key| self.folded.get(&key)) {
+                got = Some(*n);
+                continue;
+            }
+            match self.open(k, x)? {
+                Ok(f) => open.push(f),
+                Err(n) => got = Some(n),
+            }
+        }
+        self.root = got.expect("the root");
+        Ok(())
+    }
+
+    /// E0501 when some position holds a value with no order: `x < x`
+    /// fails for it, alone as among others.
+    pub fn finish(&self) -> Result<(), Diag> {
+        match self.unordered {
+            Some(at) => {
+                let first = &self.nodes[at].first;
+                compare_leaf(first, first).map(|_| ())
+            }
+            None => Ok(()),
+        }
+    }
+
+    /// Starts folding `v` into node `at`: a collection to walk (`Ok`), or
+    /// the node a plain value leaves (`Err`).
+    #[allow(clippy::type_complexity)]
+    fn open<'v>(&mut self, at: usize, v: &'v Value) -> Result<Result<Fold<'v>, usize>, Diag> {
+        if self.flat_fit(at, v)? {
+            return Ok(Err(at));
+        }
+        let fresh = matches!(self.nodes[at].kind, Kind::Fresh);
+        let (items, kids) = match (v, &self.nodes[at].kind) {
+            (Value::Tuple(x), Kind::Fresh) => (Items::Slice(x.iter()), vec![FRESH; x.len()]),
+            (Value::Tuple(x), Kind::Tuple(k)) if k.len() == x.len() => {
+                (Items::Slice(x.iter()), k.to_vec())
+            }
+            (Value::List(x), Kind::Fresh) => (Items::List(x.iter()), vec![FRESH; x.len()]),
+            (Value::List(x), Kind::List(k)) => {
+                // a longer list adds the positions it has beyond
+                let mut kids = k.to_vec();
+                kids.resize(kids.len().max(x.len()), FRESH);
+                (Items::List(x.iter()), kids)
+            }
+            _ if fresh => return Ok(Err(self.leaf(v))),
+            _ => {
+                self.fit(at, v)?;
+                return Ok(Err(at));
+            }
+        };
+        Ok(Ok(Fold {
+            node: at,
+            value: v,
+            items,
+            kids,
+            done: 0,
+        }))
+    }
+
+    /// Whether `v` is a collection of plain values that fits the made
+    /// node `at` as it is (the usual row of a sort): checked without
+    /// walking it as a collection. `false` leaves the walk to `open`.
+    fn flat_fit(&self, at: usize, v: &Value) -> Result<bool, Diag> {
+        let (kids, items) = match (&self.nodes[at].kind, v) {
+            (Kind::Tuple(k), Value::Tuple(x)) if k.len() == x.len() => (k, Items::Slice(x.iter())),
+            (Kind::List(k), Value::List(x)) if k.len() >= x.len() => (k, Items::List(x.iter())),
+            _ => return Ok(false),
+        };
+        for (&k, x) in kids.iter().zip(items) {
+            if is_collection(x) || matches!(self.nodes[k].kind, Kind::Fresh) {
+                return Ok(false);
+            }
+        }
+        let items = match v {
+            Value::Tuple(x) => Items::Slice(x.iter()),
+            Value::List(x) => Items::List(x.iter()),
+            _ => unreachable!("a collection"),
+        };
+        for (&k, x) in kids.iter().zip(items) {
+            self.fit(k, x)?;
+        }
+        Ok(true)
+    }
+
+    /// The node a folded collection leaves: the old one when no kid
+    /// changed.
+    fn close(&mut self, f: Fold<'_>) -> usize {
+        let node = &self.nodes[f.node];
+        let n = match &node.kind {
+            Kind::Tuple(k) | Kind::List(k) if **k == f.kids[..] => f.node,
+            kind => {
+                let first = match kind {
+                    Kind::Fresh => f.value.clone(),
+                    _ => node.first.clone(),
+                };
+                let kind = match f.value {
+                    Value::Tuple(_) => Kind::Tuple(f.kids.into()),
+                    _ => Kind::List(f.kids.into()),
+                };
+                self.push(kind, first)
+            }
+        };
+        if let Some(p) = shared(f.value) {
+            self.folded.insert((f.node, p), n);
+        }
+        n
+    }
+
+    /// The node a plain value makes of the fresh node.
+    fn leaf(&mut self, v: &Value) -> usize {
+        let kind = match v {
+            Value::Int(_) | Value::Float(_) => Kind::Num,
+            Value::Str(_) => Kind::Str,
+            Value::Dur(_) => Kind::Dur,
+            Value::Time(_) => Kind::Time,
+            _ => Kind::None,
+        };
+        let none = matches!(kind, Kind::None);
+        let n = self.push(kind, v.clone());
+        if none {
+            self.unordered.get_or_insert(n);
+        }
+        n
+    }
+
+    fn push(&mut self, kind: Kind, first: Value) -> usize {
+        self.nodes.push(Shape { kind, first });
+        self.nodes.len() - 1
+    }
+
+    /// E0501, as `compare` gives it, when the plain value `v` (or a
+    /// collection of another kind) does not fit the made node `at`.
+    fn fit(&self, at: usize, v: &Value) -> Result<(), Diag> {
+        let node = &self.nodes[at];
+        let fits = matches!(
+            (&node.kind, v),
+            (Kind::Num, Value::Int(_) | Value::Float(_))
+                | (Kind::Str, Value::Str(_))
+                | (Kind::Dur, Value::Dur(_))
+                | (Kind::Time, Value::Time(_))
+        );
+        if fits {
+            return Ok(());
+        }
+        match (&node.first, v) {
+            (a @ Value::Tuple(_), b @ Value::Tuple(_)) => Err(tuple_sizes(a, b)),
+            (a, b) => Err(compare_error(a, b)),
         }
     }
 }

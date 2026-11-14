@@ -44,10 +44,10 @@ import json
 fn try_once(host):
   cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, "true"]
   match timeout(() => exec(cmd), 10s):
-    Ok(Ok(_))                   => Ok(nil)
-    Ok(Err({kind: 'exit, err})) => Err(trim(err))
-    Ok(Err(e))                  => Err(e.message)
-    Err(_)                      => Err("no answer in 10s")
+    Ok(Ok(_))                        => Ok(nil)
+    Ok(Err({kind: 'exit, err, ...})) => Err(trim(err))
+    Ok(Err(e))                       => Err(e.message)
+    Err(_)                           => Err("no answer in 10s")
   ;;
 ;;
 
@@ -64,7 +64,7 @@ for d in down:
   print("DOWN", d.host, "-", d.why)
 ;;
 match env("ALERT_WEBHOOK"):
-  nil => nil
+  nil =>
   url =>
     text = "${len(down)} of ${len(hosts)} servers down: ${down |> map(d => d.host) |> join(", ")}"
     http.post(url, json.stringify({text}), headers: {"content-type": "application/json"})!

@@ -136,14 +136,14 @@ skip: Server List.csv -&gt; server-list.csv (already exists)
 <li><code>done</code>·<code>skipped</code>: 결과 심볼 리스트에서 <code>filter</code>와 <code>len</code>으로 센다. 반복하면서 세는 변수를 따로 두지 않는다(아래 상자).</li>
 </ul>
 <div class="box mistake"><b>반복문 안에서 개수 세기</b>
-<p>쉘에서는 <code>n=$((n+1))</code>로 반복문 안에서 수를 센다. fung에서 같은 모양으로 쓰면 컴파일 에러 E0205다. 블록(<code>:</code>부터 <code>;;</code>까지)은 바깥 변수를 읽을 수는 있어도 바꿀 수는 없다.</p>
+<p>쉘에서는 <code>n=$((n+1))</code>로 반복문 안에서 수를 센다. fung에서 같은 모양으로 쓰면 컴파일 에러 E0238이다. 블록(<code>:</code>부터 <code>;;</code>까지)은 바깥 변수를 읽을 수는 있어도 바꿀 수는 없다.</p>
 <div class="run"><pre><code>n = 0
 for f in [&quot;a.txt&quot;, &quot;b.txt&quot;]:
-  n = n + 1  # E0205
-;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot assign to `n` here: it is bound outside this block
+  n = n + 1  # E0238
+;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `n` again: a name is bound once
   --&gt; example.fung:3:3
   |
-3 |   n = n + 1  # E0205
+3 |   n = n + 1  # E0238
   |   ^
   |
   note: `n` is a top-level name bound on line 1
@@ -157,7 +157,7 @@ for f in [&quot;a.txt&quot;, &quot;b.txt&quot;]:
 <li><strong>다른 규칙</strong>: 날짜를 앞에 붙이거나(<code>&quot;2026-10-20-&quot; + to</code>) 번호를 매기는 것은 <code>target</code>만 고치면 된다. 번호는 <code>zip(1..=len(files), files)</code>처럼 짝을 지어 넘긴다.</li>
 <li><strong>같은 이름으로 모이는 파일</strong>: <code>Server List.csv</code>와 <code>SERVER  LIST.csv</code>처럼 둘 다 <code>server-list.csv</code>가 되면, 실제로 돌릴 때는 먼저 처리된 쪽만 바뀌고 나머지는 <code>skip:</code>으로 남는다. 미리 보기는 파일을 옮기지 않으므로 둘 다 바뀔 것처럼 보인다. 미리 보기에서 같은 대상이 두 번 나오는지 살핀다.</li>
 </ul>
-<p>배우기: <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>, <a href="../learn/07-collections.html">7장 컬렉션</a>. 레퍼런스: <a href="../reference/modules/fs.html#fn-fs-list"><code>fs.list</code></a>, <a href="../reference/modules/fs.html#fn-fs-move"><code>fs.move</code></a>, <a href="../reference/modules/fs.html#fn-fs-exists"><code>fs.exists</code></a>, <a href="../reference/modules/path.html#fn-path-stem"><code>path.stem</code></a>, <a href="../reference/modules/path.html#fn-path-ext"><code>path.ext</code></a>, <a href="../reference/modules/cli.html#fn-cli-parse"><code>cli.parse</code></a>, <a href="../reference/errors.html#E0205">E0205</a>.</p>
+<p>배우기: <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>, <a href="../learn/07-collections.html">7장 컬렉션</a>. 레퍼런스: <a href="../reference/modules/fs.html#fn-fs-list"><code>fs.list</code></a>, <a href="../reference/modules/fs.html#fn-fs-move"><code>fs.move</code></a>, <a href="../reference/modules/fs.html#fn-fs-exists"><code>fs.exists</code></a>, <a href="../reference/modules/path.html#fn-path-stem"><code>path.stem</code></a>, <a href="../reference/modules/path.html#fn-path-ext"><code>path.ext</code></a>, <a href="../reference/modules/cli.html#fn-cli-parse"><code>cli.parse</code></a>, <a href="../reference/errors.html#E0238">E0238</a>.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="next" href="../recipes/find-big-files.html"><small>다음</small>큰 파일, 오래된 파일 찾기</a></nav>
 </div></main>
 </div>

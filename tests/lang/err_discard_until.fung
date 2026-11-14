@@ -1,0 +1,5 @@
+# `until` computes a value with its functions (VA63): as a statement it
+# only drops it.
+print(until(0, x => x + 1, x => x > 3))
+until(0, x => x + 1, x => x > 3)
+# expect-error: E0234

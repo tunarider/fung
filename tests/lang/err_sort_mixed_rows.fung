@@ -1,7 +1,9 @@
-# The functions that order their elements check every one against the
-# first before they start (D87): rows whose second fields do not compare
-# are an error even when the first fields alone would settle the order.
+# The functions that order their elements fold every one into one shape
+# before they start (D87, VA60): rows whose second fields do not compare
+# are an error even when the first fields alone would settle the order,
+# and whatever the order of the rows (a short row says nothing of the
+# fields it lacks).
 print(sort([[2, "b"], [1, "a"]]))
 # expect: [[1, "a"], [2, "b"]]
-print(sort([[1, "a"], [2, 2]]))
+print(sort([[], [1, "a"], [2], [3, 0]]))
 # expect-error: E0501

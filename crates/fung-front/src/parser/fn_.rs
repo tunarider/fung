@@ -141,6 +141,7 @@ impl<'a> Parser<'a> {
     fn params(&mut self, info: &mut FnInfo) -> PResult<Vec<Node>> {
         let open = self.toks[self.last].pos; // the `(` just read
         self.nest += 1;
+        self.gap();
         let r = self.params_inner(info, open);
         self.nest -= 1;
         r
@@ -182,8 +183,10 @@ impl<'a> Parser<'a> {
                 }
                 note_pattern(&mut seen, &pat)?;
                 info.params.push(pattern_param(pat));
+                self.gap();
                 if self.at(Kind::Comma) {
                     self.next();
+                    self.gap();
                     continue;
                 }
                 if !self.at(Kind::RParen) {
@@ -200,6 +203,8 @@ impl<'a> Parser<'a> {
             prm.rest = rest;
             if self.at(Kind::Colon) {
                 self.next();
+                // a line ending in `:` goes on (01 rule 1)
+                self.skip_newlines_after_operator();
                 prm.types = Some(self.type_spec()?);
             }
             if self.at(Kind::Assign) {
@@ -212,6 +217,8 @@ impl<'a> Parser<'a> {
                     return Err(e);
                 }
                 self.next();
+                // a line ending in `=` goes on (01 rule 1)
+                self.skip_newlines_after_operator();
                 // a `return` here is read so resolve names the rule (E0211)
                 self.return_ok = true;
                 defaults.push(self.expr(0)?);
@@ -221,8 +228,10 @@ impl<'a> Parser<'a> {
                 return Err(err("E0120", name.pos, Vec::new()));
             }
             info.params.push(prm);
+            self.gap();
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
                 continue;
             }
             if !self.at(Kind::RParen) {
@@ -307,6 +316,7 @@ impl<'a> Parser<'a> {
         } else {
             let open = self.next().pos; // (
             self.nest += 1;
+            self.gap();
             let r = self.lambda_params(&mut info, open);
             self.nest -= 1;
             r?;
@@ -339,8 +349,10 @@ impl<'a> Parser<'a> {
             } else {
                 info.params.push(pattern_param(pat));
             }
+            self.gap();
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
                 continue;
             }
             if !self.at(Kind::RParen) {

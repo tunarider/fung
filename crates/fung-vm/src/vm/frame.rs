@@ -133,12 +133,29 @@ impl Frame {
         })
     }
 
-    /// Takes `c` along: one check per place, the latest last (D44).
+    /// Whether the latest check the frame carries is `proto`'s check `ty`
+    /// at `pos`: `add_check` of it would change nothing (VM52).
+    #[inline(always)]
+    pub fn last_check_is(
+        &self,
+        proto: &Rc<RtProto>,
+        ty: Option<usize>,
+        pos: fung_front::source::Pos,
+    ) -> bool {
+        self.extra
+            .as_ref()
+            .and_then(|x| x.checks.last())
+            .is_some_and(|c| c.ty == ty && c.pos == pos && Rc::ptr_eq(&c.proto, proto))
+    }
+
+    /// Takes `c` along: one check per place and kind, the latest last
+    /// (D44): a bool check and a return type's at one place are two
+    /// (VM49).
     pub fn add_check(&mut self, c: Check) {
         let checks = &mut self.extra.get_or_insert_with(Default::default).checks;
         if let Some(i) = checks
             .iter()
-            .position(|d| d.pos == c.pos && Rc::ptr_eq(&d.proto, &c.proto))
+            .position(|d| d.pos == c.pos && d.ty == c.ty && Rc::ptr_eq(&d.proto, &c.proto))
         {
             checks.remove(i);
         }

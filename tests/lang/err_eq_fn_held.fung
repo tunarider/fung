@@ -1,0 +1,8 @@
+# Two values that both hold a function have no equality, whatever else
+# they hold and wherever the functions stand (D116): the error does not
+# depend on the other items nor on the order of a map's keys.
+f = x => x + 1
+print([1, f] == [1, 2], f in [1, 2], {cb: f} == {cb: nil})
+# expect: false false false
+print({a: 1, cb: f} == {a: 2, cb: f})
+# expect-error: E0501

@@ -261,7 +261,7 @@ fn atom_is_a_type_name() {
         run("fn f(a: atom) = deref(a)\nprint(f(atom(3)))"),
         ("3\n".into(), "".into(), 0)
     );
-    let o = exec("fn f(a: atom) = a\nf(1)", Opts::default());
+    let o = exec("fn f(a: atom) = a\nn = 1\nf(n)", Opts::default());
     assert_eq!(o.error.expect("an error").code, "E0403", "{}", o.err);
 }
 

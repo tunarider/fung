@@ -16,7 +16,7 @@ print(squares)
 
 <p>본문이 사실은 람다이므로 <code>for</code> 본문 안의 <code>return</code>과 <code>?</code>는 람다 안에서처럼 컴파일 에러 E0237이다(<a href="functions.html">함수</a>의 "람다의 본문"). 실패할 수 있는 변환은 첫 <code>Err</code>에서 멈추는 <code>try_map</code>, 찾기는 <code>find</code>, 검사는 <code>all</code>·<code>any</code>, 누적은 <code>fold</code>를 쓴다. <code>while</code>은 없다.</p>
 <div class="aside">
-<p><strong>누적과 재귀의 비용.</strong> 리스트와 맵은 불변이지만 사본이 원본과 구조를 공유하므로, <code>fold</code>로 <code>acc + [x]</code>·<code>[x] + acc</code>나 <code>put(acc, k, v)</code>를 쌓는 것과 <code>[x, ...rest]</code>·<code>xs[1..]</code>로 꼬리를 떼는 재귀는 모두 선형이다(2만 개에 수십 ms). 두 리스트를 이으면 짧은 쪽을 긴 쪽에 붙이므로 비용은 짧은 쪽의 길이에 비례한다. 문자열을 뒤에 붙여 쌓는 것(<code>acc + s</code>, <code>"${acc}…"</code>)도 선형이다. 피할 것은 문자열을 앞에 붙여 쌓는 것(<code>s + acc</code>)이다: 매번 전체를 복사한다. 조각을 리스트에 모아 <code>join</code>한다. 자세한 것은 <a href="../../vm/internals.html#collections">컬렉션의 내부</a>.</p>
+<p><strong>누적과 재귀의 비용.</strong> 리스트와 맵은 불변이지만 사본이 원본과 구조를 공유하므로, <code>fold</code>로 <code>acc + [x]</code>·<code>[x] + acc</code>나 <code>put(acc, k, v)</code>를 쌓는 것과 <code>[x, ...rest]</code>·<code>xs[1..]</code>로 꼬리를 떼는 재귀는 모두 선형이다(2만 개에 수십 ms). 두 리스트를 이으면 짧은 쪽을 긴 쪽에 붙이므로 비용은 짧은 쪽의 길이에 비례한다. 문자열을 뒤에 붙여 쌓는 것(<code>acc + s</code>, <code>"${acc}…"</code>)과 <code>s[1..]</code>로 문자열의 앞을 떼는 재귀도 선형이다. 피할 것은 문자열을 앞에 붙여 쌓는 것(<code>s + acc</code>)이다: 매번 전체를 복사한다. 조각을 리스트에 모아 <code>join</code>한다. 자세한 것은 <a href="../../vm/internals.html#collections">컬렉션의 내부</a>.</p>
 </div>
 
 ## 경계 사례와 에러 {#edges}

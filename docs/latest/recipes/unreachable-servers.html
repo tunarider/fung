@@ -91,10 +91,10 @@ import json
 fn try_once(host):
   cmd = [&quot;ssh&quot;, &quot;-o&quot;, &quot;BatchMode=yes&quot;, &quot;-o&quot;, &quot;ConnectTimeout=5&quot;, host, &quot;true&quot;]
   match timeout(() =&gt; exec(cmd), 10s):
-    Ok(Ok(_))                   =&gt; Ok(nil)
-    Ok(Err({kind: 'exit, err})) =&gt; Err(trim(err))
-    Ok(Err(e))                  =&gt; Err(e.message)
-    Err(_)                      =&gt; Err(&quot;no answer in 10s&quot;)
+    Ok(Ok(_))                        =&gt; Ok(nil)
+    Ok(Err({kind: 'exit, err, ...})) =&gt; Err(trim(err))
+    Ok(Err(e))                       =&gt; Err(e.message)
+    Err(_)                           =&gt; Err(&quot;no answer in 10s&quot;)
   ;;
 ;;
 
@@ -111,7 +111,7 @@ for d in down:
   print(&quot;DOWN&quot;, d.host, &quot;-&quot;, d.why)
 ;;
 match env(&quot;ALERT_WEBHOOK&quot;):
-  nil =&gt; nil
+  nil =&gt;
   url =&gt;
     text = &quot;${len(down)} of ${len(hosts)} servers down: ${down |&gt; map(d =&gt; d.host) |&gt; join(&quot;, &quot;)}&quot;
     http.post(url, json.stringify({text}), headers: {&quot;content-type&quot;: &quot;application/json&quot;})!

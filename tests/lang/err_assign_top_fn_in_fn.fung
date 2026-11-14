@@ -5,4 +5,4 @@ fn f():
   count
 ;;
 print(f() + count())
-# expect-error: E0240
+# expect-error: E0238

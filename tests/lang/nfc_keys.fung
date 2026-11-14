@@ -1,22 +1,37 @@
-# A key is a string as written: a name in a key place is not made NFC
-# (01). Here e + U+0301 (decomposed) and U+00E9 (composed) both show as e-acute.
-m = {"café": 1}
-print(m["café"], m.café)
-# expect: 1 1
-print({café: 1} == {"café": 1}, {café: 1} == {"café": 1})
+# An identifier-shaped map key is read as NFC like every name (D130), so the
+# composed and the decomposed spelling of a key are one key. A quoted key is a
+# string and stays byte for byte. Here café is e + U+0301 (decomposed) and
+# café is U+00E9 (composed); both show as e-acute.
+m = {"café": 1}
+print(m["café"], m.café, m.café)
+# expect: 1 1 1
+print({café: 1} == {"café": 1}, {café: 1} == {"café": 1})
 # expect: true false
 
 # What print shows reads back as the same key.
-print({"é": 1})
-# expect: {é: 1}
-print({é: 1} == {"é": 1})
+print({"é": 1})
+# expect: {é: 1}
+print({é: 1} == {"é": 1})
 # expect: true
 
-# A shorthand: the key as written, the variable's name in NFC.
-café = 5
+# A shorthand: the key and the variable's name are both NFC.
+café = 5
 k = {café}
-print(k["café"], café, get(k, "café", "none"))
-# expect: 5 5 none
+print(k["café"], café, get(k, "café", "none"))
+# expect: 5 5 5
 {café: v} = k
 print(v)
 # expect: 5
+
+# A literal key and a pattern key meet at the same key; two spellings of one
+# key in a literal are a duplicate.
+match {café: 2}:
+  {café: w} => print(w)
+;;
+# expect: 2
+
+# A key that is not NFC prints quoted: bare it would read back as the NFC key.
+print({"cafe\u{301}": 1})
+# expect: {"café": 1}
+print({"caf\u{e9}": 1})
+# expect: {café: 1}

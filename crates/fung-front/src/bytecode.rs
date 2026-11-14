@@ -12,7 +12,7 @@ mod verify;
 pub use disasm::disassemble;
 pub use op::{Effect, Flow, Info, Instr, MAX_OPERAND, Op, Operand};
 pub use pattern::{PatKind, Pattern};
-pub use verify::{Verified, Violation, verify};
+pub use verify::{Violation, verify};
 
 use std::collections::HashMap;
 
@@ -239,18 +239,36 @@ impl Proto {
     /// Points each jump that lands on an unconditional JUMP at that
     /// JUMP's target, and turns a JUMP to a RETURN into the RETURN
     /// (VM28). Targets only move forward, so jumps stay forward.
+    ///
+    /// Where each chain of forward JUMPs ends is found once, from the
+    /// back (VM51: following the chain from every jump was quadratic in
+    /// a long `else if`).
     pub fn thread_jumps(&mut self) {
-        for at in 0..self.code.len() {
+        let n = self.code.len();
+        let mut end: Vec<usize> = (0..n).collect();
+        for i in (0..n).rev() {
+            let ins = self.code[i];
+            if ins.op() == Op::Jump && ins.arg() > i {
+                end[i] = end.get(ins.arg()).copied().unwrap_or(ins.arg());
+            }
+        }
+        for at in 0..n {
             let op = self.code[at].op();
             if !op.jumps() {
                 continue;
             }
+            // Only instructions after `at` are read, which this pass has
+            // not changed yet.
             let mut to = self.code[at].arg();
-            while let Some(next) = self.code.get(to)
-                && next.op() == Op::Jump
-                && next.arg() > to
-            {
-                to = next.arg();
+            if to > at && to < n {
+                to = end[to];
+            } else {
+                while let Some(next) = self.code.get(to)
+                    && next.op() == Op::Jump
+                    && next.arg() > to
+                {
+                    to = next.arg();
+                }
             }
             if op == Op::Jump && self.code.get(to).is_some_and(|i| i.op() == Op::Return) {
                 self.code[at] = Instr::new(Op::Return, 0);

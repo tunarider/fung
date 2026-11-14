@@ -193,7 +193,7 @@ fn an_input_prints_its_last_err_and_rejects_a_discarded_one() {
         assert_eq!(s.input("for x in [1]: Err(x) ;;"), value("[Err(1)]"));
         let at = FileId(s.known.len() as u32);
         assert_eq!(
-            s.input("Err(len([1]))\n2"),
+            s.input("fn one() = 1\nErr(one())\n2"),
             Outcome::Error("E0606".into(), at)
         );
         assert_eq!(s.input("_ = Err(1)\n2"), value("2"));

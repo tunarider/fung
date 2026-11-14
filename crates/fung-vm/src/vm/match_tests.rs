@@ -35,7 +35,7 @@ fn match_runs() {
             "3 5 -1\n",
         ),
         (
-            "fn f(m) = match m: {name: n, port: 80} => \"${n}:80\"; {name: n} => n; _ => \"?\" ;;\nprint(f({name: \"a\", port: 80}), f({name: \"b\", x: 1}), f({}))",
+            "fn f(m) = match m: {name: n, port: 80, ...} => \"${n}:80\"; {name: n, ...} => n; _ => \"?\" ;;\nprint(f({name: \"a\", port: 80}), f({name: \"b\", x: 1}), f({}))",
             "a:80 b ?\n",
         ),
         (
@@ -43,7 +43,7 @@ fn match_runs() {
             "rgb red no\n",
         ),
         (
-            "fn f(v) = match v: 1 | 1.0 => \"one\"; \"s\" => \"str\"; nil => \"nil\"; true => \"t\"; 1h => \"h\"; _ => \"?\" ;;\nprint(f(1.0), f(\"s\"), f(nil), f(true), f(1h), f(2))",
+            "fn f(v) = match v: 1 | 1.5 => \"one\"; \"s\" => \"str\"; nil => \"nil\"; true => \"t\"; 1h => \"h\"; _ => \"?\" ;;\nprint(f(1.0), f(\"s\"), f(nil), f(true), f(1h), f(2))",
             "one str nil t h ?\n",
         ),
         (
@@ -91,8 +91,21 @@ fn destructuring_assignment() {
             "1 [2, 3]\n",
         ),
         (
-            "{name: n, port: p} = {name: \"a\", port: 80, x: 1}\nprint(n, p)",
+            "{name: n, port: p, ...} = {name: \"a\", port: 80, x: 1}\nprint(n, p)",
             "a 80\n",
+        ),
+        (
+            "{name: n, ...rest} = {x: 1, name: \"a\", y: 2}\nprint(n, rest)",
+            "a {x: 1, y: 2}\n",
+        ),
+        ("{...all} = {a: 1}\nprint(all)", "{a: 1}\n"),
+        (
+            "for {k, ...} in [{k: 1, j: 2}, {k: 3}]: print(k) ;;",
+            "1\n3\n",
+        ),
+        (
+            "f = fn({a, ...rest}): print(a, rest) ;;\nf({a: 1, b: 2})",
+            "1 {b: 2}\n",
         ),
         ("Ok(text) = Ok(\"hi\")\nprint(text)", "hi\n"),
         (
@@ -110,6 +123,46 @@ fn rest_of_a_big_list_matches() {
         "fn walk(xs, n) = match xs: [] => n; [_, ...rest] => walk(rest, n + 1) ;;\nprint(walk(for i in 0..20000: i ;;, 0))",
     );
     assert_eq!((out.as_str(), err.as_str(), code), ("20000\n", "", 0));
+}
+
+/// A map pattern matches a map with exactly the keys written unless it is
+/// opened with `...`, like a list pattern (D114).
+#[test]
+fn map_patterns_are_exact_unless_opened() {
+    check_out(&[
+        (
+            "fn f(m) = match m: {} => \"empty\"; {a: x} => \"a ${x}\"; {a: x, ...} => \"a+ ${x}\"; {...} => \"map\"; _ => \"no\" ;;\nprint(f({}), f({a: 1}), f({a: 2, b: 3}), f({b: 1}), f([]))",
+            "empty a 1 a+ 2 map no\n",
+        ),
+        (
+            "fn f(m) = match m: {a: _, ...rest} => rest; _ => nil ;;\nprint(f({a: 1}), f({c: 3, a: 1, b: 2}))",
+            "{} {c: 3, b: 2}\n",
+        ),
+        (
+            "fn f(r) = match r: Err({kind: 'not_found, ...}) => \"nf\"; Err({kind: k}) => \"only ${k}\"; _ => \"?\" ;;\nprint(f(Err({kind: 'not_found, message: \"m\"})), f(Err({kind: 'x})), f(Err({kind: 'x, y: 1})))",
+            "nf only 'x ?\n",
+        ),
+    ]);
+    // a big map (past the small-map size) keeps its insertion order
+    let (out, _, _) = run(
+        "m = fold(0..20, {}, (acc, i) => put(acc, \"k${i}\", i))\n{k0: _, k5: _, ...rest} = m\nprint(len(rest), keys(rest)[0..3])",
+    );
+    assert_eq!(out, "18 [\"k1\", \"k2\", \"k3\"]\n");
+    let (_, err, code) = run("{a: x} = {a: 1, b: 2}\nprint(x)");
+    assert!(err.contains("E0602"), "{err}");
+    assert_eq!(code, 1);
+}
+
+/// An arm with an empty body does nothing (D121).
+#[test]
+fn an_empty_arm_does_nothing() {
+    check_out(&[
+        (
+            "for x in [1, 2, 3]:\n  match x:\n    2 =>\n    n => print(n)\n  ;;\n;;",
+            "1\n3\n",
+        ),
+        ("match 5: 1 => print(1); _ => ;;\nprint(\"end\")", "end\n"),
+    ]);
 }
 
 #[test]

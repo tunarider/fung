@@ -10,7 +10,7 @@ lede: fung의 EBNF.
 
 ```plain
 (* 토큰: NAME(Lu가 아닌 식별자 글자나 _로 시작) TAG(일반 범주 Lu로 시작) INT FLOAT DURATION
-         STRING(보간 조각 포함) PLAIN_STRING(보간 없는 STRING) RAW_STRING SYMBOL(' 뒤가 NAME 모양) NEWLINE,
+         STRING(보간 조각 포함) PLAIN_STRING(보간 없는 STRING 또는 RAW_STRING: 보간 없는 문자열이 필요한 자리는 원시 문자열도 받는다) RAW_STRING SYMBOL(' 뒤가 NAME 모양) NEWLINE,
          예약어, 연산자.
    쉼표로 나눈 목록은 모두 끝 쉼표를 받는다. *)
 
@@ -20,7 +20,7 @@ sep         = NEWLINE | ";" .                       (* 앞 문장의 다음 줄�
 block       = ":" body ";;" .
 
 stmt        = fn_def | type_alias | test_block | assert | assign | return | expr .
-                                                    (* 블록에서 return 문장 뒤의 문장은 E0131 *)
+                                                    (* 블록에서 끝까지 갈 수 없는 문장 뒤의 문장은 E0131 *)
 fn_def      = "fn" NAME "(" [ params ] ")" [ "->" type ] fn_body .
 fn_body     = "=" branch | block .
 params      = ( param { "," param } [ "," rest ] | rest ) [ "," ] .
@@ -83,26 +83,27 @@ entry       = ( key_name | PLAIN_STRING ) ":" expr
             | NAME .                                (* {a, b} = {a: a, b: b}; 대문자 축약은 E0225 *)
 if_expr     = "if" expr ":" body { "else" "if" expr ":" body } [ "else" ":" body ] ";;" .
 match_expr  = "match" expr ":" { sep } arm { arm } ";;" .
-arm         = pattern [ "when" expr ] "=>" { sep } stmt { sep } { stmt { sep } } .
-                                                    (* 절은 하나 이상, 절의 본문은 비지 않는다.
+arm         = pattern [ "when" expr ] "=>" { sep } { stmt { sep } } .
+                                                    (* 절은 하나 이상, 절의 본문은 비어도 된다(값으로 쓰면 E0224).
                                                        앞 절의 가드 없는 리터럴과 같은 리터럴 절은 E0235 *)
 for_expr    = "for" destructure "in" expr ":" body ";;" .
 
 pattern     = pat_term { "|" pat_term } .
 pat_term    = "_" | NAME | [ "-" ] ( INT | FLOAT | DURATION ) | PLAIN_STRING | SYMBOL
             | "true" | "false" | "nil"
-            | TAG [ "(" pattern { "," pattern } [ "," ] ")" ]          (* Red()는 E0117, 맨 Ok·Err는 E0236 *)
+            | TAG [ "(" pattern { "," pattern } [ "," ] ")" ]          (* Red()는 E0117, Ok·Err의 값이 하나가 아니면 E0236 *)
             | "(" ")" | "(" pattern "," [ pattern { "," pattern } [ "," ] ] ")"
             | "[" [ pat_item { "," pat_item } [ "," ] ] "]"
-            | "{" [ pat_entry { "," pat_entry } [ "," ] ] "}" .
+            | "{" [ map_item { "," map_item } [ "," ] ] "}" .
 pat_item    = pattern | "..." [ NAME ] .             (* ...는 맨 끝에만, 이름 없는 나머지는 ... 하나(..._는 E0112) *)
-pat_entry   = ( key_name | PLAIN_STRING ) ":" pattern | NAME .   (* {line, col}; 대문자 축약은 E0225 *)
+map_item    = pat_entry | "..." [ NAME ] .           (* ...가 없으면 키가 정확히 적은 것뿐인 맵; ...는 맨 끝에만, ..._는 E0112 *)
+pat_entry   = ( key_name | PLAIN_STRING ) ":" pattern | NAME .   (* {line, col}; 대문자 축약은 E0225, `{_}`는 E0112 *)
 
 destructure = d_term { "|" d_term } .               (* 대입·for·매개변수의 패턴: 맨 바깥에 리터럴 없음(E0112) *)
 d_term      = "_" | NAME | TAG "(" pattern { "," pattern } [ "," ] ")"
             | "(" ")" | "(" pattern "," [ pattern { "," pattern } [ "," ] ] ")"
             | "[" [ pat_item { "," pat_item } [ "," ] ] "]"
-            | "{" [ pat_entry { "," pat_entry } [ "," ] ] "}" .  (* 안쪽은 어떤 패턴이든: (1, y) = p *)
+            | "{" [ map_item { "," map_item } [ "," ] ] "}" .  (* 안쪽은 어떤 패턴이든: (1, y) = p *)
 
 type        = type_term { "|" type_term } .
 type_term   = NAME | "nil" | "fn" | TAG .            (* 원소 타입은 없다: list[int]는 E0130 *)

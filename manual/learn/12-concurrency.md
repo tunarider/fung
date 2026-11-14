@@ -284,10 +284,10 @@ results = conc.pmap(hosts, h => timeout(() => probe(h), 500ms))
 rows = zip(hosts, results)
 for (host, r) in rows:
   status = match r:
-    Ok(Ok(s))             => s
-    Ok(Err(e))            => "ERROR ${e.message}"
-    Err({kind: 'timeout}) => "TIMEOUT"
-    Err(e)                => "ERROR ${e.message}"
+    Ok(Ok(s))                  => s
+    Ok(Err(e))                 => "ERROR ${e.message}"
+    Err({kind: 'timeout, ...}) => "TIMEOUT"
+    Err(e)                     => "ERROR ${e.message}"
   ;;
   print(pad_right(host, 6), status)
 ;;

@@ -223,6 +223,20 @@ impl Stdin {
         lock(&self.0.state).waiting.remove(me);
     }
 
+    /// Puts `lines` (in order) back at the front of the queue: the lines
+    /// a stopped `read_lines` had taken (VA61) go to the next read. Those
+    /// waiting for a line are woken to take them.
+    pub(crate) fn unread(&self, lines: Vec<Vec<u8>>) {
+        if lines.is_empty() {
+            return;
+        }
+        let mut s = lock(&self.0.state);
+        for l in lines.into_iter().rev() {
+            s.lines.push_front(Input::Line(l));
+        }
+        s.waiting.wake_all();
+    }
+
     /// How many tasks wait for a line (a test probe).
     #[cfg(test)]
     pub(crate) fn waiting(&self) -> usize {

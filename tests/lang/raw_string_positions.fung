@@ -1,0 +1,15 @@
+# A raw string is a string without interpolation, so it stands wherever
+# one is required (D129): import path, map key, map pattern key, string
+# pattern, test name.
+import `./_lib/greet` as g
+m = {`x-id`: 7, plain: 1}
+{`x-id`: id, ...} = m
+what = match "a b":
+  `a b` => "raw pattern"
+  _     => "other"
+;;
+print(g.greet("r"), m[`x-id`], id, what)
+test `raw name`:
+  assert id == 7
+;;
+# expect: hi, r 7 7 raw pattern

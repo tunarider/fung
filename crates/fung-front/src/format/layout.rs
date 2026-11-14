@@ -297,7 +297,11 @@ impl Layouter {
 
     /// Records whether the next line continues this one.
     fn end_line(&mut self, ln: &Line) {
-        self.cont_next = ln.toks[ln.toks.len() - 1].kind.ends_open();
+        let last = ln.toks.len() - 1;
+        // An arm head's `=>` at the end of the line is no open operator:
+        // the arm's body (deeper, as any body) or the next arm follows
+        // (an empty arm, D121).
+        self.cont_next = ln.toks[last].kind.ends_open() && ln.arrow != Some(last);
     }
 
     fn pop_bracket(&mut self) {

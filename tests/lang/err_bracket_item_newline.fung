@@ -1,0 +1,9 @@
+# Inside brackets a newline is space next to the brackets and around `,`
+# only (FE78): a map entry's key and its `:` are on one line, as a call's
+# named argument is.
+m = {
+  a
+    : 1
+}
+print(m)
+# expect-error: E0112

@@ -105,10 +105,10 @@ web-2 10.0.1.12
 import http
 
 fn probe(url) = match http.get(url, timeout: 3s):
-  Ok(r) when r.status < 400 => "up (${r.status})"
-  Ok(r)                     => "error (${r.status})"
-  Err({kind: 'timeout})     => "timeout"
-  Err(e)                    => "down: ${e.message}"
+  Ok(r) when r.status < 400  => "up (${r.status})"
+  Ok(r)                      => "error (${r.status})"
+  Err({kind: 'timeout, ...}) => "timeout"
+  Err(e)                     => "down: ${e.message}"
 ;;
 
 print(probe("https://example.com"))

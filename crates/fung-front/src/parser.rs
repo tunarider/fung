@@ -220,14 +220,34 @@ impl<'a> Parser<'a> {
         Ok(n)
     }
 
-    /// The next significant token. Inside brackets, newlines are skipped
-    /// here so every caller sees them as whitespace.
+    /// The current token. A newline is a token everywhere: inside
+    /// brackets it is space only where the parser skips it (`gap`), next
+    /// to the brackets and around `,`, and elsewhere by the continuation
+    /// rules, as outside (01, FE78).
     fn peek(&mut self) -> &'a Token {
-        let toks = self.toks;
-        while self.nest > 0 && toks[self.i].kind == Kind::Newline {
+        &self.toks[self.i]
+    }
+
+    /// Skips the newlines at the current token: inside brackets, after the
+    /// opener, before the closer and around `,` (01, FE78).
+    fn gap(&mut self) {
+        while self.toks[self.i].kind == Kind::Newline {
             self.i += 1;
         }
-        &toks[self.i]
+    }
+
+    /// Whether the next token past newlines is `,` or `closer`: an item
+    /// ends here. The newlines are skipped when it is.
+    fn item_ends(&mut self, closer: Kind) -> bool {
+        let mut j = self.i;
+        while self.toks[j].kind == Kind::Newline {
+            j += 1;
+        }
+        let end = matches!(self.toks[j].kind, Kind::Comma) || self.toks[j].kind == closer;
+        if end {
+            self.i = j;
+        }
+        end
     }
 
     fn next(&mut self) -> &'a Token {
@@ -267,13 +287,18 @@ impl<'a> Parser<'a> {
         self.toks[self.i + 1].kind
     }
 
-    /// The kind of token `j`, skipping newlines when inside brackets, where
-    /// they are whitespace (01).
-    fn kind_from(&self, mut j: usize) -> Kind {
-        while self.nest > 0 && self.toks[j].kind == Kind::Newline {
-            j += 1;
+    /// The kind of token `j`, skipping newlines when inside brackets and
+    /// the token after them is `,` or a closer, where they are space (01,
+    /// FE78).
+    fn kind_from(&self, j: usize) -> Kind {
+        let mut k = j;
+        while self.nest > 0 && self.toks[k].kind == Kind::Newline {
+            k += 1;
         }
-        self.toks[j].kind
+        match self.toks[k].kind {
+            Kind::Comma | Kind::RParen | Kind::RBracket | Kind::RBrace => self.toks[k].kind,
+            _ => self.toks[j].kind,
+        }
     }
 
     /// A token usable as a name where nothing else can appear (01): a name,
@@ -391,6 +416,17 @@ impl<'a> Parser<'a> {
             e.help = Some(h.to_string());
             return Box::new(e);
         }
+        // a keyword of other languages where the error is, inside a
+        // statement: `if a: 1 elif b: 2 ;;` (FE82)
+        if cur.kind == Kind::Name
+            && expected.is_none()
+            && let Some(h) =
+                habits::word(&cur.text).filter(|_| habits::value_word(&cur.text).is_none())
+        {
+            let mut e = error("E0134", cur.pos, vec![s(cur.text.clone())]).span(tok_len(cur));
+            e.help = Some(h.to_string());
+            return Box::new(e);
+        }
         let prev = i.checked_sub(1).map(|j| &toks[j]);
         let touching = |p: &Token| p.end == cur.off;
         match (prev, cur.kind) {
@@ -412,10 +448,25 @@ impl<'a> Parser<'a> {
                 e.help = Some(habits::compound(&p.text));
                 return Box::new(e);
             }
-            // `x++`
+            // `x++`, and `++` between two values (FE82)
             (Some(p), Kind::Plus) if p.kind == Kind::Plus && touching(p) => {
                 let mut e = error("E0110", p.pos, vec![s("`++`")]).span(2);
-                e.help = habits::operator("++").map(str::to_string);
+                let ends = matches!(
+                    toks[i + 1].kind,
+                    Kind::Newline
+                        | Kind::Eof
+                        | Kind::Semi
+                        | Kind::DoubleSemi
+                        | Kind::RParen
+                        | Kind::RBracket
+                        | Kind::RBrace
+                        | Kind::Comma
+                );
+                e.help = if ends {
+                    habits::operator("++").map(str::to_string)
+                } else {
+                    Some(habits::JOIN.to_string())
+                };
                 return Box::new(e);
             }
             // `if x = 1:`

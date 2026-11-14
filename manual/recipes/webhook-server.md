@@ -57,7 +57,7 @@ fn alerts(req):
     return reply(401, {error: "bad token"})
   ;;
   match json.parse(req.body):
-    Ok({alerts: list}) =>
+    Ok({alerts: list, ...}) =>
       es = map(list, entry)
       each(es, fn(e):
         fs.append(log_file, json.stringify(e) + "\n")!
@@ -65,8 +65,8 @@ fn alerts(req):
       ;;)
       swap(received, n => n + len(es))
       reply(200, {accepted: len(es)})
-    Ok(_)              => reply(400, {error: "no alerts list"})
-    Err(e)             => reply(400, {error: e.message})
+    Ok(_)                   => reply(400, {error: "no alerts list"})
+    Err(e)                  => reply(400, {error: e.message})
   ;;
 ;;
 
@@ -138,7 +138,7 @@ print("stopped cleanly")
 
 :::box mistake 처리기 안에서 바깥 변수 세기
 
-요청 수를 `count = count + 1`로 세려고 하면, 처리기도 블록이라 바깥 변수에 대입할 수 없어 컴파일 에러 E0205다. 대입이 된다 해도 요청들이 동시에 돌기 때문에 숫자가 어긋난다. 요청 사이에 나누는 값은 `atom`에 두고 `swap`으로 바꾼다.
+요청 수를 `count = count + 1`로 세려고 하면, 처리기도 블록이라 바깥 변수에 대입할 수 없어 컴파일 에러 E0238이다. 대입이 된다 해도 요청들이 동시에 돌기 때문에 숫자가 어긋난다. 요청 사이에 나누는 값은 `atom`에 두고 `swap`으로 바꾼다.
 
 :::
 
@@ -150,4 +150,4 @@ print("stopped cleanly")
 - **포트 0**: `--addr 127.0.0.1:0`이면 운영체제가 빈 포트를 고르고, `ready`가 실제 주소를 알려 준다. 시험할 때 쓴다.
 - **시험하기**: 저장소 `examples/api.fung`의 `test` 블록은 `scope` 안에서 서버를 띄우고 `http.get`·`http.post`로 확인한 뒤 끈다. `fung test`로 돌린다.
 
-배우기: [13장 JSON과 HTTP](../learn/13-json-and-http.html), [12장 동시에 여러 일 하기](../learn/12-concurrency.html), [14장 테스트](../learn/14-testing.html). 레퍼런스: [`http.serve`](../reference/modules/http.html#fn-http-serve), [`atom`](../reference/prelude/concurrency.html#fn-atom), [`swap`](../reference/prelude/concurrency.html#fn-swap), [`request_stop`](../reference/prelude/concurrency.html#fn-request_stop), [`fs.append`](../reference/modules/fs.html#fn-fs-append), [`json.parse`](../reference/modules/json.html#fn-json-parse), [E0205](../reference/errors.html#E0205).
+배우기: [13장 JSON과 HTTP](../learn/13-json-and-http.html), [12장 동시에 여러 일 하기](../learn/12-concurrency.html), [14장 테스트](../learn/14-testing.html). 레퍼런스: [`http.serve`](../reference/modules/http.html#fn-http-serve), [`atom`](../reference/prelude/concurrency.html#fn-atom), [`swap`](../reference/prelude/concurrency.html#fn-swap), [`request_stop`](../reference/prelude/concurrency.html#fn-request_stop), [`fs.append`](../reference/modules/fs.html#fn-fs-append), [`json.parse`](../reference/modules/json.html#fn-json-parse), [E0238](../reference/errors.html#E0238).

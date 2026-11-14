@@ -471,12 +471,12 @@ print(fold(pairs(vals), tmpl, (acc, (k, v)) => replace(acc, "{{${k}}}", v)))
 
 #### 설명
 
-빈 접두사는 언제나 참이다. 부분 문자열이 어디에든 있는지는 `x in s`(또는 [`contains`](collections.html#fn-contains)), 패턴은 [`regex.is_match`](../modules/regex.html#fn-regex-is_match)로 본다.
+찾을 글인 `prefix`는 비어 있을 수 없다: 빈 글은 어디에나 맞으므로, 비어 있는 변수가 모든 줄에 맞는 실수를 막으려고 에러다(`split`의 `sep`, `index_of`의 `sub`, `in`과 같은 규칙). 부분 문자열이 어디에든 있는지는 `x in s`(또는 [`contains`](collections.html#fn-contains)), 패턴은 [`regex.is_match`](../modules/regex.html#fn-regex-is_match)로 본다.
 
 #### 매개변수
 
 - `s`: 문자열.
-- `prefix`: 문자열.
+- `prefix`: 문자열. 비어 있으면 안 된다.
 
 #### 돌려주는 값
 
@@ -484,14 +484,14 @@ print(fold(pairs(vals), tmpl, (acc, (k, v)) => replace(acc, "{{${k}}}", v)))
 
 #### 에러
 
-인자가 문자열이 아니면 런타임 에러 E0403.
+인자가 문자열이 아니거나 `prefix`가 빈 문자열이면 런타임 에러 E0403(``argument `prefix` must be a non-empty str, got ""``).
 
 #### 예제
 
 **접두사로 고르기**
 
 ```fung run
-print(starts_with("fung.toml", "fung"), starts_with("a", ""))
+print(starts_with("fung.toml", "fung"), starts_with("a", "ab"))
 log = ["# comment", "host=a", "", "# x", "port=1"]
 print(filter(log, l => l != "" and not starts_with(l, "#")))
 ```
@@ -553,12 +553,12 @@ print(index_of(line, "error"))
 
 #### 설명
 
-확장자 검사에 많이 쓴다. 대소문자를 가리므로 `"A.LOG"`도 받으려면 `ends_with(lower(name), ".log")`.
+확장자 검사에 많이 쓴다. 대소문자를 가리므로 `"A.LOG"`도 받으려면 `ends_with(lower(name), ".log")`. 찾을 글인 `suffix`는 `starts_with`의 `prefix`처럼 비어 있을 수 없다.
 
 #### 매개변수
 
 - `s`: 문자열.
-- `suffix`: 문자열.
+- `suffix`: 문자열. 비어 있으면 안 된다.
 
 #### 돌려주는 값
 
@@ -566,7 +566,7 @@ print(index_of(line, "error"))
 
 #### 에러
 
-인자가 문자열이 아니면 런타임 에러 E0403.
+인자가 문자열이 아니거나 `suffix`가 빈 문자열이면 런타임 에러 E0403(``argument `suffix` must be a non-empty str, got ""``).
 
 #### 예제
 

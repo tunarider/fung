@@ -361,6 +361,42 @@ fn a_stdin_read_is_cut_at_the_deadline() {
     );
 }
 
+/// VA61: a `read_lines` of standard input cut by a deadline gives the
+/// lines it had taken back to the front of the queue. One read brings
+/// three lines; `read_line` takes the first, so the other two are queued
+/// before `read_lines` starts and taken at once; it then waits for more
+/// until the deadline. After the program's mark the last line comes and
+/// the input ends.
+#[test]
+fn a_cut_read_lines_of_stdin_keeps_its_lines() {
+    let dir = crate::testutil::temp_dir();
+    let mark = dir.join("mark");
+    let (tx, stdin) = fed();
+    tx.send(b"x\na\nb\n".to_vec()).unwrap();
+    let m = mark.clone();
+    let feeder = std::thread::spawn(move || {
+        let start = Instant::now();
+        while !m.exists() && start.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        tx.send(b"c\n".to_vec()).unwrap();
+    });
+    let src = format!(
+        "import fs\nprint(read_line())\nprint(timeout(() => read_lines(), 50ms))\nfs.write(\"{}\", \"\")!\nprint(read_lines())",
+        mark.display()
+    );
+    let o = within(10, move || exec_with_stdin(&src, Opts::default(), stdin));
+    feeder.join().unwrap();
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "Ok(\"x\")\nErr({kind: 'timeout, message: \"timed out after 50ms\"})\nOk([\"a\", \"b\", \"c\"])\n",
+            "",
+            0
+        )
+    );
+}
+
 /// Standard input whose reads give each step in turn: bytes, or an error
 /// of the given errno; then the end.
 struct Scripted(std::collections::VecDeque<Result<&'static [u8], i32>>);

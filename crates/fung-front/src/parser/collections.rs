@@ -8,10 +8,12 @@ use crate::source::Pos;
 use crate::tree::{Head, Lit, Node};
 
 impl Parser<'_> {
-    /// Parses `[e, …]`; newlines inside are whitespace.
+    /// Parses `[e, …]`; newlines next to the brackets and around `,` are
+    /// space (FE78).
     pub(super) fn list_literal(&mut self) -> PResult<Node> {
         let open = self.next(); // [
         self.nest += 1;
+        self.gap();
         let r = self.list_items(Node::new(Head::List, open.pos, Vec::new()));
         self.nest -= 1;
         r
@@ -26,8 +28,10 @@ impl Parser<'_> {
             }
             let e = self.expr(0)?;
             n.kids.push(e);
+            self.gap();
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
             } else if !self.at(Kind::RBracket) {
                 return Err(self.list_end(n.pos, Kind::RBracket));
             }
@@ -40,6 +44,7 @@ impl Parser<'_> {
     pub(super) fn map_literal(&mut self) -> PResult<Node> {
         let open = self.next(); // {
         self.nest += 1;
+        self.gap();
         let r = self.map_entries(Node::new(Head::Map, open.pos, Vec::new()));
         self.nest -= 1;
         r
@@ -51,10 +56,10 @@ impl Parser<'_> {
             let t = self.peek();
             let key = if self.at_name_like() {
                 // An identifier-shaped key is a string whatever its case
-                // (02), as written (not NFC); keywords are plain names
-                // here (01).
-                Ok(t.key().to_string())
-            } else if t.kind == Kind::String {
+                // (02), NFC like every name (D130); keywords are plain
+                // names here (01).
+                Ok(t.text.clone())
+            } else if t.is_string() {
                 let Some(text) = t.plain() else {
                     return Err(err("E0122", t.pos, vec![s("a map key")]));
                 };
@@ -75,7 +80,8 @@ impl Parser<'_> {
             }
             seen.insert(bytes.to_vec(), t.pos);
             self.next();
-            let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
+            // the key and its `:` are on one line (FE78)
+            let shorthand = self.item_ends(Kind::RBrace);
             if t.kind == Kind::Tag && shorthand {
                 return Err(tag_as_name(t));
             }
@@ -85,7 +91,11 @@ impl Parser<'_> {
                 Node::leaf(Head::Name, t.pos, Lit::Str(t.text.clone()))
             } else {
                 self.expect_desc(Kind::Colon, "`:` after the map key")?;
-                self.expr(0)?
+                // a line ending in `:` goes on (01 rule 1)
+                self.skip_newlines_after_operator();
+                let v = self.expr(0)?;
+                self.gap();
+                v
             };
             n.kids.push(Node::with_lit(
                 Head::Entry,
@@ -95,6 +105,7 @@ impl Parser<'_> {
             ));
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
             } else if !self.at(Kind::RBrace) {
                 return Err(self.list_end(n.pos, Kind::RBrace));
             }
@@ -107,6 +118,7 @@ impl Parser<'_> {
     pub(super) fn paren_or_tuple(&mut self) -> PResult<Node> {
         let open = self.next(); // (
         self.nest += 1;
+        self.gap();
         let r = self.paren_or_tuple_inner(open.pos);
         self.nest -= 1;
         r
@@ -118,6 +130,7 @@ impl Parser<'_> {
             return Ok(Node::new(Head::Tuple, pos, Vec::new()));
         }
         let mut first = self.expr(0)?;
+        self.gap();
         if self.at(Kind::RParen) {
             self.next();
             first.paren = true;
@@ -129,11 +142,13 @@ impl Parser<'_> {
         let mut n = Node::new(Head::Tuple, pos, vec![first]);
         while self.at(Kind::Comma) {
             self.next();
+            self.gap();
             if self.at(Kind::RParen) {
                 break;
             }
             let e = self.expr(0)?;
             n.kids.push(e);
+            self.gap();
         }
         if !self.at(Kind::RParen) {
             return Err(self.list_end(pos, Kind::RParen));

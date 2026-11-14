@@ -146,7 +146,7 @@ print(len(log_lines))</code></pre><pre class="out err plain" data-code="1"><code
 <h2 id="vary">응용</h2>
 <ul>
 <li><strong>명령의 종료 코드 받기</strong>: <code>exec</code>는 0이 아닌 종료를 <code>Err({kind: 'exit, code, out, err})</code>로 준다. <code>systemctl is-active nginx</code>는 멈춘 서비스에 3을 돌려주므로 <code>match exec([&quot;systemctl&quot;, &quot;is-active&quot;, &quot;nginx&quot;]): Ok(_) =&gt; finish(0, &quot;nginx active&quot;); Err({kind: 'exit, out}) =&gt; finish(2, &quot;nginx ${trim(out)}&quot;); Err(e) =&gt; finish(3, e.message) ;;</code>처럼 옮긴다.</li>
-<li><strong>종료 코드 그대로 넘기기</strong>: 감싸는 스크립트라면 <code>Err({kind: 'exit, code}) =&gt; exit(code)</code>로 안쪽 명령의 코드를 그대로 돌려준다.</li>
+<li><strong>종료 코드 그대로 넘기기</strong>: 감싸는 스크립트라면 <code>Err({kind: 'exit, code, ...}) =&gt; exit(code)</code>로 안쪽 명령의 코드를 그대로 돌려준다.</li>
 <li><strong>cron과 systemd</strong>: cron은 출력이 있으면 메일을 보내고 종료 코드는 보지 않는다. systemd는 0이 아닌 코드를 실패로 기록하고 <code>Restart=on-failure</code>면 다시 띄운다. 어떤 프로그램이 부를지에 따라 출력과 코드를 정한다.</li>
 <li><strong>사용법 오류는 2</strong>: 일반 명령줄 도구에서는 잘못 쓴 인자에 2를 쓰는 관례가 있다. <a href="cli-options.html">명령줄 옵션과 도움말</a>.</li>
 <li><strong>실패한 서버만</strong>: 여러 대를 점검해 하나라도 실패하면 1로 끝내는 모양은 <a href="unreachable-servers.html">실패·무응답 서버만 알리기</a>.</li>

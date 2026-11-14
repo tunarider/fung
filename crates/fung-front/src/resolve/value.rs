@@ -11,14 +11,17 @@
 //! lists, maps and tag values of only those there is E0234. `nil` alone is exempt: it
 //! is how a branch says "nothing". So is a discarded call of a builtin
 //! known to have no effect (D39: `put(m, k, v)` changes nothing), which
-//! resolve notes by position (`Pure`).
+//! resolve notes by position (`Pure`); on effect-free arguments such a
+//! call is itself effect-free inside a bigger value (FE77: `n == len(xs)`).
 //!
 //! A pass over the desugared tree, before names are resolved. `Place` says
 //! whether the node's value is used. A block's items before the last are
 //! discarded; its last is in the block's place. A function's body is its
 //! value, so its last item is used, block-bodied or not (L2: a function
 //! that ends in an if without else would be a silent nil to a caller that
-//! uses it). A `for` body is in its `for`'s place (`map`, not the `each`
+//! uses it). The branches of a block `if`, a `match` and `then … else`
+//! are in their node's place (D121: a discarded `c then f() else nil` is
+//! E0234 on the `nil`, as the statement `if` is). A `for` body is in its `for`'s place (`map`, not the `each`
 //! of a discarded `for`). A test block's body is discarded: `fung test`
 //! drops its value.
 
@@ -37,14 +40,24 @@ enum Place {
     Kept,
 }
 
-/// The calls of builtins known to have no effect, by `(line, col)`, with
-/// the name their error shows and where it is written (D39).
-pub(super) type Pure = std::collections::HashMap<(u32, u32), (String, Pos)>;
+/// A call of a function known to have no effect (D39).
+pub(super) struct PureCall {
+    /// The callee as the error shows it: as written (`s`, `fs.read`).
+    pub(super) shown: String,
+    /// The function's own name, for the help (`sort`).
+    pub(super) own: String,
+    /// Where the callee is written.
+    pub(super) at: Pos,
+}
+
+/// The calls of functions known to have no effect, by `(line, col)`.
+pub(super) type Pure = std::collections::HashMap<(u32, u32), PureCall>;
 
 /// The pure builtins that take a function (D90): their E0234 says where a
 /// pass for its effects goes.
 const RUNS_A_FUNCTION: &[&str] = &[
-    "map", "try_map", "filter", "fold", "sort_by", "find", "any", "all", "group_by",
+    "map", "try_map", "filter", "fold", "sort_by", "find", "any", "all", "group_by", "iterate",
+    "until",
 ];
 
 /// What the walk carries: the pure calls, and the errors found.
@@ -67,28 +80,17 @@ fn check(n: &Node, place: Place, cx: &mut Ctx<'_>) {
     if let Some(e) = literal_type_error(n) {
         cx.errs.push(e);
     }
-    if place == Place::Discarded && pointless(n) {
-        cx.errs.push(discarded(n));
+    if place == Place::Discarded && pointless(n, cx.pure) {
+        cx.errs.push(discarded(n, cx.pure));
         // Still check what it holds (a lambda's body), as a value.
         return check(n, Place::Used, cx);
     }
+    // A pure call whose arguments compute something still drops its
+    // result (D39).
     if place == Place::Discarded
-        && n.head == Head::Call
-        && let Some((name, at)) = cx.pure.get(&(n.pos.line, n.pos.col))
+        && let Some(e) = pure_call(n, cx.pure)
     {
-        cx.errs.push(
-            error("E0234", *at, vec![Arg::Str(format!("the result of `{name}(…)`"))])
-                .span(rune_len(name))
-                .with_help(&if RUNS_A_FUNCTION.contains(&name.as_str()) {
-                    format!(
-                        "`{name}` computes a value with its function; use the value, or run the function for its effects with `each` or a `for` statement"
-                    )
-                } else {
-                    format!(
-                        "`{name}` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose"
-                    )
-                }),
-        );
+        cx.errs.push(e);
     }
     let used = place == Place::Used;
     match n.head {
@@ -105,8 +107,8 @@ fn check(n: &Node, place: Place, cx: &mut Ctx<'_>) {
             for (i, k) in n.kids.iter().enumerate() {
                 if i == last && !hidden(k) {
                     check(k, place, cx);
-                } else if pointless(k) {
-                    cx.errs.push(discarded(k));
+                } else if pointless(k, cx.pure) {
+                    cx.errs.push(discarded(k, cx.pure));
                     check(k, Place::Used, cx);
                 } else {
                     check(k, Place::Discarded, cx);
@@ -156,7 +158,12 @@ fn check(n: &Node, place: Place, cx: &mut Ctx<'_>) {
             } else {
                 Place::Used
             };
-            for b in &n.kids[1..] {
+            for (i, b) in n.kids[1..].iter().enumerate() {
+                // The `nil` the parser puts for a missing `else` is not a
+                // statement.
+                if i == 1 && branch != Place::Used && b.head == Head::Nil {
+                    continue;
+                }
                 check(b, branch, cx);
             }
             // Only a block if can lack else: the parser gives it a nil leaf.
@@ -166,9 +173,34 @@ fn check(n: &Node, place: Place, cx: &mut Ctx<'_>) {
         }
         Head::Match => {
             check(&n.kids[0], Place::Used, cx);
-            for arm in &n.kids[1..] {
+            let arms = &n.kids[1..];
+            for (i, arm) in arms.iter().enumerate() {
                 check(&arm.kids[1], Place::Used, cx);
+                let from = cx.errs.len();
                 check(&arm.kids[2], place, cx);
+                // `1 => y => y + 1`: `y =>` was read as the next arm, so
+                // this one is empty (FE25).
+                let body = &arm.kids[2];
+                if used
+                    && body.kids.is_empty()
+                    && let Some(next) = arms.get(i + 1)
+                    && next.kids[0].head == Head::Pbind
+                    && next.kids[0].pos.line == body.pos.line
+                    && let Some(e) = cx.errs[from..].iter_mut().find(|e| e.code == "E0224")
+                {
+                    e.help = Some(
+                        "a lambda as an arm's value goes in parentheses: `1 => (y => y + 1)`"
+                            .to_string(),
+                    );
+                }
+            }
+        }
+        // `c then a else b` puts its branches in its own place, as a block
+        // `if` does: discarded, each branch is discarded (D121).
+        Head::Then => {
+            check(&n.kids[0], Place::Used, cx);
+            for b in &n.kids[1..] {
+                check(b, place, cx);
             }
         }
         Head::Fn => function(n, Place::Used, cx),
@@ -219,19 +251,21 @@ fn function(n: &Node, body: Place, cx: &mut Ctx<'_>) {
     check(b, body, cx);
 }
 
-/// An effect-free value that is an error where it is discarded: all but
-/// `nil` alone, which is how a branch says "nothing".
-fn pointless(n: &Node) -> bool {
-    n.head != Head::Nil && effect_free(n)
+/// An effect-free value that is an error where it is discarded, `nil`
+/// alone too: a branch that does nothing is left out (`if` without
+/// `else`) or empty (`_ =>`, D121).
+fn pointless(n: &Node, pure: &Pure) -> bool {
+    effect_free(n, pure)
 }
 
 /// Whether computing n can do nothing but make a value (FE24): names,
-/// literals, lambdas, partial applications, and operators, fields,
-/// indexes, slices, ranges, tuples, lists, maps and tag values of only
-/// those. Calls, assignments, `?`, `return`, `assert`, definitions and
-/// blocks may do something. A discarded `Err` computed at run time is
-/// still E0606.
-fn effect_free(n: &Node) -> bool {
+/// literals, lambdas, partial applications, calls of a builtin known to
+/// have no effect (FE77), and operators, fields, indexes, slices, ranges,
+/// tuples, lists, maps and tag values of only those. Other calls,
+/// assignments, `?`, `return`, `assert`, definitions and blocks may do
+/// something. A discarded `Err` computed at run time is still E0606.
+fn effect_free(n: &Node, pure: &Pure) -> bool {
+    let all = |n: &Node| n.kids.iter().all(|k| effect_free(k, pure));
     match n.head {
         Head::Name
         | Head::Prelude
@@ -249,10 +283,11 @@ fn effect_free(n: &Node) -> bool {
         | Head::Duration
         | Head::Missing => true,
         Head::Fn => fn_name(n).is_empty() && !for_body(n),
-        Head::Do => partial(n),
+        Head::Do => partial(n, pure),
+        Head::Call => pure.contains_key(&(n.pos.line, n.pos.col)) && all(n),
         // `and` and `or` (an `if` over no blocks), and `then … else`.
-        Head::If => n.kids[1].head != Head::Do && n.kids.iter().all(effect_free),
-        Head::Then => n.kids.iter().all(effect_free),
+        Head::If => n.kids[1].head != Head::Do && all(n),
+        Head::Then => all(n),
         Head::Op
         | Head::Field
         | Head::Index
@@ -265,7 +300,7 @@ fn effect_free(n: &Node) -> bool {
         | Head::Interp
         | Head::Coalesce
         | Head::Concat
-        | Head::Tag => n.kids.iter().all(effect_free),
+        | Head::Tag => all(n),
         _ => false,
     }
 }
@@ -274,12 +309,17 @@ fn effect_free(n: &Node) -> bool {
 /// of the callee and arguments, then the lambda over the holes. One whose
 /// callee or fixed arguments compute something (`h(g(), _)`) is not
 /// effect-free.
-fn partial(n: &Node) -> bool {
-    partial_shape(n) && n.kids.iter().rev().skip(1).all(|l| effect_free(&l.kids[1]))
+fn partial(n: &Node, pure: &Pure) -> bool {
+    partial_shape(n)
+        && n.kids
+            .iter()
+            .rev()
+            .skip(1)
+            .all(|l| effect_free(&l.kids[1], pure))
 }
 
 /// The shape of a partial application, whatever its arguments compute.
-fn partial_shape(n: &Node) -> bool {
+pub(super) fn partial_shape(n: &Node) -> bool {
     match n.kids.split_last() {
         Some((f, lets)) => {
             f.head == Head::Fn
@@ -298,7 +338,10 @@ fn partial_shape(n: &Node) -> bool {
 /// E0234 for an effect-free value in a discarded place, with help for
 /// the usual slips: a call without `()`, `==` for `=`. (A line that
 /// starts with `-` after a statement is the parser's E0136, D85.)
-fn discarded(n: &Node) -> Diag {
+fn discarded(n: &Node, pure: &Pure) -> Diag {
+    if let Some(e) = pure_call(n, pure) {
+        return e;
+    }
     let op = lit_str(n);
     let (what, len) = match n.head {
         Head::Name => (format!("the value of `{op}`"), rune_len(op)),
@@ -309,6 +352,7 @@ fn discarded(n: &Node) -> Diag {
         }
         Head::Op => (format!("the result of `{op}`"), rune_len(op)),
         Head::Tag => (format!("the tag value `{op}(…)`"), rune_len(op)),
+        Head::Nil => ("`nil`".to_string(), 3),
         _ => ("this value".to_string(), 1),
     };
     let help = match n.head {
@@ -321,6 +365,11 @@ fn discarded(n: &Node) -> Diag {
                 .to_string()
         }
         Head::Op if op == "==" => EQ_HELP.to_string(),
+        // `nil` was how a branch said "nothing" (D121).
+        Head::Nil => {
+            "a branch with nothing to do is left empty: `_ =>` in a match, no `else` after an if"
+                .to_string()
+        }
         _ => return error("E0234", n.pos, vec![Arg::Str(what)]).span(len),
     };
     error("E0234", n.pos, vec![Arg::Str(what)])
@@ -328,10 +377,43 @@ fn discarded(n: &Node) -> Diag {
         .with_help(&help)
 }
 
+/// E0234 for a discarded call of a builtin known to have no effect (D39),
+/// whatever its arguments compute; `None` for any other node.
+fn pure_call(n: &Node, pure: &Pure) -> Option<Diag> {
+    if n.head != Head::Call {
+        return None;
+    }
+    let PureCall { shown, own, at } = pure.get(&(n.pos.line, n.pos.col))?;
+    let help = if RUNS_A_FUNCTION.contains(&own.as_str()) {
+        format!(
+            "`{own}` computes a value with its function; use the value, or run the function for its effects with `each` or a `for` statement"
+        )
+    } else {
+        format!(
+            "`{own}` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose"
+        )
+    };
+    Some(
+        error(
+            "E0234",
+            *at,
+            vec![Arg::Str(format!("the result of `{shown}(…)`"))],
+        )
+        .span(rune_len(shown))
+        .with_help(&help),
+    )
+}
+
 /// E0234's help for a discarded `==`, and the same in a test body.
 const EQ_HELP: &str = "did you mean `=`? `==` compares; `=` assigns";
 const TEST_EQ_HELP: &str =
     "did you mean `assert` before it? a test checks a comparison with `assert a == b`";
+
+/// A function the code writes without a name: a lambda or an anonymous
+/// `fn` (not the function a `for` body becomes).
+pub(super) fn is_lambda(n: &Node) -> bool {
+    n.head == Head::Fn && fn_name(n).is_empty() && !for_body(n)
+}
 
 fn for_body(n: &Node) -> bool {
     matches!(&n.lit, Lit::Fn(info) if info.for_body)
@@ -359,33 +441,88 @@ fn fn_name(n: &Node) -> &str {
     }
 }
 
-/// The type of a scalar literal, as the run's messages name it.
-fn literal_type(n: &Node) -> Option<&'static str> {
+/// The type the syntax alone says `n`'s value has (D99, FE81), named as
+/// the run names it (`type_name` in fung-vm): a literal of any kind (a
+/// number, a string with or without `${…}`, a bool, `nil`, a symbol or
+/// bare tag, a duration), a list, map or tuple literal, a tag value (its
+/// tag's name), a range, and a function the code writes (a lambda, an
+/// anonymous `fn`, a partial application). `None` when the syntax does
+/// not say. Every check of what literals settle reads the type here; a
+/// type annotation's check (D113) can compare it with the annotation's
+/// type names, which are the same names.
+pub(crate) fn known_type(n: &Node) -> Option<&str> {
     Some(match n.head {
         Head::Int => "int",
         Head::Float => "float",
-        Head::String => "str",
+        // a string with `${…}` is a concat in the core tree
+        Head::String | Head::Interp | Head::Concat => "str",
         Head::Bool => "bool",
         Head::Nil => "nil",
         Head::Symbol => "sym",
+        Head::Duration => "dur",
+        Head::List => "list",
+        Head::Map => "map",
+        Head::Tuple => "tuple",
+        Head::Range => "range",
+        Head::Tag => lit_str(n),
+        Head::Fn if fn_name(n).is_empty() && !for_body(n) => "fn",
+        Head::Do if partial_shape(n) => "fn",
         _ => return None,
     })
 }
 
+/// Whether a value of type `t` is a result (`Ok(…)`, `Err(…)`).
+fn is_result(t: &str) -> bool {
+    matches!(t, "Ok" | "Err")
+}
+
+/// Whether the binary operator `op` has a meaning for values of the types
+/// `a` and `b` (as `fung-vm`'s `value::arith` and `compare` decide), and
+/// the types its error names, in the run's order: `None` when the values
+/// decide (two lists or tuples compare item by item).
+fn operator_types<'t>(op: &str, a: &'t str, b: &'t str) -> Option<Result<(), (&'t str, &'t str)>> {
+    let num = |t: &str| t == "int" || t == "float";
+    let both = |t: &str| a == t && b == t;
+    let fine = match op {
+        "+" => (num(a) && num(b)) || both("str") || both("dur") || both("list"),
+        "-" => (num(a) && num(b)) || both("dur"),
+        // `n * d` scales the duration: its error names the duration first
+        "*" => {
+            if b == "dur" && a != "dur" && !num(a) {
+                return Some(Err(("dur", a)));
+            }
+            (num(a) && num(b)) || (a == "dur" && num(b)) || (num(a) && b == "dur")
+        }
+        "/" => (num(a) && num(b)) || both("dur") || (a == "dur" && num(b)),
+        "//" | "%" => (num(a) && num(b)) || both("dur"),
+        "**" => num(a) && num(b),
+        "<" | ">" | "<=" | ">=" => {
+            if both("list") || both("tuple") {
+                return None;
+            }
+            (num(a) && num(b)) || both("str") || both("dur")
+        }
+        _ => return None,
+    };
+    Some(if fine { Ok(()) } else { Err((a, b)) })
+}
+
 /// What the types of the literals in `n` settle before the program runs
-/// (D99): the error the run would stop with, under its number. Only
-/// what holds whatever the values are: an overflow or a division by
-/// zero is the run's to find.
+/// (D99, FE81): the error the run would stop with, under its number and
+/// with its help. Only what holds whatever the values are: an overflow,
+/// a division by zero or two lists that compare item by item are the
+/// run's to find. The type comes from `known_type`, one place for every
+/// check.
 fn literal_type_error(n: &Node) -> Option<Diag> {
     let not_bool = |c: &Node| {
-        literal_type(c)
+        known_type(c)
             .filter(|t| *t != "bool")
             .map(|t| error("E0505", c.pos, vec![Arg::Str(t.into())]))
     };
     match n.head {
-        // a literal called
+        // a value that is no function called
         Head::Call => {
-            let t = literal_type(&n.kids[0])?;
+            let t = known_type(&n.kids[0]).filter(|t| *t != "fn")?;
             Some(error("E0401", n.kids[0].pos, vec![Arg::Str(t.into())]))
         }
         // a condition, and the left side of `and`/`or`
@@ -397,9 +534,20 @@ fn literal_type_error(n: &Node) -> Option<Diag> {
                 .find_map(|k| not_bool(&k.kids[0]))
         }),
         Head::Op if n.kids.len() == 1 && lit_str(n) == "not" => not_bool(&n.kids[0]),
+        Head::Op if n.kids.len() == 1 && lit_str(n) == "-" => {
+            let t = known_type(&n.kids[0])?;
+            if matches!(t, "int" | "float" | "dur") {
+                return None;
+            }
+            let e = error(
+                "E0506",
+                n.pos,
+                vec![Arg::Str("negate".into()), Arg::Str(t.into())],
+            );
+            Some(run_help(e, &[t]))
+        }
         Head::Op if n.kids.len() == 2 => {
-            let (a, b) = (literal_type(&n.kids[0])?, literal_type(&n.kids[1])?);
-            let num = |t: &str| t == "int" || t == "float";
+            let (a, b) = (known_type(&n.kids[0])?, known_type(&n.kids[1])?);
             let op = lit_str(n);
             let verb = match op {
                 "+" => "add",
@@ -411,37 +559,52 @@ fn literal_type_error(n: &Node) -> Option<Diag> {
                 "<" | ">" | "<=" | ">=" => "compare",
                 _ => return None,
             };
-            let fine = (num(a) && num(b))
-                || (a == "str" && b == "str" && matches!(verb, "add" | "compare"));
-            (!fine).then(|| {
-                error(
-                    "E0501",
-                    n.pos,
-                    vec![
-                        Arg::Str(verb.into()),
-                        Arg::Str(a.into()),
-                        Arg::Str(b.into()),
-                    ],
-                )
-            })
+            let (x, y) = operator_types(op, a, b)?.err()?;
+            let e = error(
+                "E0501",
+                n.pos,
+                vec![
+                    Arg::Str(verb.into()),
+                    Arg::Str(x.into()),
+                    Arg::Str(y.into()),
+                ],
+            );
+            // `+` of text and another value says how to join them, as
+            // the run does (SP7).
+            if op == "+" && (a == "str") != (b == "str") {
+                return Some(e.with_help(
+                    "put the value into the text with `\"${…}\"`, or convert it with `str(…)`",
+                ));
+            }
+            Some(run_help(e, &[a, b]))
         }
-        // `??` after a literal that is never nil or a result
+        // `??` after a value that is never nil or a result
         Head::Coalesce => {
-            let left = &n.kids[0];
-            let what = match left.head {
-                Head::Nil => return None,
-                Head::List => "a list",
-                Head::Map => "a map",
-                Head::Tuple => "a tuple",
-                _ => match literal_type(left)? {
-                    "int" | "float" => "a number",
-                    "str" => "a string",
-                    "bool" => "a bool",
-                    _ => "a symbol",
-                },
+            let what = match known_type(&n.kids[0])? {
+                "nil" | "Ok" | "Err" => return None,
+                "int" | "float" => "a number",
+                "str" => "a string",
+                "bool" => "a bool",
+                "sym" => "a symbol",
+                "dur" => "a duration",
+                "list" => "a list",
+                "map" => "a map",
+                "tuple" => "a tuple",
+                "range" => "a range",
+                "fn" => "a function",
+                _ => "a tag value",
             };
             Some(error("E0243", n.pos, vec![Arg::Str(what.into())]).span(2))
         }
         _ => None,
+    }
+}
+
+/// The run's help for an operator's type error on a result (VA39).
+fn run_help(e: Diag, types: &[&str]) -> Diag {
+    if types.iter().any(|t| is_result(t)) {
+        e.with_help("unwrap it with `!` or `?` first")
+    } else {
+        e
     }
 }

@@ -300,6 +300,19 @@ fn format_map_keys_follow_the_name_rule() {
     assert_eq!(format(&s("a\u{378}b")), r#""a\u{378}b""#);
 }
 
+/// A key that is not NFC prints quoted: bare, it would read back as the
+/// NFC key (D130).
+#[test]
+fn format_map_keys_that_are_not_nfc_are_quoted() {
+    let mut m = Map::new();
+    m.put(crate::value::key("caf\u{e9}"), Value::Int(1));
+    m.put(crate::value::key("cafe\u{301}"), Value::Int(2));
+    assert_eq!(
+        format(&Value::Map(Rc::new(m))),
+        "{caf\u{e9}: 1, \"cafe\u{301}\": 2}"
+    );
+}
+
 #[test]
 fn format_shortest_round_trip() {
     let (a, b) = (std::hint::black_box(0.1), std::hint::black_box(0.2));
@@ -750,8 +763,8 @@ impl Probed for i64 {
 
 /// Both ends (L5): `push_front` and `drop_front` mixed with `push`,
 /// `truncate` and `set` keep the model's items, every older version stays
-/// as it was, and the nodes' memos answer `holds`/`holds_in` as the model
-/// does after changes at either end.
+/// as it was, and the nodes' memos answer `holds` as the model does after
+/// changes at either end, and after a cut of both (a list's slice).
 #[test]
 fn pvec_both_ends_match_the_model() {
     let mut r = Rng::new(0x5eed_f00d_0ddb_a110);
@@ -816,11 +829,41 @@ fn pvec_both_ends_match_the_model() {
         let n = want.len();
         assert_eq!(v.holds(Probe::Err), want.iter().any(|&x| x < 0), "holds");
         for (lo, hi) in [(0, n), (n / 3, n), (0, n / 2), (n / 4, n - n / 4)] {
+            let mut cut = v.clone();
+            cut.truncate(hi);
+            cut.drop_front(lo);
             assert_eq!(
-                v.holds_in(lo, hi, Probe::Err),
+                cut.holds(Probe::Err),
                 want[lo..hi].iter().any(|&x| x < 0),
-                "holds_in({lo}, {hi}) len {n}"
+                "holds of {lo}..{hi}, len {n}"
             );
+        }
+    }
+}
+
+/// A vector eaten from the front in place, asked `holds` at every step:
+/// the head keeps its memo's no as items leave it and forgets a yes, so
+/// the answer follows the items left (VA59 follow-up).
+#[test]
+fn pvec_holds_follows_a_vector_eaten_in_place() {
+    for n in [40usize, 100, 1100] {
+        for bad in [0, 1, 31, 32, 33, n / 2, n - 1] {
+            let mut model: Vec<i64> = (0..n as i64).collect();
+            model[bad] = -1;
+            let mut v = Pvec::of(model.clone());
+            v.push_front(7);
+            model.insert(0, 7);
+            while !model.is_empty() {
+                assert_eq!(
+                    v.holds(Probe::Err),
+                    model.iter().any(|&x| x < 0),
+                    "len {} of {n}, bad {bad}",
+                    model.len()
+                );
+                v.drop_front(1);
+                model.remove(0);
+            }
+            assert!(!v.holds(Probe::Err));
         }
     }
 }
@@ -969,20 +1012,109 @@ fn list_matches_slice() {
     same_list("final", &cur.0, &cur.1);
 }
 
-// A small part of a big list is cut from the tree (O(log n)), not copied
-// item by item, and does not keep the whole vector as a view (VA33).
+// A part of a big list is cut from the tree (O(log n)), not copied item
+// by item (VA33).
 #[test]
 fn small_slices_of_a_big_list_are_cut_not_copied() {
     let xs = List::new((0..10_000).map(Value::Int).collect());
     for (lo, hi) in [(0, 100), (5_000, 5_100), (9_900, 10_000), (31, 1_000)] {
         let mut ys = xs.slice(lo, hi);
-        assert!(!ys.is_view(), "{lo}..{hi} is a view on the big vector");
         let want: Vec<i64> = (lo as i64..hi as i64).collect();
         same_list("cut", &ys, &want);
         ys.push(Value::Int(-1));
         assert_eq!(ys.at(hi - lo).map(int_of), Some(-1));
         assert_eq!(xs.at(hi.min(9_999)).map(int_of), Some(hi.min(9_999) as i64));
     }
+}
+
+// A slice keeps only its own items alive, whatever the list's size and
+// wherever it is cut: the items outside it go with the list they were in
+// (VA59). Sizes around one leaf (32), one level (1024) and two (32768).
+#[test]
+fn a_slice_lets_go_of_the_items_outside_it() {
+    for n in [
+        33usize, 100, 1023, 1024, 1025, 2000, 32767, 32768, 32769, 40000,
+    ] {
+        for (lo, hi) in [
+            (1, n),
+            (0, n - 1),
+            (1, n - 1),
+            (n / 2, n),
+            (0, n / 2),
+            (n / 4, n - n / 4),
+        ] {
+            for outside in [0, n - 1, lo.saturating_sub(1), hi.min(n - 1)] {
+                if (lo..hi).contains(&outside) {
+                    continue;
+                }
+                let held = Rc::new(List::new(vec![]));
+                let mut items: Vec<Value> = (0..n as i64).map(Value::Int).collect();
+                items[outside] = Value::List(held.clone());
+                let xs = List::new(items);
+                let ys = xs.slice(lo, hi);
+                drop(xs);
+                assert_eq!(
+                    Rc::strong_count(&held),
+                    1,
+                    "{lo}..{hi} of {n} keeps item {outside}"
+                );
+                assert_eq!(ys.len(), hi - lo);
+                assert_eq!(ys.at(0).map(int_of), Some(lo as i64));
+            }
+        }
+    }
+}
+
+/// A list held by nothing else is cut in place when what is cut off is
+/// at most `RELEASE_PIECE` items (one ~1 ms step), and the items cut off
+/// are let go at once, as `slice` lets them go with the original (VA59).
+/// A list that is shared, or a cut too long for one step, is left as it
+/// was for `slice` to cut a copy. (Whether the list is held by nothing
+/// else is the caller's to know: `index::slice_owned`.)
+#[test]
+fn a_list_held_once_is_cut_in_place() {
+    use super::release::RELEASE_PIECE;
+    for n in [33usize, 100, 1025, 32769, 40000] {
+        for (lo, hi) in [(1, n), (0, n - 1), (1, n - 1), (n / 2, n), (0, n / 2)] {
+            for outside in [0, n - 1, lo.saturating_sub(1), hi.min(n - 1)] {
+                if (lo..hi).contains(&outside) {
+                    continue;
+                }
+                let held = Rc::new(List::new(vec![]));
+                let mut items: Vec<Value> = (0..n as i64).map(Value::Int).collect();
+                items[outside] = Value::List(held.clone());
+                let mut xs = List::new(items);
+                let cut = xs.cut(lo, hi);
+                let in_place = hi - lo > super::list::SMALL_MAX && n - (hi - lo) <= RELEASE_PIECE;
+                assert_eq!(cut, in_place, "{lo}..{hi} of {n}");
+                if !cut {
+                    assert_eq!(xs.len(), n);
+                    continue;
+                }
+                assert_eq!(
+                    Rc::strong_count(&held),
+                    1,
+                    "{lo}..{hi} of {n} keeps item {outside}"
+                );
+                assert_eq!(xs.len(), hi - lo);
+                let got: Vec<i64> = xs.iter().map(int_of).collect();
+                let want: Vec<i64> = (lo as i64..hi as i64).collect();
+                assert_eq!(got, want, "{lo}..{hi} of {n}");
+            }
+        }
+    }
+    // nodes shared with another list are copied, never written through
+    let mut xs = List::new((0..100).map(Value::Int).collect());
+    let other = xs.clone();
+    assert!(xs.cut(1, 99));
+    assert_eq!(
+        xs.iter().map(int_of).collect::<Vec<_>>(),
+        (1..99).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        other.iter().map(int_of).collect::<Vec<_>>(),
+        (0..100).collect::<Vec<_>>()
+    );
 }
 
 // TestListViewAppendKeepsOriginal
@@ -1381,8 +1513,8 @@ fn slice_errors_name_the_index_as_written() {
     assert_eq!(shown(Some(0), Some(5), true), Arg::Int(5));
     assert_eq!(shown(Some(0), Some(i64::MAX), true), Arg::Int(i64::MAX));
     assert_eq!(shown(Some(i64::MIN), None, false), Arg::Int(i64::MIN));
-    // An inclusive end is an element's index: -1 is not one of three.
-    assert_eq!(shown(None, Some(-1), true), Arg::Int(-1));
+    // `..=b` is `..b+1` (D117): -1 is the empty slice's end, -2 is out.
+    assert_eq!(shown(None, Some(-2), true), Arg::Int(-2));
     assert_eq!(shown(Some(0), Some(-1), false), Arg::Int(-1));
     assert_eq!(shown(Some(-1), None, false), Arg::Int(-1));
     assert_eq!(shown(Some(-1), Some(1), false), Arg::Int(-1));
@@ -1443,18 +1575,59 @@ fn string_index_reads_up_to_the_character() {
     }
 }
 
-/// An inclusive end names an element: an empty list or string has none,
-/// so `..=0` is out of range there (VA2), and `..=-1` everywhere (D37).
+/// `a..=b` slices exactly as `a..b+1` does (D117): the same values and
+/// the same error codes for every pair of ends, the empty `..=-1` and
+/// `i64::MAX` (no overflow) included. `..=0` of an empty list is `..1`,
+/// out of range.
 #[test]
-fn an_inclusive_end_must_be_an_element() {
+fn an_inclusive_slice_is_the_half_open_one_past_its_end() {
     let empty = Value::List(Rc::new(List::new(vec![])));
     let e = super::index::slice(&empty, None, Some(&Value::Int(0)), true).unwrap_err();
     assert_eq!(e.code, "E0507");
     let s = Value::str("abc");
     let e = super::index::slice(&s, None, Some(&Value::Int(3)), true).unwrap_err();
     assert_eq!(e.code, "E0507");
-    let e = super::index::slice(&s, None, Some(&Value::Int(-1)), true).unwrap_err();
-    assert_eq!(e.code, "E0507");
+    let none = super::index::slice(&s, None, Some(&Value::Int(-1)), true).unwrap();
+    assert!(same(&none, &Value::str("")));
+    let none = super::index::slice(&empty, Some(&Value::Int(0)), Some(&Value::Int(-1)), true);
+    assert!(equal(&none.unwrap(), &empty));
+    let xs = Value::List(Rc::new(List::new((1..=3).map(Value::Int).collect())));
+    for x in [&xs, &s] {
+        for a in [
+            None,
+            Some(-1),
+            Some(0),
+            Some(1),
+            Some(3),
+            Some(4),
+            Some(i64::MAX),
+        ] {
+            for b in [-3, -2, -1, 0, 1, 2, 3, i64::MAX - 1, i64::MAX] {
+                let a = a.map(Value::Int);
+                let inc = super::index::slice(x, a.as_ref(), Some(&Value::Int(b)), true);
+                let half = match b.checked_add(1) {
+                    Some(b1) => super::index::slice(x, a.as_ref(), Some(&Value::Int(b1)), false),
+                    // one past i64::MAX: out of range like any end past the length
+                    None => super::index::slice(x, a.as_ref(), Some(&Value::Int(i64::MAX)), false),
+                };
+                match (inc, half) {
+                    (Ok(p), Ok(q)) => assert!(equal(&p, &q), "{a:?}..={b}"),
+                    (Err(p), Err(q)) => assert_eq!(p.code, q.code, "{a:?}..={b}"),
+                    (p, q) => panic!("{a:?}..={b}: {:?} vs {:?}", p.map(|_| ()), q.map(|_| ())),
+                }
+            }
+        }
+        // A range value indexes as the slice of the same ends.
+        let r = Value::Range(Rc::new(crate::value::Range {
+            start: 0,
+            end: -1,
+            inclusive: true,
+        }));
+        assert_eq!(
+            super::index::len(&super::index::index(x, &r).unwrap()).unwrap(),
+            0
+        );
+    }
     let e = super::index::slice(&Value::str(""), None, Some(&Value::Int(0)), true).unwrap_err();
     assert_eq!(e.code, "E0507");
     let all = super::index::slice(&s, None, Some(&Value::Int(2)), true).unwrap();
@@ -1502,11 +1675,25 @@ fn reversed_slice_names_both_ends() {
 fn nil_slice_bound_is_a_type_error() {
     use fung_front::diag::message;
     let l = Value::List(Rc::new(List::new(vec![Value::Int(1), Value::Int(2)])));
-    for x in [&l, &s("hello")] {
+    // One code and wording with an index, naming the bad end's type
+    // (FE82).
+    for (x, t) in [(&l, "list"), (&s("hello"), "str")] {
+        let want = format!("cannot index {t} with nil");
         let e = super::index::slice(x, Some(&Value::Int(1)), Some(&Value::Nil), false).unwrap_err();
-        assert_eq!(message(&e.code, &e.args), "cannot slice with int and nil");
+        assert_eq!(
+            (e.code.as_str(), message(&e.code, &e.args)),
+            ("E0509", want.clone())
+        );
         let e = super::index::slice(x, Some(&Value::Nil), None, false).unwrap_err();
-        assert_eq!(message(&e.code, &e.args), "cannot slice with int and nil");
+        assert_eq!(
+            (e.code.as_str(), message(&e.code, &e.args)),
+            ("E0509", want)
+        );
+        let e = super::index::slice(x, Some(&Value::Float(1.5)), None, false).unwrap_err();
+        assert_eq!(
+            message(&e.code, &e.args),
+            format!("cannot index {t} with float")
+        );
     }
 }
 
@@ -1665,6 +1852,58 @@ fn eq_says_false_for_different_types_and_refuses_functions() {
     );
     assert_eq!(code(&f, &f), Err("E0501".to_string()));
     assert_eq!(code(&f, &Value::Nil), Ok(false));
+    // D116: two values that both hold a function are E0501 wherever the
+    // functions stand and whatever else they hold; a function on one side
+    // only is a difference like any other.
+    let e = Err("E0501".to_string());
+    assert_eq!(
+        code(
+            &list(vec![int(1), f.clone()]),
+            &list(vec![int(2), f.clone()])
+        ),
+        e
+    );
+    assert_eq!(
+        code(
+            &list(vec![int(1), f.clone()]),
+            &list(vec![int(1), f.clone()])
+        ),
+        e
+    );
+    assert_eq!(
+        code(&list(vec![f.clone()]), &list(vec![int(1), f.clone()])),
+        e
+    );
+    assert_eq!(code(&list(vec![f.clone()]), &tag("Ok", f.clone())), e);
+    assert_eq!(code(&list(vec![f.clone()]), &list(vec![int(1)])), Ok(false));
+    assert_eq!(code(&list(vec![int(1)]), &list(vec![f.clone()])), Ok(false));
+    let held = list(vec![int(1), f.clone()]);
+    assert_eq!(code(&held, &held.clone()), e);
+    let fmap = |first: bool, a: i64| {
+        let mut b = MapBuilder::default();
+        if first {
+            b.set(crate::value::key("cb"), f.clone());
+        }
+        b.set(crate::value::key("a"), int(a));
+        if !first {
+            b.set(crate::value::key("cb"), f.clone());
+        }
+        Value::Map(Rc::new(b.finish()))
+    };
+    assert_eq!(code(&fmap(true, 1), &fmap(true, 2)), e);
+    assert_eq!(code(&fmap(false, 1), &fmap(false, 2)), e);
+    // `in` compares with `==`: the same rule, whatever the order.
+    let found = |c: &Value, x: &Value| crate::value::index::contains(c, x).map_err(|d| d.code);
+    assert_eq!(found(&list(vec![int(1), f.clone()]), &f), e);
+    assert_eq!(found(&list(vec![f.clone(), int(1)]), &int(1)), Ok(true));
+    assert_eq!(
+        found(
+            &list(vec![int(2), list(vec![f.clone()])]),
+            &list(vec![int(2), f.clone()])
+        ),
+        e
+    );
+    assert_eq!(found(&list(vec![int(1), int(2)]), &f), Ok(false));
     let mut h = std::hash::DefaultHasher::new();
     assert_eq!(
         hash_value(&list(vec![f]), &mut h).map_err(|d| d.code),
@@ -1846,4 +2085,92 @@ fn compare_skips_shared_parts() {
     let nils = list(vec![Value::Nil]);
     let twice = list(vec![nils.clone(), nils]);
     assert!(compare(&twice, &twice).is_err());
+}
+
+/// D135: a duration times or over a float is computed exactly on the
+/// float's exact value and rounded once to the nanosecond, halves away
+/// from zero; a duration a float cannot hold is no E0523. Overflow is
+/// E0503, a zero divisor E0502.
+#[test]
+fn duration_and_float_arithmetic_is_exact() {
+    let d = Value::Dur;
+    let f = Value::Float;
+    let code = |r: Result<Value, fung_front::diag::Diag>| r.map(|_| ()).map_err(|e| e.code);
+    let dur = |r: Result<Value, fung_front::diag::Diag>| match r {
+        Ok(Value::Dur(n)) => n,
+        other => panic!("{other:?}"),
+    };
+    let both = |n: i64, x: f64| {
+        let a = dur(super::mul(&d(n), &f(x)));
+        assert_eq!(dur(super::mul(&f(x), &d(n))), a, "{n} * {x}");
+        a
+    };
+    assert_eq!(both(1, 0.5), 1);
+    assert_eq!(both(-1, 0.5), -1);
+    assert_eq!(both(3, 0.5), 2);
+    assert_eq!(both(5, -0.5), -3);
+    assert_eq!(both(1, 0.49999999999999994), 0);
+    assert_eq!(both(i64::MAX, 1.0), i64::MAX);
+    assert_eq!(both(i64::MIN, 1.0), i64::MIN);
+    assert_eq!(both(i64::MAX, 0.5), 4611686018427387904);
+    assert_eq!(both(9_007_199_254_740_993, 1.0), 9_007_199_254_740_993);
+    assert_eq!(both(1, 1e-300), 0);
+    assert_eq!(both(0, 1e300), 0);
+    assert_eq!(both(7, 5e-324), 0);
+    assert_eq!(code(super::mul(&d(1), &f(1e300))), Err("E0503".to_string()));
+    assert_eq!(
+        code(super::mul(&d(i64::MAX), &f(1.0000000000000002))),
+        Err("E0503".to_string())
+    );
+    assert_eq!(
+        code(super::mul(&d(i64::MIN), &f(-1.0))),
+        Err("E0503".to_string())
+    );
+    let over = |n: i64, x: f64| dur(super::div(&d(n), &f(x)));
+    assert_eq!(over(10, 3.0), 3);
+    assert_eq!(over(1, 2.0), 1);
+    assert_eq!(over(-1, 2.0), -1);
+    assert_eq!(over(3, -2.0), -2);
+    assert_eq!(over(9_007_199_254_740_993, 1.0), 9_007_199_254_740_993);
+    assert_eq!(over(9_007_199_254_740_993, 2.0), 4_503_599_627_370_497);
+    assert_eq!(over(1, 1e300), 0);
+    assert_eq!(over(0, 5e-324), 0);
+    assert_eq!(over(i64::MIN, 1.0), i64::MIN);
+    assert_eq!(over(1_000_000_000, 0.1), 10_000_000_000);
+    assert_eq!(both(1_000_000_000, 0.1), 100_000_000);
+    assert_eq!(
+        code(super::div(&d(1), &f(1e-300))),
+        Err("E0503".to_string())
+    );
+    assert_eq!(
+        code(super::div(&d(1), &f(5e-324))),
+        Err("E0503".to_string())
+    );
+    assert_eq!(
+        code(super::div(&d(i64::MIN), &f(-1.0))),
+        Err("E0503".to_string())
+    );
+    assert_eq!(code(super::div(&d(1), &f(0.0))), Err("E0502".to_string()));
+    assert_eq!(code(super::div(&d(1), &f(-0.0))), Err("E0502".to_string()));
+    // Against the rational value in i128, where it fits: the float is
+    // m * 2^e exactly.
+    let mut rng = Rng::new(0x5eed_d135);
+    for _ in 0..20_000 {
+        let n = (rng.next() as i64) >> (rng.next() % 63);
+        let m = (rng.next() >> 11) | 1;
+        let s = (rng.next() % 60) as i32;
+        let x = (m as f64) * 2f64.powi(-s);
+        let exact = i128::from(n) * i128::from(m);
+        let unit = 1i128 << s;
+        let (q, r) = (exact / unit, exact % unit);
+        let want = if 2 * r.abs() >= unit {
+            q + exact.signum()
+        } else {
+            q
+        };
+        match i64::try_from(want) {
+            Ok(w) => assert_eq!(both(n, x), w, "{n} * {x}"),
+            Err(_) => assert_eq!(code(super::mul(&d(n), &f(x))), Err("E0503".to_string())),
+        }
+    }
 }

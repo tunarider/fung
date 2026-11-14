@@ -45,7 +45,7 @@ print(1 + a * 3)
     <tr><td><code>CONST 3</code></td><td>3을 올린다</td><td><code>print 1 2 3</code></td></tr>
     <tr><td><code>MUL</code></td><td>2와 3을 꺼내 곱한 6을 올린다</td><td><code>print 1 6</code></td></tr>
     <tr><td><code>ADD</code></td><td>1과 6을 꺼내 더한 7을 올린다</td><td><code>print 7</code></td></tr>
-    <tr><td><code>CALL 1</code></td><td>함수와 인자 하나를 꺼내 부르고 결과를 올린다</td><td><code>nil</code></td></tr>
+    <tr><td><code>CALL 1 0</code></td><td>함수와 인자 하나를 꺼내 부르고 결과를 올린다</td><td><code>nil</code></td></tr>
   </tbody>
 </table>
 
@@ -120,7 +120,7 @@ print(double(21))
 - 첫 열 `0000`: 명령 번호. 점프는 이 번호로 간다.
 - 둘째 열 `1:16`: 그 명령의 소스 위치(줄:칸). 호출(`CALL`)은 여는 괄호 `(`의 자리, 연산은 연산자의 자리를 갖는다. 그래서 `double(21)`의 호출은 2:13, `print(…)`의 호출은 2:6이다.
 - 셋째, 넷째 열: 명령 이름과 피연산자.
-- `;` 뒤: 피연산자를 풀어 쓴 설명. 상수 번호면 그 상수의 값(`; 21`, `; <fn print>`), 전역 번호면 그 이름(`; double`), `CALL`이면 인자 수.
+- `;` 뒤: 피연산자를 풀어 쓴 설명. 상수 번호면 그 상수의 값(`; 21`, `; <fn print>`), 전역 번호면 그 이름(`; double`), `CALL`이면 위치 인자 수와 이름 인자 수.
 
 `print`가 `CONST 0 ; <fn print>`인 것을 눈여겨보자. 6장에서 `print`는 `(prelude print)`로 해석되었고, 컴파일러는 그 내장 함수 자체를 상수 풀에 넣었다. 실행 중에 "print라는 이름의 함수"를 찾는 일이 없다.
 
@@ -136,8 +136,8 @@ VM은 `<main>`의 0번 명령부터 시작한다. 스택은 비어 있다.
     <tr><td>0002</td><td><code>CONST 0</code></td><td>상수 0번 <code>print</code>를 올린다</td><td><code>print</code></td></tr>
     <tr><td>0003</td><td><code>LOADGLOBAL 0</code></td><td>전역 0번 <code>double</code>을 올린다</td><td><code>print double</code></td></tr>
     <tr><td>0004</td><td><code>CONST 1</code></td><td>21을 올린다</td><td><code>print double 21</code></td></tr>
-    <tr><td>0005</td><td><code>CALL 1</code></td><td><code>double</code>을 인자 하나로 부른다(아래)</td><td><code>print 42</code></td></tr>
-    <tr><td>0006</td><td><code>CALL 1</code></td><td><code>print</code>를 인자 하나로 부른다. 42를 찍고 <code>nil</code>을 돌려준다</td><td><code>nil</code></td></tr>
+    <tr><td>0005</td><td><code>CALL 1 0</code></td><td><code>double</code>을 인자 하나로 부른다(아래)</td><td><code>print 42</code></td></tr>
+    <tr><td>0006</td><td><code>CALL 1 0</code></td><td><code>print</code>를 인자 하나로 부른다. 42를 찍고 <code>nil</code>을 돌려준다</td><td><code>nil</code></td></tr>
     <tr><td>0007</td><td><code>POP</code></td><td>문장의 값을 버린다</td><td>(빔)</td></tr>
     <tr><td>0008</td><td><code>CONST 2</code></td><td><code>nil</code>을 올린다</td><td><code>nil</code></td></tr>
     <tr><td>0009</td><td><code>RETURN</code></td><td>파일 본문이 끝난다. 값은 <code>nil</code></td><td></td></tr>
@@ -282,7 +282,7 @@ print(report([3, 4, 5]))
 
 VM은 컴파일러가 만든 바이트코드를 믿고 돈다. 명령마다 "피연산자가 상수 표 안에 있는가", "스택에 값이 충분한가", "읽는 칸에 값이 있는가"를 묻지 않는다. 묻지 않으니 빠르지만, 컴파일러가 약속을 어기면 VM이 패닉하거나(`VM stack underflow`) 엉뚱한 곳의 코드를 돈다.
 
-그래서 컴파일러는 만든 프로그램마다, 실행하기 전에 **바이트코드 검증기**(`bytecode::verify`)를 돌린다. 코드를 한 번 훑는 일이라 프로그램의 시작 시간에 드러나지 않는다. JVM이 클래스 파일을 실을 때 하는 검증과 같은 생각이다. 검사는 여섯이다.
+그래서 컴파일러는 만든 프로그램마다, 실행하기 전에 **바이트코드 검증기**(`bytecode::verify`)를 돌린다. 코드를 한 번 훑는 일이라 프로그램의 시작 시간에 드러나지 않는다. JVM이 클래스 파일을 실을 때 하는 검증과 같은 생각이다. 검사는 일곱이다.
 
 1. 피연산자가 그 명령이 가리키는 표(상수, 칸, 전역, 자식 함수, 패턴…) 안에 있고, VM이 거기서 읽을 종류다: `FIELD`·`IMPORT`·`TEST`의 상수는 문자열, `TAG`의 이름은 심볼, `MAP`의 키 목록은 값의 수만큼의 문자열이다. 패턴이 묶는 칸과 전역이 있고, 펼침 호출에는 펼칠 리스트가 있다.
 2. 점프는 같은 함수 안의 **앞**으로만 간다(반복문이 없는 언어라 뒤로 가는 점프가 없다).
@@ -290,6 +290,7 @@ VM은 컴파일러가 만든 바이트코드를 믿고 돈다. 명령마다 "피
 4. 스택이 모자라지 않고, 두 길이 만나는 곳에서 스택 높이가 같다.
 5. 지역 칸을 읽을 때(`LOADLOCAL`·`MOVELOCAL`·`CHECKTYPE`·클로저의 붙잡기) 그 칸이 **모든 길에서** 차 있다. 값 대신 "찼음/비었을 수 있음"만 들고 코드를 한 번 따라가는 추상 실행이다. 칸이 비었는지 묻는 명령은 `JUMPIFSET` 하나이고, 기본값이 있는 매개변수의 칸만 묻는다(기본값 서두).
 6. 인자를 모두 준 호출이 시작하는 자리(기본값 서두의 뒤)가 함수 안에 있고, 거기서 스택이 비어 있다. 그 길에서는 서두가 채운 칸이 차 있지 않다.
+7. 기본값 서두에서 칸에 쓰는 명령(`STORELOCAL`, 패턴이 묶는 칸)은 지금 기본값을 채우는 매개변수의 칸이나 매개변수 뒤의 칸에만 쓴다. 기본값 안에서 묶은 이름이 뒤 매개변수의 칸을 쓰면, 그 매개변수를 이름으로 준 호출의 인자가 덮어써진다.
 
 점프가 모두 앞으로 가므로, 명령을 순서대로 한 번 훑으면 어떤 명령에 이르기 전에 그리로 오는 모든 길을 이미 본다. 그래서 고정점을 찾는 반복 없이 한 번에 끝난다. 덤으로 함수의 최대 스택 높이가 나온다.
 

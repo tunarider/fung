@@ -34,7 +34,7 @@ fn patterns(v):
   (a, b) = v
   match a:
     [h, ...t] when len(t) > 0 => h + b
-    {k: kv}                   => kv
+    {k: kv, ...}              => kv
     Ok(n) | Err(n)            => n
     _                         => 0
   ;;

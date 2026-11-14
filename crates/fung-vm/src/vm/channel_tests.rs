@@ -105,7 +105,7 @@ fn the_argument_errors_name_the_argument() {
         ),
         (
             "channel(1.5)",
-            "error[E0403]: argument `n` must be a non-negative int, got 1.5",
+            "error[E0403]: argument `n` must be int, got float",
         ),
         (
             "send(1, 2)",

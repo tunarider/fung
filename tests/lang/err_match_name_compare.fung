@@ -1,6 +1,6 @@
 # A name in a pattern binds a new name: it does not compare with `limit`,
 # so it matches everything and the arms after it never run (E0235, whose
-# help shows the guard); binding the visible `limit` again is E0240 too.
+# help shows the guard); binding the visible `limit` again is E0238 too.
 limit = 5
 fn f(x) = match x:
   limit => "at limit"

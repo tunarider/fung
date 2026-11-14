@@ -187,8 +187,8 @@ print(label)</code></pre><pre class="out err plain" data-code="2"><code>error[E0
 <div class="box mistake"><b>조건에 bool이 아닌 값 (E0505)</b>
 <p><code>if len(errors):</code>는 런타임 에러 <code>expected bool, got int</code>다(<code>if name:</code>이면 <code>got str</code>). fung은 <code>0</code>, 빈 문자열, 빈 리스트를 거짓으로 봐 주지 않는다. <code>if len(errors) &gt; 0:</code>, <code>if name != &quot;&quot;:</code>, <code>if not is_empty(errors):</code>처럼 질문을 분명히 쓴다.</p>
 </div>
-<div class="box mistake"><b>반복 안에서 합계 쌓기 (E0205)</b>
-<p><code>for</code> 안에서 <code>total = total + x</code>는 E0205다(3장). 합계는 <code>sum</code>, 개수는 <code>len</code>이나 <code>filter</code> 뒤의 <code>len</code>, 그 밖의 누적은 <code>fold</code>로 쓴다.</p>
+<div class="box mistake"><b>반복 안에서 합계 쌓기 (E0238)</b>
+<p><code>for</code> 안에서 <code>total = total + x</code>는 E0238이다(3장). 합계는 <code>sum</code>, 개수는 <code>len</code>이나 <code>filter</code> 뒤의 <code>len</code>, 그 밖의 누적은 <code>fold</code>로 쓴다.</p>
 </div>
 <div class="box other"><b>다른 언어는</b>
 <p>Python의 <code>x if c else y</code>, JavaScript의 <code>c ? x : y</code>가 fung의 <code>c then x else y</code>다. Python의 리스트 내포 <code>[f(x) for x in xs]</code>가 fung의 <code>for x in xs: f(x) ;;</code>와 같다. 쉘의 <code>while read line</code>처럼 줄을 읽는 반복은 fung에서 줄 목록을 받아 <code>for</code>로 돈다(11장). 재귀로 쓰는 반복은 5장에서 본다.</p>

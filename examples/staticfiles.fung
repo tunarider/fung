@@ -25,14 +25,14 @@ fn content_type(file) = match lower(path.ext(file)):
 
 # A directory stands for its index.html.
 fn _file_for(target) = match fs.stat(target):
-  Ok({is_dir: true}) => path.join(target, "index.html")
-  _                  => target
+  Ok({is_dir: true, ...}) => path.join(target, "index.html")
+  _                       => target
 ;;
 
 fn _serve_file(file, req_path) = match fs.read(file):
-  Ok(text)                => {status: 200, headers: {"content-type": content_type(file)}, body: text}
-  Err({kind: 'not_found}) => {status: 404, body: "not found: ${req_path}"}
-  Err(e)                  => {status: 500, body: e.message}
+  Ok(text)                     => {status: 200, headers: {"content-type": content_type(file)}, body: text}
+  Err({kind: 'not_found, ...}) => {status: 404, body: "not found: ${req_path}"}
+  Err(e)                       => {status: 500, body: e.message}
 ;;
 
 # Builds the request handler for http.serve.

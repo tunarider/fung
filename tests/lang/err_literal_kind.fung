@@ -1,0 +1,6 @@
+# What the syntax shows of a value settles a type error before the run
+# (D99, FE81): a list literal has no order with a tuple, under the run's
+# number and words.
+fn f() = [1] < (1,)
+print(f())
+# expect-error: E0501

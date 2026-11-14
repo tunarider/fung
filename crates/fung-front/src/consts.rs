@@ -103,13 +103,16 @@ fn format_items(items: &[Const]) -> String {
 }
 
 /// Whether a map key can be written without quotes: it reads as a name
-/// or a tag (01).
+/// or a tag (01), and as the same key, so it is NFC (an identifier-shaped
+/// key is read as NFC, D130).
 pub fn is_plain_key(k: &str) -> bool {
     let mut cs = k.chars();
     let Some(first) = cs.next() else {
         return false;
     };
-    (first == '_' || is_name_start(first)) && cs.all(is_name_continue)
+    (first == '_' || is_name_start(first))
+        && cs.all(is_name_continue)
+        && (k.is_ascii() || crate::unicode::nfc(k) == k)
 }
 
 /// What `print()` and `${}` use: strings bare, the rest in literal form.

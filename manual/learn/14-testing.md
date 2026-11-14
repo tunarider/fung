@@ -221,7 +221,7 @@ for h in hosts:
   <thead><tr><th>번호</th><th>뜻</th><th>고치는 법</th></tr></thead>
   <tbody>
     <tr><td><code>E0239</code></td><td>만들고 읽지 않는 변수·매개변수·import</td><td>지우거나, 일부러면 이름 앞에 <code>_</code></td></tr>
-    <tr><td><code>E0240</code></td><td>보이는 이름(바깥 변수, 최상위 이름, prelude 함수 등)과 같은 이름을 새로 묶음</td><td>다른 이름을 짓는다</td></tr>
+    <tr><td><code>E0238</code></td><td>보이는 이름(바깥 변수, 최상위 이름, prelude 함수 등)과 같은 이름을 새로 묶음</td><td>다른 이름을 짓는다</td></tr>
   </tbody>
 </table>
 
@@ -258,7 +258,7 @@ error[E0239]: unused variable `total`
  help: remove it, or start its name with `_` if it is kept on purpose
 ```
 
-`items` 대신 `lines`라고 지었다면 prelude의 `lines`를 가리므로 E0240이었을 것이다. 가린 이름이 있으면 같은 함수 안에서 나중에 prelude의 `lines(문자열)`을 부르려다 그 리스트를 부르게 되므로, fung은 처음부터 막는다.
+`items` 대신 `lines`라고 지었다면 prelude의 `lines`를 가리므로 E0238이었을 것이다. 가린 이름이 있으면 같은 함수 안에서 나중에 prelude의 `lines(문자열)`을 부르려다 그 리스트를 부르게 되므로, fung은 처음부터 막는다.
 
 :::exercise 크기 표시 함수 테스트
 바이트 수를 `"512 B"`, `"1.5 KiB"`, `"3.0 MiB"`처럼 바꾸는 함수 `human(n)`을 쓰고, 경계(1023, 1024, 1048576)를 확인하는 테스트 블록을 붙여 보자. 1024 미만은 `B`, 1024² 미만은 `KiB`, 그 이상은 `MiB`다. 소수 첫째 자리까지만 보이려면 `int(x * 10) / 10`처럼 자른다.
@@ -380,6 +380,6 @@ print(r)
 - `fung test`는 파일의 최상위 코드도 먼저 실행한다. 계산은 라이브러리 파일로 떼어 내고 진입 파일은 얇게 둔다.
 - `dbg(식)`은 식과 값을 표준 에러에 찍고 값을 그대로 돌려준다.
 - `fung fmt`는 공백·들여쓰기·정렬을 하나의 스타일로 고친다(줄바꿈은 그대로). `--check`는 CI용.
-- `fung check`는 실행 없이 검사한다. 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0240)도 에러다.
+- `fung check`는 실행 없이 검사한다. 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0238)도 에러다.
 
 정확한 규칙은 레퍼런스의 [테스트와 디버깅](../reference/language/testing.html)과 [명령줄 도구](../reference/cli.html#test)에 있다. 포맷터와 테스트 실행기가 어떻게 만들어졌는지는 VM 책의 [포맷터](../vm/15-formatter.html)와 [테스트 실행기](../vm/17-test-runner.html)에서 다룬다. 여기까지 왔다면 fung으로 쓸 수 있는 스크립트의 재료는 모두 갖췄다. 예제 모음의 레시피에서 실제 작업에 맞춰 조합해 보자.

@@ -378,7 +378,9 @@ const CALLS_OR_RAISES: &[(&str, &[&str])] = &[
 /// spec marks them `pure` like the natives, so a call of one as a
 /// statement is E0234 whichever language it is written in. Those that
 /// read a receiving end (`first`, `take`, `zip`) are here as `sort` and
-/// `len` are in [`PURE`]: reading a channel is `recv`'s to do.
+/// `len` are in [`PURE`]: reading a channel is `recv`'s to do. Those
+/// that compute with a function they are given (`iterate`, `until`) are
+/// here as `fold` is (D90, VA63).
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) const PURE_FUNG: &[&str] = &[
     "first",
@@ -392,13 +394,15 @@ pub(crate) const PURE_FUNG: &[&str] = &[
     "is_err",
     "pad_left",
     "pad_right",
+    "iterate",
+    "until",
 ];
 
-/// The prelude functions written in fung that call a function they are
-/// given or run a command. Every one is here, in [`PURE_FUNG`], or
-/// another name for a native (`boot::spec_file`).
+/// The prelude functions written in fung that run a command. Every one
+/// is here, in [`PURE_FUNG`], or another name for a native
+/// (`boot::spec_file`).
 #[cfg_attr(not(test), allow(dead_code))]
-pub(crate) const CALLING_FUNG: &[&str] = &["exec", "sh", "iterate", "until"];
+pub(crate) const CALLING_FUNG: &[&str] = &["exec", "sh"];
 
 /// Whether `name` of `module` is known to have no effect (D39): what the
 /// spec marks `pure`, for E0234 on a call of it as a statement.

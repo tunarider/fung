@@ -6,3 +6,10 @@ print(-90s // 1m, -90s % 1m)
 # expect: -2 30s
 print(4 * (elapsed / 1s) * 1ms)
 # expect: 360ms
+# A duration and a float are computed exactly and rounded once to the
+# nanosecond, halves away from zero (D135): no duration is too long for
+# a float, and the order of the operands does not matter.
+ns = 1ms / 1000000
+long = 2600h + ns
+print(long * 1.0, 1.0 * long, long / 2.0, ns * 0.5, -ns * 0.5, 1s * 0.0000000001)
+# expect: 2600h0.000001ms 2600h0.000001ms 1300h0.000001ms 0.000001ms -0.000001ms 0s

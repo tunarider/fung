@@ -8,6 +8,7 @@
 //! so callers with very deep trees need a large stack (see `parser`).
 
 mod alias;
+mod annot;
 mod call;
 mod fn_;
 mod module;
@@ -108,18 +109,30 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         const_pos: HashMap::new(),
         open: HashMap::new(),
         pattern_bound: HashSet::new(),
+        guarded: false,
         global_sigs: HashMap::new(),
         lambda_targets: Vec::new(),
         similar_index: None,
         similar_indexed: 0,
         slots: HashMap::new(),
         pure_calls: HashMap::new(),
+        catch_all: HashSet::new(),
     };
     let mut out = r.root_block(core);
     out.number();
     // The file's last item is discarded (01), or printed by the REPL.
     let pure_calls = std::mem::take(&mut r.pure_calls);
     value::check_file(core, opts.keep_value, &pure_calls, &mut r.errs);
+    // A discarded name that is not defined is one mistake: its E0204
+    // says it (FE82: a lone `end` line).
+    let undefined: HashSet<(u32, u32)> = r
+        .errs
+        .iter()
+        .filter(|e| e.code == "E0204")
+        .map(|e| (e.pos.line, e.pos.col))
+        .collect();
+    r.errs
+        .retain(|e| e.code != "E0234" || !undefined.contains(&(e.pos.line, e.pos.col)));
     // An unused name is often another error's doing (a misspelt read, a
     // binding that hides): it is reported once the rest is fixed (D38).
     if r.errs.iter().any(|e| e.code != "E0239") {
@@ -143,7 +156,15 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         .global_sigs
         .iter()
         .filter(|(i, _)| exported.contains(&r.globals[**i]))
-        .map(|(i, (_, sig))| (r.globals[*i].clone(), sig.clone()))
+        .map(|(i, (own, sig))| {
+            // a function exported under another name keeps its own (D110)
+            let name = &r.globals[*i];
+            let sig = Sig {
+                name: (own != name).then(|| own.clone()),
+                ..sig.clone()
+            };
+            (name.clone(), sig)
+        })
         .collect();
     Ok(Resolved {
         core: out,
@@ -156,6 +177,9 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
 }
 
 struct Resolver<'a> {
+    /// Where a match arm's whole pattern is a name: it matches every
+    /// value, and E0239 says so when it goes unread (FE82).
+    catch_all: HashSet<(u32, u32)>,
     /// The calls of functions known to have no effect, by position, with
     /// the name the error shows (D39; `value::check_file`).
     pure_calls: value::Pure,
@@ -182,7 +206,7 @@ struct Resolver<'a> {
     /// Names bound to modules (unshadowable).
     module_names: HashMap<String, ModuleInfo>,
     /// How each module name's import names its module (`fs`,
-    /// `"./lib/x"`), for E0308's help.
+    /// `"./lib/x"`), for E0238's help.
     module_specs: HashMap<String, String>,
     /// Every name an import bound, with the length of where it is written
     /// (for E0239's underline): never re-exported (04).
@@ -192,7 +216,7 @@ struct Resolver<'a> {
     /// (03, L9, D53; every name an input binds in the REPL), with their
     /// global slots taken before the top-level fns are resolved.
     consts: HashMap<String, usize>,
-    /// Where each constant is first bound, for E0240's note.
+    /// Where each constant is first bound, for E0238's note.
     const_pos: HashMap<String, Pos>,
     /// How many open blocks below the file's own (in any function) bind
     /// each name, its own names of named local fns included: a name none
@@ -202,6 +226,9 @@ struct Resolver<'a> {
     /// The names the pattern being bound has bound so far: a later
     /// alternative of it binds them again (`bind_pattern`).
     pattern_bound: HashSet<String>,
+    /// The pattern being bound is a guarded arm's: its alternatives
+    /// cover nothing (D112).
+    guarded: bool,
     /// The global slots that hold a known function (D43): a top-level fn
     /// of the file or a name an import bound, with its name and
     /// parameters. Empty in the REPL, where a later input may define the
@@ -370,12 +397,7 @@ impl Resolver<'_> {
                     fns.push(k);
                     continue;
                 }
-                let e = if b.module {
-                    self.shadow_error(name, at)
-                } else {
-                    let first = self.root_scope().pos.get(name).copied();
-                    defined_twice(name, at, first)
-                };
+                let e = self.bound_again(name, at, true, true);
                 self.errs.push(e);
                 continue;
             }
@@ -389,9 +411,10 @@ impl Resolver<'_> {
             };
             self.fns[0].bind(0, name, b);
             self.root_scope().pos.insert(name.to_string(), at);
+            self.root_scope().fns.insert(name.to_string());
             self.globals.push(name.to_string());
             if !self.opts.redefine {
-                let sig = call::Sig::of(fn_info(k));
+                let sig = self.sig_of(fn_info(k));
                 self.global_sigs.insert(b.index, (name.to_string(), sig));
             }
             fns.push(k);
@@ -404,7 +427,7 @@ impl Resolver<'_> {
             }
         }
         self.declare_consts(&rest);
-        self.note_aliases(&rest);
+        self.note_functions(&rest);
         for k in fns {
             let b = self.root_scope().names[fn_info(k).name.as_str()];
             let f = self.function(k, true);
@@ -412,8 +435,13 @@ impl Resolver<'_> {
         }
         for k in rest {
             // `_ = e` keeps no value either: it is a bare statement under
-            // another spelling (FE69).
-            let discards = k.head == Head::Let && k.kids[0].head == Head::Pwild;
+            // another spelling (FE69), and so is any pattern that binds no
+            // name, `(_, _) = e` (FE80).
+            let discards = k.head == Head::Let && {
+                let mut binds = false;
+                k.kids[0].bound_names(&mut |_, _| binds = true);
+                !binds
+            };
             if self.opts.library && ((k.head != Head::Let && k.head != Head::Test) || discards) {
                 // At the statement's start, not a call's `(` (FE29).
                 self.errs.push(error("E0306", k.start_pos(), vec![]));
@@ -567,16 +595,16 @@ impl Resolver<'_> {
             return f;
         };
         let at = fn_info(n).name_pos;
-        // a block defines a fn once, as the file does (FE61)
-        if self.cur_block().fns.contains(name) {
-            let first = self.cur_block().pos.get(name).copied();
-            self.errs.push(defined_twice(name, at, first));
+        // a block binds a name once, as the file does (FE61, D122)
+        if self.cur_block().names.contains_key(name) && !self.cur_block().file {
+            let e = self.bound_again(name, at, false, true);
+            self.errs.push(e);
             return f;
         }
         match self.bind_new(name, at, false) {
             Some(b) => {
                 self.cur_block().fns.insert(name.to_string());
-                let known = (name.to_string(), call::Sig::of(fn_info(n)));
+                let known = (name.to_string(), self.sig_of(fn_info(n)));
                 self.cur_block().sigs.insert(name.to_string(), known);
                 Node::new(Head::Let, n.pos, vec![ref_node(n.pos, b), f])
             }
@@ -605,29 +633,15 @@ impl Resolver<'_> {
     /// Binds a name in the current block for an assignment (`assign`) or
     /// a local fn. A name is bound once (D88): a second binding in the
     /// block is E0238, whatever the two are (a variable, a fn, an imported
-    /// name), and a visible outer name is E0240 (D38). Only the REPL's
+    /// name), and so is a visible outer name (D38, D122). Only the REPL's
     /// top level binds a name again. Returns `None` when the binding is
     /// an error.
     fn bind_new(&mut self, name: &str, pos: Pos, assign: bool) -> Option<Binding> {
         if let Some(b) = self.cur_block().names.get(name).copied() {
             let again = self.cur_block().file && self.opts.redefine;
-            if b.module && !again {
-                let e = self.shadow_error(name, pos);
-                self.errs.push(e);
-                return None;
-            }
             // What desugar names itself it may bind as it needs.
-            if !again && !crate::tree::is_hidden(name) {
-                let mut e = name_error("E0238", pos, name);
-                if let Some(at) = self.cur_block().pos.get(name).copied() {
-                    let how = if self.cur_block().file && self.import_bound.contains_key(name) {
-                        "imported"
-                    } else {
-                        "first bound"
-                    };
-                    e.notes
-                        .push(format!("note: `{name}` is {how} on line {}", at.line));
-                }
+            if !again && (b.module || !crate::tree::is_hidden(name)) {
+                let e = self.bound_again(name, pos, false, !assign);
                 self.errs.push(e);
                 return None;
             }
@@ -704,25 +718,17 @@ impl Resolver<'_> {
                 pattern::Mode::Assign
             };
             let pat = self.bind_pattern(target, mode);
+            self.note_bound_functions(target, &n.kids[1], &rhs);
             return Node::new(Head::Let, n.pos, vec![pat, rhs]);
         }
-        // The callee a partial application keeps in a hidden variable is
-        // still the function it was written as (FE65).
-        let kept = match crate::tree::is_hidden(lit_str(target)) {
-            true => self.known_callee(&n.kids[1], &rhs),
-            false => None,
-        };
         let lhs = match self.bind_new(lit_str(target), target.pos, true) {
-            Some(b) => {
-                if let Some(known) = kept {
-                    self.cur_block()
-                        .sigs
-                        .insert(lit_str(target).to_string(), known);
-                }
-                ref_node(target.pos, b)
-            }
+            Some(b) => ref_node(target.pos, b),
             None => target.clone(),
         };
+        // A name bound to a function written in the source is that
+        // function (D110), the callee a partial application keeps in a
+        // hidden variable too (FE65).
+        self.note_bound_functions(target, &n.kids[1], &rhs);
         Node::new(Head::Let, n.pos, vec![lhs, rhs])
     }
 
@@ -909,19 +915,6 @@ impl Resolver<'_> {
     }
 }
 
-/// E0210 at the second definition of fn `name`, with where the first
-/// one is (FE61).
-fn defined_twice(name: &str, at: Pos, first: Option<Pos>) -> Diag {
-    let mut e = name_error("E0210", at, name);
-    if let Some(p) = first {
-        e.notes.push(format!(
-            "note: `{name}` is first defined on line {}",
-            p.line
-        ));
-    }
-    e
-}
-
 /// E0211 for `return` or `?` in a parameter default: the default is
 /// computed for the call before the body runs, so returning there would
 /// skip the body (FE38).
@@ -938,7 +931,7 @@ fn return_in_default(what: &str, pos: Pos) -> Diag {
 
 impl Resolver<'_> {
     /// A test's name tells which one failed, so a file uses each once and
-    /// none is empty (FE20, E0233), as it does a top-level fn's (E0210).
+    /// none is empty (FE20, E0233), as it does a top-level fn's (E0238).
     fn check_test_names(&mut self, root: &Node) {
         let mut seen = std::collections::HashSet::new();
         for k in &root.kids {

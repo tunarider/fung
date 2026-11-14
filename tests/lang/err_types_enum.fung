@@ -1,4 +1,5 @@
 type color = Red | Green
 fn hex(c: color) = c
-print(hex(Blue))
+v = Blue
+print(hex(v))
 # expect-error: E0403

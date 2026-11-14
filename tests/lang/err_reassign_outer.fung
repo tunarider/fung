@@ -1,5 +1,5 @@
 # A block cannot bind a name of an outer block again (D38, D88): written
-# as an assignment, the counter in a loop, it is E0205.
+# as an assignment, the counter in a loop, it is E0238 (D122).
 total = 0
 if true: total = total + 1 ;;
-# expect-error: E0205
+# expect-error: E0238

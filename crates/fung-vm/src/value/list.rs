@@ -1,7 +1,10 @@
 //! Lists (02). A list is immutable to fung code; `push` takes `&mut self`
 //! so the VM can append in place to a list it owns alone. Small lists are
-//! plain vectors; big ones are views `[lo, hi)` on a persistent vector, so
-//! appending and taking the tail are cheap and old versions stay valid.
+//! plain vectors; big ones are persistent vectors, so appending, putting
+//! before and taking a slice are cheap and old versions stay valid. A big
+//! list is its whole vector: a slice is cut from a copy of the tree in
+//! O(log n) and keeps only the leaves its items are in, so the items cut
+//! off are let go with the list they were in (VA59).
 
 use std::fmt;
 
@@ -22,11 +25,7 @@ pub struct List {
 enum Repr {
     Flat(Vec<Value>),
     // Boxed so that a small list's head is the size of a `Vec` (VA37).
-    Big {
-        vec: Box<Pvec<Value>>,
-        lo: usize,
-        hi: usize,
-    },
+    Big(Box<Pvec<Value>>),
 }
 
 impl List {
@@ -37,21 +36,17 @@ impl List {
                 repr: Repr::Flat(items),
             };
         }
-        let vec = Box::new(Pvec::of(items));
-        let hi = vec.len();
         List {
-            repr: Repr::Big { vec, lo: 0, hi },
+            repr: Repr::Big(Box::new(Pvec::of(items))),
         }
     }
 
-    /// Whether an item holds a mutable value: a slice of a big list
-    /// looks at its own items only.
     /// The items of a small list (`Value::holds_mutable` walks them);
     /// `None` for a big one, which answers from its memo.
     pub(crate) fn flat(&self) -> Option<&[Value]> {
         match &self.repr {
             Repr::Flat(v) => Some(v),
-            Repr::Big { .. } => None,
+            Repr::Big(_) => None,
         }
     }
 
@@ -61,8 +56,7 @@ impl List {
     pub(crate) fn holds(&self, p: Probe) -> bool {
         match &self.repr {
             Repr::Flat(v) => v.iter().any(|x| x.has(p)),
-            Repr::Big { vec, lo, hi } if *lo == 0 && *hi == vec.len() => vec.holds(p),
-            Repr::Big { vec, lo, hi } => vec.holds_in(*lo, *hi, p),
+            Repr::Big(vec) => vec.holds(p),
         }
     }
 
@@ -75,14 +69,14 @@ impl List {
     ) {
         match &self.repr {
             Repr::Flat(v) => v.iter().filter(|x| x.holds_mutable()).for_each(f),
-            Repr::Big { vec, lo, hi } => vec.each_holding(*lo, *hi, Probe::Mutable, seen, f),
+            Repr::Big(vec) => vec.each_holding(0, vec.len(), Probe::Mutable, seen, f),
         }
     }
 
     pub fn len(&self) -> usize {
         match &self.repr {
             Repr::Flat(items) => items.len(),
-            Repr::Big { lo, hi, .. } => hi - lo,
+            Repr::Big(vec) => vec.len(),
         }
     }
 
@@ -93,7 +87,7 @@ impl List {
     pub fn at(&self, i: usize) -> Option<&Value> {
         match &self.repr {
             Repr::Flat(items) => items.get(i),
-            Repr::Big { vec, lo, hi } => (i < hi - lo).then(|| vec.at(lo + i)),
+            Repr::Big(vec) => (i < vec.len()).then(|| vec.at(i)),
         }
     }
 
@@ -103,13 +97,12 @@ impl List {
     pub(crate) fn run_from(&self, i: usize) -> &[Value] {
         match &self.repr {
             Repr::Flat(items) => items.get(i..).unwrap_or(&[]),
-            Repr::Big { vec, lo, hi } => {
-                let at = lo + i;
-                if at >= *hi {
+            Repr::Big(vec) => {
+                if i >= vec.len() {
                     return &[];
                 }
-                let (leaf, start) = vec.leaf_for(at);
-                let end = leaf.len().min(start + (hi - at));
+                let (leaf, start) = vec.leaf_for(i);
+                let end = leaf.len().min(start + (vec.len() - i));
                 &leaf[start..end]
             }
         }
@@ -129,47 +122,50 @@ impl List {
                 next: 0,
                 hi: 0,
             },
-            Repr::Big { vec, lo: base, .. } => Iter {
+            Repr::Big(vec) => Iter {
                 cur: [].iter(),
                 big: Some(vec),
-                next: base + lo,
-                hi: base + hi,
+                next: lo,
+                hi,
             },
         }
     }
 
-    /// Whether this list is a view into a shared vector (tests).
-    #[cfg(test)]
-    pub(crate) fn is_view(&self) -> bool {
-        matches!(&self.repr, Repr::Big { lo, hi, vec } if *lo != 0 || *hi != vec.len())
-    }
-
-    /// Items `[lo, hi)`; callers check the bounds. A big result is a view
-    /// on the same vector, or, much smaller than the vector it would keep
-    /// alive, a vector cut to its own leaves; a small one is copied out.
+    /// Items `[lo, hi)`; callers check the bounds. A big result is cut
+    /// from a copy of the tree in O(log n) (VA33): the nodes inside stay
+    /// shared, and it holds only the leaves its items are in, so what was
+    /// cut off is not kept alive by it (VA59). A small one is copied out.
     pub fn slice(&self, lo: usize, hi: usize) -> List {
         assert!(lo <= hi && hi <= self.len(), "list slice out of range");
-        let n = hi - lo;
         match &self.repr {
-            Repr::Big { vec, lo: base, .. } if n > SMALL_MAX && n * 4 >= vec.len() => List {
-                repr: Repr::Big {
-                    vec: vec.clone(),
-                    lo: base + lo,
-                    hi: base + hi,
-                },
-            },
-            // A small part of a big vector: its own vector, cut from a
-            // copy of the tree in O(log n) (VA33), so it holds only the
-            // leaves its items are in.
-            Repr::Big { vec, lo: base, .. } if n > SMALL_MAX => {
+            Repr::Big(vec) if hi - lo > SMALL_MAX => {
                 let mut vec = vec.clone();
-                vec.truncate(base + hi);
-                vec.drop_front(base + lo);
+                vec.truncate(hi);
+                vec.drop_front(lo);
                 List {
-                    repr: Repr::Big { vec, lo: 0, hi: n },
+                    repr: Repr::Big(vec),
                 }
             }
             _ => List::new(self.range(lo, hi).cloned().collect()),
+        }
+    }
+
+    /// Cuts this list down to items `[lo, hi)` in place, when the result
+    /// is big and what is cut off is at most `RELEASE_PIECE` items, which
+    /// are let go now (a step of about a millisecond, like a piece of
+    /// `release`); false otherwise, and nothing changed. For a list that
+    /// nothing else holds (`index::slice_owned`): its nodes are changed
+    /// where they are, without the copy of the head leaf and the path that
+    /// `slice` makes. Nodes shared with other lists are still copied.
+    pub fn cut(&mut self, lo: usize, hi: usize) -> bool {
+        assert!(lo <= hi && hi <= self.len(), "list cut out of range");
+        match &mut self.repr {
+            Repr::Big(vec) if hi - lo > SMALL_MAX && vec.len() - (hi - lo) <= RELEASE_PIECE => {
+                vec.truncate(hi);
+                vec.drop_front(lo);
+                true
+            }
+            _ => false,
         }
     }
 
@@ -183,25 +179,7 @@ impl List {
                 items.push(x);
                 *self = List::new(items);
             }
-            // the view reaches the vector's end: grow it
-            Repr::Big { vec, hi, .. } if *hi == vec.len() => {
-                vec.push(x);
-                *hi += 1;
-            }
-            // a front slice that is most of its vector: cut the vector at
-            // its end (O(log n), the leaves before stay shared) and grow
-            // it, so a list used as a stack (`s[..len(s) - 1] + [x]`) stays cheap
-            Repr::Big { vec, lo, hi } if (*hi - *lo) * 4 >= *hi => {
-                vec.truncate(*hi);
-                vec.push(x);
-                *hi += 1;
-            }
-            // a small front slice gets its own vector
-            Repr::Big { .. } => {
-                let mut items = self.to_vec();
-                items.push(x);
-                *self = List::new(items);
-            }
+            Repr::Big(vec) => vec.push(x),
         }
     }
 
@@ -218,16 +196,16 @@ impl List {
         }
         let total = self.len() + other.len();
         if other.len() > self.len()
-            && let Some(mut out) = other.extendable_front()
+            && let Repr::Big(vec) = &other.repr
         {
+            let mut vec = vec.clone();
             let items = self.to_vec();
-            if let Repr::Big { vec, hi, .. } = &mut out.repr {
-                for v in items.into_iter().rev() {
-                    vec.push_front(v);
-                    *hi += 1;
-                }
+            for v in items.into_iter().rev() {
+                vec.push_front(v);
             }
-            return out;
+            return List {
+                repr: Repr::Big(vec),
+            };
         }
         if matches!(self.repr, Repr::Flat(_)) || total <= SMALL_MAX {
             let mut items = Vec::with_capacity(total);
@@ -240,30 +218,6 @@ impl List {
             out.push(v.clone());
         }
         out
-    }
-
-    /// A big list equal to `self` whose view starts at its vector's
-    /// front, so items can be put before it: a view is cut down to its
-    /// own items in O(log n) (the nodes stay shared). `None` for a small
-    /// list, or a view much smaller than its vector (copying it is cheap,
-    /// and keeps the vector from being held for a few items).
-    fn extendable_front(&self) -> Option<List> {
-        let Repr::Big { vec, lo, hi } = &self.repr else {
-            return None;
-        };
-        if *lo == 0 {
-            return Some(self.clone());
-        }
-        if (hi - lo) * 4 < vec.len() {
-            return None;
-        }
-        let mut vec = vec.clone();
-        vec.truncate(*hi);
-        vec.drop_front(*lo);
-        let hi = vec.len();
-        Some(List {
-            repr: Repr::Big { vec, lo: 0, hi },
-        })
     }
 
     /// The items copied into a new vector.
@@ -280,11 +234,11 @@ impl List {
 impl List {
     /// Moves the items out for `release`, leaving the list empty.
     /// Whether freeing this list is long work, to do a piece at a time
-    /// (L6): a big list that owns its vector. A view of a vector others
-    /// share only lets go of nodes, which is quick.
+    /// (L6): a big list that owns its vector. A vector whose nodes others
+    /// share only lets go of them, which is quick.
     pub(super) fn long_to_free(&self) -> bool {
         match &self.repr {
-            Repr::Big { vec, .. } => self.len() > RELEASE_PIECE && vec.owns_nodes(),
+            Repr::Big(vec) => vec.len() > RELEASE_PIECE && vec.owns_nodes(),
             Repr::Flat(_) => false,
         }
     }
@@ -297,10 +251,7 @@ impl List {
         let cut: Vec<Value> = self.range(len - n, len).cloned().collect();
         match &mut self.repr {
             Repr::Flat(items) => items.truncate(len - n),
-            Repr::Big { vec, hi, .. } => {
-                *hi -= n;
-                vec.truncate(*hi);
-            }
+            Repr::Big(vec) => vec.truncate(len - n),
         }
         cut.into_iter().for_each(|v| keep(stack, v));
     }
@@ -308,7 +259,7 @@ impl List {
     pub(super) fn spill(&mut self, stack: &mut Vec<Value>) {
         match self.take_repr() {
             Repr::Flat(items) => items.into_iter().for_each(|v| keep(stack, v)),
-            Repr::Big { vec, .. } => vec.drain(|v| keep(stack, v)),
+            Repr::Big(vec) => vec.drain(|v| keep(stack, v)),
         }
     }
 }

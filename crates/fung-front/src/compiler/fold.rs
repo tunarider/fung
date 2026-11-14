@@ -20,33 +20,67 @@ use crate::tree::{Head, Lit, Node};
 /// is a constant).
 pub(super) fn constants(root: &Node) -> HashMap<u32, Const> {
     let mut out = HashMap::new();
-    walk(root, &mut out);
+    if let Some(c) = walk(root, &mut out) {
+        record(root, c, &mut out);
+    }
     out
 }
 
-/// The constant `n` stands for, if any; what folds below `n` goes into
-/// `out`.
+/// The constant `n` stands for, if any. The constants of `n`'s children
+/// go into `out` only when `n` itself does not fold: the compiler looks
+/// up a folding node before its children and never visits them, so a
+/// chain of folds keeps only its outermost constant, moved, not copied
+/// at every level (VM51: `"a" + "a" + …` of 100,000 terms held every
+/// partial string, 6 GB).
 fn walk(n: &Node, out: &mut HashMap<u32, Const>) -> Option<Const> {
-    let all_kids = matches!(
-        n.head,
-        Head::List
-            | Head::Tuple
-            | Head::Tag
-            | Head::Map
-            | Head::Range
-            | Head::Concat
-            | Head::Op
-            | Head::Entry
-    );
-    let mut cs: Vec<Option<Const>> = Vec::new();
-    for k in &n.kids {
-        let c = walk(k, out);
-        if all_kids {
-            cs.push(c);
+    let mut cs: Vec<Option<Const>> = n.kids.iter().map(|k| walk(k, out)).collect();
+    let c = fold(n, &mut cs);
+    if c.is_none() {
+        for (k, c) in n.kids.iter().zip(cs) {
+            if let Some(c) = c {
+                record(k, c, out);
+            }
         }
     }
-    let all = |cs: Vec<Option<Const>>| cs.into_iter().collect::<Option<Vec<_>>>();
-    let c = match (n.head, &n.lit) {
+    c
+}
+
+/// Puts the constant of `n` where the compiler looks for it: by the node
+/// number of an operator, a literal of a collection or an interpolation;
+/// a map entry's constant is its value's.
+fn record(n: &Node, c: Const, out: &mut HashMap<u32, Const>) {
+    match n.head {
+        Head::Entry => {
+            if let Some(v) = n.kids.last() {
+                record(v, c, out);
+            }
+        }
+        Head::Op
+        | Head::List
+        | Head::Tuple
+        | Head::Tag
+        | Head::Map
+        | Head::Range
+        | Head::Concat
+            if n.id != 0 =>
+        {
+            out.insert(n.id, c);
+        }
+        _ => {}
+    }
+}
+
+/// The constant `n` stands for, given its children's (`cs`, one per
+/// child). A child's constant is taken out of `cs` only when `n` folds,
+/// so the ones left are recorded for the compiler.
+fn fold(n: &Node, cs: &mut [Option<Const>]) -> Option<Const> {
+    let all_some = |cs: &[Option<Const>]| cs.iter().all(Option::is_some);
+    let take_all = |cs: &mut [Option<Const>]| -> Vec<Const> {
+        cs.iter_mut()
+            .map(|c| c.take().expect("checked to be constants"))
+            .collect()
+    };
+    match (n.head, &n.lit) {
         (Head::Int, Lit::Int(i)) => Some(Const::Int(*i)),
         (Head::Float, Lit::Float(f)) => Some(Const::Float(*f)),
         (Head::Bool, Lit::Bool(b)) => Some(Const::Bool(*b)),
@@ -54,49 +88,32 @@ fn walk(n: &Node, out: &mut HashMap<u32, Const>) -> Option<Const> {
         (Head::String, Lit::Str(_) | Lit::Bytes(_)) => Some(str_const(n)),
         (Head::Symbol, Lit::Str(s)) => Some(Const::Sym(s.clone())),
         (Head::Duration, Lit::Dur(d)) => Some(Const::Dur(*d)),
-        (Head::Op, _) if cs.len() == 1 && lit_str(n) == "-" => match cs.pop()?? {
+        (Head::Op, _) if cs.len() == 1 && lit_str(n) == "-" => match cs[0].as_ref()? {
             Const::Int(i) => i.checked_neg().map(Const::Int),
             Const::Float(f) => float(-f),
             _ => None,
         },
-        (Head::Op, _) if cs.len() == 2 => {
-            let b = cs.pop()??;
-            let a = cs.pop()??;
-            binary(lit_str(n), a, b)
-        }
-        (Head::Entry, _) => cs.pop().flatten(),
-        (Head::List, _) => all(cs).map(Const::List),
-        (Head::Tuple, _) => all(cs).map(Const::Tuple),
-        (Head::Tag, Lit::Str(name)) => all(cs).map(|xs| Const::Tag(name.clone(), xs)),
-        (Head::Map, _) => n
-            .kids
-            .iter()
-            .zip(cs)
-            .map(|(e, v)| Some((str_const(e), v?)))
-            .collect::<Option<Vec<_>>>()
-            .map(Const::Map),
-        (Head::Range, _) => match all(cs)?.as_slice() {
+        (Head::Op, _) if cs.len() == 2 => binary(lit_str(n), cs),
+        (Head::Entry, _) => cs.last_mut()?.take(),
+        (Head::List, _) if all_some(cs) => Some(Const::List(take_all(cs))),
+        (Head::Tuple, _) if all_some(cs) => Some(Const::Tuple(take_all(cs))),
+        (Head::Tag, Lit::Str(name)) if all_some(cs) => Some(Const::Tag(name.clone(), take_all(cs))),
+        (Head::Map, _) if all_some(cs) => Some(Const::Map(
+            n.kids.iter().map(str_const).zip(take_all(cs)).collect(),
+        )),
+        (Head::Range, _) => match cs {
             // A start after the end is not folded: the range is made at
             // run time, where it is E0522 (D7).
-            [Const::Int(a), Const::Int(b)]
+            [Some(Const::Int(a)), Some(Const::Int(b))]
                 if i128::from(*a) <= i128::from(*b) + i128::from(lit_str(n) == "..=") =>
             {
                 Some(Const::Range(*a, *b, lit_str(n) == "..="))
             }
             _ => None,
         },
-        (Head::Concat, _) => interpolation(all(cs)?),
+        (Head::Concat, _) => interpolation(cs),
         _ => None,
-    };
-    if matches!(
-        n.head,
-        Head::Op | Head::List | Head::Tuple | Head::Tag | Head::Map | Head::Range | Head::Concat
-    ) && n.id != 0
-        && let Some(c) = &c
-    {
-        out.insert(n.id, c.clone());
     }
-    c
 }
 
 /// The bytes of a string constant.
@@ -119,10 +136,10 @@ fn text(b: Vec<u8>) -> Const {
 
 /// An interpolation whose parts are string and int literals (VM31); other
 /// parts (floats, bools, values the VM refuses) are left to CONCAT.
-fn interpolation(parts: Vec<Const>) -> Option<Const> {
+fn interpolation(parts: &[Option<Const>]) -> Option<Const> {
     let mut b = Vec::new();
-    for p in &parts {
-        match p {
+    for p in parts {
+        match p.as_ref()? {
             Const::Int(i) => b.extend_from_slice(i.to_string().as_bytes()),
             p => b.extend_from_slice(bytes_of(p)?),
         }
@@ -130,18 +147,28 @@ fn interpolation(parts: Vec<Const>) -> Option<Const> {
     Some(text(b))
 }
 
-fn binary(op: &str, a: Const, b: Const) -> Option<Const> {
-    // Two string literals joined (VM31).
-    if op == "+"
-        && let (Some(x), Some(y)) = (bytes_of(&a), bytes_of(&b))
-    {
-        return Some(text([x, y].concat()));
+/// `a op b` for the two constants in `cs`; the left one is taken out
+/// only when it folds.
+fn binary(op: &str, cs: &mut [Option<Const>]) -> Option<Const> {
+    let [Some(a), Some(b)] = cs else {
+        return None;
+    };
+    // Two string literals joined (VM31). Text after text grows in place:
+    // a chain of `+` copies each part once, not its whole left side.
+    if op == "+" {
+        if let (Const::Str(x), Const::Str(y)) = (&mut *a, &*b) {
+            x.push_str(y);
+            return cs[0].take();
+        }
+        if let (Some(x), Some(y)) = (bytes_of(a), bytes_of(b)) {
+            return Some(text([x, y].concat()));
+        }
     }
-    match (a, b) {
-        (Const::Int(x), Const::Int(y)) => ints(op, x, y),
-        (Const::Int(x), Const::Float(y)) => floats(op, exact(x)?, y),
-        (Const::Float(x), Const::Int(y)) => floats(op, x, exact(y)?),
-        (Const::Float(x), Const::Float(y)) => floats(op, x, y),
+    match (&*a, &*b) {
+        (Const::Int(x), Const::Int(y)) => ints(op, *x, *y),
+        (Const::Int(x), Const::Float(y)) => floats(op, exact(*x)?, *y),
+        (Const::Float(x), Const::Int(y)) => floats(op, *x, exact(*y)?),
+        (Const::Float(x), Const::Float(y)) => floats(op, *x, *y),
         _ => None,
     }
 }

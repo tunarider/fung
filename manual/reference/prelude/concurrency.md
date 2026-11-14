@@ -45,14 +45,14 @@ fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. �
 
 실행 중에 실패할 수 있는 함수는 결과값을 돌려준다([결과값](../language/results.html)). `scope`·`supervise`·`await`·`timeout`은 넘긴 함수의 값을 내주지만 런타임이 `Err`(취소, 시간 초과, 태스크의 죽음)를 만들 수 있으므로, 성공하면 그 값을 `Ok`로 감싼다. 그래서 `await(t)!`·`scope(…)!`가 함수가 무엇을 돌려주든 되고, 함수가 돌려준 `Err`는 `Ok(Err(e))`로 런타임의 `Err`와 구별된다.
 
-이 페이지에서 `Err({kind: 'timeout})`처럼 `kind`만 적은 것은 패턴의 모양이다. 실제 값에는 다른 `Err`처럼 `message`도 있어서 `e.message`를 그대로 찍을 수 있다: 시간 초과는 `"timed out after 2s"`, 취소는 `"cancelled"`, 닫힌 채널은 `"channel closed"`. 맵 패턴은 적지 않은 키를 상관하지 않으므로 `Err({kind: 'timeout}) => …`으로 가른다.
+이 페이지에서 `Err({kind: 'timeout})`처럼 `kind`만 적은 것은 값의 종류를 줄여 적은 것이다. 실제 값에는 다른 `Err`처럼 `message`도 있어서 `e.message`를 그대로 찍을 수 있다: 시간 초과는 `"timed out after 2s"`, 취소는 `"cancelled"`, 닫힌 채널은 `"channel closed"`. 맵 패턴은 적은 키만 있는 맵에 맞으므로 다른 키는 `...`로 열어 `Err({kind: 'timeout, ...}) => …`으로 가른다.
 
 ```fung run
 r = timeout(() => sleep(1s), 10ms)
 print(r)
 match r:
-  Err({kind: 'timeout}) => print("slow")
-  _                     => print("done")
+  Err({kind: 'timeout, ...}) => print("slow")
+  _                          => print("done")
 ;;
 ```
 
@@ -151,7 +151,7 @@ print(scope(fn(s):
 
 서버 여러 대를 확인할 때처럼 하나가 실패해도 나머지는 끝까지 해야 할 때 쓴다. 태스크가 런타임 에러로 죽으면 `on_fail(e)`가 불린다. `e`는 `{kind: 'error, code, message, at}` 맵이다: 에러 번호(`"E0803"`), 메시지, 난 곳(`"deploy.fung:3"`). 그 태스크를 `await`하면 같은 맵을 담은 `Err(e)`를 받는다. 다른 태스크와 본문은 계속 돈다.
 
-`on_fail`은 실패가 일어난 순서대로 하나씩 돈다. `on_fail`의 결과는 버리므로 `Err`를 돌려주면 E0606이고, `on_fail`이 런타임 에러를 내도 태스크 범위가 실패한다. 범위가 취소되어 처리하지 못한 실패는 `task failed:`로 보고되고 종료 코드가 1이 된다.
+`on_fail`은 실패가 일어난 순서대로 하나씩 돈다. `on_fail`의 결과는 버리므로 `Err`를 돌려주면 E0606이고, `on_fail`이 런타임 에러를 내도(인자를 받지 않는 함수라 부를 수 없을 때도) 태스크 범위가 실패한다. 그 에러에는 `on_fail`이 처리하던 실패가 ``note: `on_fail` failed while handling error[E0803]: … (at …)``로 붙어, 원래 실패가 가려지지 않는다. 범위가 취소되어 처리하지 못한 실패는 `task failed:`로 보고되고 종료 코드가 1이 된다.
 
 본문 자체의 런타임 에러는 `on_fail`로 가지 않고 `scope`처럼 태스크 범위를 실패시킨다.
 
@@ -350,7 +350,7 @@ print(scope(fn(s):
 
 기한이 겹치면 이른 기한이 이긴다. 바깥 기한이 먼저 지나면 바깥 `timeout`이 답한다.
 
-**무엇이 끊기나**: `sleep`, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(`exec`·`sh`)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(`fs.read`·`read_lines`·`list`·`glob`·`walk`·`exists`·`stat`)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(`/dev/tty` 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(`read_line(f)` 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 그 일의 결과는 버린다(연 핸들은 닫는다). 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다([런타임](../../vm/internals.html#concurrency)).
+**무엇이 끊기나**: `sleep`, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(`exec`·`sh`)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(`fs.read`·`read_lines`·`list`·`glob`·`walk`·`exists`·`stat`)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(`/dev/tty` 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. FIFO 핸들이나 표준 입력의 `read_lines`가 끊기면 그때까지 읽은 줄은 다음 읽기가 먼저 받는다. 받는 끝에서 값을 모으는 호출(`take(rx, n)`, `map(rx, f)`, `sort(rx)`, `zip`, 리스트를 만드는 `for` 등)이 끊기면 그때까지 받은 값은 채널로 돌아가지 않고 사라진다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(`read_line(f)` 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 그 일의 결과는 버린다(연 핸들은 닫는다). 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다([런타임](../../vm/internals.html#concurrency)).
 
 #### 매개변수
 
@@ -632,8 +632,8 @@ scope(fn(s):
   ;;)
   send(tx, "a")!
   r = match send(tx, "b"):
-    Ok(_)                => "sent"
-    Err({kind: 'closed}) => "receiver gone"
+    Ok(_)                     => "sent"
+    Err({kind: 'closed, ...}) => "receiver gone"
   ;;
   print(r)
 ;;)
@@ -735,9 +735,9 @@ close(tx)
 send(tx, "job-1")!
 for _ in 1..=2:
   match recv_now(rx):
-    Ok(job)             => print("doing", job)
-    Err({kind: 'empty}) => print("nothing queued")
-    Err(_)              => print("closed")
+    Ok(job)                  => print("doing", job)
+    Err({kind: 'empty, ...}) => print("nothing queued")
+    Err(_)                   => print("closed")
   ;;
 ;;
 ```
@@ -964,9 +964,7 @@ print("cleaning up, then exiting normally")
 stop = stop_signal()
 scope(fn(s):
   spawn(s, fn():
-    for _ in stop:
-      nil
-    ;;
+    for _ in stop: ;;
     print("worker: finished current job, stopping")
   ;;)
   spawn(s, fn():

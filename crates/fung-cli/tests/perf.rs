@@ -118,6 +118,31 @@ const CASES: &[(&str, &str, &str)] = &[
         "100000\n",
     ),
     (
+        "eat a string by slices",
+        "fn eat(s, acc) = s == \"\" then acc else eat(s[1..], acc + 1)\nprint(eat(repeat(\"a\", 200000), 0), eat(repeat(\"\u{d55c}\", 100000), 0))",
+        "200000 100000\n",
+    ),
+    (
+        "eat a string from its end",
+        "fn eat(s, acc) = s == \"\" then acc else eat(s[..len(s) - 1], acc + 1)\nprint(eat(repeat(\"\u{d55c}\", 100000), 0))",
+        "100000\n",
+    ),
+    (
+        "index a non-ASCII string backwards and both ways",
+        "s = repeat(\"\u{d55c}b\", 50000)\nn = len(s)\nprint(fold(0..n, 0, (c, i) => c + byte_len(s[n - 1 - i])), all(0..n // 2, i => byte_len(s[i]) + byte_len(s[n - 1 - i]) == 4))",
+        "200000 true\n",
+    ),
+    (
+        "search non-ASCII text that has no match",
+        "big = repeat(\"\u{ac00}\u{b098}\u{b2e4}\u{b77c}\", 125000)\nprint(fold(0..1000, 0, (a, _) => a + (index_of(big, \"zz\") ?? 1)))",
+        "1000\n",
+    ),
+    (
+        "eat a long list from either end",
+        "fn front(xs, acc) = xs == [] then acc else front(xs[1..], acc + 1)\nfn back(xs, acc) = xs == [] then acc else back(xs[..len(xs) - 1], acc + 1)\nprint(front(map(0..200000, i => i), 0), back(map(0..200000, i => i), 0))",
+        "200000 200000\n",
+    ),
+    (
         "walk a list and its slice",
         "xs = map(0..200000, x => x)\nprint(fold(xs, 0, (a, _x) => a + 1) + fold(xs[1..], 0, (a, _x) => a + 1))",
         "399999\n",
@@ -351,6 +376,36 @@ fn similar_names_for_many_errors_stay_linear() {
         took < Duration::from_secs(2),
         "8,000 undefined names took {took:?}"
     );
+}
+
+/// Three shapes that compiled in quadratic time (VM51) check in linear
+/// time: a fold of 100,000 string literals (each level kept a copy of its
+/// partial string: 1.0 s and 6 GB here, now 0.15 s), 100,000 `??` (each
+/// branch found where it starts from its line's start: 1.1 s, now 0.15 s)
+/// and 120,000 errors on one line (each looked at the whole line: about
+/// 5 s, now about 1 s).
+#[test]
+fn three_long_shapes_compile_in_linear_time() {
+    let _serial = serial();
+    let n = 100_000;
+    let strings = format!(
+        "fn f() = {}\nprint(len(f()))\n",
+        vec!["\"a\""; n].join(" + ")
+    );
+    let coalesce = format!("fn f(x) = {}\nprint(f(1))\n", vec!["x"; n].join(" ?? "));
+    let names: Vec<String> = (0..120_000).map(|i| format!("u{i}")).collect();
+    let errors = format!("print({})\n", names.join(", "));
+    for (name, src, ok, limit) in [
+        ("strings", &strings, true, Duration::from_millis(500)),
+        ("coalesce", &coalesce, true, Duration::from_millis(500)),
+        ("errors", &errors, false, Duration::from_secs(2)),
+    ] {
+        check_file(name, src);
+        let (out, took) = check_file(name, src);
+        eprintln!("{name} {took:?}");
+        assert_eq!(out.status.success(), ok, "{name}");
+        assert!(took < limit, "{name} took {took:?}");
+    }
 }
 
 /// 9,000 nested lambdas compile in linear time: desugar reads a function's
@@ -696,7 +751,7 @@ fn deadlines_cut_long_natives() {
     let _serial = serial();
     for (what, work) in LONG_WORK {
         let src = format!(
-            "{LONG_SETUP}t0 = time.monotonic()\nr = timeout(() => {work}, 5ms)\ntook = time.monotonic() - t0\nprint(match r:\n  Err({{kind: 'timeout}}) => \"timeout\"\n  _ => \"value\"\n;;, took < 30ms)"
+            "{LONG_SETUP}t0 = time.monotonic()\nr = timeout(() => {work}, 5ms)\ntook = time.monotonic() - t0\nprint(match r:\n  Err({{kind: 'timeout, ...}}) => \"timeout\"\n  _ => \"value\"\n;;, took < 30ms)"
         );
         let (out, _) = run_file("deadline", &src);
         assert_eq!(out, "timeout true\n", "{what}");
@@ -720,9 +775,9 @@ const LONG_WORK: &[(&str, &str)] = &[
 /// `gap(work)`: runs `work` beside a task that sleeps 1 ms at a time and
 /// gives the longest wait between its wake-ups, in milliseconds. The
 /// ticker has started before the work does (a state, not a sleep).
-const GAP: &str = "fn gap(job) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(prev, worst, start):\n    if start: send(started_tx, true) else: nil ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - prev])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  job()\n  send(done_tx, true)\n  ms(await(w)!)\n;;)!\nfn ms(d) = d / 1ms\n";
+const GAP: &str = "fn gap(job) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(prev, worst, start):\n    if start: send(started_tx, true) ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - prev])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  job()\n  send(done_tx, true)\n  ms(await(w)!)\n;;)!\nfn ms(d) = d / 1ms\n";
 
-const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    _ = len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(() => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)!) else: nil ;;\n  cancel(s)\n;;, _e => nil), 20s))\n";
+const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    _ = len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(() => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)!) ;;\n  cancel(s)\n;;, _e => nil), 20s))\n";
 
 /// VA46: text built up by interpolation grows in place like `acc + s`:
 /// the first part is the accumulator, handed over by its last read.

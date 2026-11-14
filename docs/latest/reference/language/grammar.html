@@ -84,7 +84,7 @@
 <details>
 <summary>EBNF 펼치기</summary>
 <pre class="plain"><code>(* 토큰: NAME(Lu가 아닌 식별자 글자나 _로 시작) TAG(일반 범주 Lu로 시작) INT FLOAT DURATION
-         STRING(보간 조각 포함) PLAIN_STRING(보간 없는 STRING) RAW_STRING SYMBOL(' 뒤가 NAME 모양) NEWLINE,
+         STRING(보간 조각 포함) PLAIN_STRING(보간 없는 STRING 또는 RAW_STRING: 보간 없는 문자열이 필요한 자리는 원시 문자열도 받는다) RAW_STRING SYMBOL(' 뒤가 NAME 모양) NEWLINE,
          예약어, 연산자.
    쉼표로 나눈 목록은 모두 끝 쉼표를 받는다. *)
 
@@ -94,7 +94,7 @@ sep         = NEWLINE | &quot;;&quot; .                       (* 앞 문장의 �
 block       = &quot;:&quot; body &quot;;;&quot; .
 
 stmt        = fn_def | type_alias | test_block | assert | assign | return | expr .
-                                                    (* 블록에서 return 문장 뒤의 문장은 E0131 *)
+                                                    (* 블록에서 끝까지 갈 수 없는 문장 뒤의 문장은 E0131 *)
 fn_def      = &quot;fn&quot; NAME &quot;(&quot; [ params ] &quot;)&quot; [ &quot;-&gt;&quot; type ] fn_body .
 fn_body     = &quot;=&quot; branch | block .
 params      = ( param { &quot;,&quot; param } [ &quot;,&quot; rest ] | rest ) [ &quot;,&quot; ] .
@@ -157,26 +157,27 @@ entry       = ( key_name | PLAIN_STRING ) &quot;:&quot; expr
             | NAME .                                (* {a, b} = {a: a, b: b}; 대문자 축약은 E0225 *)
 if_expr     = &quot;if&quot; expr &quot;:&quot; body { &quot;else&quot; &quot;if&quot; expr &quot;:&quot; body } [ &quot;else&quot; &quot;:&quot; body ] &quot;;;&quot; .
 match_expr  = &quot;match&quot; expr &quot;:&quot; { sep } arm { arm } &quot;;;&quot; .
-arm         = pattern [ &quot;when&quot; expr ] &quot;=&gt;&quot; { sep } stmt { sep } { stmt { sep } } .
-                                                    (* 절은 하나 이상, 절의 본문은 비지 않는다.
+arm         = pattern [ &quot;when&quot; expr ] &quot;=&gt;&quot; { sep } { stmt { sep } } .
+                                                    (* 절은 하나 이상, 절의 본문은 비어도 된다(값으로 쓰면 E0224).
                                                        앞 절의 가드 없는 리터럴과 같은 리터럴 절은 E0235 *)
 for_expr    = &quot;for&quot; destructure &quot;in&quot; expr &quot;:&quot; body &quot;;;&quot; .
 
 pattern     = pat_term { &quot;|&quot; pat_term } .
 pat_term    = &quot;_&quot; | NAME | [ &quot;-&quot; ] ( INT | FLOAT | DURATION ) | PLAIN_STRING | SYMBOL
             | &quot;true&quot; | &quot;false&quot; | &quot;nil&quot;
-            | TAG [ &quot;(&quot; pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] &quot;)&quot; ]          (* Red()는 E0117, 맨 Ok·Err는 E0236 *)
+            | TAG [ &quot;(&quot; pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] &quot;)&quot; ]          (* Red()는 E0117, Ok·Err의 값이 하나가 아니면 E0236 *)
             | &quot;(&quot; &quot;)&quot; | &quot;(&quot; pattern &quot;,&quot; [ pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] ] &quot;)&quot;
             | &quot;[&quot; [ pat_item { &quot;,&quot; pat_item } [ &quot;,&quot; ] ] &quot;]&quot;
-            | &quot;{&quot; [ pat_entry { &quot;,&quot; pat_entry } [ &quot;,&quot; ] ] &quot;}&quot; .
+            | &quot;{&quot; [ map_item { &quot;,&quot; map_item } [ &quot;,&quot; ] ] &quot;}&quot; .
 pat_item    = pattern | &quot;...&quot; [ NAME ] .             (* ...는 맨 끝에만, 이름 없는 나머지는 ... 하나(..._는 E0112) *)
-pat_entry   = ( key_name | PLAIN_STRING ) &quot;:&quot; pattern | NAME .   (* {line, col}; 대문자 축약은 E0225 *)
+map_item    = pat_entry | &quot;...&quot; [ NAME ] .           (* ...가 없으면 키가 정확히 적은 것뿐인 맵; ...는 맨 끝에만, ..._는 E0112 *)
+pat_entry   = ( key_name | PLAIN_STRING ) &quot;:&quot; pattern | NAME .   (* {line, col}; 대문자 축약은 E0225, `{_}`는 E0112 *)
 
 destructure = d_term { &quot;|&quot; d_term } .               (* 대입·for·매개변수의 패턴: 맨 바깥에 리터럴 없음(E0112) *)
 d_term      = &quot;_&quot; | NAME | TAG &quot;(&quot; pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] &quot;)&quot;
             | &quot;(&quot; &quot;)&quot; | &quot;(&quot; pattern &quot;,&quot; [ pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] ] &quot;)&quot;
             | &quot;[&quot; [ pat_item { &quot;,&quot; pat_item } [ &quot;,&quot; ] ] &quot;]&quot;
-            | &quot;{&quot; [ pat_entry { &quot;,&quot; pat_entry } [ &quot;,&quot; ] ] &quot;}&quot; .  (* 안쪽은 어떤 패턴이든: (1, y) = p *)
+            | &quot;{&quot; [ map_item { &quot;,&quot; map_item } [ &quot;,&quot; ] ] &quot;}&quot; .  (* 안쪽은 어떤 패턴이든: (1, y) = p *)
 
 type        = type_term { &quot;|&quot; type_term } .
 type_term   = NAME | &quot;nil&quot; | &quot;fn&quot; | TAG .            (* 원소 타입은 없다: list[int]는 E0130 *)</code></pre>

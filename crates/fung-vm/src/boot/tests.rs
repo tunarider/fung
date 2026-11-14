@@ -82,10 +82,10 @@ fn fung_helpers_over_concurrency_fail_at_the_user_call() {
     let cases = [
         // the lambda's call is a tail call: the frame it left behind
         // keeps the place, at `fan_in(` (L8)
-        ("import conc\nscope(s => conc.fan_in(s, 1))", 2, 23),
+        ("import conc\nn = 1\nscope(s => conc.fan_in(s, n))", 3, 23),
         (
-            "import conc\nprint(1)\nscope(s => conc.fan_in(s, 1))",
-            3,
+            "import conc\nprint(1)\nn = 1\nscope(s => conc.fan_in(s, n))",
+            4,
             23,
         ),
     ];
@@ -324,7 +324,7 @@ fn process_functions() {
         ),
         ("print(exec([\"pwd\"], cwd: \"/\")!.out)", "/\n\n"),
         (
-            "match exec([\"definitely-not-a-command-xyz\"]): Err({kind: k}) => print(k); _ => print(\"?\") ;;",
+            "match exec([\"definitely-not-a-command-xyz\"]): Err({kind: k, ...}) => print(k); _ => print(\"?\") ;;",
             "'not_found\n",
         ),
         (

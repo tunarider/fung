@@ -295,6 +295,32 @@ fn an_on_fail_error_fails_the_supervise() {
     assert_eq!(code, 1);
 }
 
+/// D109: when `on_fail` itself fails (it takes no argument, or its body
+/// fails), the failure it was handling is not lost: the error names it
+/// in a note, whether a failing child or the opener runs `on_fail`.
+#[test]
+fn an_on_fail_error_names_the_failure_it_was_handling() {
+    for (src, was) in [
+        (
+            "r = supervise(fn(s):\n  _ = spawn(s, () => fail(\"child failed\"))\n  sleep(10ms)\n  \"body done\"\n;;, () => print(\"handler\"))\nprint(r)",
+            "error[E0803]: child failed (at -e:2)",
+        ),
+        (
+            "supervise(s => spawn(s, () => fail(\"child failed\")), _e => 1 / 0)",
+            "error[E0803]: child failed (at -e:1)",
+        ),
+        (
+            "supervise(s => spawn(s, fn(): Err(\"x\") ;;), () => 1)",
+            "error[E0607]: task's Err was never awaited: \"x\" (at -e:1)",
+        ),
+    ] {
+        let (out, err, code) = run(src);
+        assert_eq!((out.as_str(), code), ("", 1), "{src}: {err}");
+        let note = format!("note: `on_fail` failed while handling {was}");
+        assert!(err.contains(&note), "{src}: {err}");
+    }
+}
+
 /// `a` fails first and its handler waits in `gate`; `b` fails while it
 /// waits, so its failure is queued; then the scope is cancelled. `b`
 /// never reached `on_fail`, so it is reported; `a` did (05 "범위": only

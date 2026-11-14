@@ -41,6 +41,16 @@ pub(super) fn headline(src: &str) -> String {
         .unwrap_or_default()
 }
 
+/// The headline of the first error a program gives, before it runs or
+/// while it runs.
+pub(super) fn first_error(src: &str) -> String {
+    let o = exec(src, Opts::default());
+    match o.error {
+        Some(e) => e.headline,
+        None => o.err.lines().next().unwrap_or("").to_string(),
+    }
+}
+
 #[test]
 fn collections_run() {
     check_out(&[
@@ -107,6 +117,32 @@ fn collections_run() {
     ]);
 }
 
+/// An uppercase name in a type annotation is a tag name, whatever it
+/// spells (D134): `Int` is the tag `Int`, not the type `int`.
+#[test]
+fn uppercase_annotations_are_tag_names() {
+    check_out(&[
+        (
+            "type token = Int | Str\nfn show(t: token) = t\nprint(show(Int(3)), show(Str(\"a\")))",
+            "Int(3) Str(\"a\")\n",
+        ),
+        (
+            "fn show(t: Int | Str) -> Int | Str = t\nprint(show(Int(3)), show(Str(\"a\")))",
+            "Int(3) Str(\"a\")\n",
+        ),
+        // Like any tag name, the bare symbol of that name too.
+        (
+            "fn f(x: List | Bool) = x\nprint(f(List), f(Bool(1)))",
+            "List Bool(1)\n",
+        ),
+    ]);
+    check_code(&[
+        ("fn f(x: Int) = x\nf(3)", "E0403"),
+        ("fn f(x) -> String = x\nf(\"a\")", "E0404"),
+        ("fn f(a: integer) = a", "E0212"),
+    ]);
+}
+
 #[test]
 fn review_fixes() {
     check_out(&[
@@ -136,6 +172,41 @@ fn partial_evaluates_fixed_args_once() {
     let (out, _, code) =
         run("fn f(a, b) = a + b\nfn side(): print(\"once\"); 0 ;;\ng = f(side(), _)\ng(1)\ng(2)");
     assert_eq!((out.as_str(), code), ("once\n", 0));
+}
+
+/// A bare `Ok` or `Err` is its symbol, like any bare tag (D123): no
+/// result, and the printed form reads back.
+#[test]
+fn bare_result_tags_are_symbols() {
+    check_out(&[
+        (
+            "x = Ok\nprint(x, [Err], x == sym(\"Ok\"), type_of(x), type_of(Ok(1)) == Ok)",
+            "Ok [Err] true 'sym true\n",
+        ),
+        (
+            "fn f(r) = match r:\n  Ok => \"sym\"\n  Ok(v) => \"ok ${v}\"\n  _ => \"?\"\n;;\nprint(f(Ok), f(Ok(1)), f(Err))",
+            "sym ok 1 ?\n",
+        ),
+        (
+            "fn f(x) -> Ok | Err = x\nprint(f(Ok), f(Err), f(Ok(1)))",
+            "Ok Err Ok(1)\n",
+        ),
+        (
+            "r = Ok\nprint(\"${r}\", r ?? 1, is_ok(r), is_err(Err))",
+            "Ok Ok false false\n",
+        ),
+        ("x = 1 |> Ok\nprint(x)", "Ok(1)\n"),
+    ]);
+    check_code(&[
+        ("fn f() = Ok\nf()!", "E0605"),
+        ("fn f(r) = r?\nf(Err)", "E0605"),
+        ("print(Ok(1, 2))", "E0236"),
+        ("x = 1 |> Ok(2)", "E0236"),
+        ("print(Ok())", "E0117"),
+        ("x = 1 |> (Ok)", "E0401"),
+        ("print('Ok)", "E0128"),
+        ("print(Ok ?? 1)", "E0243"),
+    ]);
 }
 
 #[test]
@@ -238,7 +309,7 @@ fn m4_error_reports() {
     let (_, err, _) = run("print((1,2).x)");
     assert_eq!(
         err,
-        "error[E0509]: cannot index tuple with str\n  --> -e:1:12\n  |\n1 | print((1,2).x)\n  |            ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
+        "error[E0509]: cannot index tuple with str\n  --> -e:1:12\n  |\n1 | print((1,2).x)\n  |            ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n help: a tuple has no fields: only maps and modules do\n"
     );
 }
 
@@ -330,17 +401,63 @@ fn a_failed_guard_tries_the_next_alternative() {
             "g 0\ng 5\n5\n",
         ),
     ]);
-    // the expansion has a limit (each nested `|` multiplies it)
-    let many = ["1 | 2"; 9].join(", ");
+    // only the `|` that bind names are spread, so the limit counts those
+    // (D131): each nested one multiplies them
+    let names = |n: usize| {
+        (1..=n)
+            .map(|i| format!("(a{i}, _) | (_, a{i})"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let sum = |n: usize| {
+        (1..=n)
+            .map(|i| format!("a{i}"))
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
     check_code(&[(
-        &format!("print(match 1: [{many}] when true => 1; _ => 2 ;;)"),
+        &format!(
+            "print(match 1: [{}] when {} > 0 => 1; _ => 2 ;;)",
+            names(9),
+            sum(9)
+        ),
         "E0230",
     )]);
-    let fine = ["1 | 2"; 8].join(", ");
+    let pairs = ["(1, 2)"; 8].join(", ");
     check_out(&[(
-        &format!("print(match [2, 2, 2, 2, 2, 2, 2, 2]: [{fine}] when true => 1; _ => 2 ;;)"),
+        &format!(
+            "print(match [{pairs}]: [{}] when {} == 8 => 1; _ => 2 ;;)",
+            names(8),
+            sum(8)
+        ),
         "1\n",
     )]);
+    // a `|` that binds nothing is no multiplier: nine of them, or
+    // two hundred, compile, and the guard still sees every way to match
+    let many = ["1 | 2"; 9].join(", ");
+    let plain = ["2"; 9].join(", ");
+    let wide = ["1 | 2"; 200].join(", ");
+    let wide_vals = vec!["2"; 200].join(", ");
+    check_out(&[
+        (
+            &format!("print(match [{plain}]: [{many}] when true => 1; _ => 2 ;;)"),
+            "1\n",
+        ),
+        (
+            &format!("print(match [{wide_vals}]: [{wide}] when true => 1; _ => 2 ;;)"),
+            "1\n",
+        ),
+        (
+            &format!("print(match [{plain}, 7]: [{many}, a] when a == 7 => a; _ => 0 ;;)"),
+            "7\n",
+        ),
+        // the names bind in the alternatives that do, around ones that do not
+        (
+            "fn f(p) = match p: (1 | 2, (a, _) | (_, a)) when a > 1 => a; _ => -1 ;;\n\
+             print(f((2, (0, 5))), f((1, (7, 0))), f((3, (9, 9))), f((1, (0, 0))))",
+            "5 7 -1 -1\n",
+        ),
+    ]);
 }
 
 /// FE55: a parameter with no name in the source (a hole, a pattern) is
@@ -348,18 +465,19 @@ fn a_failed_guard_tries_the_next_alternative() {
 #[test]
 fn hidden_parameters_are_called_by_place() {
     assert_eq!(
-        headline("f = fn((_a, _b), _c): 1 ;;\nf()"),
+        first_error("f = fn((_a, _b), _c): 1 ;;\nf()"),
         "error[E0407]: missing argument 1"
     );
     assert_eq!(
-        headline("fn s2(a, b) = a - b\ng = s2(_, 1)\ng()"),
+        first_error("fn s2(a, b) = a - b\ng = s2(_, 1)\ng()"),
         "error[E0407]: missing argument 1"
     );
     assert!(
-        headline("fn s2(a, b) = a - b\ng = s2(_, 1)\nprint(g(h0: 5))").starts_with("error[E0406]")
+        first_error("fn s2(a, b) = a - b\ng = s2(_, 1)\nprint(g(h0: 5))")
+            .starts_with("error[E0406]")
     );
     assert_eq!(
-        headline("f = fn(a, b): [a, b] ;;\nf(1)"),
+        first_error("f = fn(a, b): [a, b] ;;\nf(1)"),
         "error[E0407]: missing argument `b`"
     );
 }

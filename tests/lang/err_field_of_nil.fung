@@ -1,0 +1,6 @@
+# Only a map and a module have fields: `cfg.host` is `cfg["host"]`, so a
+# field of another value is the index's E0509, with a help that says the
+# value has no fields.
+fn host(cfg) = cfg.host
+print(host(nil))
+# expect-error: E0509

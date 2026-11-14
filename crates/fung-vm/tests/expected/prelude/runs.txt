@@ -843,11 +843,47 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(starts_with(\"abc\", \"ab\"), starts_with(\"참치\", \"참… (149 bytes, 873c194f4372d017)
+==== "print(starts_with(\"abc\", \"ab\"), starts_with(\"참치\", \"참… (150 bytes, 642258345f096520)
 -- stdout
 | true true true true false
 -- stderr
 -- exit: 0
+==== "print(ends_with(\"a\", \"\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `suffix` must be a non-empty str, got ""
+|   --> -e:1:16
+|   |
+| 1 | print(ends_with("a", ""))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(starts_with(\"\", \"\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `prefix` must be a non-empty str, got ""
+|   --> -e:1:18
+|   |
+| 1 | print(starts_with("", ""))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(\"\" in \"abc\")"
+-- stdout
+-- stderr
+| error[E0403]: argument `x` must be a non-empty str, got ""
+|   --> -e:1:10
+|   |
+| 1 | print("" in "abc")
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(starts_with(1, \"a\"))"
 -- stdout
 -- stderr
@@ -2192,7 +2228,7 @@
 ==== "print(max([1, \"a\"]))"
 -- stdout
 -- stderr
-| error[E0501]: cannot compare str and int
+| error[E0501]: cannot compare int and str
 |   --> -e:1:10
 |   |
 | 1 | print(max([1, "a"]))
@@ -2623,7 +2659,7 @@
 ==== "channel(1.5)"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a non-negative int, got 1.5
+| error[E0403]: argument `n` must be int, got float
 |   --> -e:1:8
 |   |
 | 1 | channel(1.5)
@@ -2635,7 +2671,7 @@
 ==== "channel(\"a\")"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a non-negative int, got "a"
+| error[E0403]: argument `n` must be int, got str
 |   --> -e:1:8
 |   |
 | 1 | channel("a")
@@ -2821,11 +2857,23 @@
 | Err({kind: 'invalid, message: "cannot run `sh`: argument contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `/bin/ls\u{0}`: argument contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `x\u{0}y`: argument contains a NUL byte"})
 -- stderr
 -- exit: 0
-==== "print(exec([\"sh\"], env: {\"A\\u{0}\": \"x\"}), exec([\"sh… (127 bytes, 8f8fd505d1ab49ac)
+==== "print(exec([\"sh\"], env: {\"A\": \"x\\u{0}\"}), exec([\"ls\"], cwd: \"/\\u{0}\"))"
 -- stdout
-| Err({kind: 'invalid, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `ls`: working directory contains a NUL byte"})
+| Err({kind: 'invalid, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'invalid, message: "cannot run `ls`: working directory contains a NUL byte"})
 -- stderr
 -- exit: 0
+==== "print(exec([\"sh\"], env: {\"A\\u{0}\": \"x\"}))"
+-- stdout
+-- stderr
+| error[E0403]: argument `env` must be a map of variable names (not empty, no `=` or NUL) to strings, got the name "A\u{0}"
+|   --> -e:1:11
+|   |
+| 1 | print(exec(["sh"], env: {"A\u{0}": "x"}))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(exec([\"ls\"], cwd: \"/\\u{0}\", env: {}))"
 -- stdout
 | Err({kind: 'invalid, message: "cannot run `ls`: working directory contains a NUL byte"})
@@ -2839,7 +2887,7 @@
 ==== "print(exec([\"sh\", \"-c\", `echo $FOO`], env: {\"FOO\": 1}))"
 -- stdout
 -- stderr
-| error[E0403]: argument `env` must be a map of variable names (not empty, no `=`) to strings, got a map holding int
+| error[E0403]: argument `env` must be a map of variable names (not empty, no `=` or NUL) to strings, got a map holding int
 |   --> -e:1:11
 |   |
 | 1 | print(exec(["sh", "-c", `echo $FOO`], env: {"FOO": 1}))
@@ -3462,14 +3510,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:2:19
+|   --> -e:2:33
 |   |
 | 2 | print(fs.with_open("/dev/null", 1))
-|   |                   ^
+|   |                                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nfn g(h: str) = h\nprint(fs.with_open(\"/dev/null\", g))"
 -- stdout
 -- stderr

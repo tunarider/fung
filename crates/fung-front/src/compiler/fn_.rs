@@ -47,13 +47,15 @@ impl Compiler<'_> {
         // A function with a return type reuses its frame for every tail
         // call too: the frame takes the check along, to run when it
         // returns (D44). A call to itself needs none: its own check runs
-        // where its self calls end (03).
-        if let Some(at) = bool_at {
-            self.proto.emit(Op::TailCheckBool, 0, at);
-        }
+        // where its self calls end (03). The checks run the latest first,
+        // and the bool check of an `and`/`or` comes before the return
+        // type's, as when the value is named first (VM49): it goes last.
         if tail && self.proto.return_type >= 0 && n.kids[0].head != Head::SelfFn {
             let rt = self.proto.return_type as usize;
             self.proto.emit(Op::TailCheck, rt, self.ret_pos);
+        }
+        if let Some(at) = bool_at {
+            self.proto.emit(Op::TailCheckBool, 0, at);
         }
         let op = match (tail, spread) {
             (false, false) => Op::Call,
@@ -116,11 +118,7 @@ impl Compiler<'_> {
             opts: self.opts,
             lines: self.lines,
             folds: self.folds,
-            lives: super::moves::lives(
-                n.kids.last().expect("fn has a body"),
-                self.opts.tests,
-                true,
-            ),
+            lives: fn_lives(n, info),
             stubs: Vec::new(),
             ret_pos: n.kids.last().expect("fn has a body").pos,
         };
@@ -132,6 +130,7 @@ impl Compiler<'_> {
                 continue;
             }
             let skip = cc.proto.emit_with(Op::JumpIfSet, 0, i, n.pos);
+            cc.enter(&n.kids[di]);
             cc.expr(&n.kids[di], false)?;
             di += 1;
             cc.proto.emit(Op::StoreLocal, i, n.pos);
@@ -146,19 +145,12 @@ impl Compiler<'_> {
             }
         }
 
-        // A parameter whose last read was in a default lets go here, once
-        // its type is checked: the defaults are outside the body's
-        // lifetimes, and a call that gave every argument skips them, so
-        // this is the first place both paths pass (VM39). A parameter
-        // nothing reads is kept until the frame returns (03).
-        let mut read = std::collections::BTreeSet::new();
-        for d in &n.kids[..di] {
-            super::local_reads(d, &mut read);
-        }
-        for i in read {
-            if i < cc.proto.params.len() && !cc.lives.live_at_start.contains(&i) {
-                cc.proto.emit(Op::ClearLocal, i, n.pos);
-            }
+        // What the defaults read last lets go here, once the types are
+        // checked: a call that gave every argument skips the defaults, so
+        // this is the first place both paths pass (VM39, VM48).
+        let at_body = std::mem::take(&mut cc.lives.at_body);
+        for slot in at_body {
+            cc.proto.emit(Op::ClearLocal, slot, n.pos);
         }
         let body = n.kids.last().expect("fn has a body");
         cc.block(body, true)?;
@@ -169,6 +161,23 @@ impl Compiler<'_> {
         self.proto.protos.push(cc.proto);
         Ok(self.proto.protos.len() - 1)
     }
+}
+
+/// The lifetimes in function `n`: its defaults, its type checks and its
+/// body (`moves::fn_lives`).
+fn fn_lives(n: &Node, info: &crate::tree::FnInfo) -> super::moves::Lives {
+    let mut defaults = Vec::new();
+    let mut typed = Vec::new();
+    for (i, prm) in info.params.iter().enumerate() {
+        if prm.has_default {
+            defaults.push((i, &n.kids[defaults.len()]));
+        }
+        if prm.types.is_some() {
+            typed.push(i);
+        }
+    }
+    let body = n.kids.last().expect("fn has a body");
+    super::moves::fn_lives(&defaults, &typed, body)
 }
 
 /// The names a resolved annotation checks (aliases expanded, element

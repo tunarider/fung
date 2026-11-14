@@ -161,11 +161,11 @@ impl<'a> Parser<'a> {
         Ok(blk)
     }
 
-    /// E0131 when a statement would follow a `return` statement in the
-    /// block being read: it could never run (D50).
+    /// E0131 when a statement would follow one that cannot complete in
+    /// the block being read: it could never run (D50, D111).
     pub(super) fn after_return(&mut self, blk: &Node) -> PResult<()> {
         match blk.kids.last() {
-            Some(k) if k.head == Head::Return && !k.paren => {
+            Some(k) if never_completes(k) => {
                 let pos = self.peek().pos;
                 Err(err("E0131", pos, Vec::new()))
             }
@@ -248,7 +248,7 @@ impl<'a> Parser<'a> {
         if self.block_depth > 0 {
             return Err(err("E0114", t.pos, Vec::new()));
         }
-        if !self.at(Kind::String) {
+        if !self.peek().is_string() {
             return Err(self.expected("a test name string after `test`", None));
         }
         let st = self.next();
@@ -290,7 +290,7 @@ impl<'a> Parser<'a> {
                     im.spec.push_str(&self.next().text);
                 }
             }
-            Kind::String => {
+            Kind::String | Kind::RawString => {
                 let st = self.next();
                 let text = plain_text(st, "a plain path string after `import`")?;
                 im.bind_pos = st.pos;
@@ -322,8 +322,10 @@ impl<'a> Parser<'a> {
         }
         if self.at(Kind::LParen) {
             self.next();
-            // newlines inside the parentheses are whitespace (01)
+            // newlines next to the parentheses and around `,` are space
+            // (01, FE78)
             self.nest += 1;
+            self.gap();
             let r = self.import_names(&mut im);
             self.nest -= 1;
             r?;
@@ -338,10 +340,12 @@ impl<'a> Parser<'a> {
             let name = self.expect_desc(Kind::Name, "a name to import")?;
             names.push(name.text.clone());
             im.name_pos.push(name.pos);
+            self.gap();
             if !self.at(Kind::Comma) {
                 break;
             }
             self.next();
+            self.gap();
             // a trailing comma, as in every comma-separated list (SP8)
             if self.at(Kind::RParen) {
                 break;
@@ -369,5 +373,30 @@ impl<'a> Parser<'a> {
             t.pos,
             Lit::Alias(Box::new(alias)),
         ))
+    }
+}
+
+/// Whether running statement `n` never goes on to the next one (D111): a
+/// `return`, or an `if` with `else`, a `match` or a `then … else` whose
+/// every branch ends in such a statement. A call never counts, whatever it
+/// calls (`fail`, `exit` are functions like any other).
+pub(super) fn never_completes(n: &Node) -> bool {
+    match n.head {
+        Head::Return => !n.paren,
+        Head::Block => n.kids.last().is_some_and(never_completes),
+        Head::If => {
+            n.kids.len() == 3
+                && n.kids[2].head != Head::Nil
+                && never_completes(&n.kids[1])
+                && never_completes(&n.kids[2])
+        }
+        Head::Then => never_completes(&n.kids[1]) && never_completes(&n.kids[2]),
+        Head::Match => {
+            n.kids.len() > 1
+                && n.kids[1..]
+                    .iter()
+                    .all(|arm| arm.kids.last().is_some_and(never_completes))
+        }
+        _ => false,
     }
 }

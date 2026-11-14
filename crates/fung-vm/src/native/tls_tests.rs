@@ -766,7 +766,7 @@ fn start_tls_upgrades_a_plain_connection() {
         let _ = handshake(&mut s);
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hi\\n\")!\nnet.read_line(c, 100)!\nprint(msg(net.start_tls(c, \"localhost\")))\nfn later(conn):\n  start = net.start_tls\n  start(conn, \"localhost\", timeout: 1)\n;;\nprint(type_of(later(c)))"
+        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hi\\n\")!\nnet.read_line(c, 100)!\nprint(msg(net.start_tls(c, \"localhost\")))\nfn later(conn, start) = start(conn, \"localhost\", timeout: 1)\nprint(type_of(later(c, net.start_tls)))"
     ));
     h.join().unwrap();
     assert_eq!(out(&o).0, format!("{WRONG_NAME}\n"));

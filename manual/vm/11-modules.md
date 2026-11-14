@@ -181,7 +181,7 @@ print(1)
 :::box choice fung의 선택: 핵심은 작게, 나머지는 fung으로
 - 원칙 5는 "언어 핵심은 최소한, 나머지는 fung으로 직접"이다(`background.md`). 런타임은 파일·프로세스·소켓·TLS·시간·정규식 같은 원시 기능만 주고, HTTP 프로토콜·`cli` 등은 fung 라이브러리로 쓴다(open-questions).
 - 공개 API의 이름·인자·기본값·에러 모양은 fung 쪽에서 정하고, Rust 쪽은 되도록 작은 원시 기능만 둔다. 그래서 공개 이름은 바꾸지 않고 다리 쪽을 고칠 수 있다(노트 M5).
-- prelude에는 확실한 것만 둔다. 더하는 것도 그 이름을 쓰던 사용자 코드를 E0240으로 깨고, 빼는 것은 부르던 코드를 깬다(open-questions).
+- prelude에는 확실한 것만 둔다. 더하는 것도 그 이름을 쓰던 사용자 코드를 E0238로 깨고, 빼는 것은 부르던 코드를 깬다(open-questions).
 - fung 소스는 `include_str!`로 실행 파일 안에 들어간다(`crates/fung-front/src/extras.rs`). 배포는 여전히 `fung` 파일 하나다. 내장 모듈은 `import`될 때 컴파일하고, prelude만 시작할 때 컴파일한다. 스크립트 시작 시간을 지키기 위해서다(부록 [내부 구조](internals.html#modules)).
 :::
 

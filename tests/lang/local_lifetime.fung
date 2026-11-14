@@ -276,3 +276,31 @@ fn start():
 print(start())
 # expect: true
 # expect: [1]
+
+# A value a default binds is let go like one the body binds: the sending
+# end bound in the default's arm moves into `drop_it`, so the channel is
+# closed before `recv` waits (VM48).
+fn from_default(got = (match channel(): (tx, rx) => drop_it(tx); recv(rx) ;;)) = got
+print(from_default())
+# expect: Err({kind: 'closed, message: "channel closed"})
+
+# A slice holds its own items only, whatever the list's size: the sending
+# end cut off is let go while the slice is kept (VA59).
+fn slice_closes(n, at_end, part):
+  (tx, rx) = channel()
+  items = map(0..n, i => i)
+  xs = at_end then items + [tx] else [tx] + items
+  ys = part(xs)
+  match recv(rx):
+    Err(e) => (e.kind, len(ys) == n)
+    _      => ('open, len(ys) == n)
+  ;;
+;;
+slice_sizes = [10, 31, 32, 33, 100, 1023, 1024, 1025, 32767, 32768, 32769, 40000]
+fn each_size(at_end, part) = unique(map(slice_sizes, n => slice_closes(n, at_end, part)))
+print(each_size(false, xs => xs[1..]), each_size(true, xs => xs[..len(xs) - 1]))
+# expect: [('closed, true)] [('closed, true)]
+print(each_size(false, xs => drop(xs, 1)), each_size(true, xs => take(xs, len(xs) - 1)))
+# expect: [('closed, true)] [('closed, true)]
+print(each_size(true, xs => reverse(xs)[1..]), each_size(false, fn(xs): [_, ...rest] = xs; rest ;;))
+# expect: [('closed, true)] [('closed, true)]

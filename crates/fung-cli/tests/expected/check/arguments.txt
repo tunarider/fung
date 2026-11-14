@@ -52,12 +52,13 @@
 ==== check -e "fn f():\n  x = 1\n  len = 2\n  x\n;;"
 -- stdout
 -- stderr
-| error[E0240]: `len` hides a prelude function
+| error[E0238]: cannot bind `len` again: a name is bound once
 |   --> -e:3:3
 |   |
 | 3 |   len = 2
 |   |   ^^^
 |   |
+|   note: `len` is a prelude function
 |  help: a visible name means one thing: give the new one a name of its own
 -- exit: 2
 ==== check -e "fn f():\n  이름 = 1\n  2\n;;"

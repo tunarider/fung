@@ -380,9 +380,9 @@ fn leaner_code_keeps_its_meaning() {
         ("x = 5\n_y = true and x", "E0505", "-e:2:15"),
         ("fn f() = Err(1)\nif true: f() ;;\n1", "E0606", "-e:2:1"),
         (
-            "fn f(c) -> int = c then 1 else \"s\"\nf(false)",
+            "fn f(c, s) -> int = c then 1 else s\nf(false, \"s\")",
             "E0404",
-            "-e:1:16",
+            "-e:1:19",
         ),
         ("fn f(r) -> int = r? + 1\nf(Err(1))", "E0404", "-e:1:19"),
         ("print(9223372036854775807 + 1)", "E0503", "-e:1:27"),
@@ -709,36 +709,16 @@ fn type_annotations_are_checked() {
 fn calling_convention_messages() {
     let cases = [
         (
-            "fn f(n: int) = n\nf(\"a\")",
+            "fn f(n: int) = n\na = \"a\"\nf(a)",
             "error[E0403]: argument `n` must be int, got str",
         ),
         (
-            "fn f(v: str | nil) = v\nf(1)",
+            "fn f(v: str | nil) = v\na = 1\nf(a)",
             "error[E0403]: argument `v` must be str | nil, got int",
         ),
         (
-            "fn f() -> str = 1\nf()",
+            "fn f(a) -> str = a\nf(1)",
             "error[E0404]: return value must be str, got int",
-        ),
-        (
-            "fn f(a, b) = [a, b]\ng = f\ng(1, 2, 3)",
-            "error[E0402]: f takes 2 argument(s), got 3",
-        ),
-        (
-            "(x => x)(1, 2)",
-            "error[E0402]: the function takes 1 argument(s), got 2",
-        ),
-        (
-            "fn f(a) = a\ng = f\ng(1, a: 2)",
-            "error[E0405]: argument `a` given twice",
-        ),
-        (
-            "fn f(a) = a\ng = f\ng(b: 1)",
-            "error[E0406]: f has no argument named `b`",
-        ),
-        (
-            "fn f(a, b) = [a, b]\ng = f\ng(1)",
-            "error[E0407]: missing argument `b`",
         ),
         (
             "f = 1\nf()",
@@ -748,20 +728,84 @@ fn calling_convention_messages() {
     for (src, want) in cases {
         let o = exec(src, Opts::default());
         assert_eq!(o.error.expect(src).headline, want, "{src:?}");
-        // Called by its own name, the fn is known when the file is
-        // compiled: the same error, before anything runs (D43).
-        if src.contains("\ng = f\n") {
-            let direct = src.replace("\ng = f\ng(", "\nf(");
-            let o = exec(&direct, Opts::default());
-            assert!(o.error.is_none(), "{direct:?}");
-            assert_eq!(o.exit, 2, "{direct:?}");
+    }
+}
+
+/// A call the file shows the target of is checked before anything runs
+/// (D43, D110): by the function's own name, through a name bound to it,
+/// or written where it is called. The error is the one the same call
+/// gives at run time, where the function comes in as a parameter.
+#[test]
+fn calls_of_known_functions_are_the_runs_errors() {
+    // The function, the arguments, the error.
+    let cases = [
+        (
+            "fn f(a, b) = [a, b]",
+            "1, 2, 3",
+            "error[E0402]: f takes 2 argument(s), got 3",
+        ),
+        (
+            "fn f(a) = a",
+            "1, a: 2",
+            "error[E0405]: argument `a` given twice",
+        ),
+        (
+            "fn f(a) = a",
+            "b: 1",
+            "error[E0406]: f has no argument named `b`",
+        ),
+        (
+            "fn f(a, b) = [a, b]",
+            "1",
+            "error[E0407]: missing argument `b`",
+        ),
+        (
+            "f = x => x",
+            "1, 2",
+            "error[E0402]: the function takes 1 argument(s), got 2",
+        ),
+        (
+            "f = fn(a, b): [a, b] ;;",
+            "1",
+            "error[E0407]: missing argument `b`",
+        ),
+        (
+            "f = len",
+            "1, 2",
+            "error[E0402]: len takes 1 argument(s), got 2",
+        ),
+        (
+            "fn g(a, b) = [a, b]\nf = g(1, _)",
+            "1, 2",
+            "error[E0402]: the function takes 1 argument(s), got 2",
+        ),
+    ];
+    for (def, args, want) in cases {
+        let ran = format!("{def}\nfn via(h) = h({args})\nprint(\"ran\")\nprint(via(f))");
+        let o = exec(&ran, Opts::default());
+        assert_eq!(o.error.expect(&ran).headline, want, "{ran:?}");
+        let alias = format!("{def}\nh = f\nprint(\"ran\")\nprint(h({args}))");
+        let inner = format!("{def}\nfn k():\n  h = f\n  h({args})\n;;\nprint(\"ran\")\nprint(k())");
+        for src in [
+            format!("{def}\nprint(\"ran\")\nprint(f({args}))"),
+            alias,
+            inner,
+        ] {
+            let o = exec(&src, Opts::default());
+            assert!(o.error.is_none(), "{src:?}");
+            assert_eq!(o.exit, 2, "{src:?}");
             assert!(
                 o.err.starts_with(&format!("{want}\n")),
-                "{direct:?}: {}",
+                "{src:?}: {}",
                 o.err
             );
         }
     }
+    let ran = "fn via(h) = h(1, 2)\nprint(\"ran\")\nprint(via(x => x))";
+    let o = exec(ran, Opts::default());
+    let want = o.error.expect(ran).headline;
+    let o = exec("print(\"ran\")\nprint((x => x)(1, 2))", Opts::default());
+    assert!(o.err.starts_with(&format!("{want}\n")), "{}", o.err);
 }
 
 #[test]
@@ -878,7 +922,10 @@ fn natives_share_the_calling_convention() {
         assert_eq!(with_pad(src).code, want, "{src}");
     }
     assert_eq!(
-        with_pad("l = len\nl(1, 2)").error.unwrap().headline,
+        with_pad("fn via(l) = l(1, 2)\nvia(len)")
+            .error
+            .unwrap()
+            .headline,
         "error[E0402]: len takes 1 argument(s), got 2"
     );
 }
@@ -1040,13 +1087,23 @@ fn closures_print_and_compare() {
         "f = x => x\na = {k: (1, Ok(f))}\nb = a\nprint([a] == [b])",
         "a = map(0..5000, i => i) + [print]\nb = a\nprint(a == b)",
         "a = map(0..5000, i => [i, len])\nb = a\nprint(a != b)",
+        // D116: whatever else the two sides hold and wherever the
+        // functions stand (VA43's order of items and of map keys).
+        "f = x => x\nprint([1, f] == [2, f])",
+        "f = x => x\nprint({a: 1, cb: f} == {a: 2, cb: f})",
+        "f = x => x\nprint({cb: f, a: 1} == {cb: f, a: 2})",
+        "f = x => x\nprint([f] != [1, 2, f])",
     ] {
         let (out, err, _) = run_src(src);
         assert!(
-            err.starts_with("error[E0501]: cannot compare fn and fn"),
+            err.starts_with("error[E0501]: cannot compare"),
             "{src}: {out}{err}"
         );
+        assert!(err.contains("no equality"), "{src}: {err}");
     }
+    // A function on one side only is a difference (D91).
+    let (out, err, _) = run_src("f = x => x\nprint([1, f] == [1, 2], f in [1, 2], [f] == [nil])");
+    assert_eq!(out, "false false false\n", "{err}");
     // A shared value that holds no function is still equal to itself.
     let (out, err, _) = run_src(
         "a = map(0..5000, i => [i, \"x\"])\nb = a\nc = {k: (1, Ok(nil))}\nd = c\nprint(a == b, c == d)",
@@ -1294,7 +1351,7 @@ fn runtime_wording_of_the_third_review() {
         (
             "print((1, 2).a)",
             "error[E0509]: cannot index tuple with str",
-            "",
+            "a tuple has no fields: only maps and modules do",
         ),
         (
             "print([1].len)",
@@ -1309,11 +1366,39 @@ fn runtime_wording_of_the_third_review() {
         (
             "print([1].nope)",
             "error[E0509]: cannot index list with str",
-            "",
+            "a list has no fields: only maps and modules do",
         ),
         (
             "print(for x in 5: x ;;)",
             "error[E0506]: cannot iterate over int",
+            "",
+        ),
+        // a field of a value that has none is the index's E0509, as
+        // `x["a"]` is (`m.name` is `m["name"]`), with a help that says
+        // it was a field; and a slice's end (FE82)
+        (
+            "x = nil\nprint(x.a)",
+            "error[E0509]: cannot index nil with str",
+            "a nil has no fields: only maps and modules do",
+        ),
+        (
+            "xs = [1, 2]\ny = \"a\"\nprint(xs[y..2])",
+            "error[E0509]: cannot index list with str",
+            "",
+        ),
+        (
+            "xs = [1, 2]\ny = 1.5\nprint(xs[..y])",
+            "error[E0509]: cannot index list with float",
+            "",
+        ),
+        (
+            "print(\"${atom(1)}\")",
+            "error[E0519]: an atom handle in string interpolation: it is not put into text silently",
+            "unwrap a result with `!` or `?` and give `nil` a default with `??` first; to show any value as `print` does, write `str(x)`",
+        ),
+        (
+            "c = channel(1.0)",
+            "error[E0403]: argument `n` must be int, got float",
             "",
         ),
         (
@@ -1419,6 +1504,69 @@ fn values_of_different_types_are_not_equal() {
     }
 }
 
+/// The functions that order their elements fold every one into one
+/// shape before they start (VA60): lists of different lengths line up
+/// by position, so whether they order cannot depend on the order of the
+/// elements, nor on the values.
+#[test]
+fn ordering_functions_unify_the_shapes_of_all_elements() {
+    let rows = ["[]", "[1, \"a\"]", "[2]", "[3, 0]"];
+    let mut orders = Vec::new();
+    for a in 0..4 {
+        for b in 0..4 {
+            for c in 0..4 {
+                for d in 0..4 {
+                    let ix = [a, b, c, d];
+                    if (0..4).all(|i| ix.contains(&i)) {
+                        orders.push(ix.map(|i| rows[i]).join(", "));
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(orders.len(), 24);
+    for xs in &orders {
+        for call in [
+            "sort([{xs}])",
+            "max([{xs}])",
+            "min([{xs}])",
+            "sort_by([{xs}], x => x)",
+        ] {
+            let src = format!("print({})", call.replace("{xs}", xs));
+            let (out, err, _) = run_src(&src);
+            assert!(err.contains("error[E0501]"), "{src}: {out}{err}");
+        }
+    }
+    for (src, want) in [
+        // lists of other lengths whose positions agree order
+        (
+            "print(sort([[2, 3], [], [1], [1, 4, 5]]))",
+            "[[], [1], [1, 4, 5], [2, 3]]\n",
+        ),
+        (
+            "print(max([[1.5, \"b\"], [2], [], [1, \"a\", 3s]]))",
+            "[2]\n",
+        ),
+        ("print(min([(1, [2]), (0, [])]))", "(0, [])\n"),
+        // a position no other element has must still have an order
+        ("print(sort([[1], [2, true]]))", ""),
+        ("print(min([[1], [2, nil]]))", ""),
+        ("print(sort([(1, 2), (1, 2, 3)]))", ""),
+        ("print(sort([[1, 2], [3, (1, 2)]]))", ""),
+    ] {
+        let (out, err, _) = run_src(src);
+        assert_eq!(out, want, "{src}: {err}");
+        if want.is_empty() {
+            assert!(err.contains("error[E0501]"), "{src}: {err}");
+        }
+    }
+    // the error names the first conflict, in element order
+    let (_, err, _) = run_src("print(sort([[], [3, 0], [1, \"a\"], [2]]))");
+    assert!(err.contains("cannot compare int and str"), "{err}");
+    let (_, err, _) = run_src("print(sort([true, 1]))");
+    assert!(err.contains("cannot compare bool and int"), "{err}");
+}
+
 /// A call on the right of `and`/`or` in tail position is a tail call
 /// (D97): the frame takes the bool check along, as it takes a return
 /// type's (D44), so the two operators recurse as deep as `then … else`.
@@ -1442,6 +1590,25 @@ fn the_right_side_of_and_or_is_a_tail_call() {
         err.starts_with("error[E0505]: expected bool, got int\n  --> -e:2:27"),
         "{err}"
     );
+    // A loop that takes the same check again each time round keeps it
+    // once (VM52), and one that takes two by turns keeps both: either
+    // way the check runs where its operator stands.
+    for (src, at) in [
+        (
+            "fn spin(n) = n == 0 then 5 else (n < 0 or spin(n - 1))\nprint(spin(100000))",
+            "-e:1:47",
+        ),
+        (
+            "fn a(n) = n == 0 then 5 else (n < 0 or b(n - 1))\nfn b(n) = n < 0 or a(n - 1)\nprint(a(100000))",
+            "-e:2:21",
+        ),
+    ] {
+        let (_, err, _) = run_src(src);
+        assert!(
+            err.starts_with(&format!("error[E0505]: expected bool, got int\n  --> {at}")),
+            "{src}: {err}"
+        );
+    }
     // With a return type too: both checks go along.
     let (out, err, _) = run_src(
         "fn down(i) -> bool = i == 0 or down2(i - 1)\n\
@@ -1449,6 +1616,24 @@ fn the_right_side_of_and_or_is_a_tail_call() {
          print(down(200001))",
     );
     assert_eq!(out, "true\n", "{err}");
+    // The bool check runs before the return type's, as when the value is
+    // named first (VM49): a non-bool right side is E0505 at its call.
+    for (src, at) in [
+        (
+            "fn not_bool(x) = x\nfn h(x) -> bool = x > 0 and not_bool(x)\nprint(h(2))",
+            "-e:2:37",
+        ),
+        (
+            "fn not_bool(x) = x\nfn h(x) -> bool:\n  r = x > 0 and not_bool(x)\n  r\n;;\nprint(h(2))",
+            "-e:3:25",
+        ),
+    ] {
+        let (_, err, _) = run_src(src);
+        assert!(
+            err.starts_with(&format!("error[E0505]: expected bool, got int\n  --> {at}")),
+            "{src}: {err}"
+        );
+    }
 }
 
 /// `index_of` finds what `in` finds (D107): bytes, so a match that
@@ -1460,6 +1645,26 @@ fn index_of_finds_what_in_finds() {
          print(index_of(\"참치김밥\", \"김\"), index_of(\"abc\", \"x\"), \"x\" in \"abc\")",
     );
     assert_eq!(out, "true 0 1\n2 nil false\n", "{err}");
+}
+
+/// `index_of` searches a piece (`STEP_SCAN` bytes) at a time; a match
+/// inside a character that straddles a piece boundary, or past a stretch
+/// of invalid bytes, is still found where `in` finds it (VA62).
+#[test]
+fn index_of_finds_across_pieces() {
+    let (out, err, _) = run_src(
+        "for k in [65535, 131071, 262143, 131070, 131072]:\n\
+           s = repeat(\"a\", k) + \"\u{e9}\" + \"zz\"\n\
+           print(\"\\xa9\" in s, index_of(s, \"\\xa9\") == k, index_of(s, \"\\xa9z\") == k, index_of(s, \"zz\") == k + 1)\n\
+         ;;\n\
+         t = repeat(\"\\xa9\", 131071) + \"\u{ac00}\" + repeat(\"\u{e9}\", 70000) + \"!\"\n\
+         print(index_of(t, \"\\x80\") == 131071, index_of(t, \"!\") == 201072, index_of(t, \"?\"))",
+    );
+    assert_eq!(
+        out,
+        "true true true true\n".repeat(5) + "true true nil\n",
+        "{err}"
+    );
 }
 
 /// Small fixes of the fourth review's value layer.
@@ -1477,15 +1682,15 @@ fn small_value_fixes() {
         out, "[\"a\\$b\", \"\\${a}\", \"\\$_x\", \"$5\", \"\\u{1b}\"]\n",
         "{err}"
     );
-    // VA42: a duration a float cannot hold exactly is not rounded on its
-    // way into float arithmetic.
-    for src in [
-        "x = 2600h + 0.000001ms\nprint(x * 1.0)",
-        "x = 2600h + 0.000001ms\nprint(x / 2.0)",
-    ] {
-        let (_, err, _) = run_src(src);
-        assert!(err.starts_with("error[E0523]"), "{src}: {err}");
-    }
+    // VA42, D135: a duration and a float are computed exactly and
+    // rounded once to the nanosecond (halves away from zero), so a
+    // duration a float cannot hold loses nothing and is no error.
+    let (out, err, _) =
+        run_src("x = 2600h + 0.000001ms\nprint(x * 1.0, x / 2.0, 1.0 * x, x * 0.5, -x / 2.0)");
+    assert_eq!(
+        out, "2600h0.000001ms 1300h0.000001ms 2600h0.000001ms 1300h0.000001ms -1300h0.000001ms\n",
+        "{err}"
+    );
     let (out, err, _) = run_src("print(1h * 1.5, 3s / 2.0, (2600h + 0.000001ms) * 2)");
     assert_eq!(out, "1h30m 1s500ms 5200h0.000002ms\n", "{err}");
     // VA58: an empty command name is the code's mistake, like an empty
@@ -1493,7 +1698,7 @@ fn small_value_fixes() {
     let (_, err, _) = run_src("print(exec([\"\"]))");
     assert!(err.starts_with("error[E0403]"), "{err}"); // FE74: a map pattern takes the keys a map literal takes.
     let (out, err, _) = run_src(
-        "m = {\"\\xff\": 1, a: 2}\n{\"\\xff\": x, a: y} = m\nprint(x, y, match m: {\"\\xfe\": _} => 0; {\"\\xff\": v} => v ;;)",
+        "m = {\"\\xff\": 1, a: 2}\n{\"\\xff\": x, a: y} = m\nprint(x, y, match m: {\"\\xfe\": _, ...} => 0; {\"\\xff\": v, ...} => v ;;)",
     );
     assert_eq!(out, "1 2 1\n", "{err}");
 }
@@ -1563,4 +1768,185 @@ fn the_globals_ring_is_freed_with_the_runtime() {
     assert!(!tables.is_empty());
     drop(s);
     assert!(tables.iter().all(|t| t.upgrade().is_none()));
+}
+
+/// What the syntax says a value is stops the program before it runs,
+/// with the error the run gives the same value (D99, FE81): each form
+/// written with literals is a compile error whose head line and help are
+/// those of the run, where the values come through a function.
+#[test]
+fn literal_type_errors_are_the_runs() {
+    // The literals of each form, then the form with `@0`, `@1` for them.
+    let cases: &[(&[&str], &str)] = &[
+        (&["1s"], "@0(2)"),
+        (&["\"a${1}\""], "@0(2)"),
+        (&["[1]"], "@0(2)"),
+        (&["{a: 1}"], "@0(2)"),
+        (&["(1, 2)"], "@0(2)"),
+        (&["Red(1)"], "@0(2)"),
+        (&["(1..3)"], "@0(2)"),
+        (&["1s"], "not @0"),
+        (&["\"a${1}\""], "not @0"),
+        (&["[1]"], "if @0: 1 else: 2 ;;"),
+        (&["(x => x)"], "@0 then 1 else 2"),
+        (&["Ok(1)"], "true and @0"),
+        (&["\"a\""], "-@0"),
+        (&["true"], "-@0"),
+        (&["nil"], "-@0"),
+        (&["[1]"], "-@0"),
+        (&["Ok(1)"], "-@0"),
+        (&["1s", "\"a\""], "@0 + @1"),
+        (&["\"a\"", "1s"], "@0 + @1"),
+        (&["[1]", "[1]"], "@0 - @1"),
+        (&["(x => x)", "1"], "@0 + @1"),
+        (&["\"a\"", "1s"], "@0 * @1"),
+        (&["[1]", "1s"], "@0 * @1"),
+        (&["1s", "1s"], "@0 * @1"),
+        (&["1s", "2"], "@0 // @1"),
+        (&["1s", "2"], "@0 % @1"),
+        (&["1s", "\"a\""], "@0 / @1"),
+        (&["\"a\"", "1s"], "@0 / @1"),
+        (&["{a: 1}", "{b: 2}"], "@0 + @1"),
+        (&["Ok(1)", "1"], "@0 + @1"),
+        (&["\"a${1}\"", "1"], "@0 + @1"),
+        (&["1", "[1]"], "@0 < @1"),
+        (&["[1]", "(1,)"], "@0 < @1"),
+        (&["1s", "1"], "@0 < @1"),
+        (&["1s", "1"], "@0 - @1"),
+        (&["[1]", "2"], "@0 ** @1"),
+        (&["(1..2)", "[1]"], "@0 + @1"),
+    ];
+    // The head line and the help line of an error report.
+    let report = |src: &str| -> (String, String) {
+        let (_, err, _) = run_src(src);
+        let head = err.lines().next().unwrap_or("").to_string();
+        let help = err
+            .lines()
+            .find(|l| l.trim_start().starts_with("help:"))
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        (head, help)
+    };
+    for (lits, form) in cases {
+        let fill = |f: &dyn Fn(&str) -> String| {
+            let mut s = form.to_string();
+            for (i, l) in lits.iter().enumerate() {
+                s = s.replace(&format!("@{i}"), &f(l));
+            }
+            s
+        };
+        let compiled = format!("x = {}\nprint(x)", fill(&|l| l.to_string()));
+        let ran = format!(
+            "fn id(v) = v\nx = {}\nprint(x)",
+            fill(&|l| format!("id({l})"))
+        );
+        let want = report(&ran);
+        assert!(want.0.starts_with("error[E0"), "{ran:?} runs: {want:?}");
+        assert_eq!(report(&compiled), want, "{compiled:?}");
+    }
+}
+
+/// D110: a module member bound to a name in any block is that member: its
+/// calls are checked and a call of a pure one as a statement is E0234.
+#[test]
+fn module_members_bound_to_names_are_checked() {
+    for (src, code) in [
+        (
+            "import path\nfn f():\n  j = path.join\n  j(\"a\", \"b\")\n  1\n;;\nprint(\"ran\")\nprint(f())",
+            "E0234",
+        ),
+        (
+            "import fs\nfn f():\n  r = fs.read\n  r()\n;;\nprint(\"ran\")\nprint(f())",
+            "E0407",
+        ),
+        (
+            "import fs\nr = fs.read\nfn f() = r(\"a\", \"b\")\nprint(\"ran\")\nprint(f())",
+            "E0402",
+        ),
+        (
+            "s = sort\nfn f():\n  s([2, 1])\n  1\n;;\nprint(\"ran\")\nprint(f())",
+            "E0234",
+        ),
+    ] {
+        let (out, err, _) = run_src(src);
+        assert_eq!(out, "", "{src}");
+        assert!(err.starts_with(&format!("error[{code}]")), "{src}: {err}");
+    }
+    // The error shows the name called, the help the function's own.
+    let (_, err, _) = run_src("s = sort\ns([2, 1])\nprint(1)");
+    assert!(
+        err.starts_with("error[E0234]: the result of `s(…)` is computed and discarded")
+            && err.contains("`sort` has no effect"),
+        "{err}"
+    );
+}
+
+/// D113: a literal that a type annotation refuses stops the program
+/// before it runs, with the head line the run gives the same value
+/// coming through a function.
+#[test]
+fn literal_annotation_errors_are_the_runs() {
+    // The form with `@` for the value, the literals.
+    let forms = [
+        "fn f(a: int = @) = a\nprint(f())",
+        "fn f() -> int = @\nprint(f())",
+        "fn f() -> int:\n  return @\n;;\nprint(f())",
+        "fn f(c) -> int | nil = c then 1 else @\nprint(f(false))",
+        "fn g(a: int) = a\nprint(g(@))",
+        "type id = num | Red\nfn g(a: id) = a\nprint(g(@))",
+        "fn g(a, b: str) = [a, b]\nprint(g(1, b: @))",
+        "fn g(a: sym) = a\nh = g\nprint(h(@))",
+    ];
+    let lits = [
+        "\"x\"",
+        "nil",
+        "1.5",
+        "Blue(1)",
+        "Blue",
+        "[1]",
+        "(x => x)",
+        "\"a${1}\"",
+        "1s",
+        "true",
+    ];
+    let report = |src: &str| -> String {
+        let (_, err, _) = run_src(src);
+        err.lines().next().unwrap_or("").to_string()
+    };
+    let mut seen = 0;
+    for form in forms {
+        for lit in lits {
+            let ran = format!("fn id(v) = v\n{}", form.replace('@', &format!("id({lit})")));
+            let want = report(&ran);
+            let compiled = format!("fn id(v) = v\n_ = id\n{}", form.replace('@', lit));
+            let (out, err, code) = run_src(&compiled);
+            if want.is_empty() {
+                assert_eq!(code, 0, "{compiled:?}: {err}");
+                continue;
+            }
+            seen += 1;
+            assert_eq!(out, "", "{compiled:?}");
+            assert_eq!(code, 2, "{compiled:?}: {err}");
+            assert_eq!(report(&compiled), want, "{compiled:?}");
+        }
+    }
+    assert!(seen > 50, "{seen}");
+}
+
+/// D111: a statement after one that cannot complete is E0131, and only
+/// that: the dead line hides nothing once it is gone (the unused name it
+/// read is then E0239).
+#[test]
+fn a_dead_statement_is_the_one_error() {
+    let src = "fn f(c):\n  x = c then 1 else 2\n  if c: return 1 else: return 2 ;;\n  print(\"never\", x)\n;;\nprint(f(true))";
+    let (out, err, code) = run_src(src);
+    assert_eq!((out.as_str(), code), ("", 2), "{err}");
+    assert!(err.starts_with("error[E0131]"), "{err}");
+    assert!(err.contains("-e:4:3"), "{err}");
+    let (_, err, _) = run_src(&src.replace("  print(\"never\", x)\n", ""));
+    assert!(
+        err.starts_with("error[E0239]: unused variable `x`"),
+        "{err}"
+    );
 }

@@ -1,7 +1,7 @@
 # A written `nil` at a slice's end is a value, like a nil from `find`:
-# it is E0501, not an open end (02, VA3). An open end is left out.
+# it is E0509, as any bad index, not an open end (02, VA3, FE82). An open end is left out.
 xs = [1, 2, 3]
 print(xs[1..])
 print(xs[1..nil])
 # expect: [2, 3]
-# expect-error: E0501
+# expect-error: E0509

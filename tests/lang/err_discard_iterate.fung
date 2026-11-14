@@ -1,0 +1,5 @@
+# `iterate` and `until` compute a value with their function as `fold`
+# does (VA63): as a statement they only drop it.
+print(iterate(0, x => x + 1, 3))
+iterate(0, x => x + 1, 3)
+# expect-error: E0234

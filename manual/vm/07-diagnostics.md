@@ -91,7 +91,7 @@ error[E0204]: undefined name `y`
 ```plain
 번호    메시지 틀                                    밑줄 라벨                 도움말
 E0204   undefined name `%s`                          not found in this scope
-E0205   cannot reassign `%s` here: it was defined…                             a block cannot change an outer variable; …
+E0238   cannot bind `%s` again: a name is bound once                           give the new value a name of its own, …
 E0502   division by zero
 ```
 
@@ -120,7 +120,7 @@ E0502   division by zero
     <tr><td><code>E06xx</code></td><td>패턴·결과값</td><td>VM</td></tr>
     <tr><td><code>E07xx</code></td><td>동시성</td><td>런타임</td></tr>
     <tr><td><code>E08xx</code></td><td>한도·환경, 내부 오류</td><td>여러 곳</td></tr>
-    <tr><td><code>W01xx</code></td><td>은퇴한 경고(지금은 E0239·E0240)</td><td>없음</td></tr>
+    <tr><td><code>W01xx</code></td><td>은퇴한 경고(지금은 E0239·E0238)</td><td>없음</td></tr>
   </tbody>
 </table>
 
@@ -172,7 +172,7 @@ main()
 
 ### 경고는 없다 {#warnings}
 
-fung에는 경고가 없다. 예전 경고(쓰지 않는 이름 W0101·W0102, prelude 이름 가리기 W0103)는 모두 에러(E0239·E0240)가 되었다. 경고는 `run`에서 보이지 않으면 아무도 읽지 않고, 보이면 cron 메일과 로그를 더럽힌다. 둘 다 아니려면 에러이거나 아무것도 아니어야 한다. 쓰지 않는 이름은 다른 에러의 결과일 때가 많으므로(오타로 읽지 못한 변수), E0239는 파일에 다른 에러가 없을 때만 낸다. "같은 원인에서 따라 나오는 에러는 억제한다"와 같은 생각이다.
+fung에는 경고가 없다. 예전 경고(쓰지 않는 이름 W0101·W0102, prelude 이름 가리기 W0103)는 모두 에러(E0239·E0238)가 되었다. 경고는 `run`에서 보이지 않으면 아무도 읽지 않고, 보이면 cron 메일과 로그를 더럽힌다. 둘 다 아니려면 에러이거나 아무것도 아니어야 한다. 쓰지 않는 이름은 다른 에러의 결과일 때가 많으므로(오타로 읽지 못한 변수), E0239는 파일에 다른 에러가 없을 때만 낸다. "같은 원인에서 따라 나오는 에러는 억제한다"와 같은 생각이다.
 
 ```fung check
 fn f():

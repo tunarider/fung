@@ -39,13 +39,14 @@ impl Resolver<'_> {
         };
         let mut f = FnScope::new(&decl.name);
         if !decl.name.is_empty() {
-            f.self_sig = Some(super::call::Sig::of(decl));
+            f.self_sig = Some(self.sig_of(decl));
         }
         f.for_body = decl.for_body;
         f.lambda = decl.lambda;
         f.top = top;
         // The parameters of a module's public fns are its interface: callers
-        // name them (`timeout: 5s`), so they may be prelude names (D38).
+        // name them (`timeout: 5s`), so they may be prelude names (D38);
+        // a rest parameter is not named by callers.
         let interface = f.top && self.interface_name(&decl.name);
         self.fns.push(f);
         if !decl.name.is_empty() {
@@ -53,6 +54,21 @@ impl Resolver<'_> {
         }
 
         self.check_types(&mut info, n.pos);
+        // Literals the annotations settle (D113).
+        let defaults = decl.params.iter().filter(|p| p.has_default);
+        for (d, p) in n.kids.iter().zip(defaults) {
+            let p = info
+                .params
+                .iter()
+                .find(|q| q.name == p.name)
+                .expect("param");
+            if let Some(e) = super::annot::default_error(p, d) {
+                self.errs.push(e);
+            }
+        }
+        if let Some(ret) = &info.ret {
+            super::annot::return_errors(ret, n.kids.last().expect("fn body"), &mut self.errs);
+        }
         let body = n.kids.last().expect("fn body");
         self.push_block(body, false);
         if decl.for_body {
@@ -60,6 +76,10 @@ impl Resolver<'_> {
         }
         let mut kids = Vec::new();
         let mut di = 0;
+        // The parameters own slots 0..n from the start: a default's names
+        // and hidden temporaries come after them, never in a later
+        // parameter's slot (VM48).
+        self.cur_mut().next_slot = decl.params.len();
         for (i, prm) in decl.params.iter().enumerate() {
             if prm.has_default {
                 self.cur_mut().in_default = true;
@@ -68,7 +88,9 @@ impl Resolver<'_> {
                 kids.push(d);
                 di += 1;
             }
-            self.binds_fresh(&prm.name, prm.pos, false, interface);
+            // A rest parameter is never given by name (E0406), so it is no
+            // part of the interface (FE82).
+            self.binds_fresh(&prm.name, prm.pos, false, interface && !prm.rest);
             let b = Binding {
                 index: i,
                 ..Binding::default()
@@ -77,7 +99,6 @@ impl Resolver<'_> {
             let sc = self.cur_block();
             sc.pos.insert(prm.name.clone(), prm.pos);
             sc.param.insert(prm.name.clone());
-            self.cur_mut().next_slot = i + 1;
         }
         let f = self.cur_mut();
         f.max_slot = f.max_slot.max(f.next_slot);

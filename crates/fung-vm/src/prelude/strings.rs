@@ -172,9 +172,11 @@ pub(super) fn chars_of(t: &mut Task<'_>, s: Value) -> Result<Flow, Stop> {
     impl Work for Chars {
         fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
             let out = &mut self.out;
-            if !chars_from(bytes_of(&self.s), &mut self.at, |c| {
+            let done = chars_from(bytes_of(&self.s), &mut self.at, |c| {
                 out.push(Value::char_str(c))
-            }) {
+            });
+            nat::check_len(self.out.len() as u64)?;
+            if !done {
                 return Ok(None);
             }
             let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
@@ -213,7 +215,11 @@ impl Parts {
 impl Work for Parts {
     fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
         let (out, part) = (&mut self.out, self.part);
-        if !self.cuts.run(|p, _| out.push(string(part(p).to_vec()))) {
+        let done = self.cuts.run(|p, _| out.push(string(part(p).to_vec())));
+        // The list only grows: past the limit at the end of a step is past
+        // it for good (VA71).
+        nat::check_len(self.out.len() as u64)?;
+        if !done {
             return Ok(None);
         }
         let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
@@ -391,11 +397,14 @@ fn trim_ends(t: &mut Task<'_>, a: Args, front: bool, back: bool) -> Result<Flow,
 }
 
 /// `index_of(s, sub)`: the character index of the first occurrence of
-/// `sub` in `s` (as `s[i]` and `len` count, 02), or `nil` (D73). An
-/// occurrence starts on a character: a `sub` that starts with a byte
-/// inside one is not found there. An empty `sub` is everywhere: E0403,
-/// as `split`'s `sep`. A piece at a time (L6): `STEP_SCAN` bytes are
-/// searched and counted each time.
+/// `sub` in `s` (as `s[i]` and `len` count, 02), or `nil` (D73). It finds
+/// what `sub in s` finds (D107): bytes, so an occurrence that starts on a
+/// byte inside a character is found at that character's index. An empty
+/// `sub` is everywhere: E0403, as `split`'s `sep`. A piece at a time
+/// (L6): `STEP_SCAN` bytes are searched each time, and the characters
+/// before the search position counted a block at a time (VA70); the
+/// search goes on from where it stopped, whatever character that byte is
+/// in (VA62).
 fn index_of_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::need_bytes("s", &a[0])?;
     if nat::need_bytes("sub", &a[1])?.is_empty() {
@@ -404,32 +413,52 @@ fn index_of_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     struct Find {
         s: Value,
         finder: memchr::memmem::Finder<'static>,
-        /// Counted up to `at` (a character boundary), `chars` characters.
+        /// Searched up to here (any byte).
+        from: usize,
+        /// Counted up to `at` (a character boundary, at most `from`),
+        /// `chars` characters.
         at: usize,
         chars: usize,
+    }
+    /// Counts the characters from `at` up to the start of the one that
+    /// holds byte `to`. Valid UTF-8 (`text`) is counted by `str`'s own
+    /// counter, a word at a time, without decoding (VA68: a search of
+    /// non-ASCII text that found nothing spent 20 times as long counting
+    /// as searching).
+    fn count_to(s: &[u8], text: Option<&str>, at: &mut usize, chars: &mut usize, to: usize) {
+        let b = char_start(s, *at, to);
+        *chars += match text {
+            Some(t) => t[*at..b].chars().count(),
+            None => fung_front::text::char_count(&s[*at..b]),
+        };
+        *at = b;
     }
     impl Work for Find {
         fn step(&mut self, _t: &mut Task<'_>) -> Result<Option<Value>, Stop> {
             let s = bytes_of(&self.s);
+            let text = match &self.s {
+                Value::Str(t) => t.as_str(),
+                _ => None,
+            };
             let n = self.finder.needle().len();
-            let stop = (self.at + STEP_SCAN).min(s.len());
+            let stop = (self.from + STEP_SCAN).min(s.len());
             let window = (stop + n - 1).min(s.len());
-            let found = self.finder.find(&s[self.at..window]).map(|i| self.at + i);
-            // Count up to the match (or the end of the piece), on whole
-            // characters.
-            let to = found.unwrap_or(stop);
-            while self.at < to {
-                let u = fung_front::text::first(&s[self.at..]).expect("not at the end");
-                self.at += u.byte_len();
-                self.chars += 1;
-            }
+            let found = self
+                .finder
+                .find(&s[self.from..window])
+                .map(|i| self.from + i);
             match found {
-                Some(m) if self.at == m => Ok(Some(Value::Int(self.chars as i64))),
-                // It starts inside a character, the last one counted:
-                // what `in` finds, at that character's index (D107).
-                Some(_) => Ok(Some(Value::Int(self.chars as i64 - 1))),
+                // at the index of the character the match starts in
+                Some(m) => {
+                    count_to(s, text, &mut self.at, &mut self.chars, m);
+                    Ok(Some(Value::Int(self.chars as i64)))
+                }
                 None if window == s.len() => Ok(Some(Value::Nil)),
-                None => Ok(None),
+                None => {
+                    count_to(s, text, &mut self.at, &mut self.chars, stop);
+                    self.from = stop;
+                    Ok(None)
+                }
             }
         }
     }
@@ -439,10 +468,32 @@ fn index_of_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
         Find {
             s: a[0].clone(),
             finder: memchr::memmem::Finder::new(sub).into_owned(),
+            from: 0,
             at: 0,
             chars: 0,
         },
     )
+}
+
+/// Where the character that holds byte `to` of `s` starts (`to` itself
+/// at the end): no earlier than `at`, a character boundary. Every byte
+/// that is no continuation byte starts a character (a valid one, or one
+/// invalid byte), and a valid character has at most three continuation
+/// bytes; a continuation byte with no lead within three bytes before it
+/// is a character of its own.
+fn char_start(s: &[u8], at: usize, to: usize) -> usize {
+    if to >= s.len() {
+        return s.len();
+    }
+    for q in (at.max(to.saturating_sub(3))..=to).rev() {
+        if (s[q] as i8) >= -0x40 {
+            let len = fung_front::text::first(&s[q..])
+                .expect("not at the end")
+                .byte_len();
+            return if q + len > to { q } else { to };
+        }
+    }
+    to
 }
 
 /// `upper(s)` and `lower(s)`: the full Unicode case mapping (06), so the
@@ -527,13 +578,22 @@ fn replace_fits(s: &[u8], old: &[u8], new: &[u8]) -> bool {
     chars(s) + n * (chars(new) - chars(old)) <= limit
 }
 
+/// `starts_with(s, prefix)`. An empty `prefix` is E0403, as every text
+/// to search for (D118).
 fn starts_with_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let [s, prefix] = nat::bytes_args(&a, ["s", "prefix"])?;
+    if prefix.is_empty() {
+        return Err(nat::not_nonempty("prefix", &a[1]));
+    }
     Ok(Value::Bool(s.starts_with(prefix)))
 }
 
+/// `ends_with(s, suffix)`, as `starts_with`.
 fn ends_with_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let [s, suffix] = nat::bytes_args(&a, ["s", "suffix"])?;
+    if suffix.is_empty() {
+        return Err(nat::not_nonempty("suffix", &a[1]));
+    }
     Ok(Value::Bool(s.ends_with(suffix)))
 }
 

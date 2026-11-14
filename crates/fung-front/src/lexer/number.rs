@@ -1,6 +1,6 @@
 //! Number literals: integers, floats and durations.
 
-use super::{Kind, Lexer, is_digit, is_ident_part, is_ident_start, is_lower_hex_digit};
+use super::{Kind, Lexer, is_digit, is_hex_digit, is_ident_part, is_ident_start};
 use crate::diag::{Arg, Diag};
 use crate::source::Pos;
 
@@ -59,18 +59,14 @@ impl Lexer<'_> {
         if self.peek() == Some('0') && matches!(self.peek_at(1), Some('x' | 'o' | 'b')) {
             return self.prefixed_int(p, start);
         }
-        // One way to write a number (SP27): `0XFF` and `0O17` (an `O` next
-        // to a `0`) are refused with the lowercase form as help.
+        // The prefix is syntax and lowercase (SP27): `0XFF` and `0O17` (an
+        // `O` next to a `0`) are refused with the lowercase prefix as help.
+        // The hex digits after it take either case (D127).
         if self.peek() == Some('0') && matches!(self.peek_at(1), Some('X' | 'O' | 'B')) {
             self.advance();
             self.ident_text();
             let raw = &self.src[start..self.off];
-            // the digits too, for hexadecimal (D56)
-            let fixed = if raw.as_bytes()[1] == b'X' {
-                raw.to_ascii_lowercase()
-            } else {
-                format!("0{}{}", raw[1..2].to_ascii_lowercase(), &raw[2..])
-            };
+            let fixed = format!("0{}{}", raw[1..2].to_ascii_lowercase(), &raw[2..]);
             let help = format!("write the base prefix in lowercase: `{fixed}`");
             return Err(suggest(self.err("E0102", p, raw), &fixed, &help));
         }
@@ -226,24 +222,15 @@ impl Lexer<'_> {
         };
         let dig_start = self.off;
         // `_` only between digits (01): not right after the prefix
-        while is_lower_hex_digit(self.peek())
-            || (self.peek() == Some('_')
-                && self.off > dig_start
-                && is_lower_hex_digit(self.peek_at(1)))
+        while is_hex_digit(self.peek())
+            || (self.peek() == Some('_') && self.off > dig_start && is_hex_digit(self.peek_at(1)))
         {
             self.advance();
         }
         if self.off == dig_start || is_ident_start(self.peek()) || is_digit(self.peek()) {
             self.ident_text();
             let raw = &self.src[start..self.off];
-            let d = self.err("E0102", p, raw);
-            // `0xFF`: the digits are lowercase too (D56)
-            if base == 16 && raw.bytes().any(|b| b.is_ascii_uppercase()) {
-                let fixed = raw.to_ascii_lowercase();
-                let help = format!("write the hexadecimal digits in lowercase: `{fixed}`");
-                return Err(suggest(d, &fixed, &help));
-            }
-            return Err(d);
+            return Err(self.err("E0102", p, raw));
         }
         let text: String = self.src[dig_start..self.off]
             .chars()
@@ -413,11 +400,15 @@ mod tests {
 
     #[test]
     fn integer_literals() {
-        let cases: [(&str, i64); 8] = [
+        let cases: [(&str, i64); 11] = [
             ("0", 0),
             ("42", 42),
             ("1_000_000", 1000000),
             ("0xff", 255),
+            // hex digits take either case (D127)
+            ("0xFF", 255),
+            ("0xCafe", 0xcafe),
+            ("0xaB_cD", 0xabcd),
             ("0o17", 15),
             ("0b1010", 10),
             ("0b1_0", 2),
@@ -573,9 +564,9 @@ mod tests {
     #[test]
     fn uppercase_prefixes_suggest_the_lowercase_form() {
         for (src, help) in [
-            ("0XFF", "`0xff`"),
-            ("0xFF", "`0xff`"),
-            ("0xaB_cD", "`0xab_cd`"),
+            // only the prefix: hex digits take either case (D127)
+            ("0XFF", "`0xFF`"),
+            ("0XaB", "`0xaB`"),
             ("0O17", "`0o17`"),
             ("0B1", "`0b1`"),
             ("1E5", "`1e5`"),

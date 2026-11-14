@@ -158,8 +158,9 @@ pub fn format(d: &Diag, sources: &SourceMap) -> String {
         ));
         if !sources.text(d.pos.file).is_empty()
             && let Some(line) = sources.line(d.pos.file, d.pos.line)
+            && let Some(chars) = sources.line_chars(d.pos.file, d.pos.line)
         {
-            write_excerpt(&mut b, d, line);
+            write_excerpt(&mut b, d, line, chars);
         }
     }
     for note in &d.notes {
@@ -229,15 +230,19 @@ const EXCERPT_WHOLE: usize = 200;
 /// text before the caret and under it is measured by grapheme cluster
 /// (`unicode::display_width`), so the carets land under a wide character
 /// or an emoji sequence. `d.pos.col` and `d.len` count characters.
-fn write_excerpt(b: &mut String, d: &Diag, raw: &str) {
+fn write_excerpt(b: &mut String, d: &Diag, raw: &str, raw_chars: usize) {
     let line_no = d.pos.line as usize;
-    let line = raw.strip_suffix('\r').unwrap_or(raw);
+    let mut line = raw.strip_suffix('\r').unwrap_or(raw);
+    let mut line_chars = raw_chars - (line.len() < raw.len()) as usize;
     let num = line_no.to_string();
     let gutter = " ".repeat(num.len());
 
     let width = |s: &str| crate::unicode::display_width(&visible(s));
     // the lexer counts columns after a leading BOM (zero columns on screen)
-    let line = line.strip_prefix('\u{feff}').unwrap_or(line);
+    if let Some(rest) = line.strip_prefix('\u{feff}') {
+        line_chars -= 1;
+        line = rest;
+    }
     // Only the part of the line the excerpt can show is taken apart
     // (FE75): a long line with many errors is not copied for each.
     let want = (d.pos.col as usize).saturating_sub(1);
@@ -247,19 +252,15 @@ fn write_excerpt(b: &mut String, d: &Diag, raw: &str) {
         .max(EXCERPT_WHOLE + 1);
     // `chars` holds the line's characters from `base` on, `total` is how
     // many the line has.
-    let (base, chars, total): (usize, Vec<char>, usize) = if line.is_ascii() {
+    // Valid UTF-8 has as many characters as bytes only when it is ASCII:
+    // the line is not looked at again for each error on it (VM51).
+    let (base, chars, total): (usize, Vec<char>, usize) = if line_chars == line.len() {
         let from = want.min(line.len()).saturating_sub(EXCERPT_CONTEXT);
         let from = if line.len() <= EXCERPT_WHOLE { 0 } else { from };
         let to = reach.min(line.len());
         (from, line[from..to].chars().collect(), line.len())
     } else {
-        let part: Vec<char> = line.chars().take(reach).collect();
-        let n = if part.len() < reach {
-            part.len()
-        } else {
-            line.chars().count()
-        };
-        (0, part, n)
+        (0, line.chars().take(reach).collect(), line_chars)
     };
     let part =
         |from: usize, to: usize| -> String { chars[from - base..to - base].iter().collect() };
@@ -404,7 +405,7 @@ mod tests {
         let d = error("E0103", pos, vec![Arg::Str("`\\q`".into())]);
         assert_eq!(
             format(&d, &sm),
-            "error[E0103]: unknown escape `\\q` in string\n  --> -e:1:7\n  |\n1 |     x = \"\\q\"\n  |          ^\n  |\n"
+            "error[E0103]: invalid escape `\\q` in string\n  --> -e:1:7\n  |\n1 |     x = \"\\q\"\n  |          ^\n  |\n"
         );
     }
 

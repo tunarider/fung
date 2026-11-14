@@ -102,7 +102,7 @@ for (n, msg) in errors:
 
 :::box mistake 파일마다 더해 가는 합계
 
-쉘이나 `awk`에서는 `total += n`처럼 반복하면서 합계를 키운다. fung에서는 `for` 안에서 바깥의 `total`에 다시 대입하면 E0205다. 합계는 다 모은 리스트에서 식 하나로 만든다.
+쉘이나 `awk`에서는 `total += n`처럼 반복하면서 합계를 키운다. fung에서는 `for` 안에서 바깥의 `total`에 다시 대입하면 E0238이다. 합계는 다 모은 리스트에서 식 하나로 만든다.
 
 ```fung run
 counts = [3, 2, 0]

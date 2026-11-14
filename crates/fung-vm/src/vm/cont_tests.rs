@@ -223,7 +223,7 @@ fn callback_errors_report_as_before() {
         ),
         (
             "print(fold([1], 0, (a, _x) => a.nope))",
-            "error[E0509]: cannot index int with str\n  --> -e:1:32\n  |\n1 | print(fold([1], 0, (a, _x) => a.nope))\n  |                                ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
+            "error[E0509]: cannot index int with str\n  --> -e:1:32\n  |\n1 | print(fold([1], 0, (a, _x) => a.nope))\n  |                                ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n help: an int has no fields: only maps and modules do\n",
         ),
         (
             "print(sort_by([2, 1], x => x / 0))",

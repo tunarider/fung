@@ -8,3 +8,15 @@ fn log(a = print("default evaluated")) = a
 log(1)
 log()
 # expect: default evaluated
+
+# Names a default binds are its own: they never take a later
+# parameter's slot (VM48).
+fn pair(a, b = (match a: (t, k) => t + k ;;), c = 5) = (a, b, c)
+print(pair((1, 2)), pair((1, 2), c: 9), pair((1, 2), 7, 9))
+# expect: ((1, 2), 3, 5) ((1, 2), 3, 9) ((1, 2), 7, 9)
+fn step(a, b = (if a > 0: y = a + 1; z = y + 1; z else: 0 ;;), c = 7) = (a, b, c)
+print(step(2), step(2, c: 1))
+# expect: (2, 4, 7) (2, 4, 1)
+fn rest(a, b = (match (a, a): (x, y) => x + y ;;), ...more) = (a, b, more)
+print(rest(1), rest(1, 2, 3))
+# expect: (1, 2, []) (1, 2, [3])

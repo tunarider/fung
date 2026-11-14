@@ -6,4 +6,4 @@ fn f():
   limit
 ;;
 print(f() + limit)
-# expect-error: E0205
+# expect-error: E0238

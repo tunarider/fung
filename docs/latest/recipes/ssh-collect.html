@@ -89,10 +89,10 @@ fn split_args(xs, seen) = match xs:
 fn run_on(host, command):
   ssh = [&quot;ssh&quot;, &quot;-o&quot;, &quot;BatchMode=yes&quot;, &quot;-o&quot;, &quot;ConnectTimeout=5&quot;, host]
   match timeout(() =&gt; exec(ssh + command), 30s):
-    Ok(Ok(res))                       =&gt; Ok(res.out)
-    Ok(Err({kind: 'exit, code, err})) =&gt; Err(&quot;exit ${code}: ${trim(err)}&quot;)
-    Ok(Err(e))                        =&gt; Err(e.message)
-    Err(_)                            =&gt; Err(&quot;no answer in 30s&quot;)
+    Ok(Ok(res))                            =&gt; Ok(res.out)
+    Ok(Err({kind: 'exit, code, err, ...})) =&gt; Err(&quot;exit ${code}: ${trim(err)}&quot;)
+    Ok(Err(e))                             =&gt; Err(e.message)
+    Err(_)                                 =&gt; Err(&quot;no answer in 30s&quot;)
   ;;
 ;;
 
@@ -131,7 +131,7 @@ $ echo $?
 <li><code>any(results, is_err)</code>: 다 찍은 뒤 하나라도 실패했으면 종료 코드 1. cron이나 CI에서 실패를 알아챌 수 있다.</li>
 </ul>
 <div class="box mistake"><b>반복문 안에서 실패 개수 세기</b>
-<p>쉘처럼 <code>failed=0</code>을 두고 반복문 안에서 <code>failed = failed + 1</code>을 쓰면 E0205다. fung의 블록은 바깥 변수를 바꾸지 못한다. 위처럼 결과를 다 모은 다음 식으로 센다.</p>
+<p>쉘처럼 <code>failed=0</code>을 두고 반복문 안에서 <code>failed = failed + 1</code>을 쓰면 E0238이다. fung의 블록은 바깥 변수를 바꾸지 못한다. 위처럼 결과를 다 모은 다음 식으로 센다.</p>
 <div class="run"><pre><code>results = [Ok(&quot;up&quot;), Err(&quot;refused&quot;), Ok(&quot;up&quot;), Err(&quot;timeout&quot;)]
 failed = results |&gt; filter(is_err) |&gt; len
 print(&quot;${failed} of ${len(results)} failed&quot;)</code></pre><pre class="out plain"><code>2 of 4 failed</code></pre></div>

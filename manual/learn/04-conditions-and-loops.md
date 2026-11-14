@@ -186,9 +186,9 @@ print(label)
 
 :::
 
-:::box mistake 반복 안에서 합계 쌓기 (E0205)
+:::box mistake 반복 안에서 합계 쌓기 (E0238)
 
-`for` 안에서 `total = total + x`는 E0205다(3장). 합계는 `sum`, 개수는 `len`이나 `filter` 뒤의 `len`, 그 밖의 누적은 `fold`로 쓴다.
+`for` 안에서 `total = total + x`는 E0238이다(3장). 합계는 `sum`, 개수는 `len`이나 `filter` 뒤의 `len`, 그 밖의 누적은 `fold`로 쓴다.
 
 :::
 

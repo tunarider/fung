@@ -90,7 +90,7 @@
   <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러다: 매개변수 표에 적은 타입이 틀리면 E0403(<code>argument `n` must be int, got float</code>). 값을 훑거나 들여다보는 함수(<code>len</code>·<code>map</code>·<code>sum</code>·<code>get</code>·<code>put</code> 등)가 그럴 수 없는 값을 받으면 연산자처럼 그 일을 말하는 E0506(<code>cannot take the length of int</code>). 값을 다른 타입으로 바꾸는 함수(<code>int</code>·<code>float</code>·<code>sym</code> 등)가 바꿀 수 없는 것을 받으면 타입 탓이든 값 탓이든 E0513(<code>int(nil)</code>, <code>int(1e300)</code>).</li>
   <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Rust로 구현했다(<a href="../vm/internals.html#layers">네 층</a>).</li>
 </ul>
-<p>import 없이 쓴다. 같은 이름의 변수·매개변수·함수를 만들면 컴파일 에러(E0240)다.</p>
+<p>import 없이 쓴다. 같은 이름의 변수·매개변수·함수를 만들면 컴파일 에러(E0238)다.</p>
 <h2 id="list">목록</h2>
 <div class="filter">
 <label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>
@@ -192,7 +192,7 @@
 </ul></section>
 <section class="group"><h3><a href="../reference/prelude/process.html">프로세스와 환경</a></h3><ul>
 <li class="fn"><a href="../reference/prelude/process.html#fn-exec"><code>exec</code></a> 명령을 쉘 없이 실행하고 끝나기를 기다려 Ok({out, err, code, signal})를 돌려준다. 0이 아닌 종료와 신호로 끝난 것은 Err.</li>
-<li class="fn"><a href="../reference/prelude/process.html#fn-sh"><code>sh</code></a> 문자열 cmd를 /bin/sh -c cmd로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다.</li>
+<li class="fn"><a href="../reference/prelude/process.html#fn-sh"><code>sh</code></a> 문자열 cmd를 /bin/sh -c cmd로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다. 문자열은 쉘에 그대로 넘기고 그 뜻은 쉘이 정한다(sh(&quot;&quot;)는 쉘이 아무 일도 하지 않고 끝나 code: 0이다).</li>
 <li class="fn"><a href="../reference/prelude/process.html#fn-env"><code>env</code></a> 환경 변수 name의 값(문자열)을, 없으면 nil을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/process.html#fn-env_all"><code>env_all</code></a> 모든 환경 변수를 {이름: 값} 맵으로 돌려준다.</li>
 </ul></section>

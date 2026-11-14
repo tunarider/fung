@@ -415,6 +415,12 @@ impl<'rt> Task<'rt> {
         self.world.stdin.leave(&me);
     }
 
+    /// Gives lines taken from standard input back to the front of its
+    /// queue (`Stdin::unread`).
+    pub(crate) fn stdin_unread(&mut self, lines: Vec<Vec<u8>>) {
+        self.world.stdin.unread(lines);
+    }
+
     /// How many tasks wait for a line of standard input (a test probe).
     #[cfg(test)]
     pub(crate) fn stdin_waiting(&self) -> usize {

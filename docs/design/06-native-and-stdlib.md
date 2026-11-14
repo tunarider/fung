@@ -62,7 +62,7 @@
   바깥 값은 문자열 그대로 비교하거나, 정해진 몇 개의 이름만 `sym`으로 바꾼다.
   사용자 입력처럼 믿을 수 없는 문자열은 `parse_int(s)`·`parse_float(s)`가 `Ok`/`Err`로 돌려준다.
   문자열의 문법은 리터럴과 같다(01, 앞의 부호 `-`·`+` 하나 허용, 앞뒤 공백 거절; SP14, 2026-11-10 사용자 결정 D12): `int`·`float`·`parse_int`·`parse_float`·`parse_dur`가 한 규칙이다.
-  정수는 진법 접두사도 받고 앞의 0(`"01"`)은 리터럴처럼 거절한다(설정에서 읽은 `"0755"`가 말없이 10진이 되지 않게; 도움말 `0o`). 실수는 소수점 양쪽 숫자·지수·숫자 사이 `_`이고 정수 꼴(`"42"`)도 받는다.
+  정수는 진법 접두사도 받고 앞의 0(`"01"`)은 리터럴처럼 거절한다(설정에서 읽은 `"0755"`가 말없이 10진이 되지 않게; 도움말 `0o`). 실수는 소수점 양쪽 숫자·지수·숫자 사이 `_`이고 정수 꼴(`"42"`)도 받는다. 정수 꼴은 `.0`을 붙인 실수 리터럴로 읽어 범위가 실수의 것이다(2026-11-14 VA64: 전에는 정수 렉서를 거쳐 `"10000000000000000000"`을 정수 범위로 거절했다. 2^53을 넘으면 리터럴처럼 가장 가까운 실수).
   `.5`·`1.`·16진 실수·`inf`·`nan`·0으로 반올림되는 0 아닌 수(`"1e-400"`, D9)는 거부한다. 구현은 렉서의 숫자 판정을 그대로 쓴다(`prelude/convert.rs` `literal`).
   명령 출력처럼 끝에 줄바꿈이 붙을 수 있는 글은 먼저 `trim`한다. 에러 문구는 입력을 따옴표로 보인다(`not an integer: " 1"`).
   "이 문자열은 숫자여야 한다"(단언)와 "숫자인지 확인한다"(검사)를 이름으로 구분한다.
@@ -81,9 +81,9 @@
 
 ```
 match fs.read(p):
-  Ok(text)                => ...
-  Err({kind: 'not_found}) => ...
-  Err(e)                  => print(e.message)
+  Ok(text)                     => ...
+  Err({kind: 'not_found, ...}) => ...
+  Err(e)                       => print(e.message)
 ;;
 ```
 
@@ -101,6 +101,8 @@ match fs.read(p):
   - `parse_dur(s)`: 기간 리터럴 문법(`1h30m`, `500ms`, `-5s`, `+5s`)을 `Ok(dur)`/`Err 'parse`로 (2026-10-14). `--timeout 30s` 같은 옵션용. 앞뒤 공백은 다른 `parse_*`처럼 거절한다(SP14, 2026-11-10: 전에는 받았다).
 - 컬렉션: `len`, `is_empty`, `map`, `try_map`, `filter`, `fold`, `each`, `sum`, `min`, `max`, `sort`, `sort_by`, `reverse`, `zip`, `first`, `last`, `take`, `drop`, `find`, `any`, `all`, `contains`, `unique`, `flatten`, `group_by`, `keys`, `values`, `pairs`, `get`, `put`, `merge`, `remove`, `chars`
   - `each(xs, f)`: 부수효과용 순회, `nil` 반환 (`for`는 리스트를 만든다).
+  - `zip(xs, ys)`: 받는 끝에서는 짝지을 만큼만 꺼낸다(2026-11-14 VA65·D119, 11-13 D105를 넓힘). 다른 쪽이 리스트든 범위든 그 개수까지 받고 나머지는 채널에 남는다. 받는 끝 둘이면 번갈아 받고 처음 닫힌 데서 멈춘다(앞쪽에서 받은 값 하나를 잃을 수 있다).
+    전에는 리스트 옆에서만 그랬고 범위나 받는 끝 옆에서는 닫힐 때까지 받아(`zip(rx, 0..1)`이 나머지를 버리고, 열린 채널이면 돌아오지 않음) 예외 문장이 있었다. 범위의 개수는 `_r.slice`로 정수가 셀 수 있는 만큼 잘라 세므로 왼쪽의 넓은 범위도 E0503이 아니다.
   - `chars(s)`, `pairs(m)`, `keys(m)`, `values(m)`: 문자열과 맵을 순회 가능한 리스트로 (02).
   - `flatten(xs)`: 원소마다 리스트·범위를 한 겹 펼친다. 다른 원소는 E0506(LB55·SP48, 2026-11-11, 사용자 결정 D77: 전에는 그대로 두어 `map` 뒤의 "어떤 때는 리스트, 어떤 때는 값"인 실수를 숨겼다).
     범위는 "함수의 입력으로만 리스트처럼" 쓰인다(연산자 자리에서는 리스트가 아니다).
@@ -109,6 +111,9 @@ match fs.read(p):
   바이트(L4): `byte_len`, `bytes`, `from_bytes`, `is_utf8`
   - `upper`·`lower`: 유니코드 기본 대소문자 변환(전체 매핑). 길이가 바뀔 수 있고(`ß` → `SS`) 단어 끝 시그마는 `ς`.
   - `replace`의 빈 `old`와 `trim`의 빈 `cut`은 E0403(LB50, 2026-11-11, D74: `split`의 빈 구분자·`pad`의 빈 채움과 같이). `regex.split`의 빈 매치는 엔진 규칙이라 둔다.
+  - **찾을 글은 비어 있을 수 없다**(규칙 하나, E0403 `must be a non-empty str`; VA66, 2026-11-14, 사용자 결정 D118): `split`의 `sep`, `replace`의 `old`, `trim`의 `cut`, `index_of`의 `sub`,
+    `starts_with`의 `prefix`, `ends_with`의 `suffix`, 문자열의 `in`(`contains`; 인자 이름 `x`). 전에는 앞의 넷만 에러이고 세 술어는 빈 글에 `true`라 규칙이 갈렸다(`strings.md`가 `index_of`엔 "어디에나 있으므로 에러", `starts_with`엔 "언제나 참"이라 적었다).
+    흔한 원인은 비어 있는 변수다(`starts_with(line, prefix)`의 `prefix == ""`가 모든 줄에 맞음). 리스트의 `in`은 원소 찾기라 해당하지 않는다(`"" in [""]`는 `true`).
   - `trim_left(s, cut = nil)`·`trim_right(s, cut = nil)`: `trim`의 한쪽 끝(2026-11-11 D73, `pad_left`·`pad_right`와 같은 이름 짝). 빈 `cut`은 E0403.
   - `index_of(s, sub)`: `sub`가 처음 나오는 **글자** 인덱스(`s[i]`·`len`과 같은 단위), 없으면 `nil`(2026-11-11 D73). 글자의 중간에서 시작하는 맞음은 세지 않는다. 빈 `sub`는 E0403.
   - `lines(s)`: 텍스트를 줄 리스트로 — `read_lines`와 같은 규칙(`\n` 구분, 줄 끝 `\r` 제거, 끝의 줄바꿈은 빈 줄을 만들지 않음).
@@ -120,7 +125,8 @@ match fs.read(p):
 - 동시성: `scope`, `supervise`, `spawn`, `await`, `cancel`, `timeout`, `channel`, `send`, `recv`, `send_now`, `recv_now`, `wait_closed`, `close`, `atom`, `deref`, `swap`, `reset`, `sleep`, `stop_signal`, `request_stop` (05). `fan_in`·`pmap`·`retry`는 `conc` 모듈
 - 프로세스: `exec`, `sh`, `env`, `env_all`, `args`, `exit`
   - `args`: 진입 스크립트 뒤의 인자만 담은 **문자열 리스트** (prelude 값).
-  - `env(name)`: 문자열 또는 `nil`. 있을 수 없는 이름(빈 이름, `=`·NUL이 든 이름)은 `exec`의 `env`처럼 E0403(2026-11-11 D76: 전에는 `nil`). `env_all()`: 전체 맵(인자 수로 반환 타입이 바뀌지 않게 나눔, 2026-11-10 SP27·D32).
+  - `env(name)`: 문자열 또는 `nil`. 있을 수 없는 이름(빈 이름, `=`·NUL이 든 이름)은 `exec`의 `env`처럼 E0403(2026-11-11 D76: 전에는 `nil`).
+    환경 변수 이름의 검사는 하나다(2026-11-14 VA71-1·D132, 사용자 결정): `env`의 `name`과 `exec`·`sh`의 `env` 맵의 이름 모두 빈 것·`=`·NUL이 E0403이고 메시지의 조건도 같다(`process.rs` `var_name`). 전에는 `exec`의 이름에 든 NUL이 시스템의 거절 `Err('invalid)`였다. 값과 인자·`cwd`의 NUL은 그대로 `Err('invalid)`다. `env_all()`: 전체 맵(인자 수로 반환 타입이 바뀌지 않게 나눔, 2026-11-10 SP27·D32).
   - `exit(code = 0)`.
 
 `contains`는 리스트·문자열·맵 모두에 동작한다.
@@ -367,5 +373,5 @@ sh("ls -la | grep .log")        # 쉘 기능이 필요할 때만 명시적으로
 - `exec([...])!` 는 쉘의 `set -e`와 같은 효과.
 - 시작하지 못하면 `Err({kind, message: "cannot run `<이름>`: <이유>"})`(6c-2). `kind`는 위의 errno 표(2026-11-11 D70): 없는 명령·`cwd`(디렉터리가 아님도) `'not_found`, 권한 `'permission`, 빈 이름·NUL `'invalid`, 커널이 실행할 수 없는 파일(`ENOEXEC`) 등 `'io`. 인자 순서대로 검사한다: 빈 이름(`empty command name`),
   NUL이 든 인자(`argument contains a NUL byte`), `$PATH`에 없음(`command not found in PATH`; 상대 경로 항목에서만 찾으면 거절,
-  `command found only in a relative PATH entry`), 작업 디렉터리(NUL, 없음), 환경 변수의 NUL, 커널이 실행할 수 없는 파일
+  `command found only in a relative PATH entry`), 작업 디렉터리(NUL, 없음), 환경 변수 값의 NUL(이름의 NUL은 D132로 E0403), 커널이 실행할 수 없는 파일
   (`not an executable file (run scripts with sh)`: shebang 없는 스크립트를 `/bin/sh`로 몰래 돌리지 않는다).

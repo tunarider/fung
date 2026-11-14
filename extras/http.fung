@@ -900,11 +900,11 @@ fn _version(v):
 # characters but tab and loses its leading blanks. Ok((fields as (key,
 # value), budget left)).
 fn _fields(c, left, ctx) = match _net.read_fields(c, left, 0):
-  Ok(x)                          => Ok(x)
-  Err({kind: 'limit})            => Err(_at('network, ctx, _exceeded))
-  Err({kind: 'eof})              => Err(_at('network, ctx, _head_cut))
-  Err({kind: 'invalid, message}) => Err(_at('network, ctx, message))
-  Err(e)                         => Err({kind: e.kind, message: ctx + e.message})
+  Ok(x)                               => Ok(x)
+  Err({kind: 'limit, ...})            => Err(_at('network, ctx, _exceeded))
+  Err({kind: 'eof, ...})              => Err(_at('network, ctx, _head_cut))
+  Err({kind: 'invalid, message, ...}) => Err(_at('network, ctx, message))
+  Err(e)                              => Err({kind: e.kind, message: ctx + e.message})
 ;;
 
 _head_cut = "connection closed in the response head"
@@ -925,7 +925,7 @@ fn _finish(c, method, ctx, major, minor, code, fields, lim):
     Err(why) => return Err(_at('network, ctx, why))
   ;;
   match _trailer_header(h, chunked):
-    nil => nil
+    nil =>
     why => return Err(_at('network, ctx, why))
   ;;
   headers = _header_map(h)
@@ -1039,9 +1039,9 @@ fn _fixed(c, n, cap):
 ;;
 
 fn _until_close(c, cap) = match _net.read_all(c, cap):
-  Ok(s)               => Ok(s)
-  Err({kind: 'limit}) => Err(_too_long_for(cap))
-  Err(e)              => Err(e)
+  Ok(s)                    => Ok(s)
+  Err({kind: 'limit, ...}) => Err(_too_long_for(cap))
+  Err(e)                   => Err(e)
 ;;
 
 # ---- Chunked bodies (RFC 9112 7.1) ----------------------------------
@@ -1069,9 +1069,9 @@ fn _chunk_data(c, excess, n, cap):
     return _drop(c, _err("chunked body has too much overhead"))
   ;;
   match _net.read_bytes_into(c, n, cap):
-    Err({kind: 'limit}) => _drop(c, _too_long_for(cap))
-    Err(e)              => _drop(c, e)
-    Ok(_)               => match _net.read_bytes(c, 2):
+    Err({kind: 'limit, ...}) => _drop(c, _too_long_for(cap))
+    Err(e)                   => _drop(c, e)
+    Ok(_)                    => match _net.read_bytes(c, 2):
       Ok("\r\n") => _chunked(c, excess, cap)
       Ok(_)      => _drop(c, _err("chunk data not followed by CRLF"))
       Err(e)     => _drop(c, e)
@@ -1089,9 +1089,9 @@ fn _drop(c, e):
 # is an error), at most 4096 bytes with its LF. `read_raw_line` keeps the
 # line end (`read_line` would hide which one came).
 fn _chunk_line(c) = match _net.read_raw_line(c, 4096):
-  Ok(line)            => _chunk_line_end(line[..len(line) - 1])
-  Err({kind: 'limit}) => Err(_err("chunk size line longer than 4096 bytes"))
-  Err(e)              => Err(e)
+  Ok(line)                 => _chunk_line_end(line[..len(line) - 1])
+  Err({kind: 'limit, ...}) => Err(_err("chunk size line longer than 4096 bytes"))
+  Err(e)                   => Err(e)
 ;;
 
 fn _chunk_line_end(line):
@@ -1149,11 +1149,11 @@ fn _digit(ch) = match ch:
 # comes within 4096 bytes, read by `_net.read_fields` as header lines
 # and dropped (RFC 9112 7.1.2).
 fn _trailer(c) = match _net.read_fields(c, 4096, 0):
-  Ok(_)                          => _net.take_body(c)
-  Err({kind: 'limit})            => _drop(c, _err("trailer longer than 4096 bytes"))
-  Err({kind: 'eof})              => _drop(c, _err("connection closed in the trailer"))
-  Err({kind: 'invalid, message}) => _drop(c, _err(message))
-  Err(e)                         => _drop(c, e)
+  Ok(_)                               => _net.take_body(c)
+  Err({kind: 'limit, ...})            => _drop(c, _err("trailer longer than 4096 bytes"))
+  Err({kind: 'eof, ...})              => _drop(c, _err("connection closed in the trailer"))
+  Err({kind: 'invalid, message, ...}) => _drop(c, _err(message))
+  Err(e)                              => _drop(c, e)
 ;;
 
 # ---- URLs (RFC 3986) -------------------------------------------------
@@ -1190,7 +1190,7 @@ fn _parse(raw):
     else _cut3(rest0, "?")
   # a stray `%` is refused, not re-encoded (D75), as in the path
   match _escape_error(query, 'query):
-    nil => nil
+    nil =>
     bad => return Err(bad)
   ;;
   if not starts_with(rest, "/") and scheme != "":
@@ -1555,9 +1555,9 @@ fn _stopper(l, stop, drain, top):
 # failed (for want of file descriptors, say) is tried again after 5 ms,
 # doubling up to 1 s, so a short shortage does not end the server.
 fn _accept(l, handler, conns, delay) = match _net.accept(l):
-  Ok(c)                => _accept(l, handler, conns, _spawn_conn(c, handler, conns))
-  Err({kind: 'closed}) => nil
-  Err(_)               => _accept(l, handler, conns, _backoff(delay))
+  Ok(c)                     => _accept(l, handler, conns, _spawn_conn(c, handler, conns))
+  Err({kind: 'closed, ...}) => nil
+  Err(_)                    => _accept(l, handler, conns, _backoff(delay))
 ;;
 
 # A connection's task. Starting one cannot fail (a task is no thread,
@@ -1581,7 +1581,7 @@ fn _guarded(c, handler):
 fn _end_conn(c, state):
   match deref(state):
     ('handling, rq) => _http_error(c, rq, 503)
-    _               => nil
+    _               =>
   ;;
   _net.close(c)
 ;;
@@ -1703,11 +1703,11 @@ fn _request_head(c, line, budget):
 # The header lines within the head's budget, at most `_max_values`:
 # Ok(fields) or Err(the server's answer; nil when the connection failed).
 fn _req_fields(c, left) = match _net.read_fields(c, left, _max_values):
-  Ok((fields, _))       => Ok(fields)
-  Err({kind: 'limit})   => Err(_too_large)
-  Err({kind: 'eof})     => Err(_bad_request)
-  Err({kind: 'invalid}) => Err(_bad_request)
-  Err(_)                => Err(nil)
+  Ok((fields, _))            => Ok(fields)
+  Err({kind: 'limit, ...})   => Err(_too_large)
+  Err({kind: 'eof, ...})     => Err(_bad_request)
+  Err({kind: 'invalid, ...}) => Err(_bad_request)
+  Err(_)                     => Err(nil)
 ;;
 
 # The request target (RFC 9112 3.2: origin, absolute or asterisk form,
@@ -1868,9 +1868,9 @@ fn _respond(c, rq, handler, state):
     return _write_reply(c, rq, 200, {"Content-Length": "0"}, "")
   ;;
   match _request_body(c, rq):
-    Ok(body)            => _call(c, rq, handler, state, body)
-    Err({kind: 'limit}) => _linger(_http_error(c, rq, 413))
-    Err(_)              => _http_error(c, rq, 400)
+    Ok(body)                 => _call(c, rq, handler, state, body)
+    Err({kind: 'limit, ...}) => _linger(_http_error(c, rq, 413))
+    Err(_)                   => _http_error(c, rq, 400)
   ;;
 ;;
 
@@ -1897,9 +1897,9 @@ fn _call(c, rq, handler, state, body):
   reset(state, 'done)
   # supervise's Ok of await's: the handler's value, or its failure.
   match r:
-    Ok(Ok(res))             => _answer(c, rq, res)
-    Ok(Err({kind: 'error})) => _http_error(c, rq, 500)
-    _                       => nil
+    Ok(Ok(res))                  => _answer(c, rq, res)
+    Ok(Err({kind: 'error, ...})) => _http_error(c, rq, 500)
+    _                            => nil
   ;;
 ;;
 
@@ -1918,7 +1918,7 @@ fn _answer(c, rq, res) = match _parts(res):
 # length may tell the GET's. nil when all is well, else why not.
 fn _framing(rq, status, hs, body):
   match find(["Transfer-Encoding", "Trailer", "Connection"], k => k in hs):
-    nil => nil
+    nil =>
     k   => return "header `${k}` is the server's to set"
   ;;
   if "Content-Length" not in hs:
@@ -1949,7 +1949,7 @@ fn _parts(res):
   ;;
   # a key of its own is a misspelt one (D67): `statu` would answer 200
   match find(keys(res), k => k not in ["status", "body", "headers"]):
-    nil => nil
+    nil =>
     k   => return Err("unknown key `${k}`, expected status, body or headers")
   ;;
   status = "status" in res then res["status"] else 200

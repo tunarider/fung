@@ -110,12 +110,12 @@ faster than one by one: true</code></pre></div>
 <p>fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. 태스크에 일을 줄 때는 람다가 붙잡은 값으로 주고, 결과는 <a href="#fn-await"><code>await</code></a>로 받는다. 태스크끼리 계속 값을 주고받아야 하면 <strong>채널</strong>(channel)을 쓴다. 한쪽 끝에서 <a href="#fn-send"><code>send</code></a>한 값을 다른 끝에서 <a href="#fn-recv"><code>recv</code></a>로 받는다. 여러 태스크가 함께 읽고 바꾸는 상태가 꼭 필요하면 <a href="#fn-atom"><code>atom</code></a>에 둔다.</p>
 <h3 id="errs">기다림의 실패</h3>
 <p>실행 중에 실패할 수 있는 함수는 결과값을 돌려준다(<a href="../language/results.html">결과값</a>). <code>scope</code>·<code>supervise</code>·<code>await</code>·<code>timeout</code>은 넘긴 함수의 값을 내주지만 런타임이 <code>Err</code>(취소, 시간 초과, 태스크의 죽음)를 만들 수 있으므로, 성공하면 그 값을 <code>Ok</code>로 감싼다. 그래서 <code>await(t)!</code>·<code>scope(…)!</code>가 함수가 무엇을 돌려주든 되고, 함수가 돌려준 <code>Err</code>는 <code>Ok(Err(e))</code>로 런타임의 <code>Err</code>와 구별된다.</p>
-<p>이 페이지에서 <code>Err({kind: 'timeout})</code>처럼 <code>kind</code>만 적은 것은 패턴의 모양이다. 실제 값에는 다른 <code>Err</code>처럼 <code>message</code>도 있어서 <code>e.message</code>를 그대로 찍을 수 있다: 시간 초과는 <code>&quot;timed out after 2s&quot;</code>, 취소는 <code>&quot;cancelled&quot;</code>, 닫힌 채널은 <code>&quot;channel closed&quot;</code>. 맵 패턴은 적지 않은 키를 상관하지 않으므로 <code>Err({kind: 'timeout}) =&gt; …</code>으로 가른다.</p>
+<p>이 페이지에서 <code>Err({kind: 'timeout})</code>처럼 <code>kind</code>만 적은 것은 값의 종류를 줄여 적은 것이다. 실제 값에는 다른 <code>Err</code>처럼 <code>message</code>도 있어서 <code>e.message</code>를 그대로 찍을 수 있다: 시간 초과는 <code>&quot;timed out after 2s&quot;</code>, 취소는 <code>&quot;cancelled&quot;</code>, 닫힌 채널은 <code>&quot;channel closed&quot;</code>. 맵 패턴은 적은 키만 있는 맵에 맞으므로 다른 키는 <code>...</code>로 열어 <code>Err({kind: 'timeout, ...}) =&gt; …</code>으로 가른다.</p>
 <div class="run"><pre><code>r = timeout(() =&gt; sleep(1s), 10ms)
 print(r)
 match r:
-  Err({kind: 'timeout}) =&gt; print(&quot;slow&quot;)
-  _                     =&gt; print(&quot;done&quot;)
+  Err({kind: 'timeout, ...}) =&gt; print(&quot;slow&quot;)
+  _                          =&gt; print(&quot;done&quot;)
 ;;</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})
 slow</code></pre></div>
 <h2 id="tasks">태스크 범위와 태스크</h2>
@@ -191,7 +191,7 @@ print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code=
 <div class="sig"><code>supervise(f, on_fail)</code></div>
 <h4>설명</h4>
 <p>서버 여러 대를 확인할 때처럼 하나가 실패해도 나머지는 끝까지 해야 할 때 쓴다. 태스크가 런타임 에러로 죽으면 <code>on_fail(e)</code>가 불린다. <code>e</code>는 <code>{kind: 'error, code, message, at}</code> 맵이다: 에러 번호(<code>&quot;E0803&quot;</code>), 메시지, 난 곳(<code>&quot;deploy.fung:3&quot;</code>). 그 태스크를 <code>await</code>하면 같은 맵을 담은 <code>Err(e)</code>를 받는다. 다른 태스크와 본문은 계속 돈다.</p>
-<p><code>on_fail</code>은 실패가 일어난 순서대로 하나씩 돈다. <code>on_fail</code>의 결과는 버리므로 <code>Err</code>를 돌려주면 E0606이고, <code>on_fail</code>이 런타임 에러를 내도 태스크 범위가 실패한다. 범위가 취소되어 처리하지 못한 실패는 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다.</p>
+<p><code>on_fail</code>은 실패가 일어난 순서대로 하나씩 돈다. <code>on_fail</code>의 결과는 버리므로 <code>Err</code>를 돌려주면 E0606이고, <code>on_fail</code>이 런타임 에러를 내도(인자를 받지 않는 함수라 부를 수 없을 때도) 태스크 범위가 실패한다. 그 에러에는 <code>on_fail</code>이 처리하던 실패가 <code>note: `on_fail` failed while handling error[E0803]: … (at …)</code>로 붙어, 원래 실패가 가려지지 않는다. 범위가 취소되어 처리하지 못한 실패는 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다.</p>
 <p>본문 자체의 런타임 에러는 <code>on_fail</code>로 가지 않고 <code>scope</code>처럼 태스크 범위를 실패시킨다.</p>
 <h4>매개변수</h4>
 <ul>
@@ -337,7 +337,7 @@ print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: 
 <h4>설명</h4>
 <p><code>d</code> 안에 끝나면 <code>f()</code>의 결과를 <code>Ok</code>로 감싸 돌려준다. <code>f</code>가 돌려준 <code>Err</code>는 <code>Ok(Err(e))</code>라 시간 초과와 구별된다: <code>timeout(() =&gt; http.get(url), 2s)!?</code>는 시간 초과에서 멈추고 요청의 실패는 호출자에게 넘긴다. 기한이 지나면 <code>f</code> 안에서 돌던 모든 것, 곧 그 안에서 연 태스크 범위의 태스크까지 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 취소되는 동안에도 <a href="program.html#fn-with"><code>with</code></a>의 <code>release</code>는 끝까지 돈다. <code>d</code>가 <code>0s</code>면 <code>f</code>를 부르지 않고 곧바로 <code>Err({kind: 'timeout})</code>이다. 음수 기간은 E0403이다(남은 시간을 계산해 음수가 될 수 있으면 <code>max(d, 0s)</code>로 드러낸다).</p>
 <p>기한이 겹치면 이른 기한이 이긴다. 바깥 기한이 먼저 지나면 바깥 <code>timeout</code>이 답한다.</p>
-<p><strong>무엇이 끊기나</strong>: <code>sleep</code>, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(<code>exec</code>·<code>sh</code>)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(<code>fs.read</code>·<code>read_lines</code>·<code>list</code>·<code>glob</code>·<code>walk</code>·<code>exists</code>·<code>stat</code>)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(<code>/dev/tty</code> 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(<code>read_line(f)</code> 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 그 일의 결과는 버린다(연 핸들은 닫는다). 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다(<a href="../../vm/internals.html#concurrency">런타임</a>).</p>
+<p><strong>무엇이 끊기나</strong>: <code>sleep</code>, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(<code>exec</code>·<code>sh</code>)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(<code>fs.read</code>·<code>read_lines</code>·<code>list</code>·<code>glob</code>·<code>walk</code>·<code>exists</code>·<code>stat</code>)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(<code>/dev/tty</code> 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. FIFO 핸들이나 표준 입력의 <code>read_lines</code>가 끊기면 그때까지 읽은 줄은 다음 읽기가 먼저 받는다. 받는 끝에서 값을 모으는 호출(<code>take(rx, n)</code>, <code>map(rx, f)</code>, <code>sort(rx)</code>, <code>zip</code>, 리스트를 만드는 <code>for</code> 등)이 끊기면 그때까지 받은 값은 채널로 돌아가지 않고 사라진다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(<code>read_line(f)</code> 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 그 일의 결과는 버린다(연 핸들은 닫는다). 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다(<a href="../../vm/internals.html#concurrency">런타임</a>).</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>f</code>: 인자 없는 함수.</li>
@@ -541,8 +541,8 @@ Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
   ;;)
   send(tx, &quot;a&quot;)!
   r = match send(tx, &quot;b&quot;):
-    Ok(_)                =&gt; &quot;sent&quot;
-    Err({kind: 'closed}) =&gt; &quot;receiver gone&quot;
+    Ok(_)                     =&gt; &quot;sent&quot;
+    Err({kind: 'closed, ...}) =&gt; &quot;receiver gone&quot;
   ;;
   print(r)
 ;;)</code></pre><pre class="out plain"><code>got a
@@ -608,9 +608,9 @@ close(tx)</code></pre><pre class="out plain"><code>nothing yet</code></pre></div
 send(tx, &quot;job-1&quot;)!
 for _ in 1..=2:
   match recv_now(rx):
-    Ok(job)             =&gt; print(&quot;doing&quot;, job)
-    Err({kind: 'empty}) =&gt; print(&quot;nothing queued&quot;)
-    Err(_)              =&gt; print(&quot;closed&quot;)
+    Ok(job)                  =&gt; print(&quot;doing&quot;, job)
+    Err({kind: 'empty, ...}) =&gt; print(&quot;nothing queued&quot;)
+    Err(_)                   =&gt; print(&quot;closed&quot;)
   ;;
 ;;</code></pre><pre class="out plain"><code>doing job-1
 nothing queued</code></pre></div>
@@ -774,9 +774,7 @@ cleaning up, then exiting normally</code></pre></div>
 <div class="run"><pre><code>stop = stop_signal()
 scope(fn(s):
   spawn(s, fn():
-    for _ in stop:
-      nil
-    ;;
+    for _ in stop: ;;
     print(&quot;worker: finished current job, stopping&quot;)
   ;;)
   spawn(s, fn():

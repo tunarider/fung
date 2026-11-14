@@ -122,16 +122,12 @@ impl Parser<'_> {
                     _ => Err(self.unexpected()),
                 }
             }
-            Kind::String => {
+            Kind::String | Kind::RawString => {
                 self.next();
                 let Some(text) = t.plain() else {
                     return Err(err("E0122", t.pos, vec![s("a pattern")]));
                 };
                 leaf(Head::Plit, super::str_lit(text))
-            }
-            Kind::RawString => {
-                self.next();
-                leaf(Head::Plit, Lit::Str(t.text.clone()))
             }
             Kind::Symbol => {
                 self.next();
@@ -154,14 +150,8 @@ impl Parser<'_> {
                 // The `(` of a tag's patterns is on the tag's line, inside
                 // brackets too, as in an expression (D85).
                 if self.toks[self.i].kind != Kind::LParen {
-                    // A result holds one value (D41): a bare `Ok` could
-                    // only match a symbol, never a result.
-                    if matches!(t.text.as_str(), "Ok" | "Err") {
-                        let mut e = err("E0236", t.pos, vec![s(&t.text), Arg::Int(0)]);
-                        e.help = Some(crate::desugar::BARE_RESULT_HELP.to_string());
-                        return Err(e);
-                    }
-                    // A bare tag matches the symbol only (03의 함정).
+                    // A bare tag matches the symbol only (03의 함정), a
+                    // bare `Ok` or `Err` too (D123).
                     return leaf(Head::Psym, Lit::Str(t.text.clone()));
                 }
                 let open = self.next().pos;
@@ -195,10 +185,12 @@ impl Parser<'_> {
         }
     }
 
-    /// Parses the inside of a bracketed pattern, where newlines are
-    /// whitespace (01). `f` consumes the closing bracket last.
+    /// Parses the inside of a bracketed pattern, where newlines next to
+    /// the brackets and around `,` are space (01, FE78). `f` consumes the
+    /// closing bracket last.
     fn bracketed(&mut self, f: impl FnOnce(&mut Self) -> PResult<Node>) -> PResult<Node> {
         self.nest += 1;
+        self.gap();
         let r = f(self);
         self.nest -= 1;
         r
@@ -211,6 +203,7 @@ impl Parser<'_> {
             return Ok(Node::new(Head::Ptuple, pos, Vec::new()));
         }
         let first = self.pattern()?;
+        self.gap();
         if !self.at(Kind::Comma) {
             let p = self.peek();
             return Err(err(
@@ -225,6 +218,7 @@ impl Parser<'_> {
             ));
         }
         self.next();
+        self.gap();
         self.pat_list(Node::new(Head::Ptuple, pos, vec![first]), pos, Kind::RParen)
     }
 
@@ -233,33 +227,15 @@ impl Parser<'_> {
     fn plist(&mut self, mut n: Node) -> PResult<Node> {
         while !self.at(Kind::RBracket) {
             if self.at(Kind::Ellipsis) {
-                let dots = self.next();
-                let mut rest = Node::new(Head::Prest, dots.pos, Vec::new());
-                if self.at(Kind::Name) {
-                    let name = self.next();
-                    // errors about the name point at the name (FE72)
-                    rest.pos = name.pos;
-                    // `..._` would be a second way to write `...` (D93).
-                    if name.text == "_" {
-                        let mut e = err("E0112", name.pos, vec![s("a name after `...`"), s("`_`")]);
-                        e.help = Some("a rest that is not named is written `...` alone".into());
-                        return Err(e);
-                    }
-                    rest.lit = Lit::Str(name.text.clone());
-                }
-                n.kids.push(rest);
-                if self.at(Kind::Comma) {
-                    self.next();
-                }
-                if !self.at(Kind::RBracket) {
-                    return Err(self.unexpected());
-                }
+                n.kids.push(self.prest(Kind::RBracket)?);
                 break;
             }
             let k = self.pattern()?;
             n.kids.push(k);
+            self.gap();
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
             } else if !self.at(Kind::RBracket) {
                 return Err(self.list_end(n.pos, Kind::RBracket));
             }
@@ -268,16 +244,50 @@ impl Parser<'_> {
         Ok(n)
     }
 
-    /// The entries of a `{…}` pattern after the `{`.
+    /// `...` or `...name` at the end of a list or map pattern, with an
+    /// optional `,` after it; the closing `closer` is left for the caller.
+    fn prest(&mut self, closer: Kind) -> PResult<Node> {
+        let dots = self.next();
+        let mut rest = Node::new(Head::Prest, dots.pos, Vec::new());
+        if self.at(Kind::Name) {
+            let name = self.next();
+            // errors about the name point at the name (FE72)
+            rest.pos = name.pos;
+            // `..._` would be a second way to write `...` (D93).
+            if name.text == "_" {
+                let mut e = err("E0112", name.pos, vec![s("a name after `...`"), s("`_`")]);
+                e.help = Some("a rest that is not named is written `...` alone".into());
+                return Err(e);
+            }
+            rest.lit = Lit::Str(name.text.clone());
+        }
+        self.gap();
+        if self.at(Kind::Comma) {
+            self.next();
+            self.gap();
+        }
+        if !self.at(closer) {
+            return Err(self.unexpected());
+        }
+        Ok(rest)
+    }
+
+    /// The entries of a `{…}` pattern after the `{`: the keys written, then
+    /// at most one `...rest` at the end (D114: without it the map has
+    /// exactly those keys).
     fn pmap(&mut self, mut n: Node) -> PResult<Node> {
         let mut seen: std::collections::HashMap<Vec<u8>, Pos> = std::collections::HashMap::new();
         while !self.at(Kind::RBrace) {
+            if self.at(Kind::Ellipsis) {
+                n.kids.push(self.prest(Kind::RBrace)?);
+                break;
+            }
             // The keys a map literal takes (SP3, FE74): identifier-shaped,
             // or a string without interpolation.
             let p = self.peek();
             let text = if self.at_name_like() {
-                Ok(p.key().to_string())
-            } else if p.kind == Kind::String {
+                Ok(p.text.clone())
+            } else if p.is_string() {
                 match p.plain() {
                     Some(text) => text,
                     None => return Err(err("E0122", p.pos, vec![s("a map pattern's key")])),
@@ -298,20 +308,31 @@ impl Parser<'_> {
             }
             seen.insert(bytes.to_vec(), p.pos);
             let key = self.next();
-            let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
-            let v = if key.kind == Kind::String {
+            // the key and its `:` are on one line (FE78)
+            let shorthand = self.item_ends(Kind::RBrace);
+            let v = if key.is_string() {
                 self.expect_desc(Kind::Colon, "`:` after the map key")?;
+                self.skip_newlines_after_operator();
                 self.pattern()?
             } else if key.kind == Kind::Tag && shorthand {
                 return Err(tag_as_name(key));
+            } else if key.kind == Kind::Name && shorthand && key.text == "_" {
+                // `{_}` would bind nothing and match the key "_" (FE79).
+                let mut e = err("E0112", key.pos, vec![s("a name to bind"), s("`_`")]);
+                e.help =
+                    Some("`{_}` binds nothing; write `{key: _}`, or `{...}` for any map".into());
+                return Err(e);
             } else if key.kind == Kind::Name && shorthand {
                 // {a, b} binds a and b (02); keywords take no shorthand.
                 Node::leaf(Head::Pbind, key.pos, Lit::Str(key.text.clone()))
             } else {
                 self.expect_desc(Kind::Colon, "`:`")?;
+                // a line ending in `:` goes on (01 rule 1)
+                self.skip_newlines_after_operator();
                 self.pattern()?
             };
-            // The key as written; a shorthand's variable is the NFC name.
+            self.gap();
+            // The key is the NFC name; a shorthand's variable is the same.
             n.kids.push(Node::with_lit(
                 Head::Pentry,
                 key.pos,
@@ -320,6 +341,7 @@ impl Parser<'_> {
             ));
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
             } else if !self.at(Kind::RBrace) {
                 return Err(self.list_end(n.pos, Kind::RBrace));
             }
@@ -333,8 +355,10 @@ impl Parser<'_> {
         while !self.at(closer) {
             let k = self.pattern()?;
             n.kids.push(k);
+            self.gap();
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
             } else if !self.at(closer) {
                 return Err(self.list_end(open, closer));
             }
@@ -438,24 +462,9 @@ impl Parser<'_> {
         let mut next = Some(self.first_arm_head()?);
         while let Some((pat, guard)) = next {
             let arrow = self.next(); // =>
+            // The body may be empty: the arm does nothing (D121).
             let (body, following) =
                 self.arm_body(Node::new(Head::Block, arrow.pos, Vec::new()), open)?;
-            if body.kids.is_empty() {
-                let p = self.peek();
-                let mut e = err(
-                    "E0112",
-                    p.pos,
-                    vec![s("the arm's body after `=>`"), s(describe(p))],
-                );
-                // `1 => y => y + 1`: `y =>` was read as the next arm (FE25).
-                if following.is_some() {
-                    e.help = Some(
-                        "a lambda as an arm's value goes in parentheses: `1 => (y => y + 1)`"
-                            .to_string(),
-                    );
-                }
-                return Err(e);
-            }
             n.kids
                 .push(Node::new(Head::Arm, pat.pos, vec![pat, guard, body]));
             next = following;

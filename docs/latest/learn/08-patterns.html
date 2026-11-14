@@ -142,7 +142,7 @@ print(run_command(split(&quot;delete everything&quot;, &quot; &quot;)))</code></
 restarting api, worker
 unknown command: delete everything</code></pre></div>
 <h2 id="maps">맵 패턴</h2>
-<p>맵 패턴 <code>{name: n}</code>은 "키 <code>name</code>이 있는 맵"에 맞고, 그 값을 <code>n</code>에 담는다. 패턴에 적지 않은 키는 있든 없든 상관하지 않는다. 키 이름과 변수 이름이 같으면 <code>{name}</code>처럼 줄여 쓴다(<code>{name: name}</code>과 같다). 값 자리에 리터럴을 두면 그 값일 때만 맞는다.</p>
+<p>맵 패턴 <code>{name: n}</code>은 "키가 정확히 <code>name</code> 하나인 맵"에 맞고, 그 값을 <code>n</code>에 담는다. 리스트 패턴처럼 적은 것과 정확히 맞아야 한다. 다른 키가 있어도 되면 끝에 <code>...</code>를 붙인다: <code>{name: n, ...}</code>. 나머지 키를 맵으로 받으려면 <code>...rest</code>처럼 이름을 붙인다. <code>{}</code>는 빈 맵에만, <code>{...}</code>는 모든 맵에 맞는다. 키 이름과 변수 이름이 같으면 <code>{name}</code>처럼 줄여 쓴다(<code>{name: name}</code>과 같다). 값 자리에 리터럴을 두면 그 값일 때만 맞는다.</p>
 <div class="run"><pre><code>events = [
   {kind: &quot;deploy&quot;, service: &quot;api&quot;, version: &quot;1.4.2&quot;},
   {kind: &quot;alert&quot;, level: 3, text: &quot;disk 95%&quot;},
@@ -154,17 +154,18 @@ for e in events:
   match e:
     {kind: &quot;deploy&quot;, service, version} =&gt; print(&quot;deployed ${service} ${version}&quot;)
     {kind: &quot;alert&quot;, level: 3, text}    =&gt; print(&quot;PAGE: ${text}&quot;)
-    {kind: &quot;alert&quot;, text}              =&gt; print(&quot;note: ${text}&quot;)
-    {kind}                             =&gt; print(&quot;ignored ${kind}&quot;)
+    {kind: &quot;alert&quot;, text, ...}         =&gt; print(&quot;note: ${text}&quot;)
+    {kind, ...}                        =&gt; print(&quot;ignored ${kind}&quot;)
   ;;
 ;;</code></pre><pre class="out plain"><code>deployed api 1.4.2
 PAGE: disk 95%
 note: slow query
 ignored login</code></pre></div>
+<p><code>deploy</code>와 레벨 3의 <code>alert</code>는 키가 정확히 적은 것뿐이라 <code>...</code> 없이 맞는다. 아래 두 절은 다른 키(<code>level</code>, <code>user</code>)가 있어도 맞도록 <code>...</code>로 열었다.</p>
 <p>패턴은 겹쳐 쓸 수 있다. 맵 안의 리스트, 리스트 안의 맵처럼 데이터가 생긴 그대로 패턴을 쓰면 된다. JSON에서 읽은 데이터(13장)를 다룰 때 특히 쓸모 있다.</p>
 <div class="run"><pre><code>fn first_port(svc) = match svc:
-  {name, ports: [p, ...]} =&gt; &quot;${name} listens on ${p}&quot;
-  {name, ports: []}       =&gt; &quot;${name} has no ports&quot;
+  {name, ports: [p, ...], ...} =&gt; &quot;${name} listens on ${p}&quot;
+  {name, ports: [], ...}       =&gt; &quot;${name} has no ports&quot;
 ;;
 
 print(first_port({name: &quot;api&quot;, ports: [8080, 8443]}))
@@ -187,9 +188,9 @@ method DELETE not allowed</code></pre></div>
 <h2 id="guards">조건 붙이기: when</h2>
 <p>패턴만으로는 "1024보다 크다" 같은 조건을 쓸 수 없다. 이때 패턴 뒤에 <code>when 조건</code>을 붙인다. 이것을 <strong>가드</strong>(guard)라고 한다. 패턴이 맞고 가드도 참일 때만 그 절이 실행된다.</p>
 <div class="run"><pre><code>fn classify(svc) = match svc:
-  {port} when port &lt; 1024  =&gt; &quot;${svc.name}: system port&quot;
-  {port} when port &gt; 49151 =&gt; &quot;${svc.name}: dynamic port&quot;
-  {port}                   =&gt; &quot;${svc.name}: registered port ${port}&quot;
+  {port, ...} when port &lt; 1024  =&gt; &quot;${svc.name}: system port&quot;
+  {port, ...} when port &gt; 49151 =&gt; &quot;${svc.name}: dynamic port&quot;
+  {port, ...}                   =&gt; &quot;${svc.name}: registered port ${port}&quot;
 ;;
 
 print(classify({name: &quot;ssh&quot;, port: 22}))
@@ -201,7 +202,7 @@ tmp: dynamic port</code></pre></div>
 <p>패턴은 <code>match</code>에만 쓰는 것이 아니다. 대입 <code>=</code>의 왼쪽에도 패턴을 쓸 수 있다. 이것을 <strong>구조 분해 대입</strong>(destructuring assignment)이라고 한다. 값의 각 부분을 한 줄에 여러 이름으로 꺼낸다.</p>
 <div class="run"><pre><code>(quotient, remainder) = (17 // 5, 17 % 5)
 [host, port] = split(&quot;db.internal:5432&quot;, &quot;:&quot;)
-{name, replicas: n} = {name: &quot;api&quot;, replicas: 3, image: &quot;api:1.4&quot;}
+{name, replicas: n, ...} = {name: &quot;api&quot;, replicas: 3, image: &quot;api:1.4&quot;}
 [top, ...rest] = [&quot;a.log&quot;, &quot;b.log&quot;, &quot;c.log&quot;]
 
 print(quotient, remainder)
@@ -295,14 +296,14 @@ old: stopped</code></pre></div>
 <p><code>match</code>는 첫 번째로 맞는 절 하나만 실행한다. 그래서 좁은 패턴을 위에, 넓은 패턴을 아래에 둔다. <code>_</code>를 맨 위에 두면 그 아래 절은 영영 실행되지 않는다. 시험 문제의 채점표를 위에서부터 읽어 내려가다 처음 해당하는 줄에서 멈추는 것과 같다.</p>
 </div>
 <div class="box mistake"><b>패턴의 이름은 늘 새 변수다</b>
-<p>패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 <strong>새 이름을 묶는다</strong>. 그래서 아래의 <code>wanted</code> 절은 "값이 <code>wanted</code>와 같으면"이 아니라 "무엇이든 받아서 <code>wanted</code>라고 부른다"는 뜻이 된다. 늘 맞는 절이라 찾기 어려운 버그가 되므로, fung은 보이는 이름을 다시 묶는 것을 에러 E0240으로 막는다.</p>
+<p>패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 <strong>새 이름을 묶는다</strong>. 그래서 아래의 <code>wanted</code> 절은 "값이 <code>wanted</code>와 같으면"이 아니라 "무엇이든 받아서 <code>wanted</code>라고 부른다"는 뜻이 된다. 늘 맞는 절이라 찾기 어려운 버그가 되므로, fung은 보이는 이름을 다시 묶는 것을 에러 E0238로 막는다.</p>
 <div class="run"><pre><code>wanted = &quot;db&quot;
 
 fn pick(name) = match name:
   wanted =&gt; &quot;matched ${wanted}&quot;
 ;;
 
-print(pick(&quot;web&quot;))</code></pre><pre class="out err plain" data-code="2"><code>error[E0240]: `wanted` hides a top-level name
+print(pick(&quot;web&quot;))</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `wanted` again: a name is bound once
   --&gt; example.fung:4:3
   |
 4 |   wanted =&gt; &quot;matched ${wanted}&quot;
@@ -373,7 +374,7 @@ print(checks |&gt; map(why) |&gt; filter(w =&gt; w != nil))</code></pre><pre cla
 <ul>
 <li>패턴은 값의 모양을 확인하고 동시에 안의 값을 꺼낸다.</li>
 <li><code>match</code>는 절을 위에서부터 대 보고 처음 맞는 절을 실행한다. 아무 것도 맞지 않으면 E0601이다. <code>_</code>는 무엇이든 맞는다.</li>
-<li>리터럴, 리스트(<code>[first, ...rest]</code>), 맵(<code>{name, port: p}</code>, 적지 않은 키는 무시), 튜플, 태그(<code>Circle(r)</code>) 패턴이 있고 서로 겹쳐 쓸 수 있다.</li>
+<li>리터럴, 리스트(<code>[first, ...rest]</code>), 맵(<code>{name, port: p}</code>는 키가 정확히 그 둘인 맵, <code>{name, ...}</code>는 다른 키를 무시, <code>{name, ...rest}</code>는 나머지를 맵으로), 튜플, 태그(<code>Circle(r)</code>) 패턴이 있고 서로 겹쳐 쓸 수 있다.</li>
 <li><code>when</code>으로 조건을 붙이고, <code>|</code>로 여러 패턴을 묶는다. 패턴의 이름은 늘 새 변수다.</li>
 <li>대입·매개변수·<code>for</code>의 왼쪽에도 패턴을 쓴다. 맞지 않으면 E0602다.</li>
 <li>대문자 이름은 태그다. 선언 없이 만들고 <code>match</code>로 나눈다.</li>

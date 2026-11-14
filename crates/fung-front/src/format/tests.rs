@@ -56,6 +56,8 @@ fn spacing() {
         ("0 .. n", "0..n\n"),
         ("0..=10", "0..=10\n"),
         ("[ a, ... rest ] = xs", "[a, ...rest] = xs\n"),
+        ("{ a, ... rest } = m", "{a, ...rest} = m\n"),
+        ("{ ... } = m", "{...} = m\n"),
         ("x=>x+1", "x => x + 1\n"),
         ("(a,b)=>a", "(a, b) => a\n"),
         ("()=>work()", "() => work()\n"),
@@ -493,6 +495,31 @@ fn an_arm_head_split_after_a_bar() {
         "for x in\n[1, 2]:\nx\n;;\n",
         "for x in\n  [1, 2]:\n  x\n;;\n",
     );
+}
+
+/// An arm with an empty body (D121): the next arm stays at the arm's
+/// indent, alignment counts the empty arm, and a body on the next line
+/// is still the arm's.
+#[test]
+fn an_empty_arm() {
+    check_all(&[
+        (
+            "match x:\n  nil =>\n  why => print(why)\n;;\n",
+            "match x:\n  nil =>\n  why => print(why)\n;;\n",
+        ),
+        (
+            "match x:\n  1 => print(1)\n  _ =>\n;;\n",
+            "match x:\n  1 => print(1)\n  _ =>\n;;\n",
+        ),
+        (
+            "match x:  1 => print( 1 ) ;  _ =>  ;;",
+            "match x: 1 => print(1); _ => ;;\n",
+        ),
+        (
+            "match x:\n  1 =>\n  print(1)\n  long =>\n;;\n",
+            "match x:\n  1    =>\n    print(1)\n  long =>\n;;\n",
+        ),
+    ]);
 }
 
 #[test]

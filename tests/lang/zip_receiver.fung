@@ -1,5 +1,5 @@
-# `zip` takes from a receiving end only what the other side can pair
-# (D105): the values after that stay in the channel.
+# `zip` takes from a receiving end only what it pairs (D105, D119),
+# whatever the other side is: the values after that stay in the channel.
 (tx, rx) = channel(5)
 each(0..5, i => send(tx, i)!)
 close(tx)!
@@ -10,3 +10,25 @@ print(recv(rx), zip(["c"], rx), recv(rx))
 # Lists of different lengths are cut to the shorter, a range to the list.
 print(zip([1, 2, 3], ["a"]), zip(0..1000000, ["x", "y"]))
 # expect: [(1, "a")] [(0, "x"), (1, "y")]
+# Beside a range too, and on a channel still open: numbering the first
+# two leaves the third.
+(tx2, rx2) = channel(3)
+each(["a", "b", "c"], s => send(tx2, s)!)
+print(zip(rx2, 0..2), zip(1..2, rx2))
+# expect: [("a", 0), ("b", 1)] [(1, "c")]
+close(tx2)!
+print(recv(rx2))
+# expect: Err({kind: 'closed, message: "channel closed"})
+# Two receiving ends are read in turn until either is closed: a value
+# the first gave when the second had closed is the one lost.
+(tx3, rx3) = channel(3)
+(tx4, rx4) = channel(3)
+each([1, 2, 3], n => send(tx3, n)!)
+each(["x"], s => send(tx4, s)!)
+close(tx3)!
+close(tx4)!
+print(zip(rx3, rx4), recv(rx3))
+# expect: [(1, "x")] Ok(3)
+# A range wider than the int range pairs on either side.
+print(zip(-9223372036854775807..9223372036854775807, [1]), zip([1], -9223372036854775807..9223372036854775807))
+# expect: [(-9223372036854775807, 1)] [(1, -9223372036854775807)]

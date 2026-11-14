@@ -1,0 +1,7 @@
+# A comparison of a call to a builtin with no effect does nothing either:
+# `==` where `=` was meant, or a missing `assert`.
+xs = [1, 2]
+count = 0
+count == len(xs)
+# expect-error: E0234
+print(count)

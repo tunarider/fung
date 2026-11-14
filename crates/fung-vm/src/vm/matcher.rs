@@ -28,10 +28,11 @@ pub enum RtPattern {
         kids: Vec<RtPattern>,
         rest: Option<Box<RtPattern>>,
     },
-    /// `{k: p, …}`: other keys are ignored.
+    /// `{k: p, …}`; `rest` is `None` for exactly the keys written (D114).
     Map {
         keys: Vec<Vec<u8>>,
         kids: Vec<RtPattern>,
+        rest: Option<Box<RtPattern>>,
     },
     /// `p | p`
     Alt(Vec<RtPattern>),
@@ -62,6 +63,7 @@ pub(super) fn link_pattern(p: &Pattern, prelude: &Prelude) -> RtPattern {
         PatKind::Map => RtPattern::Map {
             keys: p.keys.clone(),
             kids: kids(),
+            rest: p.rest.as_ref().map(|r| Box::new(link_pattern(r, prelude))),
         },
         PatKind::Alt => RtPattern::Alt(kids()),
     }
@@ -122,7 +124,7 @@ impl Binder<'_> {
                     return false;
                 }
                 // Only the first n items are matched one by one; the rest
-                // is a view on the same list (cheap for big lists, M10).
+                // is a slice of the same list (O(log n) for big lists, VA59).
                 for (i, k) in kids.iter().enumerate() {
                     let item = l.at(i).expect("checked against the length");
                     if !self.matches(item, k) {
@@ -141,13 +143,36 @@ impl Binder<'_> {
                     }
                 }
             }
-            RtPattern::Map { keys, kids } => {
+            RtPattern::Map { keys, kids, rest } => {
                 let Value::Map(m) = v else {
                     return false;
                 };
-                keys.iter()
+                // The keys of a pattern are distinct (E0113), so a map
+                // with each of them and no more is exactly as long.
+                if m.len() < keys.len() || (rest.is_none() && m.len() != keys.len()) {
+                    return false;
+                }
+                let found = keys
+                    .iter()
                     .zip(kids)
-                    .all(|(k, p)| m.get(k).is_some_and(|item| self.matches(item, p)))
+                    .all(|(k, p)| m.get(k).is_some_and(|item| self.matches(item, p)));
+                match rest.as_deref() {
+                    _ if !found => false,
+                    None | Some(RtPattern::Wild) => true,
+                    Some(r) => {
+                        // the other entries, in the map's order
+                        let others = if keys.is_empty() {
+                            v.clone()
+                        } else {
+                            let mut others = (**m).clone();
+                            for k in keys {
+                                others.remove_shared(k);
+                            }
+                            Value::Map(Rc::new(others))
+                        };
+                        self.matches(&others, r)
+                    }
+                }
             }
             RtPattern::Alt(alts) => {
                 let mark = self.pending.len();

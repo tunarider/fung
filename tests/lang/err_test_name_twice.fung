@@ -1,5 +1,5 @@
 # A test name tells which test failed, so it is used once in a file and is
-# not empty (FE20), as a top-level fn name is (E0210).
+# not empty (FE20), as a top-level fn name is (E0238).
 test "parses":
   assert 1 == 1
 ;;

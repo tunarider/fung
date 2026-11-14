@@ -104,9 +104,9 @@
 <div class="run"><pre><code>import fs
 
 match fs.read(&quot;config.txt&quot;):
-  Ok(text)                =&gt; print(text)
-  Err({kind: 'not_found}) =&gt; print(&quot;no config, using defaults&quot;)
-  Err(e)                  =&gt; print(e.message)
+  Ok(text)                     =&gt; print(text)
+  Err({kind: 'not_found, ...}) =&gt; print(&quot;no config, using defaults&quot;)
+  Err(e)                       =&gt; print(e.message)
 ;;</code></pre><pre class="out plain"><code>no config, using defaults</code></pre></div>
 <p>파일 내용은 문자열로 읽는다. fung의 문자열은 어떤 바이트든 담으므로 UTF-8이 아닌 파일도 바이트 그대로 읽히고, 그대로 쓰면 같은 파일이 된다. 파일 이름도 바이트 그대로다. 그런 바이트가 글자로 어떻게 세어지는지는 <a href="../prelude/strings.html#bytes">바이트</a>에 있다.</p>
 <div class="box mistake"><b>이름이 같은 다른 함수</b>

@@ -35,27 +35,45 @@ fn _receive(rx, n, acc) = n <= 0 then acc else match recv(rx):
   Err(_) => acc
 ;;
 
-# One side of a zip, as a list or a range. A receiving end gives no more
-# than a list on the other side can pair (D105): what comes after stays
-# in the channel. Beside a range or another receiving end, which say
-# nothing of how many, it is read to its close.
-fn _zip_side(a, b) = match type_of(a):
-  'range    => a
-  'receiver => type_of(b) == 'list then _receive(a, len(b), []) else _list(a, "zip the elements of")
-  _         => _list(a, "zip the elements of")
+# How many items one side of a zip has: a list its length, a range its
+# numbers (cut to what an int counts by _r.slice, so a range wider than
+# the int range counts too), and nil for a receiving end, which says
+# nothing of how many. Anything else is E0506.
+fn _zip_count(xs) = match type_of(_r.items(xs, "zip the elements of")):
+  'list  => len(xs)
+  'range => len(_r.slice(xs, 0, 9223372036854775807))
+  _      => nil
 ;;
 
-# A range is cut to the other side's length before it becomes a list.
+# The first n items of one side as a list. A receiving end gives up to n
+# and stops at its close: what comes after stays in the channel.
+fn _zip_take(xs, n) = match type_of(xs):
+  'list  => xs[..n]
+  'range => map(_r.slice(xs, 0, n), x => x)
+  _      => _receive(xs, n, [])
+;;
+
+# Two receiving ends in turn, a value from the first and then one from
+# the second, until either is closed. A value the first gave when the
+# second had closed is lost: at most one.
+fn _zip_ends(a, b, acc) = match recv(a):
+  Ok(x)  => match recv(b):
+    Ok(y)  => _zip_ends(a, b, acc + [(x, y)])
+    Err(_) => acc
+  ;;
+  Err(_) => acc
+;;
+
+# A side that counts says how many pairs there can be, and a receiving
+# end gives only that many (D105, D119): the rest stays in the channel.
 fn zip(xs, ys):
-  left = _zip_side(xs, ys)
-  right = _upto(_zip_side(ys, left), len(left))
-  cut = _upto(left, len(right))
-  n = min([len(cut), len(right)])
-  for i in 0..n: (cut[i], right[i]) ;;
+  m = _zip_count(xs)
+  n = _zip_count(ys)
+  if m == nil and n == nil: return _zip_ends(xs, ys, []) ;;
+  left = _zip_take(xs, n == nil or (m != nil and m < n) then m else n)
+  right = _zip_take(ys, len(left))
+  for i in 0..len(right): (left[i], right[i]) ;;
 ;;
-
-# A range's first n numbers as a list; anything else as it is.
-fn _upto(xs, n) = type_of(xs) == 'range then map(_r.slice(xs, 0, n), x => x) else xs
 
 fn first(xs):
   if type_of(xs) == 'range: return _start(xs) ;;

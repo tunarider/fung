@@ -1,0 +1,8 @@
+# A bare `nil` as a statement does nothing, like any literal: E0234
+# (D121). A branch with nothing to do is left out or left empty.
+x = 1
+match x:
+  1 => print("one")
+  _ => nil
+;;
+# expect-error: E0234

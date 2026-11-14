@@ -1584,6 +1584,44 @@ fn a_fifo_read_keeps_its_deadline_and_its_bytes() {
     assert!(took < std::time::Duration::from_secs(5), "{took:?}");
 }
 
+/// VA61: a `read_lines` of a FIFO handle cut by a deadline gives the
+/// lines it had taken back to the handle: the next read gets them first.
+/// The writer sends two lines and marks it; the program reads only after
+/// the mark, so both are taken before the read waits; after the
+/// deadline the program marks, and the writer sends the last line.
+#[test]
+fn a_cut_read_lines_of_a_fifo_keeps_its_lines() {
+    let (d, f) = fifo("read-lines-keeps");
+    let (sent, more) = (d.at("sent"), d.at("more"));
+    let (fw, sw, mw) = (f.clone(), sent.clone(), more.clone());
+    let writer = std::thread::spawn(move || {
+        use std::io::Write;
+        let mut w = std::fs::OpenOptions::new().write(true).open(&fw).unwrap();
+        w.write_all(b"a\nb\n").unwrap();
+        std::fs::write(&sw, "").unwrap();
+        while !mw.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        w.write_all(b"c\n").unwrap();
+    });
+    let (out, err, took) = bounded(format!(
+        "{}import fs\nh = fs.open(\"{}\")!\nwait_for(() => fs.exists(\"{}\")!)\nprint(timeout(() => read_lines(h), 50ms))\nfs.write(\"{}\", \"\")!\nprint(read_lines(h))",
+        testutil::UNTIL,
+        f.display(),
+        sent.display(),
+        more.display()
+    ));
+    writer.join().unwrap();
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\nOk([\"a\", \"b\", \"c\"])\n",
+            ""
+        )
+    );
+    assert!(took < std::time::Duration::from_secs(5), "{took:?}");
+}
+
 /// CC14: three tasks read lines from one FIFO handle. The event loop
 /// keeps one wait per descriptor and interest, so the first reader waits
 /// on the descriptor and the other two in line for its read turn: each

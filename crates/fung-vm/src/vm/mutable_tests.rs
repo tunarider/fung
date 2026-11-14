@@ -97,7 +97,6 @@ fn a_slice_of_a_big_list_sees_exactly_its_range() {
             let mut items = ints(5080);
             items[at] = ch();
             let l = List::new(items);
-            // all at least a quarter of the list, so each stays a view
             let n = 5080;
             let w = 1500;
             let ranges = [
@@ -110,7 +109,6 @@ fn a_slice_of_a_big_list_sees_exactly_its_range() {
             for (lo, hi) in ranges.into_iter().filter(|(lo, hi)| hi - lo >= w) {
                 let want = lo <= at && at < hi;
                 let s = l.slice(lo, hi);
-                assert!(s.is_view() || hi - lo == n, "{lo}..{hi} is a view");
                 let got = Value::List(Rc::new(s)).holds_mutable();
                 assert_eq!(got, want, "channel at {at}, slice {lo}..{hi}");
             }

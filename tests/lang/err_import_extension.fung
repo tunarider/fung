@@ -1,0 +1,4 @@
+# The loader adds `.fung` to every import path (D125), so a path that already
+# ends in it names `greet.fung.fung`, which is not there.
+import "./_lib/greet.fung" as greet
+# expect-error: E0301

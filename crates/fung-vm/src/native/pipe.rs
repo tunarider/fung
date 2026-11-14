@@ -156,6 +156,18 @@ impl Pipe {
         self.file.as_raw_fd()
     }
 
+    /// Puts `bytes` back before what is buffered: the lines a stopped
+    /// `read_lines` had taken (VA61) are read again first.
+    pub(crate) fn unread(&mut self, mut bytes: Vec<u8>) {
+        if bytes.is_empty() {
+            return;
+        }
+        bytes.append(&mut self.rbuf);
+        self.rbuf = bytes;
+        self.scanned = 0;
+        self.count = Default::default();
+    }
+
     /// The next line with its `\n`, or what is left at the end (`None`
     /// when nothing is). A read error ends the input, as on a file. A
     /// line past the string limit fails as soon as it passes (LB29): what

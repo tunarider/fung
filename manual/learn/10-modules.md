@@ -54,7 +54,7 @@ import conc
 print(conc.pmap([1, 2], x => x * 2))
 ```
 
-prelude의 이름은 어디서나 보이므로 같은 이름의 변수나 함수를 만들 수 없다(E0240). `len`이 어디서나 prelude의 `len`이라 읽기 쉽다. 이름이 겹치면 `count`·`size`처럼 다른 이름을 짓는다. 전체 목록은 [함수 목록](../reference/functions.html)에 있다.
+prelude의 이름은 어디서나 보이므로 같은 이름의 변수나 함수를 만들 수 없다(E0238). `len`이 어디서나 prelude의 `len`이라 읽기 쉽다. 이름이 겹치면 `count`·`size`처럼 다른 이름을 짓는다. 전체 목록은 [함수 목록](../reference/functions.html)에 있다.
 
 ## 내 파일 가져오기 {#local}
 
@@ -192,7 +192,7 @@ print(logstat.count_levels(rows))
 ## 짚고 넘어가기 {#notes}
 
 :::box tip 쓰지 않는 import
-가져오기만 하고 쓰지 않은 모듈은 에러 E0239다. 지우거나, 쓰는 코드를 마저 쓴다. `regex.split`처럼 prelude 함수와 같은 이름의 멤버는 `import regex (split)`로 가져오지 못하고(E0240) 모듈 이름을 붙여 읽는다.
+가져오기만 하고 쓰지 않은 모듈은 에러 E0239다. 지우거나, 쓰는 코드를 마저 쓴다. `regex.split`처럼 prelude 함수와 같은 이름의 멤버는 `import regex (split)`로 가져오지 못하고(E0238) 모듈 이름을 붙여 읽는다.
 :::
 
 :::box mistake 파일 이름에 -를 쓰면
@@ -204,7 +204,7 @@ print(logstat.count_levels(rows))
 :::
 
 :::box mistake 모듈 이름을 변수로 쓰기
-`import path` 뒤에 `for path in files:`처럼 모듈과 같은 이름의 변수를 만들면 컴파일 에러 E0308이다. 모듈을 가리면 그 아래에서 `path.base`를 부를 수 없기 때문이다. 변수 이름을 바꾸거나 `import path as p`로 가져온다.
+`import path` 뒤에 `for path in files:`처럼 모듈과 같은 이름의 변수를 만들면 컴파일 에러 E0238이다. 모듈을 가리면 그 아래에서 `path.base`를 부를 수 없기 때문이다. 변수 이름을 바꾸거나 `import path as p`로 가져온다.
 :::
 
 :::box other 다른 언어는
@@ -274,9 +274,9 @@ print(p.base("/var/log/app.log"), p.ext("/var/log/app.log"))
 
 - 파일 하나가 모듈 하나이고, 모듈 이름은 파일 이름이다.
 - 표준 모듈은 `import fs`처럼 이름으로, 내 파일은 `import "./textutil"`처럼 그 파일 기준의 경로로 가져온다. `as`로 별칭을, `(이름)`으로 이름만 가져온다.
-- prelude의 함수는 import 없이 쓴다. 같은 이름을 다시 묶으면 E0240이다.
+- prelude의 함수는 import 없이 쓴다. 같은 이름을 다시 묶으면 E0238이다.
 - `_`로 시작하는 최상위 이름은 비공개다(E0304). 나머지는 공개다.
 - 라이브러리 파일의 최상위에는 `import`·`fn`·`type`·`test`·`이름 = 식`만 온다(E0306). 처음 import될 때 한 번 실행된다.
-- 순환 import(E0302), 모듈 이름 가리기(E0308)는 컴파일 에러다.
+- 순환 import(E0302), 모듈 이름 가리기(E0238)는 컴파일 에러다.
 
 정확한 규칙은 레퍼런스의 [모듈](../reference/language/modules.html)에 있다. 표준 모듈마다의 함수는 [fs](../reference/modules/fs.html), [path](../reference/modules/path.html), [conc](../reference/modules/conc.html) 등 레퍼런스의 "표준 모듈"을 보라. 모듈을 어떻게 읽고 실행하는지는 VM 책의 [모듈](../vm/11-modules.html)에서 다룬다.

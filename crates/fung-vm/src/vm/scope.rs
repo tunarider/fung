@@ -306,6 +306,8 @@ struct Handling {
     r: Result<Value, Stop>,
     own: Arc<CancelNode>,
     handler: Arc<CancelNode>,
+    /// The failure `on_fail` was called for, named if it fails (D109).
+    failure: Option<Value>,
 }
 
 impl TaskEnd {
@@ -333,6 +335,7 @@ impl TaskEnd {
                 r: Ok(Value::Nil),
                 own: node.clone(),
                 handler: node.clone(),
+                failure: None,
             }),
             node,
         }
@@ -392,7 +395,12 @@ impl TaskEnd {
                 sv.handling.set(true);
                 let handler = s.node.child();
                 let own = std::mem::replace(&mut t.fiber.cancel, handler.clone());
-                self.handling = Some(Handling { r, own, handler });
+                self.handling = Some(Handling {
+                    r,
+                    own,
+                    handler,
+                    failure: None,
+                });
                 return Ok(self.next_failure(t, sv));
             }
         }
@@ -405,6 +413,9 @@ impl TaskEnd {
             && let Some(f) = sv.on_fail.borrow().clone()
             && let Some((e, _)) = sv.queue.borrow_mut().pop_front()
         {
+            if let Some(h) = &mut self.handling {
+                h.failure = Some(e.clone());
+            }
             t.push_arg(e);
             return Next::Call(f, 1);
         }
@@ -430,7 +441,9 @@ impl TaskEnd {
         };
         match discarded(r) {
             Ok(_) => self.next_failure(t, sv),
-            Err(Stop::Error(d)) if !is_cancel(&d) => {
+            Err(Stop::Error(mut d)) if !is_cancel(&d) => {
+                let was = self.handling.as_mut().and_then(|h| h.failure.take());
+                name_handled(&mut d, was.as_ref());
                 s.fail(&d);
                 self.stop_handling(t, sv)
             }
@@ -558,6 +571,7 @@ pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> F
             opened_at,
             draining: None,
             handling: None,
+            failure: None,
         }),
         f,
         1,
@@ -575,6 +589,8 @@ struct Scope {
     /// The scope has closed and the opener runs a `supervise` scope's
     /// `on_fail` for the failures left; the body's result waits here.
     handling: Option<Result<Value, Stop>>,
+    /// The failure `on_fail` was called for, named if it fails (D109).
+    failure: Option<Value>,
 }
 
 /// A scope waiting for its children: the body's result, and the task's
@@ -660,6 +676,7 @@ impl Scope {
             && let Some(f) = sv.on_fail.borrow().clone()
             && let Some((e, _)) = sv.queue.borrow_mut().pop_front()
         {
+            self.failure = Some(e.clone());
             t.push_arg(e);
             return Ok(Next::Call(f, 1));
         }
@@ -673,7 +690,8 @@ impl Scope {
     fn handled(&mut self, t: &mut Task<'_>, h: Result<Value, Stop>) -> Result<Next, Stop> {
         match discarded(h) {
             Ok(_) => self.next_failure(t),
-            Err(Stop::Error(d)) if !is_cancel(&d) => {
+            Err(Stop::Error(mut d)) if !is_cancel(&d) => {
+                name_handled(&mut d, self.failure.take().as_ref());
                 self.state.fail(&d);
                 let r = self.handling.take().expect("handling");
                 self.settled(t, r)
@@ -734,6 +752,29 @@ impl Cont for Scope {
         t.fiber.cancel = d.own;
         Err(stop)
     }
+}
+
+/// A failure of `on_fail` names the failure it was called for (D109):
+/// that one was handed over and is reported nowhere else. The note gives
+/// the failure's code, message and place, as its value holds them.
+fn name_handled(d: &mut Diag, was: Option<&Value>) {
+    let Some(Value::Map(m)) = was else {
+        return;
+    };
+    let field = |k: &str| match m.get(k) {
+        Some(Value::Str(s)) => s.lossy().into_owned(),
+        _ => String::new(),
+    };
+    let mut note = format!(
+        "note: `on_fail` failed while handling error[{}]: {}",
+        field("code"),
+        field("message")
+    );
+    let at = field("at");
+    if !at.is_empty() {
+        note.push_str(&format!(" (at {at})"));
+    }
+    d.notes.push(note);
 }
 
 /// What `scope(` gives once the scope has closed, from the body's result

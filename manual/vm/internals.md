@@ -105,7 +105,7 @@ print(sum(xs))
   <dt>모듈 전역 <code>(global n)</code></dt><dd>파일 최상위의 변수와 <code>fn</code>.</dd>
   <dt>prelude <code>(prelude name)</code></dt><dd>내장 함수. 상수로 직접 들어간다.</dd>
 </dl>
-<p>스코프 규칙 위반(정의 전 읽기 E0204, 바깥 변수 재대입 E0205, 블록 밖 이름 E0206, <code>for</code> 안의 <code>return</code>, 최상위 <code>return</code>, 모듈 이름 가리기, 대안 패턴의 이름 불일치)은 첫 번째에서 멈추지 않고 <strong>전부 모아</strong> 보고한다. 보이는 이름을 다시 묶는 것(E0240)과 쓰지 않는 이름(E0239, 다른 에러가 없을 때만)도 여기서 잡는다. 이름 해석이 끝나면 값을 쓰는 자리의 조용한 <code>nil</code>(<code>else</code> 없는 <code>if</code> E0223, 비었거나 문장으로 끝나는 블록 E0224)을 트리를 한 번 더 돌며 찾는다(<code>resolve/value.rs</code>).</p>
+<p>스코프 규칙 위반(정의 전 읽기 E0204, 바깥 변수 재대입 E0238, 블록 밖 이름 E0206, <code>for</code> 안의 <code>return</code>, 최상위 <code>return</code>, 모듈 이름 가리기, 대안 패턴의 이름 불일치)은 첫 번째에서 멈추지 않고 <strong>전부 모아</strong> 보고한다. 보이는 이름을 다시 묶는 것(E0238)과 쓰지 않는 이름(E0239, 다른 에러가 없을 때만)도 여기서 잡는다. 이름 해석이 끝나면 값을 쓰는 자리의 조용한 <code>nil</code>(<code>else</code> 없는 <code>if</code> E0223, 비었거나 문장으로 끝나는 블록 E0224)을 트리를 한 번 더 돌며 찾는다(<code>resolve/value.rs</code>).</p>
 
 ## 바이트코드 {#bytecode}
 
@@ -175,7 +175,7 @@ fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
 
 <p>반환 타입을 적은 함수는 반환값을 검사해야 하므로, 다른 함수로의 꼬리 호출은 프레임을 남기는 보통 호출(<code>CALL</code>)이 된다. 자기 자신으로의 꼬리 호출은 같은 검사를 다시 하게 되므로 <code>TAILCALL</code>로 남는다.</p>
 <h3>패턴 매칭</h3>
-<p>패턴은 명령열로 펼치지 않고 원형의 <strong>패턴 트리</strong>로 둔다. <code>MATCH L n</code> 한 명령이 실행 중에 트리 n번을 해석해 맞으면 이름들을 슬롯에 묶고 다음 명령으로, 맞지 않으면 L로 간다(VM29: 불 값을 올렸다 <code>JUMPIFFALSE</code>로 꺼내지 않는다). 정수·심볼·불·<code>nil</code> 리터럴 패턴은 값 층을 거치지 않고 바로 견준다. 패턴의 의미가 Rust 함수 하나(<code>vm/matcher.rs</code>)에 모여 있어 이해하고 고치기 쉽다. guard는 그 뒤의 평범한 비교와 <code>JUMPIFFALSE</code>이고, 아무 절도 맞지 않으면 <code>NOMATCH</code>가 E0601을 낸다. 구조 분해 대입은 <code>MATCHORFAIL</code>이다.</p>
+<p>패턴은 명령열로 펼치지 않고 원형의 <strong>패턴 트리</strong>로 둔다. <code>MATCH L n</code> 한 명령이 실행 중에 트리 n번을 해석해 맞으면 이름들을 슬롯에 묶고 다음 명령으로, 맞지 않으면 L로 간다(VM29: 불 값을 올렸다 <code>JUMPIFFALSE</code>로 꺼내지 않는다). 정수·심볼·불·<code>nil</code> 리터럴 패턴은 값 층을 거치지 않고 바로 견준다. 패턴의 의미가 Rust 함수 하나(<code>vm/matcher.rs</code>)에 모여 있어 이해하고 고치기 쉽다. 리스트와 맵 패턴의 트리는 같은 칸 <code>rest</code>를 쓴다: 없으면 개수(맵이면 키)가 정확히 적은 것이어야 하고, <code>_</code>면 나머지를 무시하고, 이름이면 나머지(리스트의 뒤쪽 보기, 맵이면 적지 않은 항목을 넣은 순서대로 담은 맵)를 묶는다(D114). 닫힌 맵 패턴은 길이를 먼저 견주고 적은 키만 찾는다. 역어셈블 출력은 <code>{a: $0, ...$1}</code>처럼 적는다. guard는 그 뒤의 평범한 비교와 <code>JUMPIFFALSE</code>이고, 아무 절도 맞지 않으면 <code>NOMATCH</code>가 E0601을 낸다. 구조 분해 대입은 <code>MATCHORFAIL</code>이다.</p>
 
 ```dump bytecode fn=size
 fn size(v) = match v:

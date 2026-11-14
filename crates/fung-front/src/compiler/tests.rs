@@ -243,12 +243,13 @@ fn compile_block_ending_in_statement_yields_nil() {
 
 #[test]
 fn compile_literals_and_concat() {
-    // An interpolation of literals is one constant (VM31); `+` with a
-    // symbol is left to the VM's error.
-    let p = comp(r#""a${1}b" + 'ok"#);
-    assert_eq!(ops(&p), "CONST(0) CONST(1) ADD RETURN");
-    assert_eq!(p.consts[0], Const::Str("a1b".into()));
-    assert_eq!(p.consts[1], Const::Sym("ok".into()));
+    // An interpolation of literals is one constant (VM31), inside a list
+    // literal too. (Its `+` with a symbol is a compile error, E0501, FE81.)
+    let p = comp(r#"["a${1}b", 'ok]"#);
+    assert_eq!(
+        p.consts[0],
+        Const::List(vec![Const::Str("a1b".into()), Const::Sym("ok".into())])
+    );
     let p = comp(r#""x" + "y${-2}" + "\xff""#);
     assert_eq!(ops(&p), "CONST(0) RETURN");
     assert_eq!(p.consts[0], Const::Bytes(b"xy-2\xff".to_vec()));
@@ -257,9 +258,9 @@ fn compile_literals_and_concat() {
 "x${a}" + "y""#,
     );
     assert!(ops(&p).contains("CONCAT(2) CONST(2) ADD"), "{}", ops(&p));
-    let p = comp("nil\n1h");
-    assert_eq!(ops(&p), "CONST(0) POP CONST(1) RETURN");
-    assert_eq!(p.consts[1], Const::Dur(3_600_000_000_000));
+    let p = comp("1h");
+    assert_eq!(ops(&p), "CONST(0) RETURN");
+    assert_eq!(p.consts[0], Const::Dur(3_600_000_000_000));
 }
 
 #[test]
@@ -971,6 +972,14 @@ fn fn_ops(src: &str, name: &str) -> Vec<String> {
                 .join(" ")
         })
         .collect()
+}
+
+/// The right side of a tail `and`/`or` is in tail position as a whole:
+/// the branch that returns `true` at once lets go of nothing (VM53).
+#[test]
+fn a_tail_and_or_nested_lets_go_of_nothing_on_the_quick_path() {
+    let got = fn_ops("fn a(x) = x > 0 and (x > 1 or b(x))\nfn b(x) = x == 3", "a");
+    assert!(!got.iter().any(|o| o.starts_with("CLEARLOCAL")), "{got:?}");
 }
 
 /// A branch lets go, as it starts, of what only the other paths read,

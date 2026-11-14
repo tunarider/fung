@@ -1,0 +1,8 @@
+# A variable name is checked once, alike everywhere (D132): `exec`'s
+# and `sh`'s `env` refuse a name with a NUL as `env(name)` does, not
+# with an Err from the system. A NUL in a value is still that Err.
+fn run(vars) = exec(["true"], env: vars)
+print(match run({A: "x\x00"}): Err({kind, ...}) => kind; Ok(_) => 'ok ;;)
+# expect: 'invalid
+print(run({"A\x00": "x"}))
+# expect-error: E0403

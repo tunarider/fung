@@ -227,11 +227,11 @@ print(wait)</code></pre><pre class="out plain"><code>1h30m</code></pre></div>
 </ul>
 <div class="exercise"><b>렉서가 받아 주는 것</b>
 <p>다음 다섯 가운데 렉서가 거절하는 것들은 무엇이고, 그 에러 번호는? 렉서는 통과하지만 파서가 거절하는 것도 하나 있다.</p>
-<p><code>1_000</code> · <code>30m1h</code> · <code>0x1F</code> · <code>.5</code> · <code>&quot;tab\t&quot;</code></p>
+<p><code>1_000</code> · <code>30m1h</code> · <code>0X1F</code> · <code>.5</code> · <code>&quot;tab\t&quot;</code></p>
 <details><summary>풀이 보기</summary>
 <ul>
 <li><code>30m1h</code>: 렉서가 거절한다. 기간은 큰 단위부터라 <code>E0105</code>.</li>
-<li><code>0x1F</code>: 렉서가 거절한다. 16진 숫자도 접두사처럼 소문자로만 쓰므로 <code>E0102</code>이고, 도움말이 <code>0x1f</code>를 보인다.</li>
+<li><code>0X1F</code>: 렉서가 거절한다. 진법의 접두사는 문법 글자라 소문자로만 쓰므로 <code>E0102</code>이고, 도움말이 <code>0x1F</code>를 보인다. 접두사 뒤의 16진 숫자는 대소문자를 가리지 않는다(<code>0x1F</code>는 된다).</li>
 <li><code>.5</code>: 렉서는 <code>.</code>(점)과 <code>5</code>(정수) 두 토큰으로 잘 자른다. 그런데 식이 점으로 시작할 수 없으므로 파서가 <code>E0110 unexpected .</code>을 낸다. 소수점 앞 숫자를 반드시 쓰게 한 이유는 다음 줄이 <code>.</code>으로 시작하면 앞 줄에 이어지는 규칙(<code>.field</code> 이어 쓰기)과 겹치지 않게 하려는 것이다(설계 문서 01).</li>
 <li>나머지 둘은 된다.</li>
 </ul>

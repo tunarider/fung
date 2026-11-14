@@ -6,6 +6,6 @@ m = {type: "x", test: 2, nil: 3}
 print(m.type, m["test"], m.nil)
 # expect: x 2 3
 match m:
-  {type: t, test: n} => print(t, n)
+  {type: t, test: n, ...} => print(t, n)
 ;;
 # expect: x 2

@@ -2,4 +2,4 @@
 fn g() = 1
 fn f(g) = g + 1
 print(f(g()))
-# expect-error: E0240
+# expect-error: E0238

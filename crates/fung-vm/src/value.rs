@@ -30,7 +30,7 @@ use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHa
 pub use args::Args;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub(crate) use arith::{add_text, check_chars, check_returned, floor_div_i64, rem_i64};
-pub use compare::{compare, eq, equal, hash_value};
+pub use compare::{Shapes, compare, eq, equal, hash_value};
 #[cfg(test)]
 pub use format::format_for_print;
 pub use format::{

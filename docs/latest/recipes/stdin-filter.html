@@ -88,8 +88,8 @@ import regex
 entry = `^\S+ \S+ \S+ \[([^\]]+)\] &quot;(\S+) (\S+) [^&quot;]*&quot; (\d{3}) \d+ ([\d.]+)$`
 
 fn parse(line) = match regex.find(line, entry):
-  nil                                      =&gt; nil
-  {groups: [at, method, path, code, secs]} =&gt;
+  nil                                           =&gt; nil
+  {groups: [at, method, path, code, secs], ...} =&gt;
     {at, method, path, status: int(code), took: parse_float(secs)! * 1s}
 ;;
 
@@ -124,7 +124,7 @@ kept 3 of 7 lines, 1 not understood</code></pre></div>
 </ul>
 <p>뒤의 명령이 먼저 끝나도(<code>| head -3</code>) fung은 에러 메시지 없이 조용히 끝난다. 쉘의 다른 명령처럼 SIGPIPE로 끝난 것으로 보고된다(종료 코드 141).</p>
 <div class="box mistake"><b><code>while read line</code> 대신</b>
-<p>쉘의 <code>while read -r line; do …; done</code>에 해당하는 <code>while</code>은 fung에 없다. 입력이 작고 끝이 있으면 <code>read_lines()!</code>로 전부 받아 <code>for</code>나 <code>filter</code>로 다루는 것이 가장 쉽다. 다만 <code>read_lines</code>는 입력이 <strong>끝날 때까지</strong> 기다리므로 <code>tail -f</code> 뒤에서는 아무것도 내보내지 않는다. 끝없는 입력은 위처럼 <code>read_line</code>과 꼬리 재귀로 한 줄씩 다룬다. 루프 안에서 <code>kept = kept + 1</code>처럼 바깥 변수를 바꾸려 하면 E0205이므로, 세는 값은 인자로 넘긴다.</p>
+<p>쉘의 <code>while read -r line; do …; done</code>에 해당하는 <code>while</code>은 fung에 없다. 입력이 작고 끝이 있으면 <code>read_lines()!</code>로 전부 받아 <code>for</code>나 <code>filter</code>로 다루는 것이 가장 쉽다. 다만 <code>read_lines</code>는 입력이 <strong>끝날 때까지</strong> 기다리므로 <code>tail -f</code> 뒤에서는 아무것도 내보내지 않는다. 끝없는 입력은 위처럼 <code>read_line</code>과 꼬리 재귀로 한 줄씩 다룬다. 루프 안에서 <code>kept = kept + 1</code>처럼 바깥 변수를 바꾸려 하면 E0238이므로, 세는 값은 인자로 넘긴다.</p>
 <details class="fixture"><summary>준비물: hosts.txt</summary>
 <p><code>hosts.txt</code></p>
 <pre class="plain"><code>web1

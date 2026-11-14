@@ -2,4 +2,4 @@
 # function (D38, D86).
 fn _f(len) = len + 1
 print(_f(1))
-# expect-error: E0240
+# expect-error: E0238

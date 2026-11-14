@@ -94,7 +94,7 @@ rate limited, waiting 1s
 
 :::box mistake `while`과 바뀌는 변수
 
-쉘의 `while [ "$url" != "null" ]; do …; url=…; done`을 옮기려 하면 막힌다. fung에는 `while`이 없고, 블록 안에서 바깥의 `url`이나 `all`에 다시 대입하면 E0205다. "바뀌는 변수"는 "다음 호출의 인자"로 바꿔 쓴다. 위의 `all_items(next, items, n + 1)`가 그 모양이다. 정해진 횟수나 조건까지 되풀이하는 간단한 경우는 [`until`](../reference/prelude/loops.html#fn-until)도 있다.
+쉘의 `while [ "$url" != "null" ]; do …; url=…; done`을 옮기려 하면 막힌다. fung에는 `while`이 없고, 블록 안에서 바깥의 `url`이나 `all`에 다시 대입하면 E0238이다. "바뀌는 변수"는 "다음 호출의 인자"로 바꿔 쓴다. 위의 `all_items(next, items, n + 1)`가 그 모양이다. 정해진 횟수나 조건까지 되풀이하는 간단한 경우는 [`until`](../reference/prelude/loops.html#fn-until)도 있다.
 
 ```fung run
 fn pages(n, acc) = n > 3 then acc else pages(n + 1, acc + ["page-${n}"])

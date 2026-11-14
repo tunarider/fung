@@ -2,7 +2,7 @@
 # code<TAB>message template<TAB>underline label<TAB>help
 E0101	unexpected character %q		
 E0102	malformed number %q		
-E0103	unknown escape %s in string		
+E0103	invalid escape %s in string		
 E0104	unterminated string		
 E0105	malformed duration %q		
 E0106	`\u{%s}` is not a Unicode scalar value		`\u{…}` takes a code point up to 10FFFF that is not a surrogate (D800–DFFF); for a byte, write `\xHH`
@@ -36,7 +36,7 @@ E0136	a statement after another cannot begin its line with `-`		to continue the 
 E0204	undefined name `%s`	not found in this scope	
 E0205	cannot assign to `%s` here: it is bound outside this block		a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 E0206	`%s` is not visible here: it was defined inside a block		assign the block's value instead: `x = if … ;;`
-E0208	local function `%s` is defined later in this block		local functions can only call themselves; move both functions to the top level
+E0208	local function `%s` is defined later in this block		a local function can call itself and the local functions defined before it; define this one before the function that calls it, or move both to the top level
 E0209	cannot reassign `%s`: it is a function or an imported name		
 E0210	function `%s` is defined twice		
 E0211	%s %s		use `exit()` to stop a script early
@@ -86,7 +86,7 @@ E0311	import must be at the top level
 E0312	cannot read module `%s`: %s		
 E0313	`import` after another statement		put every import at the top of the file, before the other statements
 E0401	cannot call a value of type %s		
-E0402	%s takes %d argument(s), got %d		
+E0402	%s takes %d argument(s), got %s		
 E0403	argument `%s` must be %s, got %s		
 E0404	return value must be %s, got %s		
 E0405	argument `%s` given twice		

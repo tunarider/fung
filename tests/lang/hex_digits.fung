@@ -1,0 +1,8 @@
+# Hex digits take either case, in number literals and escapes alike;
+# the prefix and escape letters are lowercase syntax (D127).
+print(0xff, 0xFF, 0xCafe, 0xaB_cD)
+# expect: 255 255 51966 43981
+print("\xFF" == "\xff", "\u{1F600}" == "\u{1f600}", [0xFF] == [255])
+# expect: true true true
+print(parse_int("0xFF"), int("-0xCafe"))
+# expect: Ok(255) -51966

@@ -84,7 +84,7 @@
 <p><strong>컬렉션</strong>(collection)은 값 여러 개를 하나로 묶은 값이다. fung에서 가장 많이 쓰는 컬렉션은 <strong>리스트</strong>(list)다. <code>[&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]</code>처럼 대괄호 안에 순서대로 쓰고, <code>xs[0]</code>으로 첫 원소를, <code>xs[1..]</code>로 첫 원소를 뺀 나머지를 꺼낸다(인덱스는 0부터). 리스트 말고도 이 페이지의 함수가 받는 것이 둘 더 있다.</p>
 <ul>
 <li><strong>범위</strong>(range): <code>0..10</code>(10은 빠짐), <code>1..=10</code>(10 포함). 정수를 차례로 내놓지만 리스트를 미리 만들지 않으므로 아주 큰 범위도 공짜로 만든다.</li>
-<li><strong>채널의 받는 끝</strong>(receiver): 다른 태스크가 보내는 값의 흐름(<a href="concurrency.html">동시성</a>). 값이 올 때마다 처리하고, 채널이 닫히면 끝난다. 일찍 멈추는 함수(<code>find</code>·<code>any</code>·<code>all</code>·<code>take</code>·<code>first</code>)는 필요한 만큼만 받고 남은 값을 채널에 둔다. 전체가 필요한 함수(<code>sort</code>·<code>reverse</code>·<code>last</code> 등)는 닫힐 때까지 받는다.</li>
+<li><strong>채널의 받는 끝</strong>(receiver): 다른 태스크가 보내는 값의 흐름(<a href="concurrency.html">동시성</a>). 값이 올 때마다 처리하고, 채널이 닫히면 끝난다. 일찍 멈추는 함수(<code>find</code>·<code>any</code>·<code>all</code>·<code>take</code>·<code>first</code>·<code>zip</code>)는 필요한 만큼만 받고 남은 값을 채널에 둔다. 전체가 필요한 함수(<code>sort</code>·<code>reverse</code>·<code>last</code> 등)는 닫힐 때까지 받는다.</li>
 </ul>
 <p>문자열은 컬렉션 함수에 넣지 않는다(<code>map(&quot;abc&quot;, f)</code>, <code>take(&quot;abc&quot;, 2)</code>, <code>first(&quot;abc&quot;)</code>는 에러). 앞뒤를 자르는 것은 슬라이스 <code>s[..2]</code>·<code>s[1..]</code>로, 글자로 다루려면 <a href="strings.html#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다. 맵은 <a href="maps.html">맵</a> 함수로 다루고, 쌍의 리스트가 필요하면 <a href="maps.html#fn-pairs"><code>pairs</code></a>를 쓴다.</p>
 <h3 id="immutable">불변: 원본은 바뀌지 않는다</h3>
@@ -99,7 +99,7 @@ print(hosts)</code></pre><pre class="out plain"><code>[&quot;WEB-1&quot;, &quot;
 [&quot;web-1&quot;, &quot;db-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]</code></pre></div>
 <p>마지막 줄처럼 원본 <code>hosts</code>는 그대로다.</p>
 <h3 id="limits">크기 제한</h3>
-<p>리스트(와 맵)는 원소 1억 개까지다. 리스트를 만드는 모든 길이 이 한도를 지킨다: <code>+</code>, <code>flatten</code>, <code>put</code>·<code>merge</code>, 범위나 받는 끝을 받은 <code>map</code>·<code>filter</code>·<code>sort</code> 등, 펼치기(<code>...xs</code>). 넘으면 E0806이다. 결과가 모든 원소를 담는 함수(<code>map</code>, <code>sort</code>, <code>reverse</code>, <code>unique</code> 등)는 원소 1억 개를 넘는 범위를 받으면 만들기 전에 거절한다. 메모리를 다 쓰고 죽는 대신 이유를 알려 주기 위해서다. 다만 이것은 값 하나의 한도이고 <strong>전체 메모리 한도는 없다</strong>: 한도 안의 큰 값을 여럿 만들면 메모리가 그만큼 는다. 결과가 작을 수 있는 <code>filter</code>·<code>fold</code>와 일찍 멈추는 <code>find</code>·<code>any</code>·<code>take</code>는 큰 범위도 받는다(원소를 하나씩 만들어 보므로 시간은 든다). <code>len</code>은 원소를 만들지 않고 계산한다.</p>
+<p>리스트(와 맵)는 원소 1억 개까지다. 리스트를 만드는 모든 길이 이 한도를 지킨다: <code>+</code>, <code>flatten</code>, <code>put</code>·<code>merge</code>, 범위나 받는 끝을 받은 <code>map</code>·<code>filter</code>·<code>sort</code> 등, <code>split</code>·<code>lines</code>·<code>chars</code>, 펼치기(<code>...xs</code>). 넘으면 E0806이다. 결과가 모든 원소를 담는 함수(<code>map</code>, <code>sort</code>, <code>reverse</code>, <code>unique</code> 등)는 원소 1억 개를 넘는 범위를 받으면 만들기 전에 거절한다. 메모리를 다 쓰고 죽는 대신 이유를 알려 주기 위해서다. 다만 이것은 값 하나의 한도이고 <strong>전체 메모리 한도는 없다</strong>: 한도 안의 큰 값을 여럿 만들면 메모리가 그만큼 는다. 결과가 작을 수 있는 <code>filter</code>·<code>fold</code>와 일찍 멈추는 <code>find</code>·<code>any</code>·<code>take</code>는 큰 범위도 받는다(원소를 하나씩 만들어 보므로 시간은 든다). <code>len</code>은 원소를 만들지 않고 계산한다.</p>
 <h2 id="basics">세기와 고르기</h2>
 <section class="entry" id="fn-len">
 <h3>len</h3>
@@ -277,7 +277,7 @@ print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&q
 <ul>
 <li>리스트·범위: <code>x</code>와 <code>==</code>인 원소가 있는가. 비교 규칙을 따르므로 <code>contains([1], 1.0)</code>도 참이다.</li>
 <li>맵: <code>x</code>가 키인가(값이 아니다). 키는 문자열이므로 <code>x</code>도 문자열이어야 한다.</li>
-<li>문자열: <code>x</code>가 부분 문자열인가. 빈 문자열은 언제나 들어 있다.</li>
+<li>문자열: <code>x</code>가 부분 문자열인가. 찾을 글은 비어 있을 수 없다(빈 글은 어디에나 있으므로 E0403, <a href="strings.html#fn-index_of"><code>index_of</code></a>의 <code>sub</code>와 같은 규칙).</li>
 </ul>
 <p>심볼과 문자열은 같지 않다(<code>contains(['a], &quot;a&quot;)</code>는 <code>false</code>). 외부에서 온 문자열은 <a href="convert.html#fn-sym"><code>sym</code></a>으로 바꿔서 찾는다.</p>
 <p>연산자 <code>in</code>이 있는데 함수를 따로 두는 것은 파이프(<code>xs |&gt; contains(x)</code>)와 함수를 넘기는 자리(<code>filter(xss, xs =&gt; contains(xs, x))</code>)에서 쓰려는 것이다. 조건에서는 <code>x in c</code>가 읽기 쉽다.</p>
@@ -290,7 +290,7 @@ print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&q
 <p><code>bool</code>.</p>
 <h4>에러</h4>
 <ul>
-<li>맵에서 문자열이 아닌 키를 찾으면 E0514(<code>cannot use a value of type int as a map key</code>), 문자열에서 문자열이 아닌 값을 찾으면 런타임 에러 E0501(<code>cannot search str and int</code>).</li>
+<li>맵에서 문자열이 아닌 키를 찾으면 E0514(<code>cannot use a value of type int as a map key</code>), 문자열에서 문자열이 아닌 값을 찾으면 런타임 에러 E0501(<code>cannot search str and int</code>), 빈 문자열을 찾으면 E0403(<code>argument `x` must be a non-empty str, got &quot;&quot;</code>).</li>
 </ul>
 <h4>예제</h4>
 <p><strong>세 가지 뜻</strong></p>
@@ -442,7 +442,7 @@ print(len(errors), errors)</code></pre><pre class="out plain"><code>2 [&quot;ERR
 <div class="sig"><code>fold(xs, init, f)</code></div>
 <h4>설명</h4>
 <p><code>fold</code>는 "누적값"을 들고 원소를 왼쪽부터 차례로 지나간다. 처음 누적값은 <code>init</code>이고, 원소마다 <code>acc = f(acc, x)</code>로 바꾼다. 다 지나간 뒤의 <code>acc</code>가 결과다. 빈 리스트면 <code>init</code>을 그대로 돌려준다.</p>
-<p>합계, 최댓값, 개수 세기, 리스트나 맵 쌓기처럼 "여러 개에서 하나를 만드는" 거의 모든 일을 <code>fold</code>로 할 수 있다. 자주 쓰는 것은 따로 있다: <a href="#fn-sum"><code>sum</code></a>, <a href="#fn-max"><code>max</code></a>, <a href="#fn-group_by"><code>group_by</code></a>. fung에는 바깥 변수를 바꾸는 반복문이 없으므로(블록 안에서 바깥 이름에 다시 대입하면 E0205) 반복하며 값을 쌓는 일은 <code>fold</code>나 재귀로 한다.</p>
+<p>합계, 최댓값, 개수 세기, 리스트나 맵 쌓기처럼 "여러 개에서 하나를 만드는" 거의 모든 일을 <code>fold</code>로 할 수 있다. 자주 쓰는 것은 따로 있다: <a href="#fn-sum"><code>sum</code></a>, <a href="#fn-max"><code>max</code></a>, <a href="#fn-group_by"><code>group_by</code></a>. fung에는 바깥 변수를 바꾸는 반복문이 없으므로(블록 안에서 바깥 이름에 다시 대입하면 E0238) 반복하며 값을 쌓는 일은 <code>fold</code>나 재귀로 한다.</p>
 <div class="box tip"><b>문자열은 리스트에 모아 join</b>
 <p><code>fold(xs, &quot;&quot;, (acc, s) =&gt; acc + s)</code>처럼 문자열을 하나씩 이어 붙이면 매번 문자열 전체를 새로 만든다. 리스트에 모은 뒤 <a href="strings.html#fn-join"><code>join</code></a>하는 것이 빠르다. 리스트를 쌓을 때는 앞에 붙이는 <code>[x] + acc</code> 대신 뒤에 붙이는 <code>acc + [x]</code>를 쓴다.</p>
 </div>
@@ -608,7 +608,7 @@ print(checks |&gt; filter(c =&gt; not c.ok) |&gt; map(c =&gt; c.name))</code></p
 <div class="sig"><code>sort(xs)</code></div>
 <h4>설명</h4>
 <p>순서는 <a href="../language/values.html">비교와 동일성</a> 표의 <code>&lt;</code>를 따른다. 수는 크기 순이고 정수와 실수를 섞어도 된다. 문자열은 코드 포인트 순이라 대문자가 소문자보다 앞선다(<code>&quot;B&quot; &lt; &quot;a&quot;</code>). 리스트와 튜플은 앞 원소부터 사전식으로 비교한다.</p>
-<p><strong>안정 정렬</strong>(stable sort)이라 같은 값끼리는 원래 순서를 지킨다. 맵, <code>bool</code>, 심볼, 태그처럼 <code>&lt;</code>가 없는 값이 있거나, 서로 비교할 수 없는 타입(수와 문자열)이 섞이면 처음 실패한 비교에서 에러가 난다. 원소가 하나뿐이어도 <code>x &lt; x</code>처럼 비교할 수 있는 값이어야 해서 <code>sort([nil])</code>은 에러다. 큰 것부터는 <code>sort(xs) |&gt; reverse</code>, 다른 기준은 <a href="#fn-sort_by"><code>sort_by</code></a>.</p>
+<p><strong>안정 정렬</strong>(stable sort)이라 같은 값끼리는 원래 순서를 지킨다. 맵, <code>bool</code>, 심볼, 태그처럼 <code>&lt;</code>가 없는 값이 있거나, 서로 비교할 수 없는 타입(수와 문자열)이 섞이면 정렬을 시작하기 전에 에러가 난다: 모든 원소의 모양이 하나로 합쳐져야 하므로(<a href="../language/values.html">값과 타입</a>), 결과는 원소의 순서나 값에 달리지 않는다. 원소가 하나뿐이어도 <code>x &lt; x</code>처럼 비교할 수 있는 값이어야 해서 <code>sort([nil])</code>은 에러다. 큰 것부터는 <code>sort(xs) |&gt; reverse</code>, 다른 기준은 <a href="#fn-sort_by"><code>sort_by</code></a>.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -706,7 +706,7 @@ print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) =&gt; v))</code></pre><
 <p>처음 나온 순서를 지키며 중복을 뺀 새 리스트를 돌려준다.</p>
 <div class="sig"><code>unique(xs)</code></div>
 <h4>설명</h4>
-<p>같은지는 <code>==</code>로 본다. 그래서 <code>1</code>과 <code>1.0</code>은 같은 값이고(앞의 것이 남는다), 리스트나 맵도 내용이 같으면 중복이다. <code>==</code>처럼 타입이 다른 원소는 견줄 수 없으므로, <code>nil</code>이 아닌 원소는 모두 <code>nil</code>이 아닌 첫 원소와 타입이 같아야 한다(숫자끼리는 같은 타입). 함수는 같음이 없어 넣을 수 없다. 대소문자는 구별한다(<code>&quot;a&quot;</code>와 <code>&quot;A&quot;</code>는 다르다). 정렬하지 않으므로 정렬된 결과가 필요하면 <code>unique</code> 뒤에 <code>sort</code>한다. 원소 수에 비례하는 시간이 든다.</p>
+<p>같은지는 <code>==</code>로 본다. 그래서 <code>1</code>과 <code>1.0</code>은 같은 값이고(앞의 것이 남는다), 리스트나 맵도 내용이 같으면 중복이다. 타입이 다른 원소는 <code>==</code>처럼 서로 다른 값이다(<code>1</code>과 <code>&quot;1&quot;</code>은 둘 다 남는다). 함수와 함수를 품은 값은 같음이 없어 넣을 수 없다. 대소문자는 구별한다(<code>&quot;a&quot;</code>와 <code>&quot;A&quot;</code>는 다르다). 정렬하지 않으므로 정렬된 결과가 필요하면 <code>unique</code> 뒤에 <code>sort</code>한다. 원소 수에 비례하는 시간이 든다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -797,7 +797,7 @@ print(pairs(counts) |&gt; map(((code, xs)) =&gt; &quot;${code}: ${len(xs)}&quot;
 <p>두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.</p>
 <div class="sig"><code>zip(xs, ys)</code></div>
 <h4>설명</h4>
-<p><code>zip([a, b], [x, y])</code>는 <code>[(a, x), (b, y)]</code>다. 길이가 다르면 짧은 쪽에 맞추고 남는 원소는 버린다. 받는 끝은 다른 쪽이 리스트면 그 길이만큼만 받는다: 그 뒤의 값은 채널에 남는다(다른 쪽이 범위나 받는 끝이면 닫힐 때까지 받는다). 범위는 짧은 쪽 길이만큼만 리스트로 만드므로 아주 큰 범위와 짝지어도 된다. 튜플은 패턴으로 꺼낸다: <code>for (name, ip) in zip(names, ips):</code>. 번호를 붙일 때는 범위와 짝짓는다.</p>
+<p><code>zip([a, b], [x, y])</code>는 <code>[(a, x), (b, y)]</code>다. 길이가 다르면 짧은 쪽에 맞추고 남는 원소는 버린다. 받는 끝은 짝지을 만큼만 받는다: 다른 쪽이 리스트나 범위면 그 개수까지 받고, 그 뒤의 값은 채널에 남는다. 둘 다 받는 끝이면 번갈아 하나씩 받고 어느 한쪽이 닫히면 멈춘다. 이때 앞쪽에서 받았는데 뒤쪽이 닫혀 짝이 없는 값 하나는 잃는다. 범위는 짧은 쪽 길이만큼만 리스트로 만드므로 어느 쪽에든 아주 큰 범위와 짝지어도 된다. 튜플은 패턴으로 꺼낸다: <code>for (name, ip) in zip(names, ips):</code>. 번호를 붙일 때는 범위와 짝짓는다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>, <code>ys</code>: 리스트, 범위, 받는 끝.</li>

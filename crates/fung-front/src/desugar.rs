@@ -250,12 +250,8 @@ impl Desugarer {
             | Head::Arm
             | Head::Spread
             | Head::Hole => self.map_kids(n.head, n),
-            // Elsewhere a tag without arguments is its symbol (02).
-            // A result holds one value (D41): only a pipe gives a bare
-            // `Ok` its value, and the pipe never walks it here.
-            Head::BareTag if !holds_one_value(&lit_str(n), 0) => {
-                Err(result_arity(&lit_str(n), 0, n.pos))
-            }
+            // Elsewhere a tag without arguments is its symbol (02), `Ok`
+            // and `Err` too (D123).
             Head::BareTag => Ok(Node::leaf(Head::Symbol, n.pos, n.lit.clone())),
             Head::Int
             | Head::Float
@@ -702,8 +698,9 @@ fn evaluates_quietly(f: &Node) -> bool {
     }
 }
 
-/// Whether a tag of this name may have `count` values: `Ok` and `Err`
-/// take exactly one (02, SP12), counted after a pipe filled the first. The
+/// Whether a tag of this name may hold `count` values (one or more): an
+/// `Ok` or `Err` that holds values holds exactly one (02, SP12), counted
+/// after a pipe filled the first. The bare tag is its symbol (D123); the
 /// pattern is checked by the parser.
 fn holds_one_value(name: &str, count: usize) -> bool {
     count == 1 || !matches!(name, "Ok" | "Err")
@@ -711,20 +708,12 @@ fn holds_one_value(name: &str, count: usize) -> bool {
 
 /// E0236 for an `Ok` or `Err` with `count` values.
 fn result_arity(name: &str, count: usize, pos: Pos) -> Box<Diag> {
-    let e = error(
+    Box::new(error(
         "E0236",
         pos,
         vec![Arg::Str(name.to_string()), Arg::Int(count as i64)],
-    );
-    Box::new(if count == 0 {
-        e.with_help(BARE_RESULT_HELP)
-    } else {
-        e
-    })
+    ))
 }
-
-/// E0236's help for a bare `Ok` or `Err` (D41).
-pub(crate) const BARE_RESULT_HELP: &str = "give it its value, `Ok(x)`; to test for a result, use `is_ok(r)`/`is_err(r)` or the pattern `Ok(_)`";
 
 #[cfg(test)]
 mod tests {
@@ -771,30 +760,18 @@ mod tests {
         ]);
     }
 
-    /// A bare `Ok` or `Err` holds no value (D41): E0236 in an expression
-    /// and in a pattern; only a pipe gives it its value.
+    /// A bare `Ok` or `Err` is its symbol, like any bare tag (D123): only
+    /// a tag that holds values is a result.
     #[test]
-    fn a_bare_result_tag_is_an_error() {
-        for (src, col) in [
-            ("y = Ok", 5),
-            ("print(Err)", 7),
-            ("y = [1, Ok]", 9),
-            ("y = x |> (Ok)", 11),
-            ("y = match x:\n  Ok => 1\n  _ => 2\n;;", 3),
-            ("y = match x:\n  Err | 'a => 1\n  _ => 2\n;;", 3),
-        ] {
-            let mut sm = SourceMap::new();
-            let fid = sm.add("t.fung", src);
-            let (toks, _) = lex(fid, src).unwrap();
-            let e = match parse(&toks) {
-                Ok(t) => desugar(&t, true).unwrap_err(),
-                Err(e) => e,
-            };
-            assert_eq!((e.code.as_str(), e.pos.col), ("E0236", col), "{src}");
-            assert_eq!(e.args[1], Arg::Int(0), "{src}");
-            assert!(e.help.as_deref().unwrap_or("").contains("is_ok"), "{src}");
-        }
-        check(&[("x |> Ok", "(do (tag Ok x))")]);
+    fn a_bare_result_tag_is_its_symbol() {
+        check(&[
+            ("y = Ok", "(do (let y 'Ok))"),
+            ("print(Err)", "(do (call print 'Err))"),
+            ("y = [1, Ok]", "(do (let y (list 1 'Ok)))"),
+            ("x |> Ok", "(do (tag Ok x))"),
+        ]);
+        let t = core("y = match x:\n  Ok => 1\n  Err | 'a => 2\n  _ => 3\n;;");
+        assert!(t.contains("(psym Ok)") && t.contains("(psym Err)"), "{t}");
     }
 
     /// A pipe evaluates its left value first (D57): a right side whose

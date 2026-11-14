@@ -3,4 +3,4 @@ fn f(a):
   for (a, b) in [(1, 2)]: a + b ;;
 ;;
 print(f(1))
-# expect-error: E0240
+# expect-error: E0238

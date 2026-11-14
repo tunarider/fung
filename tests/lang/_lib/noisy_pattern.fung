@@ -1,0 +1,3 @@
+# A destructuring that binds no name keeps nothing: at the top level of an
+# imported file it is a bare statement, run only for its effect.
+(_, _) = (print("loading"), 2)

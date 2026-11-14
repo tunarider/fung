@@ -109,8 +109,8 @@ import json
 services = json.parse(fs.read(&quot;services.json&quot;)!)!
 for svc in services:
   match svc:
-    {name, status: &quot;down&quot;} =&gt; print(&quot;DOWN&quot;, name)
-    {name, replicas}       =&gt; print(&quot;up  &quot;, name, &quot;x${replicas}&quot;)
+    {name, status: &quot;down&quot;, ...} =&gt; print(&quot;DOWN&quot;, name)
+    {name, replicas, ...}       =&gt; print(&quot;up  &quot;, name, &quot;x${replicas}&quot;)
   ;;
 ;;</code></pre><pre class="out plain"><code>up   api x3
 DOWN worker

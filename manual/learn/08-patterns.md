@@ -102,7 +102,7 @@ print(run_command(split("delete everything", " ")))
 
 ## 맵 패턴 {#maps}
 
-맵 패턴 `{name: n}`은 "키 `name`이 있는 맵"에 맞고, 그 값을 `n`에 담는다. 패턴에 적지 않은 키는 있든 없든 상관하지 않는다. 키 이름과 변수 이름이 같으면 `{name}`처럼 줄여 쓴다(`{name: name}`과 같다). 값 자리에 리터럴을 두면 그 값일 때만 맞는다.
+맵 패턴 `{name: n}`은 "키가 정확히 `name` 하나인 맵"에 맞고, 그 값을 `n`에 담는다. 리스트 패턴처럼 적은 것과 정확히 맞아야 한다. 다른 키가 있어도 되면 끝에 `...`를 붙인다: `{name: n, ...}`. 나머지 키를 맵으로 받으려면 `...rest`처럼 이름을 붙인다. `{}`는 빈 맵에만, `{...}`는 모든 맵에 맞는다. 키 이름과 변수 이름이 같으면 `{name}`처럼 줄여 쓴다(`{name: name}`과 같다). 값 자리에 리터럴을 두면 그 값일 때만 맞는다.
 
 ```fung run
 events = [
@@ -116,18 +116,20 @@ for e in events:
   match e:
     {kind: "deploy", service, version} => print("deployed ${service} ${version}")
     {kind: "alert", level: 3, text}    => print("PAGE: ${text}")
-    {kind: "alert", text}              => print("note: ${text}")
-    {kind}                             => print("ignored ${kind}")
+    {kind: "alert", text, ...}         => print("note: ${text}")
+    {kind, ...}                        => print("ignored ${kind}")
   ;;
 ;;
 ```
+
+`deploy`와 레벨 3의 `alert`는 키가 정확히 적은 것뿐이라 `...` 없이 맞는다. 아래 두 절은 다른 키(`level`, `user`)가 있어도 맞도록 `...`로 열었다.
 
 패턴은 겹쳐 쓸 수 있다. 맵 안의 리스트, 리스트 안의 맵처럼 데이터가 생긴 그대로 패턴을 쓰면 된다. JSON에서 읽은 데이터(13장)를 다룰 때 특히 쓸모 있다.
 
 ```fung run
 fn first_port(svc) = match svc:
-  {name, ports: [p, ...]} => "${name} listens on ${p}"
-  {name, ports: []}       => "${name} has no ports"
+  {name, ports: [p, ...], ...} => "${name} listens on ${p}"
+  {name, ports: [], ...}       => "${name} has no ports"
 ;;
 
 print(first_port({name: "api", ports: [8080, 8443]}))
@@ -157,9 +159,9 @@ print(route("DELETE", "/users"))
 
 ```fung run
 fn classify(svc) = match svc:
-  {port} when port < 1024  => "${svc.name}: system port"
-  {port} when port > 49151 => "${svc.name}: dynamic port"
-  {port}                   => "${svc.name}: registered port ${port}"
+  {port, ...} when port < 1024  => "${svc.name}: system port"
+  {port, ...} when port > 49151 => "${svc.name}: dynamic port"
+  {port, ...}                   => "${svc.name}: registered port ${port}"
 ;;
 
 print(classify({name: "ssh", port: 22}))
@@ -174,7 +176,7 @@ print(classify({name: "tmp", port: 60000}))
 ```fung run
 (quotient, remainder) = (17 // 5, 17 % 5)
 [host, port] = split("db.internal:5432", ":")
-{name, replicas: n} = {name: "api", replicas: 3, image: "api:1.4"}
+{name, replicas: n, ...} = {name: "api", replicas: 3, image: "api:1.4"}
 [top, ...rest] = ["a.log", "b.log", "c.log"]
 
 print(quotient, remainder)
@@ -282,9 +284,9 @@ print(replicas_text({name: "old", replicas: 0}))
 :::
 
 :::box mistake 패턴의 이름은 늘 새 변수다
-패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 **새 이름을 묶는다**. 그래서 아래의 `wanted` 절은 "값이 `wanted`와 같으면"이 아니라 "무엇이든 받아서 `wanted`라고 부른다"는 뜻이 된다. 늘 맞는 절이라 찾기 어려운 버그가 되므로, fung은 보이는 이름을 다시 묶는 것을 에러 E0240으로 막는다.
+패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 **새 이름을 묶는다**. 그래서 아래의 `wanted` 절은 "값이 `wanted`와 같으면"이 아니라 "무엇이든 받아서 `wanted`라고 부른다"는 뜻이 된다. 늘 맞는 절이라 찾기 어려운 버그가 되므로, fung은 보이는 이름을 다시 묶는 것을 에러 E0238로 막는다.
 
-```fung run exit=2 error=E0240
+```fung run exit=2 error=E0238
 wanted = "db"
 
 fn pick(name) = match name:
@@ -383,7 +385,7 @@ print(checks |> map(why) |> filter(w => w != nil))
 
 - 패턴은 값의 모양을 확인하고 동시에 안의 값을 꺼낸다.
 - `match`는 절을 위에서부터 대 보고 처음 맞는 절을 실행한다. 아무 것도 맞지 않으면 E0601이다. `_`는 무엇이든 맞는다.
-- 리터럴, 리스트(`[first, ...rest]`), 맵(`{name, port: p}`, 적지 않은 키는 무시), 튜플, 태그(`Circle(r)`) 패턴이 있고 서로 겹쳐 쓸 수 있다.
+- 리터럴, 리스트(`[first, ...rest]`), 맵(`{name, port: p}`는 키가 정확히 그 둘인 맵, `{name, ...}`는 다른 키를 무시, `{name, ...rest}`는 나머지를 맵으로), 튜플, 태그(`Circle(r)`) 패턴이 있고 서로 겹쳐 쓸 수 있다.
 - `when`으로 조건을 붙이고, `|`로 여러 패턴을 묶는다. 패턴의 이름은 늘 새 변수다.
 - 대입·매개변수·`for`의 왼쪽에도 패턴을 쓴다. 맞지 않으면 E0602다.
 - 대문자 이름은 태그다. 선언 없이 만들고 `match`로 나눈다.

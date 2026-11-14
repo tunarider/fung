@@ -52,14 +52,14 @@ lede: 값의 종류와 그 성질, 문자열·리스트·맵·튜플·태그·�
     <tr><td>map</td><td>키 집합과 값이 같음(순서 무시)</td><td>에러</td></tr>
     <tr><td>bool, nil, sym, 태그</td><td>값</td><td>에러</td></tr>
     <tr><td>range</td><td>같은 정수 열(<code>0..5 == 0..=4</code>, 빈 범위끼리는 같음). 출력은 쓴 모양 그대로</td><td>에러</td></tr>
-    <tr><td>fn</td><td>에러 E0501(같음이 없다)</td><td>에러</td></tr>
+    <tr><td>fn</td><td>에러 E0501(같음이 없다). 두 쪽이 다 함수를 품은 리스트·맵·튜플·태그도 에러</td><td>에러</td></tr>
     <tr><td>module, file, task, scope, sender, receiver, atom</td><td>같은 객체인가</td><td>에러</td></tr>
     <tr><td>타입이 다를 때</td><td><code>false</code>(같지 않다). 숫자끼리(int와 float)는 수로 견준다</td><td>에러</td></tr>
   </tbody>
 </table>
 <p><code>unique</code>, <code>contains</code>, <code>in</code>은 이 표의 <code>==</code>를, <code>sort</code>, <code>sort_by</code>, <code>min</code>, <code>max</code>는 <code>&lt;</code>를 따른다. 함수는 같음이 없으므로 해시도 없어 <code>unique</code>에 넣으면 E0501이다.</p>
 <p><strong>타입이 다른 두 값은 같지 않다.</strong> <code>"8080" == 8080</code>, <code>'ok == "ok"</code>, <code>Ok(1) == 1</code>은 모두 <code>false</code>다. 리스트·튜플·맵·태그 안에서 맞붙어도, <code>in</code>도 같다(<code>[1, 'a] == [1, "a"]</code>는 <code>false</code>, <code>"1" in [1, 2]</code>는 <code>false</code>). 숫자끼리는 타입을 넘어 수로 견준다(<code>1 == 1.0</code>). JSON·파일·명령 출력·환경 변수에서 온 값은 늘 문자열이므로, <code>env("PORT") == 8080</code>이나 <code>back.kind == 'not_found</code>는 늘 거짓이다. 조건이 한 번도 참이 되지 않으면 두 값의 타입부터 본다. 한쪽을 바꿔서(<code>int(s)</code>, <code>str(n)</code>, <code>sym(s)</code>) 견준다. 타입을 가리려면 <code>type_of</code>나 패턴을 쓴다: 리터럴 패턴(<code>'not_found =&gt;</code>, <code>1 =&gt;</code>)도 타입까지 본다.</p>
-<p><strong>순서는 다르다.</strong> 문자열과 수 사이, 개수가 다른 두 튜플 사이에는 "어느 쪽이 작은가"의 답이 없으므로 <code>&lt;</code> 등은 에러다(E0501). 이 검사는 값과 상관없이 끝까지 간다: <code>[1, "a"] &lt; [2, 1]</code>은 첫 원소에서 답이 정해져도 둘째 쌍이 견줄 수 없으므로 에러이고, <code>sort</code>·<code>sort_by</code>·<code>min</code>·<code>max</code>는 시작하기 전에 모든 원소(<code>sort_by</code>는 키)를 첫 원소와 견준다. 그래서 정렬이 자료에 따라 되다 말다 하지 않는다. 길이가 다른 두 리스트는 짧은 쪽이 앞이다(<code>[1] &lt; [1, 2]</code>).</p>
+<p><strong>순서는 다르다.</strong> 문자열과 수 사이, 개수가 다른 두 튜플 사이에는 "어느 쪽이 작은가"의 답이 없으므로 <code>&lt;</code> 등은 에러다(E0501). 이 검사는 값과 상관없이 끝까지 간다: <code>[1, "a"] &lt; [2, 1]</code>은 첫 원소에서 답이 정해져도 둘째 쌍이 견줄 수 없으므로 에러이고, <code>sort</code>·<code>sort_by</code>·<code>min</code>·<code>max</code>는 시작하기 전에 모든 원소(<code>sort_by</code>는 키)의 모양이 하나로 합쳐져야 한다. 모양은 수·문자열·기간·시각이거나, 튜플이면 개수와 자리마다의 모양, 리스트면 자리마다의 모양이다(긴 리스트가 자리를 늘리고, 짧은 리스트는 없는 자리에 대해 아무 말도 하지 않는다). 그래서 <code>[[], [1, "a"], [2], [3, 0]]</code>은 어느 순서로 주어도 둘째 자리의 <code>"a"</code>와 <code>0</code>이 부딪쳐 에러이고, 정렬이 자료의 값이나 순서에 따라 되다 말다 하지 않는다. 길이가 다른 두 리스트는 짧은 쪽이 앞이다(<code>[1] &lt; [1, 2]</code>).</p>
 
 ## 경계 사례와 에러 {#edges}
 
@@ -84,11 +84,12 @@ print(sort([[2, "b"], [1, "a"]]))
 print(sort([[1, "a"], [2, 2]]))
 ```
 
-함수는 같음이 없다.
+함수는 같음이 없다. 함수를 품은 값도 그렇다: 두 쪽이 다 함수를 품으면(리스트·맵·튜플·태그의 어느 깊이든) `==`·`!=`·`in`은 다른 원소의 값이나 맵의 순서와 상관없이 에러다. 한쪽에만 함수가 있으면 다른 값과 같지 않을 뿐이다.
 
 ```fung run exit=1 error=E0501
 f = x => x
-print(f == f)
+print([1, f] == [1, 2], f in [1, 2], f != nil)
+print([1, f] == [2, f])
 ```
 
 정수는 64비트이고 넘치면 에러다(조용히 감싸지 않는다).

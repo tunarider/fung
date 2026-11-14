@@ -43,7 +43,7 @@ pub(super) struct Scope {
     pub(super) used: HashSet<String>,
     pub(super) param: HashSet<String>,
     /// The names of the fns this block defines (`fn a() …`): a second
-    /// one is E0210 (FE61).
+    /// one is E0238 (FE61, D122).
     pub(super) fns: HashSet<String>,
     /// The names of this block sure to hold a known function (a local
     /// `fn`, or the callee a partial application keeps): a call of one

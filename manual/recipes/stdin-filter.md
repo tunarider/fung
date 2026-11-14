@@ -43,8 +43,8 @@ import regex
 entry = `^\S+ \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) [^"]*" (\d{3}) \d+ ([\d.]+)$`
 
 fn parse(line) = match regex.find(line, entry):
-  nil                                      => nil
-  {groups: [at, method, path, code, secs]} =>
+  nil                                           => nil
+  {groups: [at, method, path, code, secs], ...} =>
     {at, method, path, status: int(code), took: parse_float(secs)! * 1s}
 ;;
 
@@ -81,7 +81,7 @@ eprint("kept ${kept} of ${seen} lines, ${bad} not understood")
 
 :::box mistake `while read line` 대신
 
-쉘의 `while read -r line; do …; done`에 해당하는 `while`은 fung에 없다. 입력이 작고 끝이 있으면 `read_lines()!`로 전부 받아 `for`나 `filter`로 다루는 것이 가장 쉽다. 다만 `read_lines`는 입력이 **끝날 때까지** 기다리므로 `tail -f` 뒤에서는 아무것도 내보내지 않는다. 끝없는 입력은 위처럼 `read_line`과 꼬리 재귀로 한 줄씩 다룬다. 루프 안에서 `kept = kept + 1`처럼 바깥 변수를 바꾸려 하면 E0205이므로, 세는 값은 인자로 넘긴다.
+쉘의 `while read -r line; do …; done`에 해당하는 `while`은 fung에 없다. 입력이 작고 끝이 있으면 `read_lines()!`로 전부 받아 `for`나 `filter`로 다루는 것이 가장 쉽다. 다만 `read_lines`는 입력이 **끝날 때까지** 기다리므로 `tail -f` 뒤에서는 아무것도 내보내지 않는다. 끝없는 입력은 위처럼 `read_line`과 꼬리 재귀로 한 줄씩 다룬다. 루프 안에서 `kept = kept + 1`처럼 바깥 변수를 바꾸려 하면 E0238이므로, 세는 값은 인자로 넘긴다.
 
 ```file hosts.txt
 web1

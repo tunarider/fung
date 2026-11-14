@@ -16,7 +16,7 @@ lede: import 없이 쓰는 prelude와, 이름으로 가져오는 표준 모듈. 
   <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Rust로 구현했다(<a href="../vm/internals.html#layers">네 층</a>).</li>
 </ul>
 
-<p>import 없이 쓴다. 같은 이름의 변수·매개변수·함수를 만들면 컴파일 에러(E0240)다.</p>
+<p>import 없이 쓴다. 같은 이름의 변수·매개변수·함수를 만들면 컴파일 에러(E0238)다.</p>
 
 ## 목록 {#list}
 

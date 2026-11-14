@@ -573,7 +573,7 @@ fn newlines_inside_brackets_are_whitespace_between_items() {
         ("map(xs, x\n  => x)", "E0112"),
         ("map(xs, (a, b)\n  => a)", "E0112"),
         ("x = [Red\n  (1)]", "E0112"),
-        ("match r: [Ok\n (v)] => v ;;", "E0236"),
+        ("match r: [Ok\n (v)] => v ;;", "E0112"),
         ("f(a\n: 1)", "E0112"),
     ]);
     assert_eq!(
@@ -927,7 +927,30 @@ fn patterns_and_match() {
         ("match v: [...a, b] => 1 ;;", "E0110"),
         ("match v: 1 + 2 => 1 ;;", "E0110"),
         ("match v: ;;", "E0112"),
-        ("match v: x => ;;", "E0112"),
+    ]);
+}
+
+/// An arm's body may be empty: the arm does nothing (D121).
+#[test]
+fn an_arm_may_have_an_empty_body() {
+    check(&[
+        (
+            "match v: 1 => print(1); _ => ;;",
+            "(program (match v (arm (plit 1) (nil) (block (call print 1))) (arm (pwild) (nil) (block))))",
+        ),
+        (
+            "match v:\n  _ =>\n  1 => print(1)\n;;",
+            "(program (match v (arm (pwild) (nil) (block)) (arm (plit 1) (nil) (block (call print 1)))))",
+        ),
+        (
+            "match v: x => ;;",
+            "(program (match v (arm (pbind x) (nil) (block))))",
+        ),
+        // `y =>` starts the next arm, so `1`'s body is empty
+        (
+            "match v: 1 => y => y + 1 ;;",
+            "(program (match v (arm (plit 1) (nil) (block)) (arm (pbind y) (nil) (block (binary + y 1)))))",
+        ),
     ]);
 }
 
@@ -1076,6 +1099,68 @@ fn map_literal_rejects_duplicate_keys() {
         p("{a: 1, b: 1}"),
         "(program (map (entry a 1) (entry b 1)))",
         "distinct keys"
+    );
+}
+
+/// Where a string without interpolation is required, a raw string is the
+/// same thing (D129): pattern, map key (literal and pattern), import path,
+/// test name.
+#[test]
+fn raw_strings_fill_the_plain_string_positions() {
+    check(&[
+        (
+            "match x: `a b` => 1 ;;",
+            "(program (match x (arm (plit \"a b\") (nil) (block 1))))",
+        ),
+        ("{`a b`: 1}", "(program (map (entry a b 1)))"),
+        (
+            "{`a b`: v} = m",
+            "(program (assign (pmap (pentry a b (pbind v))) m))",
+        ),
+        (
+            "import `./lib/x` as y",
+            "(program (import \"./lib/x\" as y))",
+        ),
+        (
+            "test `a b`:\n  assert true\n;;",
+            "(program (test \"a b\" (block (assert true))))",
+        ),
+    ]);
+    assert_eq!(perr("{`a`: 1, \"a\": 2}"), "E0113", "same key either way");
+    assert_eq!(perr("{`a` 1}"), "E0112", "a key still needs its colon");
+}
+
+/// A key written decomposed is the composed key, in a map literal, a
+/// shorthand, a field and a map pattern alike (D130); a quoted key stays.
+#[test]
+fn identifier_shaped_keys_are_nfc() {
+    let (c, d) = ("caf\u{e9}", "cafe\u{301}");
+    for (src, want) in [
+        (
+            format!("{{{d}: 1}}"),
+            format!("(program (map (entry {c} 1)))"),
+        ),
+        (
+            format!("{{{d}}}"),
+            format!("(program (map (entry {c} {c})))"),
+        ),
+        (format!("m.{d}"), format!("(program (field {c} m))")),
+        (
+            format!("{{{d}: v}} = m"),
+            format!("(program (assign (pmap (pentry {c} (pbind v))) m))"),
+        ),
+        (
+            format!("{{{d}}} = m"),
+            format!("(program (assign (pmap (pentry {c} (pbind {c}))) m))"),
+        ),
+    ] {
+        assert_eq!(p(&src), want, "{src}");
+    }
+    assert_eq!(perr(&format!("{{{d}: 1, {c}: 2}}")), "E0113", "one key");
+    assert_eq!(
+        p(&format!("{{\"{d}\": 1}}")),
+        format!("(program (map (entry {d} 1)))"),
+        "a quoted key is as written"
     );
 }
 
@@ -1562,10 +1647,10 @@ fn common_syntax_errors_say_what_was_expected() {
         ("x = \"${1 2}\"", "E0110 1:10 unexpected integer `2`"),
         // escapes: the escape as written, and a code point that is no
         // character has its own error
-        ("x = \"\\q\"", "E0103 1:6 unknown escape `\\q` in string"),
+        ("x = \"\\q\"", "E0103 1:6 invalid escape `\\q` in string"),
         (
             "x = \"\\\t\"",
-            "E0103 1:6 unknown escape `\\` followed by U+0009 in string",
+            "E0103 1:6 invalid escape `\\` followed by U+0009 in string",
         ),
         (
             "x = \"\\u{110000}\"",
@@ -1806,9 +1891,48 @@ fn nothing_follows_a_return_statement_in_its_block() {
         "fn f():\n  if c: return 1 ;;\n  2\n;;",
         "fn f(x) = match x:\n  1 => return 2\n  _ => 4\n;;",
         "fn f():\n  return 1\n;;",
+        // a branch that can complete
+        "fn f(c):\n  if c: return 1 else: print(2) ;;\n  3\n;;",
+        "fn f(x):\n  match x:\n    1 => return 2\n    _ =>\n  ;;\n  3\n;;",
+        "fn f(c):\n  if c: return 1 else if d: return 2 ;;\n  3\n;;",
+        // `fail` and `exit` are calls like any other
+        "fn f(c):\n  if c: return 1 else: fail(\"x\") ;;\n  3\n;;",
     ] {
         p(src);
     }
+}
+
+/// D111: a statement after one that cannot complete (`return`, or an
+/// `if` with `else`, a `match` or a `then … else` whose every branch ends
+/// in such a statement) never runs: E0131.
+#[test]
+fn nothing_follows_a_statement_that_cannot_complete() {
+    check_errs(&[
+        (
+            "fn f(c):\n  if c: return 1 else: return 2 ;;\n  print(3)\n;;",
+            "E0131",
+        ),
+        (
+            "fn f(c, d):\n  if c: return 1 else if d: return 2 else: return 3 ;;\n  4\n;;",
+            "E0131",
+        ),
+        (
+            "fn f(x):\n  match x:\n    1 => return 2\n    _ => return 3\n  ;;\n  4\n;;",
+            "E0131",
+        ),
+        (
+            "fn f(c):\n  c then return 1 else return 2\n  3\n;;",
+            "E0131",
+        ),
+        (
+            "fn f(c, d):\n  if c:\n    if d: return 1 else: return 2 ;;\n  else:\n    return 3\n  ;;\n  4\n;;",
+            "E0131",
+        ),
+        (
+            "fn f(x) = match x:\n  1 =>\n    if x: return 1 else: return 2 ;;\n    3\n  _ => 4\n;;",
+            "E0131",
+        ),
+    ]);
 }
 
 #[test]
@@ -1913,6 +2037,16 @@ fn habits_from_other_languages_get_their_help() {
             "fn f(x):\n  x++\n  x\n;;",
             format!("E0110 2:4 unexpected `++`\nhelp: {}", crate::habits::operator("++").unwrap()),
         ),
+        // `++` between two values joins in other languages (FE82).
+        (
+            "x = \"a\" ++ \"b\"",
+            format!("E0110 1:9 unexpected `++`\nhelp: {}", crate::habits::JOIN),
+        ),
+        // `elif` inside a chain, not only at a statement's start (FE82).
+        (
+            "y = if true: 1 elif false: 2 else: 3 ;;",
+            format!("E0134 1:16 `elif` is not a keyword in fung\nhelp: {}", words("elif")),
+        ),
         (
             "f = (a, b) -> a + b",
             format!("E0110 1:12 unexpected `->`\nhelp: {}", crate::habits::operator("->").unwrap()),
@@ -1970,6 +2104,15 @@ fn habits_from_other_languages_get_their_help() {
         }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+    // The helps name what fung has: a new name, or one expression; no
+    // rebinding (D88).
+    for h in [
+        crate::habits::compound("+"),
+        crate::habits::operator("++").unwrap().to_string(),
+    ] {
+        assert!(h.contains("bind a new name (`m = n "), "{h}");
+        assert!(!h.contains("bound again"), "{h}");
+    }
     // A word of the table is still a name where a name fits.
     p("let = 1\nprint(let)");
     p("while(1)");
@@ -2097,6 +2240,73 @@ fn brackets_do_not_join_two_lines_into_one_expression() {
     ]);
 }
 
+/// Inside brackets a newline is space only next to the brackets and
+/// around `,` (FE78): elsewhere in an item, as outside, the line goes on
+/// only by rules 1 and 2. A map entry's key and `:`, a slice's ends and
+/// its `..`, a parameter and its `:` or `=`, and an `if` or `fn` head and
+/// its block's `:` are on one line.
+#[test]
+fn brackets_keep_newlines_inside_an_item() {
+    check_errs(&[
+        ("x = {a\n: 1}", "E0112"),
+        ("{a\n: b} = {a: 1}", "E0112"),
+        ("x = xs[1\n..]", "E0112"),
+        ("x = xs[0\n..=\n1]", "E0112"),
+        ("x = [if true\n: 1 else: 2 ;;]", "E0112"),
+        ("x = [for x\nin [1]: x ;;]", "E0112"),
+        ("x = [fn(x)\n: x ;;]", "E0110"),
+        ("x = [fn(a\n: int): a ;;]", "E0112"),
+        ("x = [fn(a\n= 1): a ;;]", "E0112"),
+        ("fn f(a\n: int) = a", "E0112"),
+        ("fn f(a\n= 1) = a", "E0112"),
+        ("x = [match 1\n: _ => 1 ;;]", "E0112"),
+    ]);
+    // Next to the brackets and around `,` it is still space.
+    for (a, b) in [
+        ("(a\n, b) = (1, 2)", "(a, b) = (1, 2)"),
+        ("x = {\n  a: 1\n  ,\n  b\n}", "x = {a: 1, b}"),
+        ("{\n  a: v,\n  b\n} = m", "{a: v, b} = m"),
+        ("x = xs[\n  1..2\n]", "x = xs[1..2]"),
+        ("x = xs[\n  ..2\n]", "x = xs[..2]"),
+        ("x = xs[1..\n]", "x = xs[1..]"),
+        ("x = f(\n  a,\n  b: 2\n)", "x = f(a, b: 2)"),
+        // A line ending in `:` or `=` goes on (rule 1).
+        ("x = {a:\n  1}", "x = {a: 1}"),
+        ("{a:\n  v} = m", "{a: v} = m"),
+        ("x = f(b:\n  2)", "x = f(b: 2)"),
+        ("fn f(a:\n  int, b =\n  1) = a", "fn f(a: int, b = 1) = a"),
+        (
+            "fn f(\n  a: int,\n  b = 1\n) = a",
+            "fn f(a: int, b = 1) = a",
+        ),
+        ("x = [\n  fn(x): x ;;\n]", "x = [fn(x): x ;;]"),
+        ("x = (\n  1,\n)", "x = (1,)"),
+        ("x = [Ok(\n  1\n)]", "x = [Ok(1)]"),
+    ] {
+        assert_eq!(p(a), p(b), "{a:?}");
+    }
+}
+
+/// A map pattern's shorthand binds the name it is written with, so `{_}`
+/// would bind nothing and stand for the key `"_"` (FE79): E0112. The key
+/// `_` written out, `{_: v}`, is a key like any other.
+#[test]
+fn a_map_pattern_shorthand_is_not_the_wildcard() {
+    assert_eq!(
+        full_err("{_} = m"),
+        "E0112 1:2 expected a name to bind, found `_`\nhelp: `{_}` binds nothing; write `{key: _}`, or `{...}` for any map"
+    );
+    check_errs(&[
+        ("x = match v: {_} => 1; _ => 2 ;;", "E0112"),
+        ("x = match v: {a, _} => 1; _ => 2 ;;", "E0112"),
+        ("for {_} in xs: print(1) ;;", "E0112"),
+    ]);
+    check(&[(
+        "{_: v} = m",
+        "(program (assign (pmap (pentry _ (pbind v))) m))",
+    )]);
+}
+
 /// A statement that follows another does not begin its line with `-`
 /// (D85): the line before it would be a statement of its own, dropped,
 /// with the negated value in its place. The first statement of a file or
@@ -2166,6 +2376,41 @@ fn an_unnamed_rest_is_written_without_a_name() {
         ("[x, ..._] = xs", "E0112"),
         ("match xs: [x, ..._] => x ;;", "E0112"),
     ]);
+}
+
+/// A map pattern is opened with `...` like a list pattern: `...` alone
+/// ignores the other keys, `...rest` binds them, and it comes last, once
+/// (D114).
+#[test]
+fn a_map_pattern_opens_with_dots() {
+    check(&[
+        (
+            "{a, ...} = m",
+            "(program (assign (pmap (pentry a (pbind a)) (prest)) m))",
+        ),
+        (
+            "{a: x, ...rest} = m",
+            "(program (assign (pmap (pentry a (pbind x)) (prest rest)) m))",
+        ),
+        ("{...} = m", "(program (assign (pmap (prest)) m))"),
+        ("{...all,} = m", "(program (assign (pmap (prest all)) m))"),
+        ("{} = m", "(program (assign (pmap) m))"),
+        (
+            "match r: Err({kind: 'x, ...}) => 1 ;;",
+            "(program (match r (arm (ptag Err (pmap (pentry kind (psym x)) (prest))) (nil) (block 1))))",
+        ),
+    ]);
+    check_errs(&[
+        // as in a list pattern (`[..., a]`), the rest comes last
+        ("{..., a} = m", "E0110"),
+        ("{...r, a} = m", "E0110"),
+        ("{..., ...} = m", "E0110"),
+        ("[..., a] = m", "E0110"),
+    ]);
+    assert_eq!(
+        full_err("{a, ..._} = m"),
+        "E0112 1:8 expected a name after `...`, found `_`\nhelp: a rest that is not named is written `...` alone"
+    );
 }
 
 /// Small parser fixes of the fourth review: a bare lambda is no slice end

@@ -21,7 +21,8 @@ pub enum PatKind {
     Tuple,
     /// `[p, …]` with an optional rest.
     List,
-    /// `{k: p, …}`: other keys are ignored.
+    /// `{k: p, …}` with an optional rest: without one the map has
+    /// exactly the keys written (D114).
     Map,
     /// `p | p`
     Alt,
@@ -43,7 +44,9 @@ pub struct Pattern {
     pub kids: Vec<Pattern>,
     /// Map: keys parallel to `kids`.
     pub keys: Vec<Vec<u8>>,
-    /// List: `None` = exact length; Wild ignores the rest; Bind binds it.
+    /// List, Map: `None` = exactly the items or keys written; Wild
+    /// ignores the rest; Bind binds it (a list, or a map of the other
+    /// entries in order).
     pub rest: Option<Box<Pattern>>,
 }
 
@@ -55,6 +58,23 @@ fn join(f: &mut fmt::Formatter<'_>, kids: &[Pattern], sep: &str) -> fmt::Result 
         write!(f, "{k}")?;
     }
     Ok(())
+}
+
+impl Pattern {
+    /// `, ...` or `, ...$n` after the items of a list or map pattern.
+    fn write_rest(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Some(rest) = &self.rest else {
+            return Ok(());
+        };
+        if !self.kids.is_empty() {
+            f.write_str(", ")?;
+        }
+        f.write_str("...")?;
+        if rest.kind != PatKind::Wild {
+            write!(f, "{rest}")?;
+        }
+        Ok(())
+    }
 }
 
 /// Renders a pattern for disassembly: bound slots print as `$n` and
@@ -84,15 +104,7 @@ impl fmt::Display for Pattern {
             PatKind::List => {
                 f.write_str("[")?;
                 join(f, &self.kids, ", ")?;
-                if let Some(rest) = &self.rest {
-                    if !self.kids.is_empty() {
-                        f.write_str(", ")?;
-                    }
-                    f.write_str("...")?;
-                    if rest.kind != PatKind::Wild {
-                        write!(f, "{rest}")?;
-                    }
-                }
+                self.write_rest(f)?;
                 f.write_str("]")
             }
             PatKind::Map => {
@@ -107,6 +119,7 @@ impl fmt::Display for Pattern {
                         Err(_) => write!(f, "{}: {v}", crate::consts::quote_bytes(k))?,
                     }
                 }
+                self.write_rest(f)?;
                 f.write_str("}")
             }
             PatKind::Alt => join(f, &self.kids, " | "),

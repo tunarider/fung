@@ -16,7 +16,7 @@ pub struct Entry {
 const CATALOG: &[[&str; 4]] = &[
     ["E0101", "unexpected character %q", "", ""],
     ["E0102", "malformed number %q", "", ""],
-    ["E0103", "unknown escape %s in string", "", ""],
+    ["E0103", "invalid escape %s in string", "", ""],
     ["E0104", "unterminated string", "", ""],
     ["E0105", "malformed duration %q", "", ""],
     [
@@ -153,6 +153,7 @@ const CATALOG: &[[&str; 4]] = &[
         "not found in this scope",
         "",
     ],
+    // not raised since it was merged into E0238 (D122)
     [
         "E0205",
         "cannot assign to `%s` here: it is bound outside this block",
@@ -169,7 +170,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0208",
         "local function `%s` is defined later in this block",
         "",
-        "local functions can only call themselves; move both functions to the top level",
+        "a local function can call itself and the local functions defined before it; define this one before the function that calls it, or move both to the top level",
     ],
     // not raised since it was merged into E0238 (D88)
     [
@@ -178,6 +179,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "",
     ],
+    // not raised since it was merged into E0238 (D122)
     ["E0210", "function `%s` is defined twice", "", ""],
     ["E0211", "%s %s", "", "use `exit()` to stop a script early"],
     ["E0212", "unknown type `%s`", "", ""],
@@ -328,6 +330,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "remove it, or start its name with `_` if it is kept on purpose",
     ],
+    // not raised since it was merged into E0238 (D122)
     [
         "E0240",
         "`%s` hides %s",
@@ -374,6 +377,7 @@ const CATALOG: &[[&str; 4]] = &[
         "move the statement into a function, or into the entry file",
     ],
     ["E0307", "cannot import the entry file", "", ""],
+    // not raised since it was merged into E0238 (D122)
     [
         "E0308",
         "cannot shadow module `%s`",
@@ -396,7 +400,7 @@ const CATALOG: &[[&str; 4]] = &[
         "put every import at the top of the file, before the other statements",
     ],
     ["E0401", "cannot call a value of type %s", "", ""],
-    ["E0402", "%s takes %d argument(s), got %d", "", ""],
+    ["E0402", "%s takes %d argument(s), got %s", "", ""],
     ["E0403", "argument `%s` must be %s, got %s", "", ""],
     ["E0404", "return value must be %s, got %s", "", ""],
     ["E0405", "argument `%s` given twice", "", ""],

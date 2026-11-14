@@ -60,9 +60,9 @@ fn row(host):
 ;;
 
 fn why(e) = match e:
-  {kind: 'timeout}   => "no answer in 20s"
-  {kind: 'exit, err} => trim(err)
-  _                  => e.message
+  {kind: 'timeout, ...}   => "no answer in 20s"
+  {kind: 'exit, err, ...} => trim(err)
+  _                       => e.message
 ;;
 
 # Rows of strings → aligned lines, two spaces between columns.
@@ -127,7 +127,7 @@ each(table([["host", "kernel", "cpus"], ["web1", facts.kernel, facts.cpus], ["db
 
 :::box mistake 표를 문자열로 쌓아 가기
 
-쉘에서는 `out="$out$line\n"`처럼 문자열 변수에 줄을 덧붙인다. fung에서 같은 모양은 두 가지로 막힌다. 반복문 안에서 바깥 `out`에 다시 대입하면 E0205이고, `fold`로 `acc + line`을 쌓으면 되기는 하지만 줄이 늘수록 매번 전체를 복사해 느려진다. 위처럼 줄을 리스트로 만든 뒤 `each(…, print)`로 찍거나 `join(lines, "\n")`으로 한 번에 잇는다.
+쉘에서는 `out="$out$line\n"`처럼 문자열 변수에 줄을 덧붙인다. fung에서 같은 모양은 두 가지로 막힌다. 반복문 안에서 바깥 `out`에 다시 대입하면 E0238이고, `fold`로 `acc + line`을 쌓으면 되기는 하지만 줄이 늘수록 매번 전체를 복사해 느려진다. 위처럼 줄을 리스트로 만든 뒤 `each(…, print)`로 찍거나 `join(lines, "\n")`으로 한 번에 잇는다.
 
 :::
 

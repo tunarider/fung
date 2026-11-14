@@ -75,8 +75,8 @@ import json
 services = json.parse(fs.read("services.json")!)!
 for svc in services:
   match svc:
-    {name, status: "down"} => print("DOWN", name)
-    {name, replicas}       => print("up  ", name, "x${replicas}")
+    {name, status: "down", ...} => print("DOWN", name)
+    {name, replicas, ...}       => print("up  ", name, "x${replicas}")
   ;;
 ;;
 ```

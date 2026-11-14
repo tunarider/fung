@@ -4,4 +4,4 @@ fn outer():
   go(1)
 ;;
 print(outer())
-# expect-error: E0240
+# expect-error: E0238

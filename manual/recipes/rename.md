@@ -93,12 +93,12 @@ print("${done} renamed, ${skipped} skipped${note}")
 
 :::box mistake 반복문 안에서 개수 세기
 
-쉘에서는 `n=$((n+1))`로 반복문 안에서 수를 센다. fung에서 같은 모양으로 쓰면 컴파일 에러 E0205다. 블록(`:`부터 `;;`까지)은 바깥 변수를 읽을 수는 있어도 바꿀 수는 없다.
+쉘에서는 `n=$((n+1))`로 반복문 안에서 수를 센다. fung에서 같은 모양으로 쓰면 컴파일 에러 E0238이다. 블록(`:`부터 `;;`까지)은 바깥 변수를 읽을 수는 있어도 바꿀 수는 없다.
 
-```fung run exit=2 error=E0205
+```fung run exit=2 error=E0238
 n = 0
 for f in ["a.txt", "b.txt"]:
-  n = n + 1  # E0205
+  n = n + 1  # E0238
 ;;
 ```
 
@@ -113,4 +113,4 @@ for f in ["a.txt", "b.txt"]:
 - **다른 규칙**: 날짜를 앞에 붙이거나(`"2026-10-20-" + to`) 번호를 매기는 것은 `target`만 고치면 된다. 번호는 `zip(1..=len(files), files)`처럼 짝을 지어 넘긴다.
 - **같은 이름으로 모이는 파일**: `Server List.csv`와 `SERVER  LIST.csv`처럼 둘 다 `server-list.csv`가 되면, 실제로 돌릴 때는 먼저 처리된 쪽만 바뀌고 나머지는 `skip:`으로 남는다. 미리 보기는 파일을 옮기지 않으므로 둘 다 바뀔 것처럼 보인다. 미리 보기에서 같은 대상이 두 번 나오는지 살핀다.
 
-배우기: [11장 파일과 외부 명령](../learn/11-files-and-commands.html), [7장 컬렉션](../learn/07-collections.html). 레퍼런스: [`fs.list`](../reference/modules/fs.html#fn-fs-list), [`fs.move`](../reference/modules/fs.html#fn-fs-move), [`fs.exists`](../reference/modules/fs.html#fn-fs-exists), [`path.stem`](../reference/modules/path.html#fn-path-stem), [`path.ext`](../reference/modules/path.html#fn-path-ext), [`cli.parse`](../reference/modules/cli.html#fn-cli-parse), [E0205](../reference/errors.html#E0205).
+배우기: [11장 파일과 외부 명령](../learn/11-files-and-commands.html), [7장 컬렉션](../learn/07-collections.html). 레퍼런스: [`fs.list`](../reference/modules/fs.html#fn-fs-list), [`fs.move`](../reference/modules/fs.html#fn-fs-move), [`fs.exists`](../reference/modules/fs.html#fn-fs-exists), [`path.stem`](../reference/modules/path.html#fn-path-stem), [`path.ext`](../reference/modules/path.html#fn-path-ext), [`cli.parse`](../reference/modules/cli.html#fn-cli-parse), [E0238](../reference/errors.html#E0238).

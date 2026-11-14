@@ -135,7 +135,7 @@ rate limited, waiting 1s
 <li><code>all_items(url, [], 1)!</code>: 어느 페이지에서든 실패하면 첫 <code>Err</code>가 여기까지 올라오고, <code>!</code>가 메시지를 찍고 종료 코드 1로 멈춘다. 반쯤 받은 결과를 성공처럼 내보내지 않는다.</li>
 </ul>
 <div class="box mistake"><b><code>while</code>과 바뀌는 변수</b>
-<p>쉘의 <code>while [ &quot;$url&quot; != &quot;null&quot; ]; do …; url=…; done</code>을 옮기려 하면 막힌다. fung에는 <code>while</code>이 없고, 블록 안에서 바깥의 <code>url</code>이나 <code>all</code>에 다시 대입하면 E0205다. "바뀌는 변수"는 "다음 호출의 인자"로 바꿔 쓴다. 위의 <code>all_items(next, items, n + 1)</code>가 그 모양이다. 정해진 횟수나 조건까지 되풀이하는 간단한 경우는 <a href="../reference/prelude/loops.html#fn-until"><code>until</code></a>도 있다.</p>
+<p>쉘의 <code>while [ &quot;$url&quot; != &quot;null&quot; ]; do …; url=…; done</code>을 옮기려 하면 막힌다. fung에는 <code>while</code>이 없고, 블록 안에서 바깥의 <code>url</code>이나 <code>all</code>에 다시 대입하면 E0238이다. "바뀌는 변수"는 "다음 호출의 인자"로 바꿔 쓴다. 위의 <code>all_items(next, items, n + 1)</code>가 그 모양이다. 정해진 횟수나 조건까지 되풀이하는 간단한 경우는 <a href="../reference/prelude/loops.html#fn-until"><code>until</code></a>도 있다.</p>
 <div class="run"><pre><code>fn pages(n, acc) = n &gt; 3 then acc else pages(n + 1, acc + [&quot;page-${n}&quot;])
 print(pages(1, []))
 print(until(1, x =&gt; x * 2, x =&gt; x &gt; 100))</code></pre><pre class="out plain"><code>[&quot;page-1&quot;, &quot;page-2&quot;, &quot;page-3&quot;]

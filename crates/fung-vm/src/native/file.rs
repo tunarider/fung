@@ -285,6 +285,13 @@ impl File {
         }
     }
 
+    /// Puts lines back at the front of a FIFO's read buffer (`Pipe::unread`).
+    pub(crate) fn pipe_unread(&self, bytes: Vec<u8>) {
+        if let Some(Io::Pipe(p)) = &mut *self.lock() {
+            p.unread(bytes);
+        }
+    }
+
     /// Queues a line on a FIFO's write end (`pipe_flush` sends it).
     pub(crate) fn pipe_queue(&self, line: &[u8]) -> Result<(), Fault> {
         match &mut *self.lock() {

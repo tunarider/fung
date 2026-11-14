@@ -141,12 +141,14 @@ impl Lexer<'_> {
                     .collect();
                 return match u8::from_str_radix(&hex, 16) {
                     Ok(b) if hex.len() == 2 => Ok(Unit::Byte(b)),
-                    _ => Err(self.err("E0103", p, &format!("`\\x{hex}`"))),
+                    _ => Err(self
+                        .err("E0103", p, &format!("`\\x{hex}`"))
+                        .with_help(X_FORM)),
                 };
             }
             'u' => {
                 if self.peek() != Some('{') {
-                    return Err(self.err("E0103", p, "`\\u`"));
+                    return Err(self.err("E0103", p, "`\\u`").with_help(U_FORM));
                 }
                 self.advance();
                 let hex_start = self.off;
@@ -155,7 +157,9 @@ impl Lexer<'_> {
                 }
                 let hex = self.src[hex_start..self.off].to_string();
                 if self.peek() != Some('}') || hex.is_empty() || hex.len() > 6 {
-                    return Err(self.err("E0103", p, &format!("`\\u{{{hex}`")));
+                    return Err(self
+                        .err("E0103", p, &format!("`\\u{{{hex}`"))
+                        .with_help(U_FORM));
                 }
                 self.advance();
                 // char::from_u32 rejects values above 0x10FFFF and
@@ -294,6 +298,11 @@ impl Lexer<'_> {
         Ok(())
     }
 }
+
+/// The help for a `\x` escape written wrong (FE82).
+const X_FORM: &str = "`\\xHH` takes exactly two hex digits: `\\x0a`";
+/// The help for a `\u` escape written wrong (FE82).
+const U_FORM: &str = "`\\u{…}` takes 1 to 6 hex digits in braces: `\\u{1F600}`";
 
 #[cfg(test)]
 mod tests {
@@ -472,6 +481,16 @@ mod tests {
             lex_src(r#""\u{1234567}""#).unwrap_err().args,
             s("`\\u{1234567`")
         );
+        // A known escape written wrong says its form (FE82); one that is
+        // not known takes the catalog's help.
+        let help = |src: &str| lex_src(src).unwrap_err().help.unwrap_or_default();
+        for src in [r#""\u{}""#, r#""\u{1F600""#, r#""\u{00000041}""#, r#""\u""#] {
+            assert!(help(src).contains("1 to 6 hex digits"), "{src}");
+        }
+        for src in [r#""\x4""#, r#""\xg0""#] {
+            assert!(help(src).contains("two hex digits"), "{src}");
+        }
+        assert_eq!(help(r#""\q""#), "");
     }
 
     /// A backslash at the end of a line or of the input does not escape
@@ -487,12 +506,12 @@ mod tests {
         assert_eq!(d.code, "E0103");
         assert_eq!(
             message(&d.code, &d.args),
-            "unknown escape `\\` followed by U+0009 in string"
+            "invalid escape `\\` followed by U+0009 in string"
         );
         let d = lex_src(r#""\q""#).unwrap_err();
         assert_eq!(
             message(&d.code, &d.args),
-            r#"unknown escape `\q` in string"#
+            r#"invalid escape `\q` in string"#
         );
     }
 

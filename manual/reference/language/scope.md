@@ -4,17 +4,16 @@ lede: 대입, 블록 스코프, 바깥 변수, 최상위 이름.
 ---
 # 변수와 스코프
 
-<p>대입 <code>x = 식</code>은 이름을 값에 붙인다. 붙인 이름은 바뀌지 않는다. 규칙은 일곱이다.</p>
+<p>대입 <code>x = 식</code>은 이름을 값에 붙인다. 붙인 이름은 바뀌지 않는다. 규칙은 여섯이다.</p>
 <ol>
   <li><strong>이름은 위에서 아래로 묶인다.</strong> 대입보다 앞에서 읽으면 컴파일 에러(E0204).</li>
-  <li><strong>이름은 한 번만 묶인다.</strong> 같은 블록에서 이미 묶은 이름을 다시 대입하거나 패턴·<code>fn</code>으로 다시 묶으면 컴파일 에러(E0238)다. 파일의 맨 바깥에서도 함수 본문에서도, 변수든 <code>fn</code>의 이름이든 import한 이름이든 같다. 그래서 이름은 모두 상수다. 다음 값에는 새 이름을 붙이거나, 단계들을 식 하나(파이프, <code>if</code>, <code>fold</code>)로 쓴다. REPL의 최상위만 입력마다 다시 정의할 수 있다.</li>
+  <li><strong>보이는 이름은 다시 묶을 수 없다.</strong> 이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름이든, 바깥 블록이나 바깥 함수의 이름, 최상위 이름(상수·<code>fn</code>), import한 이름과 모듈 이름, prelude 함수든, 보이는 이름을 다시 묶으면 묶는 방법(대입, 구조 분해, <code>fn</code>·람다의 매개변수, <code>for</code>의 변수, <code>match</code> 절의 패턴, 지역 <code>fn</code>, 최상위 <code>fn</code>, import)과 상관없이 컴파일 에러 E0238이다. 파일의 맨 바깥에서도 함수 본문에서도 같다. 그래서 이름은 모두 상수이고, 한 자리에서 이름 하나는 한 가지만 뜻한다. 노트가 그 이름이 어디서 왔는지(같은 블록의 몇째 줄, 블록 바깥, 최상위 이름, <code>fn</code>, import, 모듈, prelude 함수) 알려 주고, 도움말이 무엇을 쓸지 알려 준다(반복문 안의 <code>total = total + 1</code>이면 식이나 <code>fold</code>, 모듈 이름이면 <code>import … as</code>). 다음 값에는 새 이름을 붙이거나, 단계들을 식 하나(파이프, <code>if</code>, <code>fold</code>)로 쓴다. REPL의 최상위만 입력마다 다시 정의할 수 있다. 예외는 하나다: 파일의 인터페이스(공개 최상위 이름과, 호출이 이름으로 줄 수 있는 공개 <code>fn</code>의 매개변수)는 prelude 함수와 같은 이름일 수 있다(<a href="modules.html">모듈</a>). 이름으로 줄 수 없는 나머지 매개변수(<code>...len</code>)와 패턴 매개변수의 이름은 인터페이스가 아니다. 같은 모듈을 두 번 import하는 것은 이름이 아니라 모듈의 규칙이라 따로 E0309다.</li>
   <li><strong>최상위 <code>fn</code>은 프로그램 시작 전에 모두 만들어진다.</strong> 그래서 순서와 상관없이 서로 부를 수 있다.</li>
   <li><strong>함수 값은 만들어질 때 보이는 변수의 값을 가진다.</strong> 이름이 한 번만 묶이므로 그 값은 함수를 언제 불러도 같다.</li>
   <li><strong>블록은 바깥 이름을 읽을 수 있고, 블록 안에서 만든 이름은 밖으로 새지 않는다</strong>(E0206). <code>if</code> 가지, <code>match</code> 절, <code>for</code>가 모두 블록이고, 절의 패턴과 <code>for</code>의 변수가 묶는 이름도 그 블록의 이름이다.</li>
-  <li><strong>보이는 이름은 다시 묶을 수 없다.</strong> 바깥 블록이나 바깥 함수의 이름, 최상위 이름(상수·<code>fn</code>), import한 이름, prelude 함수와 같은 이름을 새로 묶으면 묶는 방법(대입, 구조 분해, <code>fn</code>·람다의 매개변수, <code>for</code>의 변수, <code>match</code> 절의 패턴, 지역 <code>fn</code>, 최상위 <code>fn</code>, import)과 상관없이 컴파일 에러다. 바깥 변수에 대입하는 꼴로 쓴 것(반복문 안의 <code>total = total + 1</code>)은 E0205이고, 나머지는 E0240이다(어디서 온 이름인지 노트로 알려 준다). 2번 규칙과 뜻은 하나다: 보이는 이름에는 값을 다시 붙일 수 없다. 모듈 이름은 E0308이다. 그래서 한 자리에서 이름 하나는 한 가지만 뜻한다. 예외는 하나다: 파일의 인터페이스(공개 최상위 이름과 공개 <code>fn</code>의 매개변수)는 prelude 함수와 같은 이름일 수 있다(<a href="modules.html">모듈</a>).</li>
   <li><strong>묶은 이름은 읽어야 한다.</strong> 한 번도 읽지 않는 지역 변수, 매개변수(람다·<code>for</code>·<code>match</code> 패턴이 묶는 이름 포함), import는 컴파일 에러(E0239)다. 파일의 최상위 이름(변수와 <code>fn</code>)은 세지 않는다: <code>_</code>로 시작하지 않는 최상위 이름은 그 파일의 공개 이름, 곧 다른 파일이 읽을 인터페이스다. 파일을 직접 실행하든 import하든 같다. 일부러 쥐기만 하는 이름은 <code>_</code>로 시작한다(<code>_watch = stop_signal()</code>, <code>(a, _b) = pair</code>). 다른 에러가 있으면 E0239는 그것을 고친 뒤에 나온다(쓰지 않는 이름은 다른 에러의 결과일 때가 많다).</li>
 </ol>
-<p>여기서 따라 나오는 것: 최상위 <code>fn</code>은 만들어질 때 최상위 변수가 아직 없으므로 복사할 것이 없다. 대신 <strong>최상위 이름은 모두 상수라서 최상위 <code>fn</code>이 부를 때 읽는다</strong>(다른 최상위 <code>fn</code>과 모듈이 보이는 것과 같은 이유다). 모듈 상태는 <code>counter = atom(0)</code>처럼 둔다. 상수는 최상위 <code>fn</code> 안 어디서나 보이므로 그 이름을 함수 안에서 다시 묶을 수 없다(본문의 맨 바깥 블록에서도 E0205, 매개변수나 <code>for</code> 변수로는 E0240). 파일이 시작하는 중에 상수의 대입보다 먼저 그것을 읽는 <code>fn</code>을 부르면 E0809다. 람다와 익명 함수는 그 자리에서 만들어지므로 그때까지의 변수를 복사한다.</p>
+<p>여기서 따라 나오는 것: 최상위 <code>fn</code>은 만들어질 때 최상위 변수가 아직 없으므로 복사할 것이 없다. 대신 <strong>최상위 이름은 모두 상수라서 최상위 <code>fn</code>이 부를 때 읽는다</strong>(다른 최상위 <code>fn</code>과 모듈이 보이는 것과 같은 이유다). 모듈 상태는 <code>counter = atom(0)</code>처럼 둔다. 상수는 최상위 <code>fn</code> 안 어디서나 보이므로 그 이름을 함수 안에서 다시 묶을 수 없다(본문의 맨 바깥 블록에서도, 매개변수나 <code>for</code> 변수로도 E0238). 파일이 시작하는 중에 상수의 대입보다 먼저 그것을 읽는 <code>fn</code>을 부르면 E0809다. 람다와 익명 함수는 그 자리에서 만들어지므로 그때까지의 변수를 복사한다.</p>
 
 ```fung frag
 dir = "./logs"
@@ -24,17 +23,17 @@ level = 2                       # E0238: 이름은 한 번만 묶인다
 
 total = 0
 for f in files:
-  total = total + 1             # E0205: 블록 안에서 바깥 변수에 대입할 수 없다
+  total = total + 1             # E0238: 블록 안에서 바깥 변수에 대입할 수 없다
 ;;
 total = len(files)              # 값을 식으로 만든다
 
-fn count(dir) = len(fs.list(dir)!)  # E0240: 매개변수 dir이 상수 dir을 가린다
-for len in [1, 2]: len ;;       # E0240: prelude 함수 len을 가린다
+fn count(dir) = len(fs.list(dir)!)  # E0238: 매개변수 dir이 상수 dir을 가린다
+for len in [1, 2]: len ;;       # E0238: prelude 함수 len을 가린다
 ```
 
-<p><strong>함수 이름.</strong> 최상위 <code>fn</code>의 이름은 상수다: 같은 파일에 같은 이름의 <code>fn</code>을 둘 두면 E0210, 그 이름에 대입하면 E0238이다(REPL만 다시 정의할 수 있다). 블록 안의 지역 <code>fn</code> 이름도 같다. 블록 안의 지역 <code>fn</code>은 그 자리에서 만들어지는 함수 값이라 4번 규칙대로 바깥 인자와 지역 변수를 복사하고, 자기 자신과 앞에서 정의한 이름만 부를 수 있다. 같은 블록의 뒤에서 정의하는 지역 <code>fn</code>을 부르면 E0208이다. 서로 부르는 함수들은 최상위에 둔다.</p>
+<p><strong>함수 이름.</strong> 최상위 <code>fn</code>의 이름은 상수다: 같은 파일에 같은 이름의 <code>fn</code>을 둘 두거나 그 이름에 대입하면 E0238이다(REPL만 다시 정의할 수 있다. fung에는 인자 개수로 함수를 고르는 오버로딩이 없다). 블록 안의 지역 <code>fn</code> 이름도 같다. 블록 안의 지역 <code>fn</code>은 그 자리에서 만들어지는 함수 값이라 4번 규칙대로 바깥 인자와 지역 변수를 복사하고, 자기 자신과 앞에서 정의한 이름만 부를 수 있다. 같은 블록의 뒤에서 정의하는 지역 <code>fn</code>을 부르면 E0208이다. 서로 부르는 함수들은 최상위에 둔다.</p>
 
-<p><strong>값의 수명.</strong> 함수 안의 변수(와 진입 파일·모듈 본문의 블록 안에서 묶은 이름)를 마지막으로 읽으면 값이 읽은 쪽으로 넘어가고, 그 길에서 더 읽힐 수 없게 되면 변수는 값을 놓는다: 그 문장이 끝날 때, 가지(<code>if</code>·<code>else</code>, <code>??</code>·<code>and</code>·<code>or</code>의 양쪽, 패턴과 가드를 지난 <code>match</code> 갈래)가 시작할 때(다른 가지나 가드에서만 읽히는 변수, <code>match</code>의 주제), 람다가 붙잡는 것이 마지막 읽기면 람다를 만든 바로 뒤(붙잡기도 읽기다), 매개변수를 뒤 매개변수의 기본값이 마지막으로 읽었으면 본문이 시작할 때. 함수 본문이든 가지 안이든, 문장이 하나뿐인 가지든 같다. 그래서 홀로 쥔 맵·리스트를 받은 <code>put</code>·<code>+</code>는 복사하지 않고 제자리에서 고친다(<code>fold</code>로 쌓는 맵이 빠른 이유). 그래서 함수 안에서 만든 채널의 보내는 끝을 생산 태스크에 넘기면, 생산이 끝날 때 채널이 닫힌다. 한 번도 읽지 않는 변수(<code>_watch = stop_signal()</code>)는 함수가 돌아올 때까지 산다. 쥐고 있는 것 자체가 뜻일 때 쓴다. 최상위 변수는 프로그램 끝까지 산다.</p>
+<p><strong>값의 수명.</strong> 함수 안의 변수(와 진입 파일·모듈 본문의 블록 안에서 묶은 이름)를 마지막으로 읽으면 값이 읽은 쪽으로 넘어가고, 그 길에서 더 읽힐 수 없게 되면 변수는 값을 놓는다: 그 문장이 끝날 때, 가지(<code>if</code>·<code>else</code>, <code>??</code>·<code>and</code>·<code>or</code>의 양쪽, 패턴과 가드를 지난 <code>match</code> 갈래)가 시작할 때(다른 가지나 가드에서만 읽히는 변수, <code>match</code>의 주제), 람다가 붙잡는 것이 마지막 읽기면 람다를 만든 바로 뒤(붙잡기도 읽기다), 매개변수를 뒤 매개변수의 기본값이 마지막으로 읽었으면 본문이 시작할 때. 함수 본문이든 가지 안이든, 문장이 하나뿐인 가지든, 매개변수의 기본값 안이든 같다(기본값은 그 매개변수를 주지 않은 호출만 지나는 가지다). 그래서 홀로 쥔 맵·리스트를 받은 <code>put</code>·<code>+</code>는 복사하지 않고 제자리에서 고친다(<code>fold</code>로 쌓는 맵이 빠른 이유). 그래서 함수 안에서 만든 채널의 보내는 끝을 생산 태스크에 넘기면, 생산이 끝날 때 채널이 닫힌다. 한 번도 읽지 않는 변수(<code>_watch = stop_signal()</code>)는 함수가 돌아올 때까지 산다. 쥐고 있는 것 자체가 뜻일 때 쓴다. 최상위 변수는 프로그램 끝까지 산다.</p>
 
 ## 경계 사례와 에러 {#edges}
 
@@ -56,7 +55,7 @@ count = count + 1
 
 블록 안에서는 바깥 변수를 바꾸지 못한다. 블록의 값을 받아 대입한다.
 
-```fung run exit=2 error=E0205
+```fung run exit=2 error=E0238
 total = 0
 for x in [1, 2]:
   total = total + x
@@ -66,7 +65,7 @@ print(total)
 
 최상위 `fn` 안도 같다. 상수 `limit`는 함수 안 어디서나 보이므로 함수 본문의 맨 바깥 블록에서도 다시 대입할 수 없다. 새 값에는 새 이름을 붙인다.
 
-```fung run exit=2 error=E0205
+```fung run exit=2 error=E0238
 limit = 10
 fn clamp(n):
   limit = n > limit then n else limit
@@ -77,13 +76,13 @@ print(clamp(3))
 
 보이는 이름은 묶는 방법과 상관없이 다시 묶을 수 없다. 매개변수, 람다의 매개변수, `for`의 변수, `match` 절의 패턴도 같다.
 
-```fung run exit=2 error=E0240
+```fung run exit=2 error=E0238
 fn shout(word) = upper(word) + "!"
 word = "a"
 print(shout(word))
 ```
 
-```fung run exit=2 error=E0240
+```fung run exit=2 error=E0238
 fn first_word(line):
   match split(line, " "):
     [line, ...] => line
@@ -95,7 +94,7 @@ print(first_word("a b"))
 
 prelude 함수의 이름도 다시 묶을 수 없다. 이름이 겹치면 다른 이름을 짓는다.
 
-```fung run exit=2 error=E0240
+```fung run exit=2 error=E0238
 fn total(xs):
   sum = 0
   sum + len(xs)
@@ -163,7 +162,7 @@ print(outer())
 
 최상위 `fn`의 이름은 상수라서 다시 정의하거나 대입할 수 없다.
 
-```fung run exit=2 error=E0210
+```fung run exit=2 error=E0238
 fn f() = 1
 fn f() = 2
 print(f())

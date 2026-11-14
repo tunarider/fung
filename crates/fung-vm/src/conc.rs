@@ -241,16 +241,13 @@ fn cancel(_: &mut Task<'_>, args: Args) -> Result<Value, Stop> {
 /// one that buffers `n` values. Nothing is allocated up front, so `n` has
 /// no upper limit.
 fn channel_fn(_: &mut Task<'_>, args: Args) -> Result<Value, Stop> {
-    match &args[0] {
-        Value::Int(n) if *n >= 0 => {
-            let (tx, rx) = channel::pair(*n as usize);
-            Ok(Value::tuple(vec![
-                Value::Sender(Rc::new(tx)),
-                Value::Receiver(Rc::new(rx)),
-            ]))
-        }
-        v => Err(nat::not_count("n", v)),
-    }
+    // a count like any other: "must be int" for another type (FE82)
+    let n = nat::need_count("n", &args[0])?;
+    let (tx, rx) = channel::pair(n);
+    Ok(Value::tuple(vec![
+        Value::Sender(Rc::new(tx)),
+        Value::Receiver(Rc::new(rx)),
+    ]))
 }
 
 /// The channel behind a sending end, or E0403 for `tx`.

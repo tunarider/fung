@@ -85,7 +85,7 @@ pub fn compile(
         opts,
         lines: &lines,
         folds: &folds,
-        lives: moves::lives(&res.core, opts.tests, false),
+        lives: moves::lives(&res.core, false),
         stubs: Vec::new(),
         ret_pos: res.core.pos,
     };
@@ -341,16 +341,23 @@ impl Compiler<'_> {
 
     /// Ends statement `k` of a block: lets go of the locals nothing reads
     /// after it (03: 값의 수명).
+    /// Where the statement starts is found only when there is something
+    /// to let go of: finding it reads the line from its start (VM51).
     fn let_go(&mut self, k: &Node) {
-        let pos = self.start_pos(k);
-        self.clear(self.lives.after.get(&k.id).cloned(), pos);
+        if let Some(slots) = self.lives.after.get(&k.id).cloned() {
+            let pos = self.start_pos(k);
+            self.clear(Some(slots), pos);
+        }
     }
 
     /// Starts branch `n` (`moves::Lives::entry`): lets go of what is dead
-    /// on it (VM19).
+    /// on it (VM19). Its start is found only when there is something to
+    /// let go of (VM51).
     pub(super) fn enter(&mut self, n: &Node) {
-        let pos = self.start_pos(n);
-        self.enter_at(n.id, pos);
+        if self.lives.entry.contains_key(&n.id) {
+            let pos = self.start_pos(n);
+            self.enter_at(n.id, pos);
+        }
     }
 
     /// Starts the branch the analysis knows by node number `id`.

@@ -1,0 +1,16 @@
+# A bare `Ok` or `Err` is its symbol, like any bare tag (D123): in an
+# expression, a pattern and an annotation. Only a tag that holds a value
+# is a result, and a pipe gives the tag its value.
+x = Ok
+print(x, [Err], x == sym("Ok"), type_of(Ok(1)) == Ok, is_ok(x))
+# expect: Ok [Err] true true false
+fn kind(r) = match r:
+  Ok    => "the symbol"
+  Ok(v) => "a result holding ${v}"
+  _     => "something else"
+;;
+print(kind(Ok), kind(Ok(1)), kind(Err))
+# expect: the symbol a result holding 1 something else
+fn load(p) -> Ok | Err = p == "" then Err else Ok(p)
+print(load(""), load("a.txt"), 1 |> Ok)
+# expect: Err Ok("a.txt") Ok(1)

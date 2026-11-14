@@ -12,7 +12,7 @@
 
 ```
 import fs                                    # 표준 라이브러리: 이름
-import "./lib/rename"                        # 내 파일: 경로 문자열 (.fung 생략)
+import "./lib/rename"                        # 내 파일: 경로 문자열 (로더가 .fung을 붙임)
 import "./lib/rename" as rn                  # 별칭
 import "./lib/rename" (slugify, to_kebab)     # 일부 이름만 직접 가져오기
 
@@ -25,6 +25,7 @@ slugify("Hello World")
   - `./` `../` `/`로 시작하지 않는 문자열 경로는 외부 패키지(프로젝트 extras)용으로 남겨둔다 (추후). 이름 해석 우선순위는
     core > 내장 extras > 프로젝트 extras.
 - 상대 경로는 **import하는 파일의 위치 기준**. 실행한 위치(cwd)와 무관하다.
+- 로더는 경로에 **언제나** `.fung`을 붙인다 (2026-11-14 D125): 확장자를 쓴 경로(`"./a.fung"`)는 `a.fung.fung`를 찾아 E0301(별칭이 없으면 E0305)로 드러난다. "확장자가 없을 때만 붙인다"는 예외를 두지 않는다.
 - 전부 풀어서 가져오기(`import *`)는 없다.
 - `import "./x" as y (a, b)`처럼 `as`와 목록을 같이 쓰면 둘 다 묶인다. 목록만 쓰면 모듈 이름은 묶이지 않는다.
 - **import한 이름은 다시 내보내지 않는다.** `import "./a" (x)`를 한 모듈 `b`를 가져와도 `b.x`는 없다.
@@ -72,7 +73,7 @@ slugify("Hello World")
 ## 기본 내장 (prelude)
 
 - 자주 쓰는 함수는 import 없이 사용한다.
-- **prelude 이름은 가릴 수 없다**(2026-11-11 SP30, 사용자 결정 D38; 03 규칙 5). `fn map(...)`, `len = 3`, 매개변수 `max`, `import regex (split)`이 모두 E0240이다.
+- **prelude 이름은 가릴 수 없다**(2026-11-11 SP30, 사용자 결정 D38; 03 규칙 5). `fn map(...)`, `len = 3`, 매개변수 `max`, `import regex (split)`이 모두 E0238이다(D122 전에는 E0240).
   한 자리에서 이름 하나는 한 가지를 뜻하게 하려는 것이다. 대가: prelude에 함수를 더하면 그 이름을 쓰던 사용자 코드가 깨진다(그래서 prelude에는 확실한 것만 둔다).
   예외: 파일의 인터페이스(공개 최상위 이름, 공개 `fn`의 매개변수)는 prelude 이름이어도 된다. 부르는 쪽은 `http.get`, `timeout:`으로만 쓰므로 가림이 없다.
   그 파일 안에서는 그 이름이 prelude 것을 가린다. 같은 파일을 진입 파일로 돌려도 같다 (D86, 2026-11-13, 사용자 결정: 규칙은 파일의 것이라 import하든 진입 파일로 돌리든 `fung check`·`fung test`로 보든 같다. 전에는 진입 파일이면 인터페이스가 아니어서 공개 상수나 prelude 이름을 쓰는 모듈의 `test`를 돌릴 수 없었다).

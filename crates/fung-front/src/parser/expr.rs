@@ -322,12 +322,12 @@ impl<'a> Parser<'a> {
                 vec![s("a field name after `.`"), s(describe(p))],
             ));
         }
-        // A key as written (01); a module's member is found in NFC.
+        // A map key and a module's member are the name, NFC (D130).
         let name = self.next();
         Ok(Node::with_lit(
             Head::Field,
             t.pos,
-            Lit::Str(name.key().to_string()),
+            Lit::Str(name.text.clone()),
             vec![x],
         ))
     }
@@ -518,6 +518,7 @@ impl<'a> Parser<'a> {
     pub(super) fn call_args(&mut self, node: Node) -> PResult<Node> {
         let open = self.next().pos; // (
         self.nest += 1;
+        self.gap();
         let r = self.call_args_inner(node, open);
         self.nest -= 1;
         r
@@ -535,6 +536,8 @@ impl<'a> Parser<'a> {
                     return Err(err("E0116", name.pos, vec![s(&name.text)]));
                 }
                 self.next();
+                // a line ending in `:` goes on (01 rule 1)
+                self.skip_newlines_after_operator();
                 if self.at_hole() {
                     let pos = self.peek().pos;
                     return Err(err("E0123", pos, Vec::new()));
@@ -571,8 +574,10 @@ impl<'a> Parser<'a> {
                 let arg = self.expr(0)?;
                 node.kids.push(arg);
             }
+            self.gap();
             if self.at(Kind::Comma) {
                 self.next();
+                self.gap();
                 continue;
             }
             if !self.at(Kind::RParen) {
@@ -631,6 +636,7 @@ impl<'a> Parser<'a> {
     fn index_or_slice(&mut self, x: Node) -> PResult<Node> {
         let open = self.next(); // [
         self.nest += 1;
+        self.gap();
         let saved = self.slice.replace(self.nest);
         let r = self.index_or_slice_inner(x, open);
         self.slice = saved;
@@ -646,19 +652,24 @@ impl<'a> Parser<'a> {
             missing()
         } else {
             let e = self.expr(0)?;
+            // an end and its `..` are on one line (FE78)
             if !matches!(self.peek().kind, Kind::DotDot | Kind::DotDotEq) {
+                self.gap();
                 self.expect_desc(Kind::RBracket, "`]`")?;
                 return Ok(Node::new(Head::Index, open.pos, vec![x, e]));
             }
             e
         };
         let inclusive = self.next().kind == Kind::DotDotEq;
+        // a line ending in `..` goes on (01 rule 1)
+        self.skip_newlines_after_operator();
         // [a..] and [..]: an open end; `..=` needs one.
         let end = if !inclusive && self.at(Kind::RBracket) {
             missing()
         } else {
             self.expr(0)?
         };
+        self.gap();
         let t = self.peek();
         if matches!(t.kind, Kind::DotDot | Kind::DotDotEq) {
             return Err(err("E0118", t.pos, Vec::new()));

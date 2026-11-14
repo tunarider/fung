@@ -107,9 +107,9 @@ fn row(host):
 ;;
 
 fn why(e) = match e:
-  {kind: 'timeout}   =&gt; &quot;no answer in 20s&quot;
-  {kind: 'exit, err} =&gt; trim(err)
-  _                  =&gt; e.message
+  {kind: 'timeout, ...}   =&gt; &quot;no answer in 20s&quot;
+  {kind: 'exit, err, ...} =&gt; trim(err)
+  _                       =&gt; e.message
 ;;
 
 # Rows of strings → aligned lines, two spaces between columns.
@@ -167,7 +167,7 @@ host  kernel  cpus
 web1  6.8.0   4
 db1   -       -</code></pre></div>
 <div class="box mistake"><b>표를 문자열로 쌓아 가기</b>
-<p>쉘에서는 <code>out=&quot;$out$line\n&quot;</code>처럼 문자열 변수에 줄을 덧붙인다. fung에서 같은 모양은 두 가지로 막힌다. 반복문 안에서 바깥 <code>out</code>에 다시 대입하면 E0205이고, <code>fold</code>로 <code>acc + line</code>을 쌓으면 되기는 하지만 줄이 늘수록 매번 전체를 복사해 느려진다. 위처럼 줄을 리스트로 만든 뒤 <code>each(…, print)</code>로 찍거나 <code>join(lines, &quot;\n&quot;)</code>으로 한 번에 잇는다.</p>
+<p>쉘에서는 <code>out=&quot;$out$line\n&quot;</code>처럼 문자열 변수에 줄을 덧붙인다. fung에서 같은 모양은 두 가지로 막힌다. 반복문 안에서 바깥 <code>out</code>에 다시 대입하면 E0238이고, <code>fold</code>로 <code>acc + line</code>을 쌓으면 되기는 하지만 줄이 늘수록 매번 전체를 복사해 느려진다. 위처럼 줄을 리스트로 만든 뒤 <code>each(…, print)</code>로 찍거나 <code>join(lines, &quot;\n&quot;)</code>으로 한 번에 잇는다.</p>
 </div>
 <h2 id="vary">응용</h2>
 <ul>

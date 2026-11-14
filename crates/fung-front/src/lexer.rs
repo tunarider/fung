@@ -280,21 +280,25 @@ pub struct Token {
     pub float: f64,
     pub dur: i64,
     pub parts: Vec<Part>,
-    /// A name as written, when its NFC form (`text`) differs: a map key
-    /// is a string and keeps it (01, L8).
+    /// A name as written, when its NFC form (`text`) differs: error
+    /// underlines count the letters written.
     pub raw: Option<String>,
 }
 
 impl Token {
-    /// The text a name stands for as a map key: as written (01).
-    pub fn key(&self) -> &str {
-        self.raw.as_deref().unwrap_or(&self.text)
+    /// Whether this is a string token, `"..."` or `` `...` ``: where a
+    /// string without interpolation is written, both are the same (D129).
+    pub fn is_string(&self) -> bool {
+        matches!(self.kind, Kind::String | Kind::RawString)
     }
 
-    /// The value of a `"..."` token with no interpolation: its text, or
-    /// its bytes when they are not UTF-8 (L4). `None` when it
-    /// interpolates.
+    /// The value of a `"..."` or `` `...` `` token with no interpolation:
+    /// its text, or its bytes when they are not UTF-8 (L4). `None` when it
+    /// interpolates (a raw string never does).
     pub fn plain(&self) -> Option<Result<String, Vec<u8>>> {
+        if self.kind == Kind::RawString {
+            return Some(Ok(self.text.clone()));
+        }
         let mut bytes = Vec::new();
         for part in &self.parts {
             if part.is_code {
@@ -421,14 +425,10 @@ pub fn is_name(s: &str) -> bool {
         && word_kind(s) == Some(Kind::Name)
 }
 
+/// A hexadecimal digit, in either case: in a number literal and in an
+/// escape alike (D127).
 fn is_hex_digit(c: Option<char>) -> bool {
     c.is_some_and(|c| c.is_ascii_hexdigit())
-}
-
-/// A digit of a hexadecimal number: lowercase, like the prefix (D56).
-/// Escapes in strings (`\xFF`, `\u{1F600}`) take either case.
-fn is_lower_hex_digit(c: Option<char>) -> bool {
-    matches!(c, Some('0'..='9' | 'a'..='f'))
 }
 
 /// The bidirectional embedding, override and isolate controls (U+202A–
@@ -577,8 +577,9 @@ impl<'a> Lexer<'a> {
         while is_ident_part(self.peek()) {
             self.advance();
         }
-        // A name's text is its NFC form (01); the source keeps its bytes,
-        // and the token the written form for a map key.
+        // A name's text is its NFC form (01), a map key's too (D130); the
+        // source keeps its bytes, and the token the written form for
+        // error underlines.
         let written = &self.src[start..self.off];
         let text = unicode::nfc(written).into_owned();
         let raw = (text != written).then(|| written.to_string());

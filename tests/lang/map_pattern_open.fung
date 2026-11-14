@@ -1,0 +1,19 @@
+# A map pattern matches a map with exactly the keys written; `...` opens
+# it to other keys and `...rest` binds them, like a list pattern (D114).
+fn shape(m) = match m:
+  {}          => "empty"
+  {a: x}      => "only a=${x}"
+  {a: x, ...} => "a=${x} and more"
+  {...}       => "a map"
+  _           => "not a map"
+;;
+print(shape({}), shape({a: 1}), shape({a: 2, b: 3}), shape({b: 4}), shape([]))
+# expect: empty only a=1 a=2 and more a map not a map
+{name: n, ...others} = {port: 80, name: "web", tls: true}
+print(n, others)
+# expect: web {port: 80, tls: true}
+match Err({kind: 'not_found, message: "no such file"}):
+  Err({kind: 'not_found, ...}) => print("missing")
+  _                            => print("other")
+;;
+# expect: missing

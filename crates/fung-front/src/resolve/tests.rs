@@ -61,10 +61,16 @@ fn codes(errs: &[Diag]) -> Vec<String> {
     errs.iter().map(|e| e.code.clone()).collect()
 }
 
-/// The errors without E0240: M4_PRELUDE's `f`, `g` and `xs` stand for
-/// outer names that the cases bind again (D38).
+/// The errors without the E0238s for binding a prelude name again:
+/// M4_PRELUDE's `f`, `g` and `xs` stand for outer names that the cases
+/// bind again (D38).
 fn not_hiding(errs: &[Diag]) -> Vec<Diag> {
-    errs.iter().filter(|e| e.code != "E0240").cloned().collect()
+    errs.iter()
+        .filter(|e| {
+            !(e.code == "E0238" && e.notes.iter().any(|n| n.ends_with("is a prelude function")))
+        })
+        .cloned()
+        .collect()
 }
 
 fn first_code(errs: &[Diag]) -> String {
@@ -246,10 +252,10 @@ fn nested_blocks_stack_slots() {
 }
 
 #[test]
-fn reassigning_outer_name_in_block_is_e0205() {
+fn reassigning_outer_name_in_block_is_e0238() {
     let (_, errs) = res("total = 0\nif true: total = total + 1 ;;");
     assert_eq!(errs.len(), 1);
-    assert_eq!(errs[0].code, "E0205");
+    assert_eq!(errs[0].code, "E0238");
     assert_eq!(arg0(&errs[0]), "total");
     assert_eq!(errs[0].len, 5);
     assert_eq!((errs[0].pos.line, errs[0].pos.col), (2, 10));
@@ -258,7 +264,7 @@ fn reassigning_outer_name_in_block_is_e0205() {
     assert_eq!(codes(&errs), vec!["E0238"]);
     // And a local may not be bound again from a nested block either.
     let (_, errs) = res("if true: n = 1; if true: n = 2 ;; ;;");
-    assert_eq!(codes(&errs), vec!["E0205"]);
+    assert_eq!(codes(&errs), vec!["E0238"]);
 }
 
 #[test]
@@ -441,18 +447,27 @@ fn local_named_fn_uses_self_and_rejects_later_siblings() {
     let (_, errs) = res("fn outer():\n  fn a() = b()\n  fn b() = 1\n  a()\n;;");
     assert_eq!(codes(&errs), vec!["E0208"]);
     assert_eq!(arg0(&errs[0]), "b");
+    // A local fn may call those defined before it (FE82).
+    assert!(
+        crate::diag::catalog::entry("E0208")
+            .unwrap()
+            .help
+            .contains("defined before it"),
+        "{}",
+        crate::diag::catalog::entry("E0208").unwrap().help
+    );
 }
 
 #[test]
 fn fn_scope_errors() {
     let cases = [
-        ("fn f() = 1\nfn f() = 2", "E0210"),
+        ("fn f() = 1\nfn f() = 2", "E0238"),
         ("fn f() = 1\nf = 2", "E0238"),
         // A top-level fn cannot bind a constant's name, not even in its
         // outermost block (D38 reverses 11-10 D4).
-        ("x = 1\nfn f(): x = 2; x ;;", "E0205"),
-        ("x = 1\nfn f():\n  y = x\n  x = 2\n  y\n;;", "E0205"),
-        ("x = 1\n_f = fn():\n  x = 2\n  x\n;;", "E0205"), // an anonymous fn created after x sees it
+        ("x = 1\nfn f(): x = 2; x ;;", "E0238"),
+        ("x = 1\nfn f():\n  y = x\n  x = 2\n  y\n;;", "E0238"),
+        ("x = 1\n_f = fn():\n  x = 2\n  x\n;;", "E0238"), // an anonymous fn created after x sees it
         ("fn f(a): g = () => a; a = 2; g ;;", "E0238"),   // a name is bound once (D88)
         ("return 1", "E0211"),
         ("if true: return 1 ;;", "E0211"),
@@ -468,33 +483,33 @@ fn fn_scope_errors() {
         // No block of a top-level fn can assign the constant (FE23, D38).
         (
             "c = 1\nfn g():\n  print(c)\n  if true:\n    c = 2\n  ;;\n  0\n;;",
-            "E0205",
+            "E0238",
         ),
-        ("c = 1\nfn g():\n  if true: c = 2 ;;\n  c\n;;", "E0205"),
+        ("c = 1\nfn g():\n  if true: c = 2 ;;\n  c\n;;", "E0238"),
         (
             "c = 1\nfn g(x):\n  match x:\n    _ =>\n      c = 2\n      c\n  ;;\n;;",
-            "E0205",
+            "E0238",
         ),
         (
             "c = 1\nfn g():\n  f = () => c\n  if true: c = 2 ;;\n  f\n;;",
-            "E0205",
+            "E0238",
         ),
         (
             "c = 1\nfn g():\n  f = fn():\n    c = 2\n    c\n  ;;\n  f\n;;",
-            "E0205",
+            "E0238",
         ),
         (
             "c = 1\nfn g():\n  y = if true:\n    c = 2\n    c\n  else:\n    0\n  ;;\n  y\n;;",
-            "E0205",
+            "E0238",
         ),
         // A `for` or an arm cannot hide the constant either (D38).
         (
             "c = 1\nfn g():\n  for c in [5]: print(c) ;;\n  c\n;;",
-            "E0240",
+            "E0238",
         ),
         (
             "c = 1\nfn g(x):\n  y = match x: c => c ;;\n  (y, c)\n;;",
-            "E0240",
+            "E0238",
         ),
         // A block's own name is bound once (D88).
         (
@@ -512,12 +527,12 @@ fn fn_scope_errors() {
         // the constant is not the fn's to assign anywhere (FE23, D38).
         (
             "c = 1\nfn g(t):\n  if t: c = 2 ;;\n  c = 3\n  c\n;;",
-            "E0205",
+            "E0238",
         ),
         ("fn g(t):\n  if t: c = 2; print(c) ;;\n  c = 3\n  c\n;;", ""),
         (
             "c = 1\nfn g(t):\n  c = 3\n  if t: c = 2 ;;\n  c\n;;",
-            "E0205",
+            "E0238",
         ),
         ("test \"a\":\n  return nil\n;;", ""),
     ];
@@ -560,20 +575,20 @@ fn defaults_see_names_of_earlier_pattern_params() {
 #[test]
 fn a_closed_name_is_not_read_as_the_prelude() {
     // A prelude name cannot be bound at all (D38), so no name that left
-    // its block is a prelude name: binding one is E0240 (03, rule 4).
+    // its block is a prelude name: binding one is E0238 (03, rule 4).
     let opts = Options::default();
     let (_, errs) = resolve_with(
         "if true: lines = [1] ;;\nprint(lines)",
         &["print", "lines"],
         &opts,
     );
-    assert_eq!(first_code(&errs), "E0240");
+    assert_eq!(first_code(&errs), "E0238");
     let (_, errs) = resolve_with(
         "fn f():\n  max(1)\n  fn max(x) = x\n  nil\n;;",
         &["max"],
         &opts,
     );
-    assert_eq!(codes(&errs), ["E0208", "E0240"]);
+    assert_eq!(codes(&errs), ["E0208", "E0238"]);
     // The prelude stays visible where nothing hides it.
     let (_, errs) = resolve_with("fn f(s) = lines(s)", &["lines"], &opts);
     assert!(errs.is_empty(), "{errs:?}");
@@ -703,7 +718,7 @@ fn destructuring_binds_like_assignment() {
     assert_eq!(r.globals[1], "q");
     assert_eq!(r.globals[4], "rest");
     let (_, errs) = res("total = 0\nif true: (total, n) = (1, 2) ;;");
-    assert_eq!(codes(&errs), vec!["E0205"]);
+    assert_eq!(codes(&errs), vec!["E0238"]);
 }
 
 #[test]
@@ -734,9 +749,9 @@ fn an_arm_binds_its_names_once() {
     assert_eq!(codes(&errs), vec!["E0238"]);
     let (_, errs) = res("for v in [1]: v = v * 10; v ;;");
     assert_eq!(codes(&errs), vec!["E0238"]);
-    // An outer name is still E0205, and arm names do not leak.
+    // An outer name is still E0238, and arm names do not leak.
     let (_, errs) = res("y = 1\nmatch 1: v => y = 2; print(v) ;;");
-    assert_eq!(codes(&errs), vec!["E0205"]);
+    assert_eq!(codes(&errs), vec!["E0238"]);
     let (_, errs) = res("match 1: v => w = v; print(w) ;;\nprint(w)");
     assert_eq!(codes(&errs), vec!["E0206"]);
     // A local fn later in an arm is still E0208 before its definition.
@@ -841,7 +856,7 @@ fn top_level_fns_see_names_assigned_once() {
     assert_eq!(first_code(&errs), "E0204");
     // A top-level fn cannot hide the constant with a local (D38).
     let (_, errs) = res("x = 1\nfn f():\n  x = 2\n  x\n;;");
-    assert_eq!(codes(&errs), ["E0205"]);
+    assert_eq!(codes(&errs), ["E0238"]);
 }
 
 #[test]
@@ -979,16 +994,16 @@ fn import_errors() {
         ("import fs\nprint(fs._secret)", "E0304"),
         ("import fs\nimport fs", "E0309"),
         ("import fs\nimport \"./lib/x\" as fs", "E0309"),
-        ("import fs\nfs = 1", "E0308"),
-        ("import fs\nfn fs() = 1", "E0308"),
-        ("import fs\nfn f(fs) = fs", "E0308"),
-        ("import fs\nxs = for fs in [1]: fs ;;\nprint(xs)", "E0308"),
-        ("import fs\nmatch 1: fs => fs ;;", "E0308"),
+        ("import fs\nfs = 1", "E0238"),
+        ("import fs\nfn fs() = 1", "E0238"),
+        ("import fs\nfn f(fs) = fs", "E0238"),
+        ("import fs\nxs = for fs in [1]: fs ;;\nprint(xs)", "E0238"),
+        ("import fs\nmatch 1: fs => fs ;;", "E0238"),
         ("fn f():\n  import fs\n  1\n;;", "E0311"),
         ("import \"./lib/x\" (a)\na = 2", "E0238"), // listed names are constants (plan decision 4)
         ("import \"./lib/x\" (a)\nfn g() = a", ""), // and hoisted fns see them
         ("import \"./lib/x\" (a)\nprint(a, x)", "E0204"), // the module name is not bound when only names are listed
-        ("fn f():\n  map = 1\n  map\n;;", "E0240"), // a local cannot hide a prelude name (D38)
+        ("fn f():\n  map = 1\n  map\n;;", "E0238"), // a local cannot hide a prelude name (D38)
         ("fn map(xs) = xs\nprint(map(1))", ""), // a public top-level name can: the file's interface (D86)
     ];
     for (src, want) in cases {
@@ -1030,11 +1045,11 @@ fn import_diagnostics_point_at_the_bound_name() {
 
 #[test]
 fn shadowing_help_names_the_import_as_written() {
-    // E0308's help shows how to import the module under another name,
+    // E0238's help for a module name shows how to import the module under another name,
     // with the module it really is (not the alias it is bound to).
     let help_of = |src: &str| {
         let (_, errs) = resolve_with(src, &["print"], &m5_opts(false));
-        assert_eq!(codes(&errs), vec!["E0308"], "{src:?}");
+        assert_eq!(codes(&errs), vec!["E0238"], "{src:?}");
         help(&errs[0]).to_string()
     };
     assert_eq!(
@@ -1159,21 +1174,21 @@ fn unused_and_hiding_names() {
         ("fn f(v) = match v: x when x > 0 => 1; _ => 0 ;;", &[]),
         // A private top-level name and a private fn's parameter are no
         // interface: they cannot take a prelude name (D86).
-        ("fn _f():\n  map = 1\n  map\n;;", &["E0240:map"]),
-        ("fn _f(len) = len", &["E0240:len"]),
-        ("fn f(v) = match v: map => map ;;", &["E0240:map"]),
-        ("fn f(v) = match v: v => v ;;", &["E0240:v"]),
-        ("fn f(v) = map([1], v => v)", &["E0240:v"]),
-        ("fn f(v) = for v in [1]: v ;;", &["E0240:v"]),
-        ("fn g() = 1\nfn f(g) = g", &["E0240:g"]),
-        ("fn g() = 1\nfn f():\n  g = 2\n  g\n;;", &["E0240:g"]),
-        ("c = 1\nfn f():\n  c = 2\n  c\n;;\nprint(c)", &["E0205:c"]),
+        ("fn _f():\n  map = 1\n  map\n;;", &["E0238:map"]),
+        ("fn _f(len) = len", &["E0238:len"]),
+        ("fn f(v) = match v: map => map ;;", &["E0238:map"]),
+        ("fn f(v) = match v: v => v ;;", &["E0238:v"]),
+        ("fn f(v) = map([1], v => v)", &["E0238:v"]),
+        ("fn f(v) = for v in [1]: v ;;", &["E0238:v"]),
+        ("fn g() = 1\nfn f(g) = g", &["E0238:g"]),
+        ("fn g() = 1\nfn f():\n  g = 2\n  g\n;;", &["E0238:g"]),
+        ("c = 1\nfn f():\n  c = 2\n  c\n;;\nprint(c)", &["E0238:c"]),
         (
             "c = 1\nfn f():\n  fn c() = 2\n  c()\n;;\nprint(c)",
-            &["E0240:c"],
+            &["E0238:c"],
         ),
-        ("c = 1\nfn f(c) = c\nprint(c)", &["E0240:c"]),
-        ("import fs (read)\nfn f(read) = read", &["E0240:read"]),
+        ("c = 1\nfn f(c) = c\nprint(c)", &["E0238:c"]),
+        ("import fs (read)\nfn f(read) = read", &["E0238:read"]),
         ("fn f():\n  x = 1\n  fn g() = x\n  g()\n;;", &[]), // read by a nested fn counts
         ("fn f():\n  x = 1\n  x = 2\n  x\n;;", &["E0238:x"]), // bound once (D88)
         ("fn f():\n  x = 1\n  h = () => x\n  h()\n;;", &[]), // a lambda's read counts
@@ -1213,12 +1228,23 @@ fn unused_and_hiding_names() {
     );
     assert_eq!(
         name_errors_of("fn _get(m, len = 1) = [m, len]\nx = 1\n_y = 2", &lib),
-        ["E0240:len"]
+        ["E0238:len"]
     );
     assert_eq!(
         name_errors_of("fn get(m):\n  len = 1\n  [m, len]\n;;", &lib),
-        ["E0240:len"],
+        ["E0238:len"],
         "a local of a public fn is no interface"
+    );
+    // A rest parameter is never given by name (E0406): no interface, as
+    // a pattern parameter is not (FE82).
+    assert_eq!(
+        name_errors_of("fn get(...len) = len", &lib),
+        ["E0238:len"],
+        "a rest parameter is no interface"
+    );
+    assert_eq!(
+        name_errors_of("fn get((len, b)) = [len, b]", &lib),
+        ["E0238:len"]
     );
     // The rule is the file's own, however the file is loaded (D86): the
     // same holds when the file is the entry, so a library can be checked
@@ -1239,7 +1265,7 @@ fn unused_and_hiding_names() {
             "fn _get(m, len = 1) = [m, len]\nx = 1\n_y = 2",
             &Options::default()
         ),
-        ["E0240:len"]
+        ["E0238:len"]
     );
     // The REPL keeps every top-level name and import for later inputs.
     let mut repl_opts = repl(&[], true);
@@ -1303,18 +1329,30 @@ fn values_used_must_not_be_nil() {
         ("x = true then match print(1): _ => 1 ;; else nil", &[]),
         ("x = true then print(_, 1) else nil", &[]),
         ("x = false then nil else match print(1): _ => 1 ;;", &[]),
-        // Its branches are operands: used, as statements too, the same
-        // whether the match is on a name or a call.
+        // As a statement its branches are discarded, as a statement
+        // `if`'s are (D121), the same whether the match is on a name or a
+        // call: an `if` without `else` is fine there, a bare value is not.
         (
-            "true then match print(1): 1 => if true: print(1) ;; ;; else nil\n1",
-            &["E0223"],
+            "true then match print(1): 1 => if true: print(1) ;; ;; else print(2)\n1",
+            &[],
         ),
         (
-            "y = 1\ntrue then match y: 1 => if true: print(1) ;; ;; else nil\n1",
+            "y = 1\ntrue then match y: 1 => if true: print(1) ;; ;; else print(2)\n1",
+            &[],
+        ),
+        (
+            "true then match print(1): 1 => 5 ;; else print(2)\n1",
+            &["E0234"],
+        ),
+        (
+            "y = 1\ntrue then match y: 1 => 5 ;; else print(2)\n1",
+            &["E0234"],
+        ),
+        // used, its branches are used
+        (
+            "x = true then match print(1): 1 => if true: print(1) ;; ;; else nil\nx",
             &["E0223"],
         ),
-        ("true then match print(1): 1 => 5 ;; else print(2)\n1", &[]),
-        ("y = 1\ntrue then match y: 1 => 5 ;; else print(2)\n1", &[]),
         (
             "fn f():\n  x = if true:\n    y = 1\n    y\n  else: 0 ;;\n  x\n;;",
             &[],
@@ -1348,6 +1386,8 @@ fn values_used_must_not_be_nil() {
             1,
         ),
         ("x = if false: 1 else: ;;", "is empty", 17, 1),
+        // an empty arm is an empty block (D121)
+        ("x = match 1: 1 => 2; _ => ;;", "is empty", 24, 1),
         (
             "x = if true: assert true else: 0 ;;",
             "ends with `assert`",
@@ -1372,6 +1412,133 @@ fn values_used_must_not_be_nil() {
     }
 }
 
+/// A discarded `nil` says how to write a branch that does nothing (D121).
+#[test]
+fn a_discarded_nil_points_at_an_empty_branch() {
+    let (_, errs) = res_discard("match 1:\n  1 => print(1)\n  _ => nil\n;;\nprint(1)");
+    assert_eq!(errs.len(), 1, "{errs:?}");
+    assert_eq!(arg0(&errs[0]), "`nil`");
+    assert_eq!(
+        errs[0].help.as_deref(),
+        Some("a branch with nothing to do is left empty: `_ =>` in a match, no `else` after an if")
+    );
+}
+
+/// `1 => y => y + 1` is an empty arm and an arm `y`: used as a value the
+/// empty arm is E0224, whose help says how to write a lambda as the
+/// arm's value (FE25, D121).
+#[test]
+fn an_empty_arm_before_a_name_arm_hints_at_a_lambda() {
+    let (_, errs) = res("f = match 1: 1 => y => y + 1 ;;\nprint(f)");
+    let e = errs.iter().find(|e| e.code == "E0224").expect("E0224");
+    assert_eq!(
+        e.help.as_deref(),
+        Some("a lambda as an arm's value goes in parentheses: `1 => (y => y + 1)`")
+    );
+    let (_, errs) = res("f = match 1: 1 => ; _ => 2 ;;\nprint(f)");
+    let e = errs.iter().find(|e| e.code == "E0224").expect("E0224");
+    assert_eq!(e.help, None);
+}
+
+/// Binding a visible name again is one error, E0238, however the name is
+/// bound and wherever it comes from (D122: E0205, E0210, E0240 and E0308
+/// retired). The note tells where the name is from, and the help what to
+/// write instead.
+#[test]
+fn binding_a_visible_name_again_is_one_error() {
+    const FRESH: &str = "a visible name means one thing: give the new one a name of its own";
+    const LOOP: &str = "a name is bound once, and a block cannot bind an outer one again; build the value with an expression instead, e.g. `x = if … ;;` or `fold`";
+    const MODULE: &str = "import it under another name: `import fs as m`";
+    const FN: &str = "fung has no overloading: give each function a name of its own";
+    let cases: &[(&str, &str, Option<&str>)] = &[
+        ("x = 1\nx = 2", "note: `x` is first bound on line 1", None),
+        (
+            "fn f() = 1\nfn f() = 2",
+            "note: `f` is a function defined on line 1",
+            Some(FN),
+        ),
+        (
+            "fn g():\n  fn f() = 1\n  fn f() = 2\n  f\n;;",
+            "note: `f` is a function defined on line 2",
+            Some(FN),
+        ),
+        (
+            "fn f() = 1\nf = 2",
+            "note: `f` is a function defined on line 1",
+            None,
+        ),
+        (
+            "import \"./lib/x\" (a)\na = 1",
+            "note: `a` is imported on line 1",
+            None,
+        ),
+        (
+            "import \"./lib/x\" (a)\nfn a() = 1",
+            "note: `a` is imported on line 1",
+            Some(FN),
+        ),
+        (
+            "total = 0\nfor x in [1]: total = total + x ;;",
+            "note: `total` is a top-level name bound on line 1",
+            Some(LOOP),
+        ),
+        (
+            "fn g():\n  t = 0\n  for x in [1]: t = t + x ;;\n  t\n;;",
+            "note: `t` is bound outside this block, on line 2",
+            Some(LOOP),
+        ),
+        (
+            "limit = 1\nfn f(n):\n  limit = n\n  limit\n;;",
+            "note: `limit` is a top-level name bound on line 1",
+            Some(LOOP),
+        ),
+        (
+            "fn g():\n  y = 1\n  f = y => y\n  f(y)\n;;",
+            "note: `y` is bound outside this block, on line 2",
+            Some(FRESH),
+        ),
+        (
+            "fn g() = 1\nfn f(g) = g",
+            "note: `g` is a function defined on line 1",
+            Some(FRESH),
+        ),
+        (
+            "import \"./lib/x\" (a)\nfn f(a) = a",
+            "note: `a` is imported on line 1",
+            Some(FRESH),
+        ),
+        (
+            "fn f(v) = for print in [v]: print ;;",
+            "note: `print` is a prelude function",
+            Some(FRESH),
+        ),
+        (
+            "import fs\nfs = 1",
+            "note: `fs` is the module imported on line 1",
+            Some(MODULE),
+        ),
+        (
+            "import fs\nfn fs() = 1",
+            "note: `fs` is the module imported on line 1",
+            Some(MODULE),
+        ),
+        (
+            "import fs\nfn f(fs) = fs",
+            "note: `fs` is the module imported on line 1",
+            Some(MODULE),
+        ),
+    ];
+    for (src, note, help) in cases {
+        let (_, errs) = resolve_with(src, &["print"], &m5_opts(false));
+        // (a statement `for` that ends a library file is E0234 here)
+        let errs: Vec<Diag> = errs.into_iter().filter(|e| e.code != "E0234").collect();
+        assert_eq!(codes(&errs), ["E0238"], "{src:?}: {errs:?}");
+        let e = &errs[0];
+        assert!(e.notes.iter().any(|n| n == note), "{src:?}: {:?}", e.notes);
+        assert_eq!(e.help.as_deref(), *help, "{src:?}");
+    }
+}
+
 #[test]
 fn name_errors_carry_positions_and_spans() {
     let src = "fn f():\n  len = 2\n  0\n;;";
@@ -1380,12 +1547,12 @@ fn name_errors_carry_positions_and_spans() {
         .iter()
         .map(|e| (e.code.as_str(), e.pos.line, e.pos.col, e.len))
         .collect();
-    assert_eq!(at, [("E0240", 2, 3, 3)]);
+    assert_eq!(at, [("E0238", 2, 3, 3)]);
     let src = "fn f():\n  fn len(_x) = 1\n  len(0)\n;;";
     let (_, errs) = resolve_with(src, &["len"], &Options::default());
     assert_eq!(
         (errs[0].code.as_str(), errs[0].pos.col, errs[0].len),
-        ("E0240", 6, 3),
+        ("E0238", 6, 3),
         "at the fn's name, not at `fn`"
     );
     let (_, errs) = resolve_with(
@@ -1430,7 +1597,7 @@ fn repl_options() {
     let (_, errs) = resolve_with("fn g() = 2", &["print"], &repl(&["g"], false));
     assert_eq!(
         codes(&errs),
-        ["E0210"],
+        ["E0238"],
         "without redefine a known fn is a duplicate"
     );
     let (r, errs) = resolve_with("y = 1\nprint(y)", &["print"], &repl(&["x"], false));
@@ -1443,10 +1610,10 @@ fn repl_options() {
     // earlier input's global or a name of the same input either.
     let src = "fn g():\n  if true:\n    c = 2\n  ;;\n  c\n;;";
     let (_, errs) = resolve_with(src, &["print"], &repl(&["c"], true));
-    assert_eq!(codes(&errs), ["E0205"], "{errs:?}");
+    assert_eq!(codes(&errs), ["E0238"], "{errs:?}");
     let src = "c = 1\nfn g():\n  if true:\n    c = 2\n  ;;\n  c\n;;";
     let (_, errs) = resolve_with(src, &["print"], &repl(&[], true));
-    assert_eq!(codes(&errs), ["E0205"], "{errs:?}");
+    assert_eq!(codes(&errs), ["E0238"], "{errs:?}");
 }
 
 /// Redefinition inside one input (`redefine`): a plain assignment replaces a fn
@@ -1470,9 +1637,9 @@ fn repl_redefinition_in_one_input() {
     };
     for (src, plain) in [
         ("fn f() = 1\nf = 2\nf", "E0238"),
-        ("import fs\nfs = 1\nfs", "E0308"),
+        ("import fs\nfs = 1\nfs", "E0238"),
         ("import fs\nimport fs\nfs.exists", "E0309"),
-        ("fn f() = 1\nfn f() = 2\nf()", "E0210"),
+        ("fn f() = 1\nfn f() = 2\nf()", "E0238"),
         ("x = 1\nx = 2\nx", "E0238"),
     ] {
         let (_, errs) = resolve_with(src, &["print"], &with(true));
@@ -1500,17 +1667,13 @@ fn repl_redefinition_in_one_input() {
 #[test]
 fn errors_that_always_have_a_help_line_have_its_default_in_the_catalog() {
     let opts = m5_opts(false);
-    for (src, code) in [
-        ("if true: y = 1 ;;\nprint(y)", "E0206"),
-        ("import fs\nfs = 1", "E0308"),
-    ] {
-        let (_, errs) = resolve_with(src, &["print"], &opts);
-        assert_eq!(codes(&errs), vec![code], "{src:?}");
-        let default = &crate::diag::catalog::entry(code).unwrap().help;
-        assert!(!default.is_empty(), "{code} has no default help");
-        let lead = |h: &str| h.split('`').next().unwrap_or("").to_string();
-        assert_eq!(lead(help(&errs[0])), lead(default), "{code}");
-    }
+    let (src, code) = ("if true: y = 1 ;;\nprint(y)", "E0206");
+    let (_, errs) = resolve_with(src, &["print"], &opts);
+    assert_eq!(codes(&errs), vec![code], "{src:?}");
+    let default = &crate::diag::catalog::entry(code).unwrap().help;
+    assert!(!default.is_empty(), "{code} has no default help");
+    let lead = |h: &str| h.split('`').next().unwrap_or("").to_string();
+    assert_eq!(lead(help(&errs[0])), lead(default), "{code}");
     // the import as written, with the module and not the name bound to it
     let (_, errs) = resolve_with("import fs as f\nf = 1", &["print"], &opts);
     assert_eq!(
@@ -1625,18 +1788,39 @@ fn effect_free_values_must_not_be_discarded() {
         ("x = 1\ny = x + 1\nassert y == 2\nprint(y)", &[]),
         ("_ = 1 == 2\n_ = print(_)\nprint(1)", &[]),
         ("fn f(x):\n  y = x * 2\n  y - 1\n;;\nprint(f(1))", &[]),
-        ("match 1:\n  1 => print(1)\n  _ => nil\n;;\nprint(1)", &[]),
-        ("if true: print(1) else: nil ;;\nprint(1)", &[]),
+        // A bare `nil` statement is effect-free like any other (D121).
+        (
+            "match 1:\n  1 => print(1)\n  _ => nil\n;;\nprint(1)",
+            &["E0234"],
+        ),
+        ("match 1:\n  1 => print(1)\n  _ =>\n;;\nprint(1)", &[]),
+        ("match 1: 1 => print(1); _ => ;;\nprint(1)", &[]),
+        ("if true: print(1) else: nil ;;\nprint(1)", &["E0234"]),
+        ("if true: print(1) ;;\nprint(1)", &[]),
+        ("for _ in [1]: nil ;;\nprint(1)", &["E0234"]),
+        ("fn f():\n  nil\n  print(1)\n;;\nf()", &["E0234"]),
+        ("fn f():\n  print(1)\n  nil\n;;\nf()", &[]),
         ("x = true\nx or fail(\"no\")\nprint(1)", &[]),
         ("x = true\nx and fail(\"no\")\nprint(1)", &[]),
-        ("x = true\nx then print(1) else nil\nprint(1)", &[]),
+        // `then … else` discards its branches as a statement `if` does
+        ("x = true\nx then print(1) else nil\nprint(1)", &["E0234"]),
+        ("x = true\nx then 1 else print(2)\nprint(1)", &["E0234"]),
+        (
+            "x = [1]\nx == [] then print(1) else [x]\nprint(1)",
+            &["E0234"],
+        ),
+        (
+            "fn f(c):\n  c then print(1) else print(2)\n  1\n;;\nprint(f)",
+            &[],
+        ),
+        ("fn f(c) = c then nil else 1\nprint(f)", &[]),
         ("Err(1)\nprint(1)", &["E0234"]),
         ("Ok(1)\nprint(1)", &["E0234"]),
         ("Red\nprint(1)", &["E0234"]),
         ("x = 1\nPoint(x, [x])\nprint(1)", &["E0234"]),
         ("Err(print(1))\nprint(1)", &[]),
         ("x = [1]\nOk(fail(x))\nprint(1)", &[]),
-        ("nil\nprint(1)", &[]),
+        ("nil\nprint(1)", &["E0234"]),
         ("fn f() = 1\nprint(f())", &[]),
     ];
     for (src, want) in cases {
@@ -1657,6 +1841,54 @@ fn effect_free_values_must_not_be_discarded() {
     ];
     for (src, want) in helps {
         let (_, errs) = res_discard(src);
+        assert!(help(&errs[0]).contains(want), "{src:?}: {errs:?}");
+    }
+}
+
+/// A call of a builtin known to have no effect, on effect-free arguments,
+/// is effect-free too (FE77): a discarded expression made of such calls
+/// is E0234, as the call alone is.
+#[test]
+fn pure_calls_inside_discarded_values() {
+    let run = |src: &str| {
+        let mut sm = SourceMap::new();
+        let f = sm.add("t.fung", src);
+        let (toks, _) = lex(f, src).unwrap();
+        let core = desugar(&parse(&toks).unwrap(), false).unwrap();
+        match resolve(&core, &prelude(), &Options::default()) {
+            Ok(_) => Vec::new(),
+            Err(es) => es,
+        }
+    };
+    let cases: &[(&str, &[&str])] = &[
+        ("xs = [1]\nlen(xs) == 2\nprint(1)", &["E0234"]),
+        ("xs = [1]\nupper(\"a\") + \"b\"\nprint(xs)", &["E0234"]),
+        ("xs = [1]\nlen(sort(xs)) + 1\nprint(1)", &["E0234"]),
+        ("xs = [1]\n[sort(xs)]\nprint(1)", &["E0234"]),
+        ("xs = [1]\nsort(xs)[0]\nprint(1)", &["E0234"]),
+        ("xs = [1]\nOk(sort(xs))\nprint(1)", &["E0234"]),
+        ("xs = [1]\n\"${sort(xs)}\"\nprint(1)", &["E0234"]),
+        ("xs = [1]\nnil ?? sort(xs)\nprint(1)", &["E0234"]),
+        ("xs = [1]\nsort(xs)\nprint(1)", &["E0234"]),
+        ("test \"t\":\n  len([1]) == 2\n;;", &["E0234"]),
+        // An argument that may do something keeps the call.
+        ("len([print(1)]) == 1\nprint(1)", &[]),
+        ("fn g() = [1]\nlen(g()) == 1\nprint(1)", &[]),
+    ];
+    for (src, want) in cases {
+        assert_eq!(codes(&run(src)), *want, "{src:?}");
+    }
+    let helps = [
+        (
+            "test \"t\":\n  len([1]) == 2\n;;",
+            "did you mean `assert` before it?",
+        ),
+        ("xs = [1]\nsort(xs)\nprint(1)", "`sort` has no effect"),
+        ("xs = [1]\nsort(xs) + [2]\nprint(1)", ""),
+    ];
+    for (src, want) in helps {
+        let errs = run(src);
+        assert_eq!(errs.len(), 1, "{src:?}: {errs:?}");
         assert!(help(&errs[0]).contains(want), "{src:?}: {errs:?}");
     }
 }
@@ -1693,12 +1925,16 @@ fn arms_after_a_catch_all_are_errors() {
             &["E0235"],
         ),
         ("x = match 1: 1.5 => 1; 1.5 => 2; _ => 3 ;;", &["E0235"]),
+        // one number however it is spelled (D127)
+        ("x = match 1: 0xFF => 1; 0xff => 2; _ => 3 ;;", &["E0235"]),
+        ("x = match 1: 0xff => 1; 255 => 2; _ => 3 ;;", &["E0235"]),
         ("x = match 1: 1s => 1; 1s => 2; _ => 3 ;;", &["E0235"]),
         ("x = match 1: true => 1; true => 2; _ => 3 ;;", &["E0235"]),
         // a guard on the first, or a different literal, or a wider arm
         ("x = match 1: 1 when false => 1; 1 => 2; _ => 3 ;;", &[]),
         ("x = match 1: 1 => 1; 2 => 2; _ => 3 ;;", &[]),
-        ("x = match 1: 1 => 1; 1 | 2 => 2; _ => 3 ;;", &[]),
+        // an alternative the arm before covers (D112)
+        ("x = match 1: 1 => 1; 1 | 2 => 2; _ => 3 ;;", &["E0241"]),
         ("x = match 1: 1 => 1; \"1\" => 2; _ => 3 ;;", &[]),
     ];
     for (src, want) in cases {
@@ -1812,7 +2048,11 @@ fn calls_to_known_functions_are_checked_at_compile_time() {
             &[],
         ),
         ("fn f(g) = g(1, 2)\nprint(f((a, _b) => a))", &[]),
-        ("f = (a) => a\nprint(f(1, 2))", &[]),
+        // A name bound to a lambda is that lambda (D110).
+        (
+            "f = (a) => a\nprint(f(1, 2))",
+            &["E0402 the function takes 1 argument(s), got 2"],
+        ),
         // Errors in every call are reported, in the order found.
         (
             "fn one(a) = a\nprint(one(), one(1, 2))",
@@ -1858,15 +2098,15 @@ fn m5_sig_opts() -> Options {
 /// FE61: the small name diagnostics of the third review.
 #[test]
 fn small_name_diagnostics_of_the_third_review() {
-    // E0210 says where the first definition is
+    // E0238 (was E0210) says where the first definition is
     let (_, errs) = res("fn a() = 1\nfn a() = 2\nprint(a())");
-    assert_eq!(codes(&errs), ["E0210"]);
-    assert_eq!(errs[0].notes, ["note: `a` is first defined on line 1"]);
-    // a local fn defined twice in one block is E0210 too
+    assert_eq!(codes(&errs), ["E0238"]);
+    assert_eq!(errs[0].notes, ["note: `a` is a function defined on line 1"]);
+    // a local fn defined twice in one block too
     let (_, errs) = res("fn g():\n  fn a() = 1\n  fn a() = 2\n  a()\n;;\nprint(g())");
-    assert_eq!(codes(&errs), ["E0210"]);
+    assert_eq!(codes(&errs), ["E0238"]);
     assert_eq!((errs[0].pos.line, errs[0].pos.col), (3, 6));
-    assert_eq!(errs[0].notes, ["note: `a` is first defined on line 2"]);
+    assert_eq!(errs[0].notes, ["note: `a` is a function defined on line 2"]);
     // in two blocks it is two functions
     ok(
         "fn g(c):\n  if c:\n    fn a() = 1\n    a()\n  else:\n    fn a() = 2\n    a()\n  ;;\n;;\nprint(g(true))",
@@ -1914,8 +2154,8 @@ fn module_member_diagnostics() {
 /// A name is bound once, wherever it is bound (D88): a second binding in
 /// the same block is E0238 for a variable and a local fn alike, in any
 /// order (E0209 is retired into it). A visible outer name is not bound
-/// again either: E0205 where it is written as an assignment to a
-/// variable, the usual counter in a loop, and E0240 otherwise.
+/// again either: E0238 (D122), whose help for an assignment to a
+/// variable, the usual counter in a loop, shows what to write instead.
 #[test]
 fn a_name_is_bound_once() {
     let cases: &[(&str, &[&str])] = &[
@@ -1931,12 +2171,12 @@ fn a_name_is_bound_once() {
             "fn f(c):\n  if c:\n    v = 1\n    v = 2\n    print(v)\n  ;;\n  nil\n;;",
             &["E0238:v"],
         ),
-        // A visible outer variable assigned in a block: E0205.
+        // A visible outer variable assigned in a block.
         (
             "fn f():\n  t = 0\n  if true:\n    t = t + 1\n    print(t)\n  ;;\n  t\n;;",
-            &["E0205:t"],
+            &["E0238:t"],
         ),
-        ("c = 1\nfn f():\n  c = 2\n  c\n;;\nprint(c)", &["E0205:c"]),
+        ("c = 1\nfn f():\n  c = 2\n  c\n;;\nprint(c)", &["E0238:c"]),
         ("fn g() = 1\ng = 2", &["E0238:g"]),
         // Each block binds its own names; a pattern's alternatives bind
         // one name once.
@@ -1959,11 +2199,11 @@ fn a_name_is_bound_once() {
     );
 }
 
-/// Three checks of the fourth review: a module is imported once in a
-/// file (D96), a test block has something in it (D100), and a builtin
-/// type's name is written in lowercase (D101).
+/// Checks of the fourth review: a module is imported once in a file
+/// (D96) and a test block has something in it (D100); an uppercase
+/// annotation is a tag name (D134, where D101 had made `Int` an error).
 #[test]
-fn one_import_a_test_with_a_body_and_lowercase_types() {
+fn one_import_a_test_with_a_body_and_uppercase_tags() {
     let mut imports = BTreeMap::new();
     imports.insert(
         "fs".to_string(),
@@ -1993,18 +2233,17 @@ fn one_import_a_test_with_a_body_and_lowercase_types() {
     assert_eq!(code("import fs\nprint(fs.read)"), [] as [&str; 0]);
     assert_eq!(code("test \"nothing\": ;;"), ["E0242"]);
     assert_eq!(code("test \"something\": assert true ;;"), [] as [&str; 0]);
-    for (src, hint) in [
-        ("fn f(x: Int) = x", "`int`"),
-        ("fn f(x) -> String = x", "`str`"),
-        ("fn f(x: List | Nil) = x", "`list`"),
-        ("type t = Bool", "`bool`"),
+    // An uppercase name in an annotation is a tag name, whatever it
+    // spells (D134, undoing D101).
+    for src in [
+        "fn f(x: Int) = x",
+        "fn f(x) -> String = x",
+        "fn f(x: List | Nil) = x",
+        "type t = Bool",
+        "fn f(c: Red | Circle) = c",
     ] {
-        let (_, errs) = resolve_with(src, &["print"], &opts);
-        assert_eq!(first_code(&errs), "E0212", "{src}");
-        assert!(help(&errs[0]).contains(hint), "{src}: {errs:?}");
+        assert_eq!(code(src), [] as [&str; 0], "{src}");
     }
-    // A tag of another name is still a type.
-    assert_eq!(code("fn f(c: Red | Circle) = c"), [] as [&str; 0]);
 }
 
 /// What the types of literals settle is an error before the program
@@ -2031,7 +2270,41 @@ fn literal_type_errors_are_caught_at_compile_time() {
         ("x = 1 ?? 2", "E0243"),
         ("x = \"a\" ?? \"b\"", "E0243"),
         ("x = [1] ?? []", "E0243"),
+        // Every kind the syntax shows (FE81): durations, interpolated
+        // strings, collections, tag values, functions, ranges, and `-`.
+        ("x = not 1s", "E0505"),
+        ("x = if 1s: 1 else: 2 ;;", "E0505"),
+        ("x = 1s(2)", "E0401"),
+        ("x = 1s + \"a\"", "E0501"),
+        ("x = 1s ?? 2", "E0243"),
+        ("x = \"a${1}\"(2)", "E0401"),
+        ("x = not \"a${1}\"", "E0505"),
+        ("x = [1](2)", "E0401"),
+        ("x = {a: 1}(2)", "E0401"),
+        ("x = if [1]: 1 else: 2 ;;", "E0505"),
+        ("x = not [1]", "E0505"),
+        ("x = [1] - [1]", "E0501"),
+        ("x = Red(1)(2)", "E0401"),
+        ("x = Red(1) ?? 2", "E0243"),
+        ("x = -\"a\"", "E0506"),
+        ("x = -true", "E0506"),
+        ("x = -nil", "E0506"),
+        ("x = (x => x) + 1", "E0501"),
+        ("x = print(1, _) + 1", "E0501"),
+        ("x = 1..2 ?? 3", "E0243"),
+        ("x = (1..2)(3)", "E0401"),
+        ("x = \"a\" * 1s", "E0501"),
+        ("x = 1s // 2", "E0501"),
+        ("x = 1 < [1]", "E0501"),
         // Values decide these: left to the run.
+        ("x = [1] < [\"a\"]", ""),
+        ("x = (1,) < (1, 2)", ""),
+        ("x = (x => x)(1)", ""),
+        ("x = Ok(1) ?? 2", ""),
+        ("x = [1] + [2]", ""),
+        ("x = -1s", ""),
+        ("x = 1s / 2", ""),
+        ("x = 2 * 1s", ""),
         ("x = 1 // 0", ""),
         ("x = 9223372036854775807 + 1", ""),
         ("x = 1 + 2.5", ""),
@@ -2047,6 +2320,20 @@ fn literal_type_errors_are_caught_at_compile_time() {
     }
 }
 
+/// Small diagnostics of the fifth review (FE82): a discarded undefined
+/// name is one error, its E0204; an unused name that a whole arm binds
+/// says that it matches every value.
+#[test]
+fn small_diagnostics_of_the_fifth_review() {
+    let (_, errs) = res_discard("x = 1\nprint(x)\nend");
+    assert_eq!(codes(&errs), ["E0204"], "{errs:?}");
+    let (_, errs) = res("x = match 1:\n  1 => 1\n  default => 2\n;;");
+    assert_eq!(codes(&errs), ["E0239"], "{errs:?}");
+    assert!(help(&errs[0]).contains("`_ =>`"), "{errs:?}");
+    let (_, errs) = res("x = match (1, 2):\n  (a, b) => 1\n  _ => 2\n;;");
+    assert!(!help(&errs[0]).contains("`_ =>`"), "{errs:?}");
+}
+
 /// Small resolve fixes of the fourth review: a module's top level takes
 /// no `_ = e` (FE69), a number literal an earlier arm matches is found by
 /// its value (FE70), and the errors come in source order (FE73).
@@ -2055,6 +2342,17 @@ fn small_resolve_fixes() {
     let (_, errs) = resolve_with("_ = print(1)\nx = 2", &["print"], &m5_opts(true));
     assert_eq!(codes(&errs), ["E0306"]);
     let (_, errs) = resolve_with("(a, b) = (1, 2)", &["print"], &m5_opts(true));
+    assert_eq!(codes(&errs), [] as [&str; 0]);
+    // A destructuring that binds no name is a bare statement too (FE80).
+    for src in [
+        "(_, _) = (print(1), 2)\nx = 2",
+        "[_, ...] = [print(1)]\nx = 2",
+        "{a: _} = {a: print(1)}\nx = 2",
+    ] {
+        let (_, errs) = resolve_with(src, &["print"], &m5_opts(true));
+        assert_eq!(codes(&errs), ["E0306"], "{src}");
+    }
+    let (_, errs) = resolve_with("(_, b) = (1, 2)", &["print"], &m5_opts(true));
     assert_eq!(codes(&errs), [] as [&str; 0]);
     for src in [
         "fn f(x) = match x: 1 => 1; 1.0 => 2; _ => 0 ;;",
@@ -2115,7 +2413,7 @@ fn partial_applications_and_local_fns_are_checked() {
         // a parameter of the same name is not the fn around it
         (
             "fn f():\n  fn loc(a) = a\n  w = loc => loc(1, 2)\n  w(loc)\n;;\nprint(f)",
-            "E0240",
+            "E0238",
         ),
         ("fn f(k):\n  loc = k(1, _)\n  loc\n;;\nprint(f)", ""),
     ];
@@ -2128,4 +2426,255 @@ fn partial_applications_and_local_fns_are_checked() {
             assert_eq!(got, [want], "{src}: {errs:?}");
         }
     }
+}
+
+/// D110: a name whose one binding is visibly a function (a lambda, an
+/// anonymous `fn`, a known function's name, a partial application of one)
+/// is that function in every block: calls through it are checked as a
+/// call of a `fn` is, and so is a function literal called where it stands.
+#[test]
+fn names_bound_to_a_function_are_checked() {
+    let cases = [
+        ("f = (a, b) => a + b\nprint(f(1))", "E0407"),
+        ("f = fn(a): a ;;\nprint(f(1, 2))", "E0402"),
+        ("fn g(a) = a\nf = g\nprint(f(1, 2))", "E0402"),
+        ("fn g(a) = a\nf = g\nh = f\nprint(h(b: 1))", "E0406"),
+        ("x = len\nprint(x(1, 2))", "E0402"),
+        ("fn g(a, b) = a\nf = g(1, _)\nprint(f(1, 2))", "E0402"),
+        ("print((x => x)(1, 2))", "E0402"),
+        ("print((fn(x): x ;;)(1, x: 2))", "E0405"),
+        ("fn g(a) = a\nprint(g(1, 2, ...[3]))", "E0402"),
+        ("fn g(a) = a\nf = g\nprint(f(1, 2, ...[3]))", "E0402"),
+        // in a function, and from a function the name is captured by
+        ("fn h():\n  f = x => x\n  f(1, 2)\n;;\nprint(h)", "E0402"),
+        (
+            "fn h():\n  f = len\n  w = () => f()\n  w\n;;\nprint(h)",
+            "E0407",
+        ),
+        (
+            "fn h():\n  if true:\n    f = x => x\n    f()\n  ;;\n  1\n;;\nprint(h)",
+            "E0407",
+        ),
+        // a top-level fn calls a constant bound to a function
+        ("fn h() = f(1, 2)\nf = x => x\nprint(h)", "E0402"),
+        ("f = x => x\ng = () => f(1, 2)\nprint(g)", "E0402"),
+        // destructured from a literal
+        ("(f, g) = (x => x, len)\nprint(f(1, 2), g)", "E0402"),
+        // the purity of what it names (E0234)
+        ("s = len\ns([1])\nprint(1)", "E0234"),
+        ("fn h():\n  s = len\n  s([1])\n  1\n;;\nprint(h)", "E0234"),
+        // what is right stays right
+        (
+            "f = fn(a, b = 1): a + b ;;\nprint(f(1), f(1, 2), f(a: 1, b: 2))",
+            "",
+        ),
+        ("fn g(a, ...r) = [a, r]\nf = g\nprint(f(1, 2, 3))", ""),
+        ("fn g(a, b) = a + b\nprint(g(1, ...[2]))", ""),
+        // not known: a choice, a call's result, a parameter
+        (
+            "fn g(a) = a\nfn k(a) = a\nf = true then g else k\nprint(f(1, 2))",
+            "",
+        ),
+        ("fn pick() = x => x\nf = pick()\nprint(f(1, 2))", ""),
+        ("fn h(f) = f(1, 2)\nprint(h)", ""),
+    ];
+    for (src, want) in cases {
+        let (_, errs) = resolve_with(src, &["print", "len"], &Options::default());
+        let got = codes(&errs);
+        if want.is_empty() {
+            assert!(got.is_empty(), "{src}: {errs:?}");
+        } else {
+            assert_eq!(got, [want], "{src}: {errs:?}");
+        }
+    }
+    // The errors name what the function's own errors name.
+    let (_, errs) = resolve_with(
+        "fn g(a) = a\nf = g\nh = x => x\nprint(f(1, 2), h(1, 2))",
+        &["print"],
+        &Options::default(),
+    );
+    let msgs: Vec<String> = errs
+        .iter()
+        .map(|e| crate::diag::message(&e.code, &e.args))
+        .collect();
+    assert_eq!(
+        msgs,
+        [
+            "g takes 1 argument(s), got 2",
+            "the function takes 1 argument(s), got 2"
+        ]
+    );
+    // Too many fixed arguments before a spread.
+    let (_, errs) = resolve_with(
+        "fn g(a) = a\nprint(g(1, 2, ...[3]))",
+        &["print"],
+        &Options::default(),
+    );
+    let msgs: Vec<String> = errs
+        .iter()
+        .map(|e| crate::diag::message(&e.code, &e.args))
+        .collect();
+    assert_eq!(msgs, ["g takes 1 argument(s), got at least 2"]);
+    // The REPL may bind a top-level name again: no signature there.
+    let opts = Options {
+        redefine: true,
+        ..Options::default()
+    };
+    let (_, errs) = resolve_with("f = x => x\nprint(f(1, 2))", &["print"], &opts);
+    assert!(errs.is_empty(), "{errs:?}");
+}
+
+/// D113: a literal where a type annotation stands (a parameter default, a
+/// value the function returns, an argument of a call whose function is
+/// known) that the annotation does not take is the run's error, before
+/// anything runs.
+#[test]
+fn literals_against_annotations_are_checked() {
+    let cases = [
+        ("fn f() -> int = \"x\"\nprint(f)", "E0404"),
+        ("fn f(a: int = \"x\") = a\nprint(f)", "E0403"),
+        ("fn g(a: int) = a\nfn h() = g(\"x\")\nprint(h)", "E0403"),
+        ("fn f() -> int: return nil ;;\nprint(f)", "E0404"),
+        ("fn f() -> int:\n  return\n;;\nprint(f)", "E0404"),
+        (
+            "fn f(c) -> int:\n  if c: 1 else: \"x\" ;;\n;;\nprint(f)",
+            "E0404",
+        ),
+        (
+            "fn f(c) -> int:\n  if c: return \"x\" ;;\n  1\n;;\nprint(f)",
+            "E0404",
+        ),
+        ("fn f(c) -> int = c then 1 else 2.5\nprint(f)", "E0404"),
+        (
+            "fn f(c) -> int = match c: 1 => 2; _ => nil ;;\nprint(f)",
+            "E0404",
+        ),
+        (
+            "fn f(c) -> int = return c then 1 else 's\nprint(f)",
+            "E0404",
+        ),
+        ("fn g(a: int, b: str) = [a, b]\nprint(g(1, b: 2))", "E0403"),
+        ("fn g(a: num) = a\nprint(g(\"x\"))", "E0403"),
+        (
+            "type id = int | str\nfn g(a: id) = a\nprint(g(1.5))",
+            "E0403",
+        ),
+        ("fn g(a: Red) = a\nprint(g(Blue(1)))", "E0403"),
+        ("fn g(a: Red) = a\nprint(g(Blue))", "E0403"),
+        ("fn g(a: fn) = a\nprint(g([1]))", "E0403"),
+        ("fn g(a: int) = a\nh = g\nprint(h(\"x\"))", "E0403"),
+        ("f = fn(a: int): a ;;\nprint(f(\"x\"))", "E0403"),
+        (
+            "fn g(a: int) = a\nprint(map([1], g(_)), g(\"${1}\"))",
+            "E0403",
+        ),
+        // what the annotation takes
+        (
+            "fn g(a: num, b: any, c: Red, d: Red, e: sym, f: fn, h: int | nil) = [a, b, c, d, e, f, h]\nprint(g(1.5, \"x\", Red(1), Red, 'a, x => x, nil))",
+            "",
+        ),
+        ("fn f(c) -> int | nil = c then 1 else nil\nprint(f)", ""),
+        ("fn f(a: Ok | Err = Ok(1)) = a\nprint(f)", ""),
+        // a name is no literal
+        ("fn g(a: int) = a\ns = \"x\"\nprint(g(s))", ""),
+        // a rest parameter is always a list
+        ("fn g(...xs: list) = xs\nprint(g(\"x\"))", ""),
+    ];
+    for (src, want) in cases {
+        let (_, errs) = resolve_with(src, &["print", "map"], &Options::default());
+        let got = codes(&errs);
+        if want.is_empty() {
+            assert!(got.is_empty(), "{src}: {errs:?}");
+        } else {
+            assert_eq!(got, [want], "{src}: {errs:?}");
+        }
+    }
+    // The run's wording, with the union as written once expanded.
+    let (_, errs) = resolve_with(
+        "type id = int | str\nfn g(a: id, b: Red = 1) -> id | nil = a == 1 then 2.5 else nil\nprint(g(true))",
+        &["print"],
+        &Options::default(),
+    );
+    let msgs: Vec<String> = errs
+        .iter()
+        .map(|e| crate::diag::message(&e.code, &e.args))
+        .collect();
+    assert_eq!(
+        msgs,
+        [
+            "argument `b` must be Red, got int",
+            "return value must be int | str | nil, got float",
+            "argument `a` must be int | str, got bool",
+        ]
+    );
+}
+
+/// D112: an arm (or an alternative) that an earlier arm without a guard
+/// covers never runs: E0235 for the arm, E0241 for one alternative.
+/// A pattern covers another when every value the other matches it
+/// matches too, seen from their shapes alone.
+#[test]
+fn an_arm_covered_by_an_earlier_one_never_runs() {
+    let cases: &[(&str, &[&str])] = &[
+        ("[] => 1; [] => 2", &["E0235"]),
+        ("Ok(_) => 1; Ok(1) => 2", &["E0235"]),
+        ("(_, _) => 1; (1, 2) => 2", &["E0235"]),
+        ("(a, _) => a; (1, b) => b", &["E0235"]),
+        ("[...] => 1; [] => 2", &["E0235"]),
+        ("[x, ...] => x; [1, 2] => 2", &["E0235"]),
+        ("[x, ...] => x; [1, ...r] => r", &["E0235"]),
+        ("[_, _] => 1; [1, 2] => 2", &["E0235"]),
+        ("Pt(1, x) => x; Pt(1, 2) => 2", &["E0235"]),
+        ("{a: 1} => 1; {a: 1} => 2", &["E0235"]),
+        ("{a: _, ...} => 1; {a: 1, b: 2} => 2", &["E0235"]),
+        ("{a: _, ...} => 1; {a: 1, b: 2, ...} => 2", &["E0235"]),
+        ("{...} => 1; {} => 2", &["E0235"]),
+        ("{...} => 1; {a: 1, ...} => 2", &["E0235"]),
+        ("1 | 2 => 1; 2 | 1 => 2", &["E0235"]),
+        ("Ok(1 | 2) => 1; Ok(2) => 2", &["E0235"]),
+        ("1 | 2 => 1; 2 | 3 => 2", &["E0241"]),
+        ("Ok(_) | Err(_) => 1; Ok(2) => 2", &["E0235"]),
+        // a guard on the earlier arm, or a shape that differs
+        ("[x] when x > 0 => 1; [1] => 2", &[]),
+        ("[x, ...] => x; [] => 2", &[]),
+        ("[1, ...] => 1; [x, ...] => x", &[]),
+        ("[a] => a; [a, b] => a + b", &[]),
+        ("(a, b) => a; (a, b, c) => c", &[]),
+        ("Pt(a) => a; Pt(a, b) => b", &[]),
+        ("Pt(a) => a; Qt(a) => a", &[]),
+        ("Ok(1) => 1; Ok(_) => 2", &[]),
+        ("{a: 1} => 1; {a: 1, b: 2} => 2", &[]),
+        ("{a: 1} => 1; {a: 1, ...} => 2", &[]),
+        ("{a: 1, ...} => 1; {b: 1} => 2", &[]),
+        ("{} => 1; {...} => 2", &[]),
+        ("1 => 1; Red => 2", &[]),
+        // several arms together are not looked at (out of scope)
+        ("true => 1; false => 2", &[]),
+    ];
+    for (arms, want) in cases {
+        let src = format!(
+            "fn f(v) = match v:\n  {}\n  _ => 0\n;;\nprint(f)",
+            arms.replace("; ", "\n  ")
+        );
+        let (_, errs) = res(&src);
+        let errs: Vec<Diag> = errs.into_iter().filter(|e| e.code != "E0239").collect();
+        assert_eq!(codes(&errs), *want, "{src}: {errs:?}");
+    }
+    // The second arm, naming the first; the dead alternative.
+    let (_, errs) = res("fn f(v) = match v:\n  Ok(_) => 1\n  Ok(1) => 2\n  _ => 0\n;;\nprint(f)");
+    assert_eq!((errs[0].pos.line, errs[0].pos.col), (3, 3), "{errs:?}");
+    let msg = crate::diag::message(&errs[0].code, &errs[0].args);
+    assert!(msg.contains("line 2"), "{msg}");
+    let (_, errs) = res("fn f(v) = match v:\n  1 | 2 => 1\n  2 | 3 => 2\n  _ => 0\n;;\nprint(f)");
+    assert_eq!((errs[0].pos.line, errs[0].pos.col), (3, 3), "{errs:?}");
+    // inside one `|`, by structure too
+    let (_, errs) = res("fn f(v) = match v:\n  [_] | [1] => 1\n  _ => 0\n;;\nprint(f)");
+    assert_eq!(codes(&errs), ["E0241"], "{errs:?}");
+    // `1 => y => y + 1` in a statement: an empty arm `1`, then `y`, which
+    // matches everything before the last arm.
+    let (_, errs) = res(
+        "fn f(v):\n  match v:\n    1 => y => print(y)\n    _ => print(2)\n  ;;\n  1\n;;\nprint(f)",
+    );
+    assert_eq!(codes(&errs), ["E0235"], "{errs:?}");
+    assert!(help(&errs[0]).contains("parentheses"), "{errs:?}");
 }

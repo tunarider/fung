@@ -363,21 +363,21 @@ print(fold(pairs(vals), tmpl, (acc, (k, v)) =&gt; replace(acc, &quot;{{${k}}}&qu
 <p><code>s</code>가 <code>prefix</code>로 시작하면 <code>true</code>.</p>
 <div class="sig"><code>starts_with(s, prefix)</code></div>
 <h4>설명</h4>
-<p>빈 접두사는 언제나 참이다. 부분 문자열이 어디에든 있는지는 <code>x in s</code>(또는 <a href="collections.html#fn-contains"><code>contains</code></a>), 패턴은 <a href="../modules/regex.html#fn-regex-is_match"><code>regex.is_match</code></a>로 본다.</p>
+<p>찾을 글인 <code>prefix</code>는 비어 있을 수 없다: 빈 글은 어디에나 맞으므로, 비어 있는 변수가 모든 줄에 맞는 실수를 막으려고 에러다(<code>split</code>의 <code>sep</code>, <code>index_of</code>의 <code>sub</code>, <code>in</code>과 같은 규칙). 부분 문자열이 어디에든 있는지는 <code>x in s</code>(또는 <a href="collections.html#fn-contains"><code>contains</code></a>), 패턴은 <a href="../modules/regex.html#fn-regex-is_match"><code>regex.is_match</code></a>로 본다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
-<li><code>prefix</code>: 문자열.</li>
+<li><code>prefix</code>: 문자열. 비어 있으면 안 된다.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p><code>bool</code>.</p>
 <h4>에러</h4>
-<p>인자가 문자열이 아니면 런타임 에러 E0403.</p>
+<p>인자가 문자열이 아니거나 <code>prefix</code>가 빈 문자열이면 런타임 에러 E0403(<code>argument `prefix` must be a non-empty str, got &quot;&quot;</code>).</p>
 <h4>예제</h4>
 <p><strong>접두사로 고르기</strong></p>
-<div class="run"><pre><code>print(starts_with(&quot;fung.toml&quot;, &quot;fung&quot;), starts_with(&quot;a&quot;, &quot;&quot;))
+<div class="run"><pre><code>print(starts_with(&quot;fung.toml&quot;, &quot;fung&quot;), starts_with(&quot;a&quot;, &quot;ab&quot;))
 log = [&quot;# comment&quot;, &quot;host=a&quot;, &quot;&quot;, &quot;# x&quot;, &quot;port=1&quot;]
-print(filter(log, l =&gt; l != &quot;&quot; and not starts_with(l, &quot;#&quot;)))</code></pre><pre class="out plain"><code>true true
+print(filter(log, l =&gt; l != &quot;&quot; and not starts_with(l, &quot;#&quot;)))</code></pre><pre class="out plain"><code>true false
 [&quot;host=a&quot;, &quot;port=1&quot;]</code></pre></div>
 <p><strong>접두사 떼기</strong></p>
 <div class="run"><pre><code>tag = &quot;v1.4.2&quot;
@@ -415,16 +415,16 @@ nil</code></pre></div>
 <p><code>s</code>가 <code>suffix</code>로 끝나면 <code>true</code>.</p>
 <div class="sig"><code>ends_with(s, suffix)</code></div>
 <h4>설명</h4>
-<p>확장자 검사에 많이 쓴다. 대소문자를 가리므로 <code>&quot;A.LOG&quot;</code>도 받으려면 <code>ends_with(lower(name), &quot;.log&quot;)</code>.</p>
+<p>확장자 검사에 많이 쓴다. 대소문자를 가리므로 <code>&quot;A.LOG&quot;</code>도 받으려면 <code>ends_with(lower(name), &quot;.log&quot;)</code>. 찾을 글인 <code>suffix</code>는 <code>starts_with</code>의 <code>prefix</code>처럼 비어 있을 수 없다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
-<li><code>suffix</code>: 문자열.</li>
+<li><code>suffix</code>: 문자열. 비어 있으면 안 된다.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p><code>bool</code>.</p>
 <h4>에러</h4>
-<p>인자가 문자열이 아니면 런타임 에러 E0403.</p>
+<p>인자가 문자열이 아니거나 <code>suffix</code>가 빈 문자열이면 런타임 에러 E0403(<code>argument `suffix` must be a non-empty str, got &quot;&quot;</code>).</p>
 <h4>예제</h4>
 <p><strong>확장자로 고르기</strong></p>
 <div class="run"><pre><code>files = [&quot;app.log&quot;, &quot;app.log.1&quot;, &quot;ERROR.LOG&quot;, &quot;notes.txt&quot;]

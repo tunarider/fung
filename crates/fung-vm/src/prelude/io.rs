@@ -2,6 +2,8 @@
 //! `ewrite`, `read_line`, `read_lines`. `file` is nil (standard input) or a file handle from
 //! `fs.open`, read on a pool thread.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::native::file::{Fault, File, PipeTurn};
@@ -135,26 +137,30 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
 
 /// `read_line` (`one`) or `read_lines` on a FIFO handle: read on the run
 /// thread, parking in the event loop when nothing is there (`pipe.rs`,
-/// L11). The lines read so far stay in the closure: a stop loses none of
-/// the bytes, which stay in the handle's buffer. One task at a time reads
-/// the handle (its read turn, CC14); the others wait in line.
+/// L11). A stop loses none of the bytes: the part of a line stays in the
+/// handle's buffer, and the whole lines `read_lines` had taken go back
+/// to its front (VA61). One task at a time reads the handle (its read
+/// turn, CC14); the others wait in line.
 fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
-    let mut got: Vec<Vec<u8>> = Vec::new();
+    let got: Rc<RefCell<Vec<Vec<u8>>>> = Rc::default();
     let turn = PipeTurn::new(h.clone(), false);
-    let stopped = turn.clone();
+    let (stopped, kept, back) = (turn.clone(), got.clone(), h.clone());
     park_io(
         t,
         move |_, me| {
             if !turn.take(me) {
                 return IoStep::Park;
             }
-            let step = pipe_lines_step(&h, one, &mut got);
+            let step = pipe_lines_step(&h, one, &mut got.borrow_mut());
             if let IoStep::Done(_) = step {
                 turn.end();
             }
             step
         },
-        move |_| stopped.end(),
+        move |_| {
+            back.pipe_unread(kept.take().concat());
+            stopped.end();
+        },
     )
 }
 
@@ -271,15 +277,17 @@ fn line_value(who: &str, l: Option<Vec<u8>>) -> Value {
 pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     match &a[0] {
         Value::Nil => {
-            // A line at a time, parking whenever none is queued.
-            let mut got = Vec::new();
+            // A line at a time, parking whenever none is queued. A stop
+            // gives the lines taken back to the front of the queue (VA61).
+            let got: Rc<RefCell<Vec<Vec<u8>>>> = Rc::default();
+            let kept = got.clone();
             park_until_then(
                 t,
                 move |t, _| loop {
                     match t.stdin_poll() {
-                        Ok(Some(Input::Line(l))) => got.push(l),
+                        Ok(Some(Input::Line(l))) => got.borrow_mut().push(l),
                         Ok(Some(Input::End)) => {
-                            return Some(Ok(lines_value(STDIN, std::mem::take(&mut got))));
+                            return Some(Ok(lines_value(STDIN, got.take())));
                         }
                         // The lines read before it went with the call.
                         Ok(Some(Input::Failed(e))) => return Some(Ok(stdin_err(&e))),
@@ -288,7 +296,10 @@ pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
                     }
                 },
                 STDIN_WAKE,
-                |t| t.stdin_leave(),
+                move |t| {
+                    t.stdin_leave();
+                    t.stdin_unread(kept.take());
+                },
             )
         }
         Value::File(h) if h.is_pipe() => pipe_lines(t, h.clone(), false),

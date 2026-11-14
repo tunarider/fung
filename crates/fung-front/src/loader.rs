@@ -378,10 +378,14 @@ impl State<'_> {
     /// Resolves a relative or absolute path against the importing file's
     /// directory (04), or the working directory for `-e`.
     fn load_file(&mut self, im: &Import, pos: Pos, from_key: &str) -> Result<ModuleInfo, Errs> {
-        let mut path = im.spec.clone();
-        if !path.ends_with(".fung") {
-            path.push_str(".fung");
+        // A path that ends in `/` names a directory: there is no such
+        // module file (FE82; not a file name that needs `as`).
+        if im.spec.ends_with('/') {
+            return Err(vec![error("E0301", pos, vec![Arg::Str(im.spec.clone())])]);
         }
+        // The loader always adds the extension (D125): a path that
+        // already ends in `.fung` names `x.fung.fung`, which shows as E0301.
+        let path = format!("{}.fung", im.spec);
         let key = if path.starts_with('/') {
             self.same_file_clean(&path)
         } else {
@@ -409,7 +413,11 @@ impl State<'_> {
             return Err(vec![error("E0307", pos, vec![])]);
         }
         if !crate::lexer::is_name(&name) && im.alias.is_empty() && im.names.is_none() {
-            return Err(vec![error("E0305", pos, vec![Arg::Str(name)])]);
+            let mut d = error("E0305", pos, vec![Arg::Str(name.clone())]);
+            if name.ends_with(".fung") {
+                d = d.with_help("the loader adds `.fung` to the path; write it without");
+            }
+            return Err(vec![d]);
         }
         let read = self.l.read_file;
         let k = key.clone();
@@ -719,6 +727,29 @@ mod tests {
 
     /// `link/..` is above what the link names, as the system opens it
     /// (FE68); without a link the path is shown clean.
+    /// The loader adds `.fung` to every path (D125); one that already has
+    /// it names a file that is not there.
+    #[test]
+    fn an_import_path_always_gets_the_extension() {
+        let dir = Scratch::new("ext-always");
+        std::fs::write(dir.0.join("x.fung"), "n = 1\n").unwrap();
+        let entry = dir.0.join("main.fung").to_string_lossy().into_owned();
+        let l = Loader::default();
+        let (_, errs) = l.compile(&entry, "import \"./x\"\nprint(x.n)", Stage::All);
+        assert!(errs.is_empty(), "{:?}", codes(&errs));
+        // without `as`, the file name that is no name comes first
+        let (_, errs) = l.compile(&entry, "import \"./x.fung\"", Stage::All);
+        assert_eq!(codes(&errs), ["E0305"]);
+        assert_eq!(
+            errs[0].help.as_deref(),
+            Some("the loader adds `.fung` to the path; write it without")
+        );
+        let (_, errs) = l.compile(&entry, "import \"./x.fung\" as x\nprint(x.n)", Stage::All);
+        assert_eq!(codes(&errs), ["E0301"]);
+        let msg = diag::message(&errs[0].code, &errs[0].args);
+        assert!(msg.contains("x.fung.fung"), "{msg}");
+    }
+
     #[test]
     fn a_parent_past_a_link_is_the_systems() {
         let dir = Scratch::new("link-parent");
@@ -1007,6 +1038,9 @@ mod tests {
             ("import \"./Big\"", vec!["E0305"]),
             ("import \"./if\" as m\nprint(m.x)", vec![]),
             ("import \"./ok_1\"\nprint(ok_1.x)", vec![]),
+            // a directory is no module file (FE82)
+            ("import \"./sub/\"", vec!["E0301"]),
+            ("import \"./sub/\" as s\nprint(s.x)", vec!["E0301"]),
         ] {
             let (_, errs) = mem_loader().compile("/p/main.fung", src, Stage::All);
             assert_eq!(codes(&errs), want, "{src}");

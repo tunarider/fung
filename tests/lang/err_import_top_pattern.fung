@@ -1,0 +1,4 @@
+# An imported file's top level takes no bare statement, and an assignment
+# that binds no name is one (FE80).
+import "./_lib/noisy_pattern"
+# expect-error: E0306

@@ -104,7 +104,7 @@ fn alerts(req):
     return reply(401, {error: &quot;bad token&quot;})
   ;;
   match json.parse(req.body):
-    Ok({alerts: list}) =&gt;
+    Ok({alerts: list, ...}) =&gt;
       es = map(list, entry)
       each(es, fn(e):
         fs.append(log_file, json.stringify(e) + &quot;\n&quot;)!
@@ -112,8 +112,8 @@ fn alerts(req):
       ;;)
       swap(received, n =&gt; n + len(es))
       reply(200, {accepted: len(es)})
-    Ok(_)              =&gt; reply(400, {error: &quot;no alerts list&quot;})
-    Err(e)             =&gt; reply(400, {error: e.message})
+    Ok(_)                   =&gt; reply(400, {error: &quot;no alerts list&quot;})
+    Err(e)                  =&gt; reply(400, {error: e.message})
   ;;
 ;;
 
@@ -171,7 +171,7 @@ print(&quot;stopped cleanly&quot;)</code></pre><pre class="out plain"><code>serv
 stopped cleanly</code></pre></div>
 </div>
 <div class="box mistake"><b>처리기 안에서 바깥 변수 세기</b>
-<p>요청 수를 <code>count = count + 1</code>로 세려고 하면, 처리기도 블록이라 바깥 변수에 대입할 수 없어 컴파일 에러 E0205다. 대입이 된다 해도 요청들이 동시에 돌기 때문에 숫자가 어긋난다. 요청 사이에 나누는 값은 <code>atom</code>에 두고 <code>swap</code>으로 바꾼다.</p>
+<p>요청 수를 <code>count = count + 1</code>로 세려고 하면, 처리기도 블록이라 바깥 변수에 대입할 수 없어 컴파일 에러 E0238이다. 대입이 된다 해도 요청들이 동시에 돌기 때문에 숫자가 어긋난다. 요청 사이에 나누는 값은 <code>atom</code>에 두고 <code>swap</code>으로 바꾼다.</p>
 </div>
 <h2 id="vary">응용</h2>
 <ul>
@@ -181,7 +181,7 @@ stopped cleanly</code></pre></div>
 <li><strong>포트 0</strong>: <code>--addr 127.0.0.1:0</code>이면 운영체제가 빈 포트를 고르고, <code>ready</code>가 실제 주소를 알려 준다. 시험할 때 쓴다.</li>
 <li><strong>시험하기</strong>: 저장소 <code>examples/api.fung</code>의 <code>test</code> 블록은 <code>scope</code> 안에서 서버를 띄우고 <code>http.get</code>·<code>http.post</code>로 확인한 뒤 끈다. <code>fung test</code>로 돌린다.</li>
 </ul>
-<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>, <a href="../learn/14-testing.html">14장 테스트</a>. 레퍼런스: <a href="../reference/modules/http.html#fn-http-serve"><code>http.serve</code></a>, <a href="../reference/prelude/concurrency.html#fn-atom"><code>atom</code></a>, <a href="../reference/prelude/concurrency.html#fn-swap"><code>swap</code></a>, <a href="../reference/prelude/concurrency.html#fn-request_stop"><code>request_stop</code></a>, <a href="../reference/modules/fs.html#fn-fs-append"><code>fs.append</code></a>, <a href="../reference/modules/json.html#fn-json-parse"><code>json.parse</code></a>, <a href="../reference/errors.html#E0205">E0205</a>.</p>
+<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>, <a href="../learn/14-testing.html">14장 테스트</a>. 레퍼런스: <a href="../reference/modules/http.html#fn-http-serve"><code>http.serve</code></a>, <a href="../reference/prelude/concurrency.html#fn-atom"><code>atom</code></a>, <a href="../reference/prelude/concurrency.html#fn-swap"><code>swap</code></a>, <a href="../reference/prelude/concurrency.html#fn-request_stop"><code>request_stop</code></a>, <a href="../reference/modules/fs.html#fn-fs-append"><code>fs.append</code></a>, <a href="../reference/modules/json.html#fn-json-parse"><code>json.parse</code></a>, <a href="../reference/errors.html#E0238">E0238</a>.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/exit-codes.html"><small>이전</small>종료 코드와 표준 에러</a></nav>
 </div></main>
 </div>

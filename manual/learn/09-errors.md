@@ -31,7 +31,7 @@ import fs
 print(fs.read("missing.txt"))
 ```
 
-`Err`는 성공한 값이 아니므로 그대로 쓸 수 없다. `parse_int("x").message`라고 쓰면 맵이 아니라 `Err` 태그에서 키를 찾으므로 런타임 에러 E0509(`cannot index Err with str`)가 난다. 안의 값을 꺼내려면 아래의 방법 중 하나를 쓴다.
+`Err`는 성공한 값이 아니므로 그대로 쓸 수 없다. `parse_int("x").message`라고 쓰면 맵이 아니라 `Err` 태그에서 키를 찾으므로 런타임 에러 E0509(`cannot index Err with str`)가 난다. 도움말이 `Err`에는 필드가 없다고 알려 준다. 안의 값을 꺼내려면 아래의 방법 중 하나를 쓴다.
 
 ## match로 꺼내기 {#match}
 
@@ -53,9 +53,9 @@ print(double_text("abc"))
 import fs
 
 fn load_config(p) = match fs.read(p):
-  Ok(text)                => text
-  Err({kind: 'not_found}) => "{}"
-  Err(e)                  => fail(e.message)
+  Ok(text)                     => text
+  Err({kind: 'not_found, ...}) => "{}"
+  Err(e)                       => fail(e.message)
 ;;
 
 print(load_config("app.json"))
@@ -334,7 +334,7 @@ print(total, bad)
 ## 정리 {#summary}
 
 - 실패할 수 있는 함수는 `Ok(값)` 또는 `Err(이유)`를 돌려준다. 표준 라이브러리의 이유는 `{kind, message}` 맵이다.
-- `match`로 성공과 실패를 나누고, `Err({kind: 'not_found})`처럼 종류로 다시 나눈다.
+- `match`로 성공과 실패를 나누고, `Err({kind: 'not_found, ...})`처럼 종류로 다시 나눈다.
 - `?`는 실패를 부른 쪽에 넘기고(함수 안에서만), `!`는 그 자리에서 멈추고(E0603), `??`는 모든 실패와 `nil`을 기본값으로 바꾼다.
 - 버려진 `Err`는 에러다(E0606). 일부러 버릴 때는 `_ = …`.
 - 리스트를 바꾸다 처음 실패에서 멈추려면 `try_map`.

@@ -191,7 +191,10 @@ fn parameter_patterns_run() {
             "[3, 7]\n",
         ),
         ("fn f((a, b), c) = a + b + c\nprint(f((1, 2), 3))", "6\n"),
-        ("fn g({name: n}) = n\nprint(g({name: \"x\", y: 1}))", "x\n"),
+        (
+            "fn g({name: n, ...}) = n\nprint(g({name: \"x\", y: 1}))",
+            "x\n",
+        ),
         (
             "print(map([Ok(1), Ok(2)], (Ok(x)) => x * 10))",
             "[10, 20]\n",

@@ -3,4 +3,4 @@ _f = fn():
   x = 2
   x
 ;;
-# expect-error: E0205
+# expect-error: E0238

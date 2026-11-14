@@ -42,10 +42,10 @@ fn split_args(xs, seen) = match xs:
 fn run_on(host, command):
   ssh = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host]
   match timeout(() => exec(ssh + command), 30s):
-    Ok(Ok(res))                       => Ok(res.out)
-    Ok(Err({kind: 'exit, code, err})) => Err("exit ${code}: ${trim(err)}")
-    Ok(Err(e))                        => Err(e.message)
-    Err(_)                            => Err("no answer in 30s")
+    Ok(Ok(res))                            => Ok(res.out)
+    Ok(Err({kind: 'exit, code, err, ...})) => Err("exit ${code}: ${trim(err)}")
+    Ok(Err(e))                             => Err(e.message)
+    Err(_)                                 => Err("no answer in 30s")
   ;;
 ;;
 
@@ -89,7 +89,7 @@ $ echo $?
 
 :::box mistake 반복문 안에서 실패 개수 세기
 
-쉘처럼 `failed=0`을 두고 반복문 안에서 `failed = failed + 1`을 쓰면 E0205다. fung의 블록은 바깥 변수를 바꾸지 못한다. 위처럼 결과를 다 모은 다음 식으로 센다.
+쉘처럼 `failed=0`을 두고 반복문 안에서 `failed = failed + 1`을 쓰면 E0238이다. fung의 블록은 바깥 변수를 바꾸지 못한다. 위처럼 결과를 다 모은 다음 식으로 센다.
 
 ```fung run
 results = [Ok("up"), Err("refused"), Ok("up"), Err("timeout")]

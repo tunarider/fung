@@ -201,7 +201,7 @@ print(max_retries, log_dir)</code></pre><pre class="out plain"><code>3 /var/log/
 count = 0
 for f in files:
   count = count + 1
-;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot assign to `count` here: it is bound outside this block
+;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0238]: cannot bind `count` again: a name is bound once
   --&gt; example.fung:4:3
   |
 4 |   count = count + 1
@@ -219,8 +219,8 @@ print(count, level)</code></pre><pre class="out plain"><code>2 critical</code></
 <div class="box learn"><b>변수는 상자인가, 이름표인가</b>
 <p>프로그래밍 입문서는 변수를 흔히 "값을 넣는 상자"로 설명한다. 상자 안의 값을 꺼내 고쳐 넣을 수 있다는 그림이다. fung에는 <strong>이름표</strong> 그림이 맞다. 값은 한 번 만들어지면 그대로이고, 대입은 이름표를 어느 값에 붙일지 정할 뿐이다. 같은 값에 이름표 여러 개가 붙어 있어도, 값이 바뀌지 않으니 서로 영향을 줄 일이 없다.</p>
 </div>
-<div class="box mistake"><b>블록 안에서 합계 쌓기 (E0205)</b>
-<p>쉘이나 Python 습관대로 반복문 안에서 <code>total = total + x</code>를 쓰면 E0205다. 값이 바뀌지 않는 언어에서 이 코드를 허용하면, 블록 안의 대입은 바깥 변수를 고치지 못하고 <strong>블록 안에 같은 이름의 새 변수를 만드는</strong> 수밖에 없다. 그러면 반복이 끝난 뒤 바깥의 <code>total</code>은 조용히 <code>0</code>으로 남는다. 조용히 틀리는 대신 에러로 막은 것이다. 합계는 <code>sum(xs)</code>, 개수는 <code>len(xs)</code>, 그 밖의 누적은 4장의 <code>fold</code>로 쓴다.</p>
+<div class="box mistake"><b>블록 안에서 합계 쌓기 (E0238)</b>
+<p>쉘이나 Python 습관대로 반복문 안에서 <code>total = total + x</code>를 쓰면 E0238이다. 값이 바뀌지 않는 언어에서 이 코드를 허용하면, 블록 안의 대입은 바깥 변수를 고치지 못하고 <strong>블록 안에 같은 이름의 새 변수를 만드는</strong> 수밖에 없다. 그러면 반복이 끝난 뒤 바깥의 <code>total</code>은 조용히 <code>0</code>으로 남는다. 조용히 틀리는 대신 에러로 막은 것이다. 합계는 <code>sum(xs)</code>, 개수는 <code>len(xs)</code>, 그 밖의 누적은 4장의 <code>fold</code>로 쓴다.</p>
 </div>
 <div class="box mistake"><b>심볼과 문자열 비교</b>
 <p><code>'ok == &quot;ok&quot;</code>는 <strong>거짓</strong>이다. 심볼과 문자열은 다른 타입이고, 타입이 다른 값은 결코 같지 않다. 파일, 명령 출력, JSON에서 읽은 값은 늘 문자열이라서, <code>state == 'ok</code>처럼 쓰면 늘 거짓이 된다. 조건이 한 번도 참이 되지 않는다면 두 값의 타입부터 본다. 문자열을 심볼로 바꿔 비교하려면 <code>sym(s) == 'ok</code>라고 쓴다.</p>
@@ -263,9 +263,9 @@ print(a, b, c, d)</code></pre><pre class="out plain"><code>[1, 2] [1, 2] [1, 2, 
 <li><code>nil</code>은 "없음"이고, <code>??</code>로 기본값을 준다.</li>
 <li>이름은 소문자로 시작하고, 쓰기 전에 대입한다. 최상위의 이름은 한 번만 붙고(E0238) 모두 상수다.</li>
 <li>값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.</li>
-<li>블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.</li>
+<li>블록 안에서는 바깥 이름에 대입할 수 없다(E0238). 블록이 낸 값을 대입한다.</li>
 </ul>
-<p>레퍼런스: <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/operators.html">연산자</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0205">E0205</a>, <a href="../reference/errors.html#E0238">E0238</a>, <a href="../reference/language/values.html">비교와 동일성</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
+<p>레퍼런스: <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/operators.html">연산자</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0238">E0238</a>, <a href="../reference/language/values.html">비교와 동일성</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/02-first-program.html"><small>이전 장</small>2. 설치와 첫 프로그램</a><a class="next" href="../learn/04-conditions-and-loops.html"><small>다음 장</small>4. 조건과 반복</a></nav>
 </div></main>
 </div>

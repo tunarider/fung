@@ -163,7 +163,7 @@ fn a_line_goes_there_and_back() {
 fn net_natives_park_on_the_loop() {
     let _g = serial();
     let o = run(
-        "n0 = offloads()\nl = net.listen(\"127.0.0.1:0\")!\nn1 = offloads()\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nc = net.connect(\"127.0.0.1\", port)!\nn2 = offloads()\ns = net.accept(l)!\nn3 = offloads()\nnet.write(c, \"x\\n\")!\nn4 = offloads()\nprint(net.read_line(s, 100))\nprint(n1 - n0, n2 - n1, n3 - n2, n4 - n3, offloads() - n4)\nn5 = offloads()\nd = net.connect(\"localhost\", port)\nprint(offloads() - n5)\nmatch d:\n  Ok(x) => net.close(x)!\n  _ => nil\n;;\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!",
+        "n0 = offloads()\nl = net.listen(\"127.0.0.1:0\")!\nn1 = offloads()\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nc = net.connect(\"127.0.0.1\", port)!\nn2 = offloads()\ns = net.accept(l)!\nn3 = offloads()\nnet.write(c, \"x\\n\")!\nn4 = offloads()\nprint(net.read_line(s, 100))\nprint(n1 - n0, n2 - n1, n3 - n2, n4 - n3, offloads() - n4)\nn5 = offloads()\nd = net.connect(\"localhost\", port)\nprint(offloads() - n5)\nmatch d:\n  Ok(x) => net.close(x)!\n  _ =>\n;;\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!",
     );
     assert_eq!(out(&o), ("Ok(\"x\")\n0 0 0 0 0\n1\n", "", 0));
 }

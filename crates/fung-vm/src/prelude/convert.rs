@@ -82,19 +82,17 @@ fn parse_int(s: &str) -> Result<i64, Option<String>> {
     literal(s, Kind::Int).map(|t| t.int)
 }
 
-/// A float in the literal syntax (`literal`); a decimal int literal
-/// (`"42"`) is a float too, as `float(42)` is. A based int (`"0x10"`)
-/// is not: no float is written in hex.
+/// A float in the literal syntax (`literal`). Integer-shaped text
+/// (decimal digits and `_` after the sign, `"42"`) is the float literal
+/// it would be with `.0` (VA64): its range is a float's, not an int's,
+/// and past 2^53 it is the nearest float, as `10000000000000000001.0`
+/// is. A based int (`"0x10"`) is no float: no float is written in hex.
 fn parse_float(s: &str) -> Result<f64, Option<String>> {
-    match literal(s, Kind::Float) {
-        Ok(t) => Ok(t.float),
-        Err(None) => match literal(s, Kind::Int) {
-            Ok(t) if t.text.bytes().all(|b| b.is_ascii_digit() || b == b'_') => Ok(t.int as f64),
-            Ok(_) => Err(None),
-            Err(help) => Err(help),
-        },
-        Err(help) => Err(help),
+    let body = s.strip_prefix(['-', '+']).unwrap_or(s);
+    if !body.is_empty() && body.bytes().all(|b| b.is_ascii_digit() || b == b'_') {
+        return literal(&format!("{s}.0"), Kind::Float).map(|t| t.float);
     }
+    literal(s, Kind::Float).map(|t| t.float)
 }
 
 /// A duration in the literal syntax (`literal`): 1h30m, 500ms, -5s.
@@ -263,6 +261,9 @@ mod tests {
             ("-0", 0),
             ("1_000", 1000),
             ("0x1f", 31),
+            // hex digits take either case, as in a literal (D127)
+            ("0x1F", 31),
+            ("-0xCafe", -0xcafe),
             ("-0o17", -15),
             ("0b101", 5),
             ("9223372036854775807", i64::MAX),
@@ -328,6 +329,34 @@ mod tests {
             assert!(parse_float(s).is_err(), "{s:?}");
         }
         assert_eq!(parse_float("0e-999"), Ok(0.0));
+    }
+
+    /// VA64: integer-shaped text is read as the float literal it would be
+    /// with `.0`, whatever an int holds: a u64-sized counter reads, and
+    /// one past 2^53 is the nearest float, as the literal
+    /// `10000000000000000001.0` is. The help never talks about ints.
+    #[test]
+    fn integer_shaped_text_is_a_float_literal() {
+        for (s, f) in [
+            ("10000000000000000000", 1e19),
+            ("18446744073709551615", 18446744073709551615.0),
+            ("10000000000000000001", 1e19),
+            ("-9223372036854775809", -9223372036854775809.0),
+            ("1_000", 1000.0),
+        ] {
+            assert_eq!(parse_float(s), Ok(f), "{s:?}");
+        }
+        assert!(parse_float("-0").unwrap().is_sign_negative());
+        let big = format!("1{}", "0".repeat(400));
+        let help = parse_float(&big).unwrap_err().unwrap();
+        assert!(help.contains("float"), "{help}");
+        for s in ["007", "00", &big] {
+            let help = parse_float(s).unwrap_err().unwrap_or_default();
+            assert!(
+                !help.contains("int") && !help.contains("0o"),
+                "{s:?}: {help}"
+            );
+        }
     }
 
     /// One literal and nothing else: no comment after it, no space

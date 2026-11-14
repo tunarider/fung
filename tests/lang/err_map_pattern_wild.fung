@@ -1,0 +1,8 @@
+# A map pattern's shorthand binds the key's name; `_` binds nothing, so
+# `{_}` is an error rather than the key "_" (FE79).
+fn f(v) = match v:
+  {_} => 1
+  _ => 2
+;;
+print(f({a: 1}))
+# expect-error: E0112

@@ -35,9 +35,9 @@ description: fung 모듈 fs — 파일과 디렉터리를 읽고 쓰고 만들�
 import fs
 
 match fs.read("config.txt"):
-  Ok(text)                => print(text)
-  Err({kind: 'not_found}) => print("no config, using defaults")
-  Err(e)                  => print(e.message)
+  Ok(text)                     => print(text)
+  Err({kind: 'not_found, ...}) => print("no config, using defaults")
+  Err(e)                       => print(e.message)
 ;;
 ```
 

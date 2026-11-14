@@ -188,7 +188,7 @@ error[E0204]: undefined name `nope`
 <p>터미널에서 띄우면 줄 편집이 된다: ←→로 커서 이동, Home·End(Ctrl-A·Ctrl-E), Backspace·Delete, ↑↓로 이전 입력, Ctrl-L로 화면 지우기, Ctrl-C로 지금 줄 버리기. 입력 기록은 <code>~/.fung_history</code>(<code>HOME</code>이 없으면 메모리에만)에 최근 1,000줄까지 남는다. 실행 중의 Ctrl-C는 그 입력을 취소하고 프롬프트로 돌아온다. 정리가 끝나지 않을 때 한 번 더 누르면 그 입력의 태스크를 버린다.</p>
 <p>표준 입력이 터미널이 아니면(파이프, 파일) 줄 편집 없이 한 줄씩 읽고 프롬프트를 쓰지 않는다. 그래서 <code>fung &lt; inputs.txt</code>로 입력을 차례로 넣어 볼 수 있고, 표준 출력에는 입력이 출력한 것과 식의 값만 남는다. 에러가 나면 종료 코드가 1이므로 <code>set -e</code>도 실패를 본다.</p>
 <h2 id="check">검사: <code>check</code></h2>
-<p><code>fung check script.fung</code>은 <strong>실행하지 않고</strong> 컴파일만 해서 문법 에러, 없는 이름, 잘못된 <code>import</code>, 부르는 함수가 정해진 호출의 인자 개수·이름(E0402·E0405~E0407), 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0240)를 찾는다. 이것들은 <code>run</code>에서도 같은 컴파일 에러다(언어에 경고는 없다). 서버에 올리기 전이나 편집기의 저장 훅에서 쓴다. 파일은 하나만 받고 디렉터리는 받지 않는다. <code>fung check -e '코드'</code>도 된다.</p>
+<p><code>fung check script.fung</code>은 <strong>실행하지 않고</strong> 컴파일만 해서 문법 에러, 없는 이름, 잘못된 <code>import</code>, 부르는 함수가 정해진 호출의 인자 개수·이름(E0402·E0405~E0407), 쓰지 않는 이름(E0239)과 보이는 이름을 가리는 묶기(E0238)를 찾는다. 이것들은 <code>run</code>에서도 같은 컴파일 에러다(언어에 경고는 없다). 서버에 올리기 전이나 편집기의 저장 훅에서 쓴다. 파일은 하나만 받고 디렉터리는 받지 않는다. <code>fung check -e '코드'</code>도 된다.</p>
 <pre class="plain shell"><code>$ fung check w.fung
 error[E0239]: unused import `fs`
   --&gt; w.fung:1:8
@@ -350,7 +350,7 @@ $ echo $?
     <tr><td><a href="errors.html#e06"><code>E06xx</code></a></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>)</td></tr>
     <tr><td><a href="errors.html#e07"><code>E07xx</code></a></td><td>동시성(취소, 교착, 닫힌 태스크 범위, atom 규칙)</td></tr>
     <tr><td><a href="errors.html#e08"><code>E08xx</code></a></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
-    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>은퇴한 경고 번호(지금은 E0239·E0240 에러)</td></tr>
+    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>은퇴한 경고 번호(지금은 E0239·E0238 에러)</td></tr>
   </tbody>
 </table>
 <h2 id="exit-codes">종료 코드</h2>

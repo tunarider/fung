@@ -4,14 +4,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `argv` must be list, got str
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(cli.parse("x"))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== cli.parse "import cli\nprint(cli.parse([1]))"
 -- stdout
 -- stderr
@@ -76,51 +74,42 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `rxs` must be list, got int
-|   --> -e:2:23
+|   --> -e:2:27
 |   |
 | 2 | scope(s => conc.fan_in(s, 1))
-|   |                       ^
+|   |                           ^
 |   |
-|  call path (innermost first):
-|    -e:2       <lambda>
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== conc.fan_in "import conc\nconc.fan_in(1, [])"
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be scope, got int
-|   --> -e:2:12
+|   --> -e:2:13
 |   |
 | 2 | conc.fan_in(1, [])
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== conc.pmap "import conc\nprint(conc.pmap([1], x => print(x), limit: \"a\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `limit` must be int | nil, got str
-|   --> -e:2:16
+|   --> -e:2:44
 |   |
 | 2 | print(conc.pmap([1], x => print(x), limit: "a"))
-|   |                ^
+|   |                                            ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== conc.pmap "import conc\nprint(conc.pmap([1, 2, 3, 4], x => print(x), limit: 2.5))"
 -- stdout
 -- stderr
 | error[E0403]: argument `limit` must be int | nil, got float
-|   --> -e:2:16
+|   --> -e:2:53
 |   |
 | 2 | print(conc.pmap([1, 2, 3, 4], x => print(x), limit: 2.5))
-|   |                ^
+|   |                                                     ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== conc.pmap "import conc\nprint(conc.pmap([1], x => print(x), limit: 0))"
 -- stdout
 -- stderr
@@ -149,26 +138,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:2:16
+|   --> -e:2:22
 |   |
 | 2 | print(conc.pmap([1], 1))
-|   |                ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: \"2\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `times` must be int, got str
-|   --> -e:2:17
+|   --> -e:2:41
 |   |
 | 2 | print(conc.retry(() => print(1), times: "2"))
-|   |                 ^
+|   |                                         ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: 0))"
 -- stdout
 -- stderr
@@ -197,14 +182,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `delay` must be dur, got int
-|   --> -e:2:17
+|   --> -e:2:51
 |   |
 | 2 | print(conc.retry(() => print(1), times: 2, delay: 5))
-|   |                 ^
+|   |                                                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: 2, delay: -1s))"
 -- stdout
 -- stderr
@@ -221,86 +204,72 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(conc.retry(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== fs.read_lines "import fs\nprint(fs.read_lines(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `path` must be str, got int
+|   --> -e:2:21
+|   |
+| 2 | print(fs.read_lines(1))
+|   |                     ^
+|   |
+-- exit: 2
+==== fs.with_open "import fs\nprint(fs.with_open(\"made.txt\", 1, mode: 'write))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:2:32
+|   |
+| 2 | print(fs.with_open("made.txt", 1, mode: 'write))
+|   |                                ^
+|   |
+-- exit: 2
+==== fs.with_open "import fs\nprint(fs.with_open(1, f => print(f)))"
 -- stdout
 -- stderr
 | error[E0403]: argument `path` must be str, got int
 |   --> -e:2:20
 |   |
-| 2 | print(fs.read_lines(1))
+| 2 | print(fs.with_open(1, f => print(f)))
 |   |                    ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
-==== fs.with_open "import fs\nprint(fs.with_open(\"made.txt\", 1, mode: 'write))"
--- stdout
--- stderr
-| error[E0403]: argument `f` must be fn, got int
-|   --> -e:2:19
-|   |
-| 2 | print(fs.with_open("made.txt", 1, mode: 'write))
-|   |                   ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
-==== fs.with_open "import fs\nprint(fs.with_open(1, f => print(f)))"
--- stdout
--- stderr
-| error[E0403]: argument `path` must be str, got int
-|   --> -e:2:19
-|   |
-| 2 | print(fs.with_open(1, f => print(f)))
-|   |                   ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== fs.with_open "import fs\nprint(fs.with_open(\"made.txt\", f => print(f), mode: \"write\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `mode` must be sym, got str
-|   --> -e:2:19
+|   --> -e:2:53
 |   |
 | 2 | print(fs.with_open("made.txt", f => print(f), mode: "write"))
-|   |                   ^
+|   |                                                     ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== fs.with_open "import fs\nprint(fs.with_open(\"made.txt\", f => print(f), mode: 'write, perm: \"644\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `perm` must be int | nil, got str
-|   --> -e:2:19
+|   --> -e:2:67
 |   |
 | 2 | print(fs.with_open("made.txt", f => print(f), mode: 'write, perm: "644"))
-|   |                   ^
+|   |                                                                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== fs.with_temp_dir "import fs\nprint(fs.with_temp_dir(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:2:23
+|   --> -e:2:24
 |   |
 | 2 | print(fs.with_temp_dir(1))
-|   |                       ^
+|   |                        ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== http.get "import http\nprint(http.get(\"http://127.0.0.1:1/\", max_body: -1))"
 -- stdout
 -- stderr
@@ -329,14 +298,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `body` must be str | nil, got int
-|   --> -e:2:16
+|   --> -e:2:40
 |   |
 | 2 | print(http.post("http://127.0.0.1:1/", 1))
-|   |                ^
+|   |                                        ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== http.request "import http\nprint(http.request(\"GET\", \"http://127.0.0.1:1/\", timeout: -1s))"
 -- stdout
 -- stderr
@@ -353,14 +320,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `handler` must be fn, got int
-|   --> -e:2:17
+|   --> -e:2:33
 |   |
 | 2 | print(http.serve("127.0.0.1:0", 1))
-|   |                 ^
+|   |                                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== prelude.is_empty "print(is_empty(1))"
 -- stdout
 -- stderr
