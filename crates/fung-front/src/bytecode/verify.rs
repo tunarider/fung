@@ -69,8 +69,7 @@ impl fmt::Display for Violation {
 /// Verifies `main`, a file's compiled program, and all functions in it.
 pub fn verify(main: &Proto) -> Result<Verified, Violation> {
     let mut max_stack = 0;
-    let path = display_name(&main.name).to_string();
-    one(main, main.global_names.len(), &path, &mut max_stack)?;
+    one(main, main.global_names.len(), &mut max_stack)?;
     Ok(Verified { max_stack })
 }
 
@@ -178,10 +177,12 @@ fn is_str(c: &Const) -> bool {
     matches!(c, Const::Str(_) | Const::Bytes(_))
 }
 
-/// Verifies one proto and its children.
-fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(), Violation> {
+/// Verifies one proto and its children. A violation names its function;
+/// each function it is in adds its own name on the way out, so a deep
+/// nest of functions writes no path unless something is wrong.
+fn one(p: &Proto, globals: usize, max_stack: &mut usize) -> Result<(), Violation> {
     let fail = |at: usize, what: String| Violation {
-        proto: path.to_string(),
+        proto: display_name(&p.name).to_string(),
         at,
         what,
     };
@@ -511,8 +512,10 @@ fn one(p: &Proto, globals: usize, path: &str, max_stack: &mut usize) -> Result<(
         }
     }
     for child in &p.protos {
-        let child_path = format!("{path}/{}", display_name(&child.name));
-        one(child, globals, &child_path, max_stack)?;
+        one(child, globals, max_stack).map_err(|mut v| {
+            v.proto = format!("{}/{}", display_name(&p.name), v.proto);
+            v
+        })?;
     }
     Ok(())
 }
