@@ -401,7 +401,8 @@ fn three_long_shapes_compile_in_linear_time() {
         let names: Vec<String> = (0..n).map(|i| format!("u{i}")).collect();
         format!("print({})\n", names.join(", "))
     };
-    let shapes: [(&str, &dyn Fn(usize) -> String, bool, usize); 3] = [
+    type Make<'a> = &'a dyn Fn(usize) -> String;
+    let shapes: [(&str, Make, bool, usize); 3] = [
         ("strings", &strings, true, 100_000),
         ("coalesce", &coalesce, true, 100_000),
         ("errors", &errors, false, 60_000),
