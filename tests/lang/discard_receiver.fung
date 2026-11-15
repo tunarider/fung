@@ -1,0 +1,16 @@
+# Taking values from a receiving end only to drop them is written `_ =`
+# (D159); the values are taken.
+(tx, rx) = channel(4)
+send(tx, nil)!
+send(tx, 2)!
+send(tx, 3)!
+send(tx, 4)!
+close(tx)!
+_ = take(rx, 1)
+_ = first(rx)
+print(zip(rx, ["a"]))
+# expect: [(3, "a")]
+print(recv(rx))
+# expect: Ok(4)
+print(take(rx, 5), first(rx))
+# expect: [] nil

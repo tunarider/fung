@@ -1,0 +1,7 @@
+# A collection function reads a receiving end as it reads a list: its
+# value is computed, and a statement that drops it is E0234 (D159).
+(tx, rx) = channel(3)
+send(tx, 1)!
+close(tx)!
+# expect-error: E0234
+take(rx, 1)

@@ -300,7 +300,7 @@ print(pick("web"))
 :::
 
 :::box tip 함수에 받을 종류를 적어 두기
-`type`으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: `type color = Red | Green | Blue`, `fn hex(c: color) = …`. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이고 런타임에 검사한다. 규칙은 [타입 표기](../reference/language/types.html)에 있다.
+`type`으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: `type color = Red | Green | Blue`, `fn hex(c: color) = …`. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이다. 검사는 부를 때 하지만, `hex(3)`처럼 소스에 드러난 리터럴은 실행 전에 같은 E0403으로 잡는다. 규칙은 [타입 표기](../reference/language/types.html)에 있다.
 :::
 
 :::box other 다른 언어는

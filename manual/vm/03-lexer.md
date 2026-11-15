@@ -123,14 +123,14 @@ price = 30abc
 
 `"`를 만나면 닫는 `"`까지 읽으며 이스케이프(`\n`, `\t`, `\"` …)를 해석한다. 모르는 이스케이프는 에러다. `"C:\new"` 같은 함정을 잡으려는 엄격한 규칙이다(설계 문서 01). 리터럴의 값은 글자가 아니라 바이트로 모은다. `\xHH`가 바이트 하나를 넣으므로 값이 UTF-8이 아닐 수 있기 때문이다(`"\xff"`). 그런 리터럴은 트리에서 `Lit::Bytes`, 상수표에서 `Const::Bytes`가 되고, 나머지는 지금처럼 텍스트다.
 
-보간 `${…}`이 까다롭다. `"got ${m["k"]}"`에서 안쪽의 `"`가 바깥 문자열을 끝내면 안 된다. 렉서는 `${`를 만나면 중괄호 깊이를 세며 코드 부분을 건너뛰고, 그 안에서 `"`를 만나면 안쪽 문자열 하나를 통째로 건너뛴다. 그리고 문자열 토큰 하나에 **조각들**을 담는다. `"host ${name}!"`의 토큰에는 세 조각이 들어 있다.
+보간 `${…}`이 까다롭다. `"got ${m["k"]}"`에서 안쪽의 `"`가 바깥 문자열을 끝내면 안 된다. 렉서는 `${`를 만나면 닫는 `}`까지의 코드를 **그 자리에서 토큰으로 자른다**(중괄호 깊이를 세고, 안쪽 문자열은 보통 문자열처럼 렉싱한다). 그리고 문자열 토큰 하나에 **조각들**을 담는다. `"host ${name}!"`의 토큰에는 세 조각이 들어 있다.
 
 ```plain
 2:7   String  "\"host ${name}!\""
-              조각: 글자 "host " / 코드 "name" / 글자 "!"
+              조각: 글자 "host " / 코드 name의 토큰들 / 글자 "!"
 ```
 
-코드 조각은 렉서가 읽지 않고 **글자 그대로와 위치만** 보관한다. 파서가 나중에 그 조각을 다시 렉싱하고 파싱하는데, 이때 조각이 파일의 몇째 줄 몇째 칸에서 시작했는지(`lex_at`)를 넘겨주므로 조각 안의 에러도 파일 기준 위치로 나온다.
+코드 조각에는 그 코드의 **토큰들**이 담기고(`Part::toks`) 끝에 `Eof`가 붙는다. 파서는 조각의 토큰을 식 하나로 파싱만 한다. 겹친 보간도 글자를 한 번만 읽고, 토큰의 위치가 처음부터 파일 기준이라 조각 안의 에러도 파일 기준 위치로 나온다.
 
 ```plain
 error[E0110]: unexpected `}`
@@ -177,7 +177,10 @@ ab = 1
   <thead><tr><th>번호</th><th>뜻</th><th>예</th></tr></thead>
   <tbody>
     <tr><td><code>E0101</code></td><td>fung에 없는 글자</td><td><code>a @ b</code></td></tr>
-    <tr><td><code>E0102</code></td><td>잘못된 수</td><td><code>30abc</code>, 64비트를 넘는 정수</td></tr>
+    <tr><td><code>E0102</code></td><td>잘못된 수</td><td><code>30abc</code>, <code>0X1F</code></td></tr>
+    <tr><td><code>E0135</code></td><td>범위 밖의 수</td><td><code>99999999999999999999</code></td></tr>
+    <tr><td><code>E0128</code></td><td>대문자 심볼 리터럴</td><td><code>'Ok</code></td></tr>
+    <tr><td><code>E0129</code></td><td>보간이 아닌 맨 <code>$</code></td><td><code>"$name"</code></td></tr>
     <tr><td><code>E0103</code></td><td>모르는 이스케이프</td><td><code>"a\qb"</code>, <code>"\x4"</code></td></tr>
     <tr><td><code>E0106</code></td><td>글자가 아닌 <code>\u{…}</code></td><td><code>"\u{d800}"</code>, <code>"\u{110000}"</code></td></tr>
     <tr><td><code>E0104</code></td><td>닫히지 않은 문자열</td><td><code>"abc</code>, 문자열 안의 실제 줄바꿈</td></tr>
@@ -202,13 +205,13 @@ ab = 1
 
 ## 코드에서 찾아보기 {#source}
 
-- `crates/fung-front/src/lexer.rs`: 렉서 전체. 입구는 `lex(file, src)`로, 토큰 목록과 주석 목록을 돌려준다. 보간 조각처럼 파일 중간에서 시작하는 글자는 `lex_at`으로 렉싱한다.
+- `crates/fung-front/src/lexer.rs`: 렉서 전체. 입구는 `lex(file, src)`로, 토큰 목록과 주석 목록을 돌려준다. 파일 중간에서 시작하는 글자(포매터가 파일의 일부를 렉싱할 때)는 `lex_at`으로 렉싱한다.
   - `Kind`: 토큰 종류(`Name`, `Int`, `KwFn`, `DoubleSemi` …). `Kind::describe`는 에러 메시지에 쓰는 이름.
   - `Token`: `kind`, `text`, `pos`, `off`·`end`(바이트 위치), `int`·`float`·`dur`(해석한 값), `parts`(문자열 조각).
   - `Part`(문자열 조각), `Comment`(보관하는 주석), `KEYWORDS`(예약어 20개).
   - `Lexer::run`: 첫 글자로 갈래를 타는 큰 반복문. `Lexer::punct`와 `punct3`·`punct2`·`punct1`이 가장 길게 자르기, `Lexer::ident`가 이름·예약어·태그 가르기다.
 - `crates/fung-front/src/lexer/number.rs`: `Lexer::number`(정수·실수·기간)와 단위 표 `duration_unit`.
-- `crates/fung-front/src/lexer/string.rs`: `Lexer::str`, `skip_interpolation`, `skip_quoted`, `raw_str`, `symbol`.
+- `crates/fung-front/src/lexer/string.rs`: `Lexer::str`, `interpolation`, `interpolation_tokens`, `raw_str`, `symbol`.
 - `crates/fung-front/src/unicode/mod.rs`: `is_name_start`, `is_name_continue`, `is_upper`, 그리고 `nfc`.
 - `crates/fung-front/src/source.rs`: 위치 `Pos { file, line, col }`.
 

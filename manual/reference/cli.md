@@ -14,7 +14,7 @@ lede: 실행 파일 <code>fung</code> 하나가 실행, 검사, 테스트, 포�
     <tr><td><a href="#run"><code>fung script.fung [args…]</code></a></td><td>스크립트 실행. <code>fung run script.fung [args…]</code>와 같다.</td></tr>
     <tr><td><a href="#eval"><code>fung -e 'code' [args…]</code></a></td><td>명령줄에 적은 코드 실행.</td></tr>
     <tr><td><a href="#repl"><code>fung</code></a></td><td>REPL(대화형으로 한 줄씩 실행).</td></tr>
-    <tr><td><a href="#check"><code>fung check script.fung</code></a></td><td>실행하지 않고 문법·이름·import 검사.</td></tr>
+    <tr><td><a href="#check"><code>fung check script.fung</code></a></td><td>실행하지 않고 컴파일 에러(문법, 이름, import, 소스에 드러난 호출·타입 실수) 검사.</td></tr>
     <tr><td><a href="#test"><code>fung test [path]</code></a></td><td><code>test</code> 블록 실행.</td></tr>
     <tr><td><a href="#fmt"><code>fung fmt [--check] path…|-</code></a></td><td>코드 모양을 한 가지 스타일로 고치기.</td></tr>
     <tr><td><a href="#dump"><code>fung dump ast|core|bytecode file</code></a></td><td>컴파일의 중간 단계 보기.</td></tr>
@@ -39,7 +39,7 @@ usage:
   fung help                               print this text
 ```
 
-모르는 명령이나 옵션, 빠진 인자, 쓸 데 없는 남는 인자(`fung version x`, `fung check a.fung b`)는 `error: …` 한 줄과 이 사용법을 표준 에러에 쓰고 종료 코드 3으로 끝난다. 모든 명령이 옵션을 같은 규칙으로 읽는다: `-h`·`--help`는 이 사용법을 표준 출력에 쓰고 0으로 끝나고, `--version`은 `fung version`과 같으며, `-`로 시작하는 그 밖의 인자는 `error: unknown option` 줄(옵션 이름이 붙는다)이다. `--` 뒤는 옵션이 아니라 경로다(`fung check -- --foo`). 스크립트를 실행할 때는 경로 뒤의 모든 것이 스크립트의 인자다.
+모르는 명령이나 옵션, 빠진 인자, 쓸 데 없는 남는 인자(`fung version x`, `fung check a.fung b`)는 `error: …` 한 줄과 이 사용법을 표준 에러에 쓰고 종료 코드 3으로 끝난다. 모든 명령이 옵션을 같은 규칙으로 읽는다: `-h`·`--help`는 이 사용법을 표준 출력에 쓰고 0으로 끝나고, `-`로 시작하는 그 밖의 인자는 `error: unknown option` 줄(옵션 이름이 붙는다)이다. `--version`은 명령 자리(`fung --version`)에서만 `fung version`과 같고, 명령 뒤에서는(`fung check --version`) 모르는 옵션이다. `--` 뒤는 옵션이 아니라 경로다(`fung check -- --foo`). 스크립트를 실행할 때는 경로 뒤의 모든 것이 스크립트의 인자다.
 
 ```plain
 $ fung bogus
@@ -259,7 +259,7 @@ print(double(21))
 
 ## 버전과 도움말 {#version}
 
-`fung version`은 `fung 0.4.0`처럼 버전 한 줄을 쓴다. 릴리스가 아닌 개발 빌드는 `fung 0.0.0-dev`다. `fung help`(`-h`, `--help`)는 [위의 사용법](#overview)을 표준 출력에 쓰고 0으로 끝난다. `--version`은 모르는 명령이다.
+`fung version`은 `fung 0.6.0`처럼 버전 한 줄을 쓴다. 릴리스가 아닌 개발 빌드는 `fung 0.0.0-dev`다. `fung help`(`-h`, `--help`)는 [위의 사용법](#overview)을 표준 출력에 쓰고 0으로 끝난다. `fung --version`은 `fung version`과 같다.
 
 ## 에러 메시지 읽는 법 {#errors}
 
@@ -315,7 +315,7 @@ $ echo $?
     <tr><td><a href="errors.html#e06"><code>E06xx</code></a></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>)</td></tr>
     <tr><td><a href="errors.html#e07"><code>E07xx</code></a></td><td>동시성(취소, 교착, 닫힌 태스크 범위, atom 규칙)</td></tr>
     <tr><td><a href="errors.html#e08"><code>E08xx</code></a></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
-    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>은퇴한 경고 번호(지금은 E0239·E0238 에러)</td></tr>
+    <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>은퇴한 경고 번호(쓰지 않는 이름은 지금 E0239 에러)</td></tr>
   </tbody>
 </table>
 
@@ -358,8 +358,9 @@ match fs.read("config.txt"):
     <tr><td><code>TZ</code>, <code>TZDIR</code></td><td>로컬 시간대(<a href="modules/time.html#concepts"><code>time</code></a>)</td></tr>
     <tr><td><code>TMPDIR</code></td><td>임시 디렉터리(<a href="modules/fs.html#fn-fs-with_temp_dir"><code>fs.with_temp_dir</code></a>)</td></tr>
     <tr><td><code>PATH</code></td><td>외부 명령 찾기(<a href="prelude/process.html#fn-exec"><code>exec</code></a>)</td></tr>
-    <tr><td><code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>NO_PROXY</code></td><td>HTTP 프록시(<a href="modules/http.html#promises"><code>http</code></a>)</td></tr>
+    <tr><td><code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>NO_PROXY</code>(소문자 이름도)</td><td>HTTP 프록시(<a href="modules/http.html#promises"><code>http</code></a>)</td></tr>
     <tr><td><code>SSL_CERT_FILE</code>, <code>SSL_CERT_DIR</code></td><td>https 루트 인증서</td></tr>
+    <tr><td><code>FUNG_SCHED_SEED</code></td><td><code>fung test</code>가 태스크 순서를 섞는 씨앗(<a href="#test">테스트</a>)</td></tr>
   </tbody>
 </table>
 

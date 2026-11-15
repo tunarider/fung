@@ -140,7 +140,7 @@ print(double(21))
 
 - `crates/fung-front/src/compiler.rs`의 `compile`: 이름이 정해진 코어 트리(`Resolved`)를 받아 파일 본문의 `Proto`(함수 원형, 8장)를 만든다. 함수마다 자식 `Proto`가 생긴다.
 - `crates/fung-vm/src/vm/link.rs`의 `link`: 앞단이 만든 `Proto`를 VM이 쓰는 `RtProto`로 바꾼다. 앞단은 실행 시점의 값을 모르므로 `print` 같은 내장 함수 자리를 이름으로 남겨 두고, 여기서 실제 함수 값으로 채운다.
-- `crates/fung-vm/src/vm.rs`의 `Task::step_loop`: 디스패치 루프. `loop` 안에서 맨 위 프레임의 명령을 하나 읽고 `match instr.op()`로 갈래를 탄다.
+- `crates/fung-vm/src/vm.rs`의 `Task::step_loop`: 디스패치 루프. `loop` 안에서 맨 위 프레임의 명령을 하나 읽고 `match op`(링크 때 풀어 둔 `Code`의 필드, 8장)로 갈래를 탄다.
 - `crates/fung-vm/src/vm/call.rs`: 호출과 꼬리 호출. 프레임 한도 `MAX_FRAMES`(100,000)도 여기 있다.
 
 :::exercise 꼬리 재귀로 바꾸기

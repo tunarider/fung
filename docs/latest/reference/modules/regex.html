@@ -102,7 +102,7 @@
     <tr><td><code>\.</code> <code>\(</code></td><td>특수 글자를 글자 그대로</td></tr>
   </tbody>
 </table>
-<p>문법은 Rust <code>regex</code> 크레이트의 것(RE2 계열)이다. 역참조(<code>\1</code>)와 전후방 탐색(<code>(?=…)</code>, <code>(?&lt;=…)</code>)이 없다. 그 대신 어떤 패턴과 입력이든 입력 길이에 비례하는 시간에 끝나므로, 외부 입력에 패턴을 돌려도 "끝나지 않는 정규식" 문제가 없다. <code>\d</code>·<code>\w</code>·<code>\s</code>·<code>\b</code>는 유니코드를 알아본다(아랍 숫자 <code>٣</code>도 <code>\d</code>다). ASCII만 원하면 <code>(?-u:\d)</code>처럼 쓴다. 그룹 이름은 ASCII 글자·숫자·<code>_</code>이고 겹치면 안 된다.</p>
+<p>문법은 Rust <code>regex</code> 크레이트의 것(RE2 계열)이다. 역참조(<code>\1</code>)와 전후방 탐색(<code>(?=…)</code>, <code>(?&lt;=…)</code>)이 없다. 그 대신 어떤 패턴과 입력이든 입력 길이에 비례하는 시간에 끝나므로, 외부 입력에 패턴을 돌려도 "끝나지 않는 정규식" 문제가 없다. <code>\d</code>·<code>\w</code>·<code>\s</code>·<code>\b</code>는 유니코드를 알아본다(아랍 숫자 <code>٣</code>도 <code>\d</code>다). ASCII만 원하면 <code>(?-u:\d)</code>처럼 쓴다. 그룹 이름은 글자·숫자·<code>_</code>로 쓰고(글자나 <code>_</code>로 시작, 유니코드 글자도 된다) 겹치면 안 된다. <code>(?&lt;name&gt;…)</code>도 <code>(?P&lt;name&gt;…)</code>와 같은 뜻이다.</p>
 <p><strong>패턴은 원시 문자열 <code>`…`</code>로 쓴다.</strong> 보통 문자열 <code>&quot;…&quot;</code>에서는 <code>\d</code>가 모르는 이스케이프라 컴파일 에러이고, <code>${name}</code>은 보간이 되어 버린다. 원시 문자열은 쓴 글자 그대로다.</p>
 <p><strong>위치는 글자 단위다.</strong> 매치의 <code>start</code>·<code>end</code>는 바이트가 아니라 글자(유니코드 코드 포인트) 인덱스이므로 <code>s[m.start..m.end]</code>가 그대로 맞는다.</p>
 <p><strong>UTF-8이 아닌 바이트는 유니코드 클래스에 맞지 않는다.</strong> 문자열의 잘못된 바이트 하나는 <code>len</code>·<code>chars</code>에서 한 글자지만, 패턴의 클래스(<code>.</code>, 여집합인 <code>\W</code>·<code>\D</code>·<code>[^a]</code>까지)는 유니코드 글자만 맞는다. 그래서 그 바이트 자리에서는 매치가 성립하지 않는다: <code>^[^a]</code>처럼 그 자리에서 맞아야 하는 패턴의 <code>regex.is_match</code>는 <code>false</code>이고, <code>regex.find_all</code>·<code>regex.replace</code>는 그 바이트를 지나쳐 다음 글자부터 찾는다(바이트는 결과에 그대로 남는다). 그런 바이트를 잡으려면 유니코드 모드를 끈 <code>(?-u:[^a])</code>·<code>(?-u:.)</code>·<code>(?-u:\xff)</code>를 쓴다(이 모드의 클래스는 UTF-8 글자도 바이트 하나씩 맞는다).</p>
@@ -267,7 +267,7 @@ print(rows |&gt; map(m =&gt; m.groups) |&gt; filter(g =&gt; g[2] != &quot;200&qu
     <tr><td><code>$$</code></td><td><code>$</code> 글자 하나</td></tr>
   </tbody>
 </table>
-<p><code>$</code> 뒤의 이름은 가능한 한 길게 읽는다. 그래서 <code>$1x</code>는 "이름이 <code>1x</code>인 그룹"이다. 패턴에 없는 그룹을 가리키면 런타임 에러 E0521이다(오타가 글을 말없이 지우지 않게). 패턴에 있지만 이번 매치에 잡히지 않은 그룹은 빈 문자열이다. 그룹 뒤에 글자를 붙이려면 <code>${1}x</code>로 쓴다. <code>${…}</code>를 쓰는 <code>repl</code>은 보간을 피하려고 원시 문자열 <code>`…`</code>로 쓴다.</p>
+<p><code>$</code> 뒤의 이름은 가능한 한 길게 읽는다. 그래서 <code>$1x</code>는 "이름이 <code>1x</code>인 그룹"이다. 패턴에 없는 그룹을 가리키면 런타임 에러 E0521이다(오타가 글을 말없이 지우지 않게). 패턴에 있지만 이번 매치에 잡히지 않은 그룹은 빈 문자열이다. 그룹 뒤에 글자를 붙이려면 <code>${1}x</code>로 쓴다. <code>repl</code>에 <code>$</code>가 있으면 원시 문자열 <code>`…`</code>로 쓴다. 보통 문자열에서 <code>$1</code>은 컴파일 에러 E0129이고(<code>\$1</code>로 써야 한다) <code>${name}</code>은 보간이 된다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 대상 문자열.</li>
@@ -306,8 +306,8 @@ print(regex.replace(&quot;ab&quot;, `(a)`, `$1x`))</code></pre><pre class="out e
  call path (innermost first):
    example.fung:3 &lt;entry&gt;
  help: name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`</code></pre></div>
-<div class="box mistake"><b>보통 문자열에 <code>${name}</code></b>
-<p><code>regex.replace(s, pat, &quot;&lt;${w}&gt;&quot;)</code>처럼 보통 문자열에 <code>${w}</code>를 쓰면 fung이 먼저 변수 <code>w</code>를 보간하려 해서 E0204(없는 이름)가 난다. 그룹을 가리키는 <code>${w}</code>는 원시 문자열 <code>`&lt;${w}&gt;`</code>에 쓴다.</p>
+<div class="box mistake"><b>보통 문자열에 <code>$1</code>·<code>${name}</code></b>
+<p><code>regex.replace(s, pat, &quot;$2-$1&quot;)</code>처럼 보통 문자열에 맨 <code>$</code>를 쓰면 컴파일 에러 E0129다. <code>regex.replace(s, pat, &quot;&lt;${w}&gt;&quot;)</code>처럼 <code>${w}</code>를 쓰면 fung이 먼저 변수 <code>w</code>를 보간하려 해서 E0204(없는 이름)가 난다. 그룹을 가리키는 <code>$1</code>·<code>${w}</code>는 원시 문자열(<code>`$2-$1`</code>, <code>`&lt;${w}&gt;`</code>)에 쓴다.</p>
 </div>
 <h4>같이 보기</h4>
 <p><a href="../prelude/strings.html#fn-replace"><code>replace</code></a>(고정된 글자 바꾸기), <a href="../../recipes/replace-config.html">설정 파일 값 치환</a></p>

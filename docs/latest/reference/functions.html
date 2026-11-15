@@ -90,7 +90,7 @@
   <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러다: 매개변수 표에 적은 타입이 틀리면 E0403(<code>argument `n` must be int, got float</code>). 값을 훑거나 들여다보는 함수(<code>len</code>·<code>map</code>·<code>sum</code>·<code>get</code>·<code>put</code> 등)가 그럴 수 없는 값을 받으면 연산자처럼 그 일을 말하는 E0506(<code>cannot take the length of int</code>). 값을 다른 타입으로 바꾸는 함수(<code>int</code>·<code>float</code>·<code>sym</code> 등)가 바꿀 수 없는 것을 받으면 타입 탓이든 값 탓이든 E0513(<code>int(nil)</code>, <code>int("1")</code>, <code>int(1e300)</code>).</li>
   <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Rust로 구현했다(<a href="../vm/internals.html#layers">네 층</a>).</li>
 </ul>
-<p>import 없이 쓴다. 같은 이름의 변수·매개변수·함수를 만들면 컴파일 에러(E0238)다.</p>
+<p>prelude의 함수는 import 없이 쓴다. 같은 이름의 변수·매개변수·함수를 만들면 그 블록 전체에서 prelude의 것이 가려진다(<a href="language/scope.html">변수와 스코프</a>).</p>
 <h2 id="list">목록</h2>
 <div class="filter">
 <label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>

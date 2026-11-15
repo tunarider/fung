@@ -116,7 +116,7 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
 <h3 id="register-machine">레지스터 머신</h3>
 <p>다른 길도 있다. <strong>레지스터 머신</strong>(register machine)은 실제 CPU처럼 번호 붙은 칸(레지스터)을 두고, 명령이 칸 번호를 직접 말한다. <code>MUL r3, r1, r2</code>는 "1번 칸과 2번 칸을 곱해 3번 칸에". 같은 계산을 더 적은 명령으로 할 수 있어서 명령을 읽고 갈래를 타는 비용이 준다. 대신 컴파일러가 "어느 값을 어느 칸에 둘지" 배정해야 해서 복잡해지고, 명령 하나가 칸 번호를 여럿 담느라 길어진다.</p>
 <h2 id="encoding">명령 하나의 생김새</h2>
-<p>fung의 명령 하나는 <strong>고정 폭 단어 하나</strong>다. 8비트가 명령의 종류(opcode), 24비트가 피연산자(operand)다. 피연산자가 둘 필요한 몇 명령(<code>MATCH</code>·<code>TAG</code>·<code>MAP</code>, 호출, <code>CHECKTYPE</code>·<code>JUMPIFSET</code>)은 둘째 24비트 피연산자를 더 쓴다(아래).</p>
+<p>fung의 명령 하나는 <strong>고정 폭 단어 하나</strong>다. 8비트가 명령의 종류(opcode), 24비트가 피연산자(operand)다. 피연산자가 둘 필요한 몇 명령(<code>MATCH</code>·<code>TAG</code>·<code>MAP</code>, 호출, <code>CHECKTYPE</code>·<code>JUMPIFSET</code>)은 둘째 24비트 피연산자를 더 쓴다(아래). 단어는 64비트이고 모든 명령이 같은 폭이다. 아래 32비트에 명령과 첫 피연산자가, 그 위(비트 32~55)에 둘째 피연산자가 들어가며 쓰지 않는 명령은 그 자리가 0이다. 아래 그림은 아래쪽 32비트다.</p>
 <pre class="plain"><code> 31        24 23                                 0
 ┌────────────┬────────────────────────────────────┐
 │   명령     │            피연산자                │
@@ -140,7 +140,7 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
     <tr><td>기타</td><td><code>IMPORT</code> <code>ASSERT</code> <code>TEST</code></td></tr>
   </tbody>
 </table>
-<p>이 장에서는 값·연산·변수·흐름·호출의 기본 명령을 본다. 클로저와 기본값, 꼬리 호출은 9장, 모듈은 11장에서 다시 만난다.</p>
+<p>이 장에서는 값·연산·변수·흐름·호출의 기본 명령을 본다. 클로저와 기본값, 꼬리 호출은 9장, 모듈은 11장에서 다시 만난다. 패턴(<code>MATCH</code>)과 결과값 축약(<code>!</code>·<code>?</code>·<code>??</code>)의 명령은 부록 <a href="internals.html">내부 구조</a>에 있다.</p>
 <h2 id="proto">함수 원형: Proto</h2>
 <p>컴파일러는 <strong>함수마다</strong> 명령 목록을 하나씩 만든다. 파일 본문도 <code>&lt;main&gt;</code>이라는 이름의 함수다. 그 결과물을 <strong>함수 원형</strong>(prototype, 코드에서 <code>Proto</code>)이라고 한다. 원형에는 명령만 있는 게 아니다.</p>
 <ul>
@@ -215,9 +215,9 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 <table>
   <thead><tr><th>번호</th><th>명령</th><th>하는 일</th><th>스택(<code>double</code>의 칸부터)</th></tr></thead>
   <tbody>
-    <tr><td>0000</td><td><code>LOADLOCAL 0</code></td><td>슬롯 0(<code>x</code>)을 복사해 올린다. 실제 위치는 <code>base + 0</code></td><td><code>21 │ 21</code></td></tr>
-    <tr><td>0001</td><td><code>CONST 0</code></td><td><code>double</code>의 상수 0번, 2를 올린다</td><td><code>21 │ 21 2</code></td></tr>
-    <tr><td>0002</td><td><code>MUL</code></td><td>둘을 꺼내 곱한 42를 올린다</td><td><code>21 │ 42</code></td></tr>
+    <tr><td>0000</td><td><code>MOVELOCAL 0</code></td><td>슬롯 0(<code>x</code>)의 값을 꺼내 올리고 칸을 비운다(<code>x</code>의 마지막 읽기라 복사하지 않는다, 아래 "문장과 지역 변수"). 실제 위치는 <code>base + 0</code></td><td><code>(빈) │ 21</code></td></tr>
+    <tr><td>0001</td><td><code>CONST 0</code></td><td><code>double</code>의 상수 0번, 2를 올린다</td><td><code>(빈) │ 21 2</code></td></tr>
+    <tr><td>0002</td><td><code>MUL</code></td><td>둘을 꺼내 곱한 42를 올린다</td><td><code>(빈) │ 42</code></td></tr>
     <tr><td>0003</td><td><code>RETURN</code></td><td>맨 위 42를 꺼내고, 스택을 <code>floor</code>(함수 값이 있던 빈 칸)까지 자르고, 프레임을 버리고, 부른 쪽 스택에 42를 올린다</td><td>→ <code>print 42</code></td></tr>
   </tbody>
 </table>
@@ -372,7 +372,7 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 <li><code>crates/fung-front/src/bytecode/op.rs</code>: 명령 표 <code>instructions!</code>가 만드는 명령 종류 <code>Op</code>(번호는 표의 자리), 명령마다의 사실 <code>Info</code>(피연산자의 뜻 <code>Operand</code>, 스택 효과 <code>Effect</code>, 흐름 <code>Flow</code>), 명령 단어 <code>Instr</code>(<code>Instr::new</code>, <code>Instr::with</code>, <code>Instr::op</code>, <code>Instr::arg</code>, 둘째 피연산자 <code>Instr::b</code>와 그 뜻 <code>Op::second</code>), 이름 <code>Op::name</code>. VM은 링크 때 <code>Instr</code>를 <code>vm/link.rs</code>의 <code>Code</code>(<code>op</code>·<code>arg</code> 필드와 <code>Code::b</code>, 8바이트)로 한 번 푼다.</li>
 <li><code>crates/fung-front/src/bytecode.rs</code>: 함수 원형 <code>Proto</code>와 <code>Proto::emit</code>(명령과 위치를 함께 넣는다), <code>Proto::patch</code>(점프를 나중에 채운다), <code>Proto::thread_jumps</code>(점프로 가는 점프 고치기), <code>Proto::add_const</code>(같은 상수 다시 쓰기).</li>
 <li><code>crates/fung-front/src/bytecode/disasm.rs</code>: <code>disassemble</code>, 곧 <code>fung dump bytecode</code>의 출력.</li>
-<li><code>crates/fung-front/src/bytecode/verify.rs</code>: 바이트코드 검증기 <code>verify</code>(위 여섯 검사, 최대 스택 높이 <code>Verified::max_stack</code>).</li>
+<li><code>crates/fung-front/src/bytecode/verify.rs</code>: 바이트코드 검증기 <code>verify</code>(위 일곱 검사, 최대 스택 높이 <code>Verified::max_stack</code>).</li>
 <li><code>crates/fung-front/src/compiler.rs</code>: <code>compile</code>과 <code>Compiler::block</code>(문장, <code>POP</code>, <code>CLEARLOCAL</code>), <code>Compiler::expr</code>(코어 형태마다 명령 내기), <code>Compiler::op</code>, <code>Compiler::if_expr</code>(점프 둘), <code>Compiler::let_stmt</code>. 함수와 호출은 <code>crates/fung-front/src/compiler/fn_.rs</code>의 <code>Compiler::function</code>과 <code>Compiler::call</code>.</li>
 <li><code>crates/fung-vm/src/vm/link.rs</code>: 원형을 실행용 <code>RtProto</code>로 바꾸며 상수를 실제 값으로 채우는 <code>link</code>.</li>
 <li><code>crates/fung-vm/src/vm.rs</code>: <code>Task</code>와 그 실행 상태 <code>Fiber</code>(값 스택 <code>stack</code>과 프레임 목록 <code>frames</code>), 실행 루프 <code>Task::step_loop</code>, 정수 빠른 길 <code>Task::binary</code>.</li>

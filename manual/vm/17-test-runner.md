@@ -105,10 +105,10 @@ assert double(2) == 5
 2. **파일마다**(`test_file`):
    1. `tests`를 켜고 그래프 전체를 컴파일한다(11장). 실패하면 `FAIL 경로: <load>`. 여러 파일이 같은 라이브러리 때문에 깨지면 그 에러는 한 번만 찍는다.
    2. 진입 원형에 `TEST` 명령이 하나도 없으면 테스트가 없는 파일이다. **실행하지도 목록에 넣지도 않는다**(`has_tests`). 그래서 스크립트가 섞인 디렉터리에서 `fung test`를 돌려도 스크립트가 실행되지 않는다.
-   3. **새 런타임**을 만들고 prelude를 부팅한 뒤 최상위를 실행한다. 이때 블록들이 등록된다.
+   3. **새 런타임**을 만들고 prelude를 부팅한 뒤 최상위를 실행한다. 이때 블록들이 등록된다. 런타임을 만들 때 씨앗을 정해, 함께 띄우거나 함께 깨어난 태스크의 순서를 섞는다(순서에 기대는 코드를 드러내려는 것이다). 씨앗은 `FUNG_SCHED_SEED`가 있으면 그것, 없으면 실행마다 고르고, 태스크를 띄운 파일에 실패가 있을 때만 표준 에러에 알린다(`scheduler seed N: FUNG_SCHED_SEED=N runs the tasks in the same order again`).
    4. 등록된 블록을 순서대로 하나씩 실행한다(`Runtime::call_test`). 블록마다 루트 아래 새 취소 노드에서 자기 실행(`run_root`, 12장)으로 돈다. 블록이 끝나면 그 노드를 취소한다. 블록이 태스크 범위 밖에 남긴 것은 없지만(14장), 있어도 함께 끝난다.
    5. 파일이 끝나면 루트 아래의 남은 것을 취소한다(`cancel_all`). 실행마다 그 태스크가 모두 끝나야 돌아오므로(12장) 실제로 기다릴 것은 남아 있지 않다. 처리되지 않은 태스크 실패(취소된 `supervise`의 대기열)가 있었으면 `FAIL 경로: <tasks>`.
-3. **요약.** `N passed, M failed`를 찍고 종료 코드를 정한다. 컴파일 실패가 있으면 2, 실패한 테스트가 있으면 1, 아니면 0.
+3. **요약.** `N passed, M failed`를 찍고 종료 코드를 정한다. 컴파일하지 못하거나 읽지 못한 파일이 있으면 2, 실패한 테스트가 있으면 1, 테스트를 하나도 찾지 못해도 1(`no tests found`), 경로가 없으면 3, 아니면 0.
 
 ```plain
 $ fung test slug.fung
@@ -159,7 +159,7 @@ FAIL exit_test.fung: calls exit
 1 passed, 1 failed
 ```
 
-교착도 같다. 블록 안에서 채널을 기다리는데 보내는 끝을 그 블록의 지역 변수가 쥐고 있으면 교착이고(10장: 한 번도 읽지 않는 변수는 함수가 돌아올 때까지 산다), 보고 뒤에 나머지를 건너뛴다.
+교착도 같다. 블록 안에서 아무도 `close`하지 않는 채널을 기다리면 교착이고(채널은 `close`로만 닫힌다), 보고 뒤에 남은 블록이 있으면 건너뛴다.
 
 ```plain
 $ fung test dead_test.fung
@@ -171,7 +171,7 @@ error[E0702]: deadlock: all tasks are waiting
   |
  call path (innermost first):
    dead_test.fung:3 test: waits forever
- help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: waits forever`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
+ help: this task waits to receive, and a channel closes only by `close`: it holds the sending end itself (a variable of `test: waits forever`), so close it with `close` once the last value is sent
 FAIL dead_test.fung: waits forever
   error[E0702]: deadlock: all tasks are waiting
     --> dead_test.fung:3:7
@@ -181,7 +181,6 @@ FAIL dead_test.fung: waits forever
     |
    call path (innermost first):
      dead_test.fung:3 test: waits forever
-  a deadlock was reported; the rest of the file was skipped
 0 passed, 1 failed
 ```
 

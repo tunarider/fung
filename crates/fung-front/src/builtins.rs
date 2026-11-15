@@ -215,14 +215,13 @@ mod tests {
     #[test]
     fn pure_functions_are_marked() {
         let b = builtins();
-        // `drop` and `last` are written in fung: their mark is worked out
-        // from their bodies (D141). `first`, `take` and `zip` read a
-        // receiving end, which is an effect.
-        for name in ["put", "sort", "len", "join", "env", "drop", "last"] {
+        // `drop`, `last`, `first`, `take` and `zip` are written in fung:
+        // their mark is worked out from their bodies (D141). A collection
+        // function reads a receiving end as it reads a list (D159).
+        for name in [
+            "put", "sort", "len", "join", "env", "drop", "last", "first", "take", "zip",
+        ] {
             assert!(b.prelude_pure(name), "{name}");
-        }
-        for name in ["first", "take", "zip"] {
-            assert!(!b.prelude_pure(name), "{name}");
         }
         // Those that take a function to compute a value with are marked
         // too (D90); `each` runs its function for what it does.

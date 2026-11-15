@@ -275,6 +275,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/discard_receiver.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/dur_numbers.fung
 -- stdout
 -- stderr
@@ -645,6 +649,28 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_discard_for_in_list.fung
+-- stdout
+-- stderr
+| error[E0234]: this value is computed and discarded
+|   --> tests/lang/err_discard_for_in_list.fung:4:1
+|   |
+| 4 | [for x in xs: x * 2 ;;]
+|   | ^
+|   |
+|  help: use the value, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== check tests/lang/err_discard_for_value.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `double_all(…)` is computed and discarded
+|   --> tests/lang/err_discard_for_value.fung:5:1
+|   |
+| 5 | double_all([1, 2])
+|   | ^^^^^^^^^^
+|   |
+|  help: `double_all` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== check tests/lang/err_discard_fung_builtin.fung
 -- stdout
 -- stderr
@@ -694,6 +720,39 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_discard_receiver.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `take(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver.fung:7:1
+|   |
+| 7 | take(rx, 1)
+|   | ^^^^
+|   |
+|  help: `take` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== check tests/lang/err_discard_receiver_first.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `first(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver_first.fung:6:1
+|   |
+| 6 | first(rx)
+|   | ^^^^^
+|   |
+|  help: `first` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== check tests/lang/err_discard_receiver_zip.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `zip(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver_zip.fung:6:1
+|   |
+| 6 | zip(rx, [1])
+|   | ^^^
+|   |
+|  help: `zip` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== check tests/lang/err_discard_release.fung
 -- stdout
 -- stderr
@@ -2047,6 +2106,17 @@
 |   --> tests/lang/err_rest_type.fung:2:9
 |   |
 | 2 | fn f(...xs: int) = xs
+|   |         ^^
+|   |
+|  help: annotate it `list`, or not at all
+-- exit: 2
+==== check tests/lang/err_rest_type_any.fung
+-- stdout
+-- stderr
+| error[E0228]: the rest parameter `...xs` is always a list
+|   --> tests/lang/err_rest_type_any.fung:3:9
+|   |
+| 3 | fn f(...xs: any) = xs
 |   |         ^^
 |   |
 |  help: annotate it `list`, or not at all

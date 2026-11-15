@@ -21,7 +21,7 @@ print(squares)
 
 ## 경계 사례와 에러 {#edges}
 
-`for`는 리스트를 만든다. 그래서 몸통에서 `return`으로 빠져나갈 수 없다(`find`·`any`·`fold`를 쓴다).
+`for`의 본문은 `map`·`each`에 넘길 함수의 본문이다. 그래서 몸통에서 `return`으로 바깥 함수에서 빠져나갈 수 없다(E0237; `find`·`any`·`fold`를 쓴다).
 
 ```fung run exit=2 error=E0237
 fn first_big(xs):

@@ -80,7 +80,7 @@
     1   *
        / \
       2   3</code></pre>
-<p><code>*</code>가 <code>+</code>의 자식이다. 자식은 부모보다 먼저 계산된다. 줄 모양에 숨어 있던 "무엇이 무엇의 일부인가"가 가지로 드러났다. 이런 나무를 <strong>구문 트리</strong>, 또는 <strong>추상 구문 트리</strong>(AST, abstract syntax tree)라고 한다. "추상"은 괄호나 쉼표처럼 구조를 알려 주는 역할만 하던 토큰이 트리에서 사라진다는 뜻이다. <code>(1 + 2) * 3</code>의 괄호는 트리 모양을 바꿀 뿐, 트리 안에 괄호 노드는 없다.</p>
+<p><code>*</code>가 <code>+</code>의 자식이다. 자식은 부모보다 먼저 계산된다. 줄 모양에 숨어 있던 "무엇이 무엇의 일부인가"가 가지로 드러났다. 이런 나무를 <strong>구문 트리</strong>, 또는 <strong>추상 구문 트리</strong>(AST, abstract syntax tree)라고 한다. "추상"은 괄호나 쉼표처럼 구조를 알려 주는 역할만 하던 토큰이 트리에서 사라진다는 뜻이다. <code>(1 + 2) * 3</code>의 괄호는 트리 모양을 바꿀 뿐, 트리 안에 괄호 노드는 없다. 다만 fung은 "괄호에 싸여 있었다"는 표시 하나(<code>paren</code>)는 노드에 남긴다. <code>x |&gt; f(1)</code>과 <code>x |&gt; (f(1))</code>의 뜻이 다르기 때문이다. <code>dump</code>에는 보이지 않는다.</p>
 <p>토큰의 줄에서 트리를 세우는 단계가 <strong>파서</strong>(parser)이고, 그 일을 <strong>파싱</strong>(parsing, 구문 분석)이라고 한다.</p>
 <h2 id="grammar">문법을 적는 법</h2>
 <p>파서를 만들려면 먼저 "올바른 프로그램이 어떻게 생겼는가"를 정확히 적어야 한다. 말로 "함수 정의는 <code>fn</code>, 이름, 괄호 안 매개변수, 그리고 <code>=</code>과 식"이라고 쓸 수도 있지만, 규칙이 수십 개가 되면 말로는 모호해진다. 그래서 <strong>형식 문법</strong>(formal grammar)이라는 표기를 쓴다. 가장 흔한 것이 <strong>EBNF</strong>(Extended Backus–Naur Form)다. fung 문법의 일부를 보자.</p>
@@ -184,7 +184,7 @@ total = xs
   |&gt; map(x =&gt; x * 2)
   |&gt; sum
 print(total)</code></pre><pre class="out plain"><code>12</code></pre></div>
-<p>첫 규칙 때문에 생기는 에러 모양도 알아 두면 좋다. 닫는 괄호를 빠뜨리면 파서는 줄바꿈을 계속 공백으로 보며 괄호가 닫히기를 기다리다가 파일 끝에서야 포기한다. 에러가 문제의 줄이 아니라 파일 끝을 가리키므로, 괄호를 연 자리를 <code>note</code>로 덧붙인다.</p>
+<p>괄호 안의 줄바꿈이 공백이라서 생기는 에러 모양도 알아 두면 좋다. 닫는 괄호를 빠뜨리면 파서는 줄바꿈을 계속 공백으로 보며 괄호가 닫히기를 기다리다가 파일 끝에서야 포기한다. 에러가 문제의 줄이 아니라 파일 끝을 가리키므로, 괄호를 연 자리를 <code>note</code>로 덧붙인다.</p>
 <div class="run"><pre><code>fn double(x) = x * 2
 print(double(21)</code></pre><pre class="out err plain" data-code="2"><code>error[E0112]: expected `,` or `)`, found end of file
   --&gt; example.fung:3:1
@@ -200,12 +200,14 @@ print(double(21)</code></pre><pre class="out err plain" data-code="2"><code>erro
 <p>되돌리기는 같은 토큰을 두 번 읽으므로 잘못 쓰면 느려진다. fung에서는 패턴 문법이 작아서 비용이 적다(설계 문서 09).</p>
 <h2 id="uniform-tree">fung의 트리: 균일 트리</h2>
 <p>이제 트리를 담는 그릇을 보자. 흔한 방식은 노드 종류마다 다른 구조체를 두는 것이다. "덧셈 노드는 왼쪽과 오른쪽", "함수 정의 노드는 이름, 매개변수 목록, 본문"처럼. fung은 다르게 한다. 모든 노드가 <strong>같은 모양 하나</strong>다.</p>
-<pre class="plain"><code>Node { head, pos, lit, kids, off, end }
+<pre class="plain"><code>Node { head, pos, lit, kids, off, end, paren, id }
   head  머리 단어: call, binary, fn, block …
   pos   위치(줄:칸)
   lit   리터럴 값(정수 2, 연산자 &quot;*&quot;, 함수 정보 …)
   kids  자식 노드들
-  off, end  소스의 바이트 구간</code></pre>
+  off, end  소스의 바이트 구간
+  paren 괄호에 싸여 있었나
+  id    노드 번호(이름 해석 뒤에 붙고, 컴파일러의 분석 표가 이것으로 찾는다)</code></pre>
 <p><code>fung dump ast</code>가 찍는 S-식(S-expression, 괄호로 감싼 목록) 표기가 이 모양을 그대로 보인다. <code>(binary * x 2)</code>는 머리가 <code>binary</code>, 리터럴이 <code>*</code>, 자식이 <code>x</code>와 <code>2</code>인 노드다.</p>
 <div class="run"><pre><code>fn double(x) = x * 2
 print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump ast example.fung
@@ -228,11 +230,11 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump ast 
 <li>괄호와 쉼표는 사라졌다. 추상 구문 트리다.</li>
 </ul>
 <h2 id="errors">파서의 에러</h2>
-<p>파서의 에러도 <code>E01xx</code>이고 <strong>첫 번째 하나만</strong> 보고한다(설계 문서 08). 문법이 한 번 어긋나면 그 뒤를 어떻게 읽어야 할지 확실하지 않아서, 억지로 이어 읽으면 엉뚱한 에러가 줄줄이 따라 나오기 쉽다.</p>
+<p>파서의 에러는 대부분 <code>E01xx</code>이고(대문자 이름을 묶는 자리 E0225, <code>Ok</code>·<code>Err</code>의 값 개수 E0236, 맨 앞이 아닌 <code>import</code> E0313처럼 문법 모양으로 드러나는 몇 가지는 그 규칙의 번호로 낸다) <strong>첫 번째 하나만</strong> 보고한다(설계 문서 08). 문법이 한 번 어긋나면 그 뒤를 어떻게 읽어야 할지 확실하지 않아서, 억지로 이어 읽으면 엉뚱한 에러가 줄줄이 따라 나오기 쉽다.</p>
 <ul>
 <li><code>E0110 unexpected …</code>: 이 자리에 올 수 없는 토큰.</li>
 <li><code>E0112 expected …, found …</code>: 특정 토큰이 와야 하는 자리(<code>then</code> 뒤의 <code>else</code> 등). 괄호 안 목록에서 원소 뒤에 <code>,</code>도 닫는 괄호도 아닌 것이 오면 <code>expected `,` or `]` </code>이고, 괄호를 연 자리를 <code>note</code>가 짚는다. 가장 흔한 실수(빠뜨린 쉼표, 닫지 않은 괄호)가 "무엇을 기대했는지"를 말하게 하려는 것이다.</li>
-<li><code>E0126</code>: 이름 인자 뒤의 위치 인자. 그 밖에 문법은 맞게 읽었지만 금지하는 모양도 저마다 번호가 있다(E0116~E0132).</li>
+<li><code>E0126</code>: 이름 인자 뒤의 위치 인자. 그 밖에 문법은 맞게 읽었지만 금지하는 모양도 저마다 번호가 있다(E0116~E0136).</li>
 <li><code>E0111</code>: 비교 연쇄.</li>
 <li><code>E0115 expression nesting too deep (limit 10000)</code>: 식이나 패턴이 만 겹 넘게 중첩됨.</li>
 </ul>
@@ -250,14 +252,14 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump ast 
 <ul>
 <li><strong>문장은 재귀 하강, 식은 Pratt 파서.</strong> 우선순위 표를 숫자로 옮긴 것 하나로 모든 이항·단항·후위 연산의 우선순위와 결합 방향을 처리한다(설계 문서 09). 우선순위 표가 곧 파서의 상수 표다.</li>
 <li><strong>균일 트리.</strong> 노드 종류마다 Rust 구조체를 만들지 않고 <code>Node</code> 하나로 쓴다. 설계 문서 00·09는 이것을 "속은 Lisp"의 실체라고 부른다. <code>dump</code>가 함수 하나로 끝나고, desugar와 이름 해석이 모두 같은 모양 위에서 "트리를 받아 같은 모양의 트리를 돌려주는" 단순한 변환이 되며, 나중에 사용자 매크로를 넣을 자리도 이것이다. 대가는 Rust 컴파일러가 "이 노드에는 자식이 셋이어야 한다"를 검사해 주지 않는다는 것이고, 그 검사는 desugar가 맡는다.</li>
-<li><strong>되돌리기는 세 곳만, 패턴 문법이 작아서 싸다</strong>(설계 문서 09).</li>
+<li><strong>되돌리기는 두 곳만, 패턴 문법이 작아서 싸다</strong>(설계 문서 09).</li>
 <li><strong>문법 에러는 첫 번째에서 멈춘다</strong>(설계 문서 08). 다만 나중에 편집기 지원(LSP)을 위해 문장 경계(<code>NEWLINE</code> <code>;</code> <code>;;</code>)에서 다시 맞춰 읽을 수 있게 구조를 둔다는 것이 설계의 방향이다(09). 지금 파서는 다시 맞춰 읽지 않는다.</li>
 </ul>
 </div>
 <h2 id="source">코드에서 찾아보기</h2>
 <ul>
-<li><code>crates/fung-front/src/parser.rs</code>: 입구 <code>parse(toks)</code>가 <code>(program …)</code> 트리를 돌려준다. <code>Parser</code> 구조체에 지금 토큰 번호 <code>i</code>, 괄호 깊이 <code>nest</code>, 재귀 깊이 <code>depth</code>가 있다. <code>Parser::peek</code>(괄호 안이면 줄바꿈을 건너뛰는 앞보기), <code>Parser::program</code>, 깊이 한도 <code>MAX_DEPTH</code>(10,000).</li>
-<li><code>crates/fung-front/src/parser/expr.rs</code>: Pratt 파서. 결합력 상수 <code>BP_THEN</code> … <code>BP_POSTFIX</code>, 연산자 표 <code>infix</code>, <code>Parser::expr</code>과 <code>Parser::infix_loop</code>(위 의사 코드의 반복문), 이어짐 토큰 <code>continues_line</code>과 <code>Parser::peek_infix</code>, 피연산자 <code>Parser::prefix</code>, 보간 조각을 다시 파싱하는 <code>Parser::string_literal</code>.</li>
+<li><code>crates/fung-front/src/parser.rs</code>: 입구 <code>parse(toks)</code>가 <code>(program …)</code> 트리를 돌려준다. <code>Parser</code> 구조체에 지금 토큰 번호 <code>i</code>, 괄호 깊이 <code>nest</code>, 재귀 깊이 <code>depth</code>가 있다. <code>Parser::peek</code>(지금 토큰), 괄호 안에서 줄바꿈을 건너뛰는 <code>Parser::gap</code>·<code>Parser::item_ends</code>, <code>Parser::program</code>, 깊이 한도 <code>MAX_DEPTH</code>(10,000).</li>
+<li><code>crates/fung-front/src/parser/expr.rs</code>: Pratt 파서. 결합력 상수 <code>BP_THEN</code> … <code>BP_POSTFIX</code>, 연산자 표 <code>infix</code>, <code>Parser::expr</code>과 <code>Parser::infix_loop</code>(위 의사 코드의 반복문), 이어짐 토큰 <code>Kind::starts_continuation</code>(<code>lexer.rs</code>, 포매터와 한 목록)과 <code>Parser::peek_infix</code>, 피연산자 <code>Parser::prefix</code>, 보간 조각의 토큰을 파싱하는 <code>Parser::string_literal</code>.</li>
 <li><code>crates/fung-front/src/parser/stmt.rs</code>: 문장(<code>Parser::statement</code>), 블록 본문, <code>if</code>, 구조 분해를 시도하고 되돌리는 <code>Parser::try_destructure</code>.</li>
 <li><code>crates/fung-front/src/parser/fn_.rs</code>: 함수 정의 <code>Parser::fn_def</code>, 람다 <code>Parser::lambda</code>와 앞보기 <code>Parser::lambda_params_ahead</code>.</li>
 <li><code>crates/fung-front/src/parser/pattern.rs</code>: 패턴과 <code>match</code> 절의 머리(<code>Parser::arm_head</code>).</li>
@@ -287,7 +289,7 @@ print(a or b and not c == d)</code></pre><pre class="out plain"><code>true</code
 <li>문법은 EBNF로 적는다. <code>|</code>는 또는, <code>[ ]</code>는 선택, <code>{ }</code>는 반복이다.</li>
 <li>재귀 하강 파서는 문법 규칙 하나를 함수 하나로 옮긴다.</li>
 <li>Pratt 파서는 연산자마다 결합력 숫자를 두고 반복문 하나로 우선순위와 결합 방향을 처리한다. 오른쪽 결합력을 1 크게 주면 왼쪽 결합, 같게 주면 오른쪽 결합이다.</li>
-<li>줄바꿈은 괄호 깊이, 줄 끝 연산자, 이어짐 전용 토큰의 세 규칙으로 파서가 판단한다.</li>
+<li>줄바꿈은 줄 끝 연산자와 이어짐 전용 토큰의 두 규칙으로, 괄호 안에서는 원소 사이와 괄호 옆의 공백으로 파서가 판단한다.</li>
 <li>fung의 트리는 머리·위치·리터럴·자식만 있는 균일 트리다. 문법 에러는 첫 번째만 보고한다.</li>
 </ul>
 <p>다음 장에서는 이 트리를 더 작은 코어 언어로 풀어내는 desugar를 본다. 우선순위 표 전체는 <a href="../reference/language/operators.html#precedence">언어 레퍼런스</a>에 있다.</p>

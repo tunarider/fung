@@ -148,13 +148,14 @@ $ curl -s http://127.0.0.1:9095/healthz
 $ cat alerts.jsonl
 {&quot;at&quot;:&quot;2026-10-20T14:19:40.619352Z&quot;,&quot;status&quot;:&quot;firing&quot;,&quot;name&quot;:&quot;DiskFull&quot;,&quot;severity&quot;:&quot;critical&quot;,&quot;instance&quot;:&quot;web2:9100&quot;}
 {&quot;at&quot;:&quot;2026-10-20T14:19:40.619491Z&quot;,&quot;status&quot;:&quot;resolved&quot;,&quot;name&quot;:&quot;HighLoad&quot;,&quot;severity&quot;:&quot;warning&quot;,&quot;instance&quot;:&quot;db1:9100&quot;}</code></pre>
+<p>시각은 호스트의 시간대로 찍힌다(위는 UTC인 호스트다). 어디서 돌리든 UTC로 남기려면 <code>time.format(time.utc(time.now()))</code>로 쓴다.</p>
 <h2 id="how">줄별 설명</h2>
 <ul>
 <li><code>token = env(&quot;WEBHOOK_TOKEN&quot;) ?? fail(…)</code>: 비밀값은 코드나 명령줄 인자(다른 사용자가 <code>ps</code>로 볼 수 있다)가 아니라 환경 변수로 받는다. 없으면 서버를 띄우지 않는다.</li>
 <li><code>received = atom(0)</code>: 받은 알림 수다. <code>http.serve</code>는 요청마다 새 태스크(task, 동시에 도는 작업 단위)에서 처리기를 부르므로, 요청 사이에 나누는 상태는 <code>atom</code>에 둔다. <code>swap(received, n =&gt; n + len(es))</code>가 이전 값으로 새 값을 만들어 한 번에 바꾸고, <code>deref(received)</code>가 지금 값을 읽는다.</li>
 <li><code>reply</code>: 응답은 <code>{status, headers, body}</code> 맵이다. 처리기가 문자열만 돌려주면 200과 <code>text/plain</code>이 된다.</li>
 <li><code>entry</code>: 알림 하나에서 필요한 것만 골라 기록할 줄을 만든다. <code>labels</code>가 없거나 <code>null</code>이어도 <code>get(a, &quot;labels&quot;) ?? {}</code>로 빈 맵을 쓴다. <code>a.labels</code>로 바로 읽으면 키가 없을 때 런타임 에러다.</li>
-<li><code>alerts</code>: 먼저 토큰을 확인하고 틀리면 401로 일찍 돌아간다(<code>return</code>). 맵 패턴 <code>Ok({alerts: list})</code>는 "JSON이 맞고 <code>alerts</code> 키가 있다"를 한 번에 확인하고 그 값을 <code>list</code>로 꺼낸다. JSON이 아니면 <code>Err(e)</code>, 모양이 다르면 <code>Ok(_)</code> 가지로 가서 400을 답한다.</li>
+<li><code>alerts</code>: 먼저 토큰을 확인하고 틀리면 401로 일찍 돌아간다(<code>return</code>). 맵 패턴 <code>Ok({alerts: list, ...})</code>는 "JSON이 맞고 <code>alerts</code> 키가 있다"를 한 번에 확인하고 그 값을 <code>list</code>로 꺼낸다. 맵 패턴은 적은 키와 정확히 맞으므로, 다른 키가 더 있어도 되게 <code>...</code>로 연다. JSON이 아니면 <code>Err(e)</code>, 모양이 다르면 <code>Ok(_)</code> 가지로 가서 400을 답한다.</li>
 <li><code>fs.append(…)!</code>: 줄을 파일 끝에 덧붙인다(없으면 만든다). 디스크가 차서 실패하면 <code>!</code>가 이 요청의 처리만 실패시킨다. 서버는 그 요청에 500으로 답하고 표준 에러에 <code>http: handler failed: …</code>를 남긴 뒤 계속 돈다. 보낸 쪽(Alertmanager)은 실패 응답을 보고 다시 보낸다.</li>
 <li><code>handle</code>: <code>(메서드, 경로)</code> 튜플 하나로 <code>match</code>하면 라우팅 표처럼 읽힌다. <code>(_, &quot;/alerts&quot;)</code>는 "다른 메서드로 온 <code>/alerts</code>"다.</li>
 <li><code>http.serve(…, drain: 5s)</code>: 주소에서 요청을 받으며 여기서 멈춰 있다. 첫 Ctrl-C나 SIGTERM(systemd의 <code>stop</code>, 쿠버네티스의 파드 종료)을 받으면 새 연결을 그만 받고, 처리 중인 요청을 최대 5초 기다린 뒤 <code>Ok(nil)</code>을 돌려준다. 포트를 이미 누가 쓰고 있으면 <code>Err</code>다.</li>

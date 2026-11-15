@@ -302,7 +302,7 @@ print(pairs(ports) |&gt; map(((k, v)) =&gt; &quot;${k}=${v}&quot;))</code></pre>
 <p><code>f</code>는 원소마다 <code>Ok(v)</code>나 <code>Err(e)</code>를 돌려주는 함수다(<code>parse_int</code> 같은). 모두 <code>Ok(v)</code>면 <code>Ok([v, …])</code>를 돌려준다. 처음 <code>Err</code>가 나오면 그 <code>Err</code>를 그대로 돌려주고 남은 원소에는 <code>f</code>를 부르지 않는다. 그래서 "하나라도 틀리면 전체가 실패"인 변환에 쓴다. 결과는 보통 <code>!</code>나 <code>?</code>로 푼다.</p>
 <p>이미 결과값의 리스트를 가지고 있으면 <code>try_map(rs, r =&gt; r)</code>로 하나로 모은다. 실패한 것만 건너뛰고 싶으면 <code>try_map</code> 대신 <code>map</code>과 <a href="results.html#fn-is_ok"><code>filter(is_ok)</code></a>를 쓴다.</p>
 <div class="box mistake"><b>파이프 끝의 ? 와 ! 는 괄호로 감싼다</b>
-<p>후위 <code>?</code>·<code>!</code>는 <code>|&gt;</code>보다 단단히 붙는다(<a href="../language/operators.html#precedence">우선순위</a>). 그래서 <code>xs |&gt; try_map(f)?</code>는 <code>xs |&gt; (try_map(f)?)</code>로 읽혀 <code>try_map</code>이 인자 하나로 불린다(E0407 <code>missing argument</code>). 파이프 전체를 괄호로 감싸 <code>(xs |&gt; try_map(f))?</code>로 쓰거나, 파이프 없이 <code>try_map(xs, f)?</code>로 쓴다.</p>
+<p>후위 <code>?</code>·<code>!</code>는 <code>|&gt;</code>보다 단단히 붙는다(<a href="../language/operators.html#precedence">우선순위</a>). 그래서 <code>xs |&gt; try_map(f)?</code>는 <code>?</code>가 파이프가 아니라 호출에 붙는 꼴이라 컴파일 에러 E0229다. 파이프 전체를 괄호로 감싸 <code>(xs |&gt; try_map(f))?</code>로 쓰거나, 파이프 없이 <code>try_map(xs, f)?</code>로 쓴다.</p>
 </div>
 <h4>매개변수</h4>
 <ul>
@@ -379,8 +379,8 @@ print(len(errors), errors)</code></pre><pre class="out plain"><code>2 [&quot;ERR
 <h4>설명</h4>
 <p><code>fold</code>는 "누적값"을 들고 원소를 왼쪽부터 차례로 지나간다. 처음 누적값은 <code>init</code>이고, 원소마다 <code>acc = f(acc, x)</code>로 바꾼다. 다 지나간 뒤의 <code>acc</code>가 결과다. 빈 리스트면 <code>init</code>을 그대로 돌려준다.</p>
 <p>합계, 최댓값, 개수 세기, 리스트나 맵 쌓기처럼 "여러 개에서 하나를 만드는" 거의 모든 일을 <code>fold</code>로 할 수 있다. 자주 쓰는 것은 따로 있다: <a href="#fn-sum"><code>sum</code></a>, <a href="#fn-max"><code>max</code></a>, <a href="#fn-group_by"><code>group_by</code></a>. fung에는 바깥 변수를 바꾸는 반복문이 없으므로(블록 안에서 바깥 이름에 다시 대입하면 E0238) 반복하며 값을 쌓는 일은 <code>fold</code>나 재귀로 한다.</p>
-<div class="box tip"><b>문자열은 리스트에 모아 join</b>
-<p><code>fold(xs, &quot;&quot;, (acc, s) =&gt; acc + s)</code>처럼 문자열을 하나씩 이어 붙이면 매번 문자열 전체를 새로 만든다. 리스트에 모은 뒤 <a href="strings.html#fn-join"><code>join</code></a>하는 것이 빠르다. 리스트를 쌓을 때는 앞에 붙이는 <code>[x] + acc</code> 대신 뒤에 붙이는 <code>acc + [x]</code>를 쓴다.</p>
+<div class="box tip"><b>문자열을 앞에 붙여 쌓지 않는다</b>
+<p>문자열을 뒤에 붙여 쌓는 것(<code>acc + s</code>)과 리스트를 어느 쪽으로든 쌓는 것(<code>acc + [x]</code>, <code>[x] + acc</code>)은 선형이다. 피할 것은 문자열을 앞에 붙여 쌓는 것(<code>s + acc</code>)뿐이다: 매번 전체를 복사한다. 그때는 조각을 리스트에 모아 <a href="strings.html#fn-join"><code>join</code></a>한다(<a href="../language/for.html">누적과 재귀의 비용</a>).</p>
 </div>
 <h4>매개변수</h4>
 <ul>
@@ -421,7 +421,7 @@ print(evens)</code></pre><pre class="out plain"><code>[4, 16, 36]</code></pre></
 <div class="sig"><code>each(xs, f)</code></div>
 <h4>설명</h4>
 <p><code>map</code>과 같은 순서로 <code>f</code>를 부르지만 결과를 모으지 않고 <code>nil</code>을 돌려준다. <code>for</code> 문장도 같은 일을 하지만 <code>for</code>는 식이라 결과 리스트를 만든다. 값을 모을 필요가 없는 일(찍기, 채널에 보내기, 파일에 쓰기)에 <code>each</code>를 쓴다.</p>
-<p><code>f</code>의 결과를 버리므로, <code>f</code>가 <code>Err</code>를 돌려주면 그 자리에서 E0606(버려지는 <code>Err</code>)으로 멈춘다. 실패를 조용히 넘기지 않기 위해서다. 실패해도 상관없으면 블록 함수 안에서 일부러 버린다: <code>fn(x): _ = 식 ;;</code>(람다 <code>x =&gt; …</code>의 몸에는 대입을 쓸 수 없다)(<a href="../language/results.html">버려지는 <code>Err</code></a>).</p>
+<p><code>f</code>의 결과를 버리므로, <code>f</code>가 <code>Err</code>를 돌려주면 그 자리에서 E0606(버려지는 <code>Err</code>)으로 멈춘다. 실패를 조용히 넘기지 않기 위해서다. 실패해도 상관없으면 블록 함수 안에서 일부러 버리고 <code>nil</code>로 맺는다: <code>fn(x): _ = 식; nil ;;</code>(람다 <code>x =&gt; …</code>의 몸에는 대입을 쓸 수 없다)(<a href="../language/results.html">버려지는 <code>Err</code></a>).</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -544,7 +544,7 @@ print(checks |&gt; filter(c =&gt; not c.ok) |&gt; map(c =&gt; c.name))</code></p
 <div class="sig"><code>sort(xs)</code></div>
 <h4>설명</h4>
 <p>순서는 <a href="../language/values.html">비교와 동일성</a> 표의 <code>&lt;</code>를 따른다. 수는 크기 순이고 정수와 실수를 섞어도 된다. 문자열은 코드 포인트 순이라 대문자가 소문자보다 앞선다(<code>&quot;B&quot; &lt; &quot;a&quot;</code>). 리스트와 튜플은 앞 원소부터 사전식으로 비교한다.</p>
-<p><strong>안정 정렬</strong>(stable sort)이라 같은 값끼리는 원래 순서를 지킨다. 맵, <code>bool</code>, 심볼, 태그처럼 <code>&lt;</code>가 없는 값이 있거나, 서로 비교할 수 없는 타입(수와 문자열)이 섞이면 정렬을 시작하기 전에 에러가 난다: 모든 원소의 모양이 하나로 합쳐져야 하므로(<a href="../language/values.html">값과 타입</a>), 결과는 원소의 순서나 값에 달리지 않는다. 원소가 하나뿐이어도 <code>x &lt; x</code>처럼 비교할 수 있는 값이어야 해서 <code>sort([nil])</code>은 에러다. 큰 것부터는 <code>sort(xs) |&gt; reverse</code>, 다른 기준은 <a href="#fn-sort_by"><code>sort_by</code></a>.</p>
+<p><strong>안정 정렬</strong>(stable sort)이라 같은 값끼리는 원래 순서를 지킨다. 맵, <code>bool</code>, 심볼, 태그처럼 <code>&lt;</code>가 없는 값이 있거나, 서로 비교할 수 없는 타입(수와 문자열)이나 개수가 다른 튜플이 섞이면 정렬을 시작하기 전에 에러가 난다: 모든 원소의 모양이 하나로 합쳐져야 하므로(<a href="../language/values.html">값과 타입</a>), 결과는 원소의 순서나 값에 달리지 않는다. 원소가 하나뿐이어도 <code>x &lt; x</code>처럼 비교할 수 있는 값이어야 해서 <code>sort([nil])</code>은 에러다. 큰 것부터는 <code>sort(xs) |&gt; reverse</code>, 다른 기준은 <a href="#fn-sort_by"><code>sort_by</code></a>.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -691,7 +691,7 @@ print(flatten(map([1, 2], x =&gt; [x, x * 10])))</code></pre><pre class="out pla
 <div class="sig"><code>group_by(xs, f)</code></div>
 <h4>설명</h4>
 <p>결과 맵의 키는 <code>f(x)</code>의 값이고, 값은 그 키를 가진 원소의 리스트다. 키의 순서와 각 리스트 안의 순서는 모두 처음 나온 순서다.</p>
-<p>맵의 키는 언제나 문자열이므로 <code>f</code>는 문자열을 돌려줘야 한다. 수나 심볼로 묶으려면 <code>str</code>로 바꾼다: <code>group_by(xs, x =&gt; str(x % 2))</code>. 각 묶음의 개수가 필요하면 결과의 값에 <code>len</code>을 부른다.</p>
+<p>맵의 키는 언제나 문자열이므로 <code>f</code>는 문자열을 돌려줘야 한다. 수로 묶으려면 <code>str</code>로, 심볼로 묶으려면 <a href="convert.html#fn-sym_name"><code>sym_name</code></a>으로 바꾼다(<code>str('ok)</code>는 <code>&quot;'ok&quot;</code>다): <code>group_by(xs, x =&gt; str(x % 2))</code>. 각 묶음의 개수가 필요하면 결과의 값에 <code>len</code>을 부른다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>

@@ -1,0 +1,4 @@
+# A list of a `for` that only computes is computed and dropped (D160).
+xs = [1, 2]
+# expect-error: E0234
+[for x in xs: x * 2 ;;]

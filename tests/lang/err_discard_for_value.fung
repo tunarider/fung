@@ -1,0 +1,5 @@
+# A `for` in a value place is `map`: a function that only computes with
+# it has no effect, and a statement that drops its result is E0234 (D160).
+fn double_all(xs) = for x in xs: x * 2 ;;
+# expect-error: E0234
+double_all([1, 2])

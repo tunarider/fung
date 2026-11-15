@@ -356,13 +356,15 @@ fn e0707_names_the_called_function_through_tail_calls() {
             "import conc\na = atom(0)\nswap(a, _x => conc.pmap([1], y => y))",
             "`conc.pmap`",
         ),
+        // a collection function reads a receiving end as `map` does: the
+        // effect is the receive (D159)
         (
             "(_tx, rx) = channel(1)\na = atom(0)\nswap(a, _x => take(rx, 1))",
-            "`take`",
+            "`recv`",
         ),
         (
             "(_tx, rx) = channel(1)\na = atom(0)\nswap(a, _x => first(rx))",
-            "`first`",
+            "`recv`",
         ),
     ] {
         let (_, err, _) = run(src);

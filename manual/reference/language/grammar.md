@@ -15,7 +15,7 @@ lede: fung의 EBNF.
    쉼표로 나눈 목록은 모두 끝 쉼표를 받는다. *)
 
 program     = { sep } { import { sep } } { stmt { sep } } .   (* import는 다른 문장보다 먼저: E0313 *)
-body        = { sep } { stmt { sep } } .
+body        = { sep } { stmt { sep } } .             (* 두 문장 사이에는 sep이 하나 이상 *)
 sep         = NEWLINE | ";" .                       (* 앞 문장의 다음 줄을 `-`로 시작하는 문장은 E0136 *)
 block       = ":" body ";;" .
 
@@ -31,13 +31,13 @@ import      = "import" ( NAME { "." NAME } | PLAIN_STRING ) [ "as" NAME ]
               [ "(" NAME { "," NAME } [ "," ] ")" ] .
                                                     (* 파일 맨 앞에만(블록 안은 E0311), 쓴 순서대로.
                                                        목록만 쓰면 모듈 이름은 묶이지 않고, as와 목록은 둘 다 묶는다 *)
-type_alias  = "type" NAME "=" type .
-test_block  = "test" PLAIN_STRING block .
+type_alias  = "type" NAME "=" type .               (* 최상위에만: E0219 *)
+test_block  = "test" PLAIN_STRING block .           (* 최상위에만: E0114 *)
 assert      = "assert" expr .
 assign      = destructure "=" expr .                (* 문장 시작에서 `pattern =`를 먼저 시도 *)
 
 expr        = lambda | then_expr .                  (* 연산자의 피연산자 자리에서 괄호 없는 람다는 E0110 *)
-lambda      = ( NAME | "_" | "(" [ lparam { "," lparam } [ "," ] ] ")" ) "=>" expr .
+lambda      = ( NAME | "_" | "(" [ lparam { "," lparam } [ "," ] ] ")" ) "=>" branch .
                                                     (* 본문의 return·?는 그 람다에서 돌아온다 *)
 lparam      = destructure .                         (* fn의 매개변수와 같은 패턴, 기본값·타입·...rest 없음 *)
 then_expr   = or_expr [ "then" branch "else" branch ] .  (* else는 필수, 오른쪽 결합 *)
@@ -65,7 +65,7 @@ args        = pos_arg { "," pos_arg } [ "," spread ] { "," named } [ "," ]
 pos_arg     = expr | "_" .                          (* 부분 적용 자리 *)
 spread      = "..." expr .                          (* 리스트·범위를 위치 인자로 펼침. 마지막 위치 인자 하나,
                                                        리스트 리터럴·태그에는 없다: E0133 *)
-named       = NAME ":" ( expr | "_" ) .             (* 이름 붙인 인자, _는 부분 적용 자리 *)
+named       = NAME ":" ( expr | "_" ) .             (* 이름 붙인 인자, _는 부분 적용 자리. 태그의 값에는 없다: E0121 *)
 index       = "[" ( expr | [ add ] ".." [ add ] | [ add ] "..=" add ) "]" .
                                                     (* `[` 바로 안의 `..`·`..=`만 슬라이스, 두 끝은 range의 피연산자 층.
                                                        끝의 맨 위가 ??·|>·비교·in·not·and·or·then이면 E0125: xs[(a ?? 0)..].
@@ -73,7 +73,7 @@ index       = "[" ( expr | [ add ] ".." [ add ] | [ add ] "..=" add ) "]" .
 
 primary     = INT | FLOAT | STRING | RAW_STRING | DURATION | SYMBOL
             | "true" | "false" | "nil" | NAME | TAG
-            | "(" expr ")" | tuple | list | map             (* 괄호는 트리에 남는 묶음이다 *)
+            | "(" expr ")" | tuple | list | map             (* 괄호는 트리에 남는 묶음이다. `_`는 값으로 읽을 수 없다(호출 인자와 패턴에서만): E0215 *)
             | if_expr | match_expr | for_expr
             | "fn" "(" [ params ] ")" [ "->" type ] block .  (* 익명 함수는 블록 형태만 *)
 tuple       = "(" ")" | "(" expr "," [ expr { "," expr } [ "," ] ] ")" .
@@ -99,7 +99,7 @@ pat_item    = pattern | "..." [ NAME ] .             (* ...는 맨 끝에만, �
 map_item    = pat_entry | "..." [ NAME ] .           (* ...가 없으면 키가 정확히 적은 것뿐인 맵; ...는 맨 끝에만, ..._는 E0112 *)
 pat_entry   = ( key_name | PLAIN_STRING ) ":" pattern | NAME .   (* {line, col}; 대문자 축약은 E0225, `{_}`는 E0112 *)
 
-destructure = d_term { "|" d_term } .               (* 대입·for·매개변수의 패턴: 맨 바깥에 리터럴 없음(E0112) *)
+destructure = d_term { "|" d_term } .               (* 대입·for·매개변수의 패턴: 맨 바깥에 리터럴 없음(E0112), 맨 태그는 E0225 *)
 d_term      = "_" | NAME | TAG "(" pattern { "," pattern } [ "," ] ")"
             | "(" ")" | "(" pattern "," [ pattern { "," pattern } [ "," ] ] ")"
             | "[" [ pat_item { "," pat_item } [ "," ] ] "]"

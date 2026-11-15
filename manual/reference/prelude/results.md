@@ -68,7 +68,7 @@ match port_of("70000"):
 
 운영체제의 에러 번호(errno)는 표의 앞 다섯 줄로 옮긴다: `ENOENT`·`ENOTDIR` → `'not_found`, `EACCES`·`EPERM` → `'permission`, `EEXIST`·`ENOTEMPTY` → `'exists`, NUL·`EINVAL` → `'invalid`, 나머지 → `'io`. `fs`·`exec`·`sh`가 이 한 표를 쓴다. `'invalid`처럼 다시 해도 같은 실패와 `'network`처럼 다시 해 볼 만한 실패를 `kind`로 가를 수 있다.
 
-`'closed`는 두 뜻이다. 파일·소켓 핸들에서는 "이미 닫은 핸들을 썼다"(버그)이고, 채널에서는 "보내는 쪽이 모두 끝났고 남은 값이 없다"(정상적인 끝)이다. 흐름의 끝도 두 모양이다: 파일과 표준 입력의 `read_line`은 끝에서 `Ok(nil)`이고, 채널의 `recv`는 `Err({kind: 'closed})`다. 채널은 `nil`을 값으로 보낼 수 있어 `Ok(nil)`이 끝을 뜻할 수 없기 때문이다. 채널을 끝까지 받을 때는 `for x in rx:`가 닫힘에서 멈추므로 `'closed`를 직접 볼 일이 드물다.
+`'closed`는 두 뜻이다. 파일·소켓 핸들에서는 "이미 닫은 핸들을 썼다"(버그)이고, 채널에서는 "`close`로 닫혔고 남은 값이 없다"(정상적인 끝)이거나, 닫힌 채널에 보내거나 다시 닫은 것이다. 흐름의 끝도 두 모양이다: 파일과 표준 입력의 `read_line`은 끝에서 `Ok(nil)`이고, 채널의 `recv`는 `Err({kind: 'closed})`다. 채널은 `nil`을 값으로 보낼 수 있어 `Ok(nil)`이 끝을 뜻할 수 없기 때문이다. 채널을 끝까지 받을 때는 `for x in rx:`가 닫힘에서 멈추므로 `'closed`를 직접 볼 일이 드물다.
 
 결과값과 다른 실패도 하나 있다. **런타임 에러**는 코드가 틀린 경우(없는 키 읽기, 0으로 나누기, 타입이 틀린 인자)에 프로그램을 멈추는 것으로, 값으로 받을 수 없다(태스크 경계의 [`supervise`](concurrency.html#fn-supervise)만 예외로 그 태스크의 에러를 `Err({kind: 'error, …})`로 준다). 에러 번호와 뜻은 [에러 목록](../errors.html)에 있다.
 

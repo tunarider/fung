@@ -8,11 +8,11 @@
 개인 학습 + 일상의 소소한 자동화를 목표로 하는 실용적 함수형 스크립트 언어.
 
 이름은 한국어 "펑"(빠르게 만들고 치고 빠진다)에서 왔다.
-문법의 겉모양은 Go·Python을, 내부 구조는 Lisp를, 태스크와 에이전트는 Erlang·Elixir를 닮았다([영향을 준 언어](docs/design/00-concept.md#영향을-준-언어)).
+문법의 겉모양은 Go·Python을, 내부 구조는 Lisp를, 태스크와 실패 보고는 Erlang·Elixir를 닮았다([영향을 준 언어](docs/design/00-concept.md#영향을-준-언어)).
 
 - 파일 확장자: `.fung`, 실행 명령: `fung`
 - 구현: Rust, 바이트코드 VM (`crates/`: 앞단 `fung-front`, 값·VM·런타임 `fung-vm`, 명령 `fung-cli`)
-- 용도: 간단한 스크립트(파일 일괄 처리 등), 간단한 웹서버, 추후 GUI 앱
+- 용도: 간단한 스크립트(파일 일괄 처리 등), 간단한 웹서버
 
 설계 문서는 [docs/design](docs/design/README.md)에 있다. 마일스톤별 설명은 [docs/notes](docs/notes/)에.
 개발: `cargo test --locked`가 언어 골든 테스트(`tests/lang`)와 기대 출력 파일(`crates/*/tests/expected`)까지 모두 돌린다.
@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
 fung version
 ```
 
-`FUNG_VERSION=0.4.0`, `FUNG_INSTALL_DIR=/usr/local/bin`으로 버전과 위치를 고른다.
+`FUNG_VERSION=0.6.0`, `FUNG_INSTALL_DIR=/usr/local/bin`으로 버전과 위치를 고른다.
 Rust 1.94 이상이 있다면 저장소에서 직접 빌드할 수도 있다. 실행 파일은 `target/release/fung`이다.
 
 ```
@@ -40,7 +40,7 @@ cp target/release/fung ~/.local/bin/
 `cargo install`로 바로 설치할 수도 있다(`~/.cargo/bin`에 들어간다). 태그를 붙이지 않고 빌드한 바이너리는 `fung version`이 `0.0.0-dev`다.
 
 ```
-cargo install --locked --git https://github.com/tunarider/fung --tag v0.4.0 fung-cli
+cargo install --locked --git https://github.com/tunarider/fung --tag v0.6.0 fung-cli
 ```
 
 ## 사용
@@ -48,8 +48,8 @@ cargo install --locked --git https://github.com/tunarider/fung --tag v0.4.0 fung
 ```
 fung examples/rename.fung <dir> --dry-run
 fung -e 'print([3, 1, 2] |> sort)'
-fung test examples/          # test 블록 실행 (샘플: rename, logsum, tidy, envcheck)
-fung check script.fung       # 실행 없이 검사 + 경고
+fung test examples/          # test 블록 실행 (샘플: kebab, loglines, dotenv, urlcheck, api)
+fung check script.fung       # 실행 없이 검사 (컴파일 에러를 모두 보고)
 fung                         # REPL
 fung -e 'import conc; print(conc.pmap([1, 2, 3], x => x * x))'   # 범위·태스크·채널·atom (docs/design/05)
 ```

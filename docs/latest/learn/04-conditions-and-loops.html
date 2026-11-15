@@ -102,7 +102,7 @@ else:
   print(&quot;ok&quot;)
 ;;</code></pre><pre class="out plain"><code>critical: disk 91 %</code></pre></div>
 <p>들여쓰기는 읽기 좋으라고 하는 것이고 뜻은 없다. 블록의 끝은 오직 <code>;;</code>가 정한다. 짧으면 한 줄로 써도 된다: <code>if usage &gt;= 90: print(&quot;critical&quot;) ;;</code>. 들여쓰기는 <code>fung fmt</code>가 맞춰 준다(14장).</p>
-<p>조건 자리에는 반드시 bool이 와야 한다. <code>if count:</code>처럼 숫자를 주면 런타임 에러 E0505다. "0이 아니면"은 <code>if count != 0:</code>이라고 분명히 쓴다.</p>
+<p>조건 자리에는 반드시 bool이 와야 한다. <code>if count:</code>처럼 숫자를 주면 E0505 에러다(소스만 보고 알 수 있으면 실행 전에, 아니면 실행 중에). "0이 아니면"은 <code>if count != 0:</code>이라고 분명히 쓴다.</p>
 <h3 id="if-value">if는 값을 낸다</h3>
 <p>fung의 <code>if</code>는 <strong>식(expression)</strong>이다. 실행된 가지의 마지막 값이 <code>if</code> 전체의 값이 된다. 그래서 결과를 바로 이름에 대입할 수 있다. 3장에서 본 "블록은 바깥 변수를 바꿀 수 없다" 규칙은 이렇게 푼다: 가지 안에서 변수를 고치는 대신, <code>if</code>가 낸 값을 대입한다.</p>
 <div class="run"><pre><code>usage = 78
@@ -135,6 +135,7 @@ checking db-1
 attempt 1
 attempt 2
 attempt 3</code></pre></div>
+<p>반복 변수를 본문에서 쓰지 않으면 E0239다(쓰지 않는 이름은 대개 실수다). 값은 필요 없고 횟수만 필요하면 이름 자리에 <code>_</code>를 쓴다: <code>for _ in 1..=3: print(&quot;retry&quot;) ;;</code>.</p>
 <p>fung의 <code>for</code>도 식이다. 블록이 낸 값을 원소마다 모아 <strong>새 리스트</strong>를 만든다. 그 리스트를 이름에 대입하면 "목록의 각 원소를 바꾼 목록"이 된다.</p>
 <div class="run"><pre><code>usages = [45, 91, 78, 99]
 levels = for u in usages:

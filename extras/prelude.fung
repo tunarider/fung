@@ -25,11 +25,18 @@ fn _list(xs, verb) = type_of(xs) == 'list then xs else map(_r.items(xs, verb), x
 # range wider than the int range works too (02).
 fn _start(r) = find(r, _ => true)
 
+# The next value of a receiving end as Err(x), Ok([]) at its close. A
+# collection function reads a receiving end as it reads a list, so it
+# walks it with a native that only computes (try_map stops at the first
+# Err) and not with recv: dropping the result of first/take/zip is E0234
+# as for the other collection functions (D159).
+fn _next(rx) = try_map(rx, x => Err(x))
+
 # Up to n values from a receiving end, stopping early: the rest stays in
 # the channel (05).
-fn _receive(rx, n, acc) = n <= 0 then acc else match recv(rx):
-  Ok(x)  => _receive(rx, n - 1, acc + [x])
-  Err(_) => acc
+fn _receive(rx, n, acc) = n <= 0 then acc else match _next(rx):
+  Err(x) => _receive(rx, n - 1, acc + [x])
+  Ok(_)  => acc
 ;;
 
 # How many items one side of a zip has: a list its length, a range its
@@ -53,12 +60,12 @@ fn _zip_take(xs, n) = match type_of(xs):
 # Two receiving ends in turn, a value from the first and then one from
 # the second, until either is closed. A value the first gave when the
 # second had closed is lost: at most one.
-fn _zip_ends(a, b, acc) = match recv(a):
-  Ok(x)  => match recv(b):
-    Ok(y)  => _zip_ends(a, b, acc + [(x, y)])
-    Err(_) => acc
+fn _zip_ends(a, b, acc) = match _next(a):
+  Err(x) => match _next(b):
+    Err(y) => _zip_ends(a, b, acc + [(x, y)])
+    Ok(_)  => acc
   ;;
-  Err(_) => acc
+  Ok(_)  => acc
 ;;
 
 # A side that counts says how many pairs there can be, and a receiving

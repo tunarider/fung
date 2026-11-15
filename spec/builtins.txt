@@ -94,7 +94,7 @@ prelude fung drop(xs, n) pure
 prelude fung env(name) pure
 prelude fung env_all() pure
 prelude fung exec(cmd, cwd=?, env=?, stdin=?)
-prelude fung first(xs)
+prelude fung first(xs) pure
 prelude fung is_err(x) pure
 prelude fung is_ok(x) pure
 prelude fung iterate(x, f, n) pure
@@ -102,9 +102,9 @@ prelude fung last(xs) pure
 prelude fung pad_left(s, n, pad=?) pure
 prelude fung pad_right(s, n, pad=?) pure
 prelude fung sh(cmd, cwd=?, env=?, stdin=?)
-prelude fung take(xs, n)
+prelude fung take(xs, n) pure
 prelude fung until(x, f, pred) pure
-prelude fung zip(xs, ys)
+prelude fung zip(xs, ys) pure
 prelude native all(xs, f) pure
 prelude native any(xs, f) pure
 prelude native args

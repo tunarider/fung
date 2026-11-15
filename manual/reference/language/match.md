@@ -32,7 +32,7 @@ match value:
       <li><code>_</code>와 맨 이름은 무엇이든 덮는다. 그래서 모든 값에 맞는 절은 마지막에 둔다(그 뒤에 절이 있으면 에러가 그 절을 가리킨다).</li>
       <li>리터럴은 같은 리터럴을 덮는다: 값이 같은 수(<code>1</code>과 <code>1.0</code>, <code>16</code>과 <code>0x10</code>), 쓴 그대로 같은 문자열·심볼·<code>nil</code> 등.</li>
       <li>튜플은 개수가 같은 튜플을, 태그는 이름과 값의 개수가 같은 태그를 칸마다 덮을 때 덮는다(<code>Ok(_)</code>는 <code>Ok(1)</code>을).</li>
-      <li>리스트 패턴은 길이가 같은 닫힌 리스트 패턴을 칸마다 덮을 때, <code>...</code>로 연 것(<code>[x, ...]</code>)은 앞 칸들을 덮는 더 긴 패턴(열렸든 닫혔든)도 덮는다.</li>
+      <li>리스트 패턴은 길이가 같은 닫힌 리스트 패턴을 칸마다 덮을 때, <code>...</code>로 연 것(<code>[x, ...]</code>)은 앞 칸들을 덮는, 길이가 같거나 더 긴 패턴(열렸든 닫혔든)도 덮는다.</li>
       <li>맵 패턴은 닫힌 것이 키가 같은 닫힌 것을, 연 것(<code>{a: _, ...}</code>)은 그 키들을 모두 가진 것(열렸든 닫혔든)을 값마다 덮을 때 덮는다. <code>{...}</code>는 모든 맵 패턴을 덮고, 닫힌 것은 연 것을 덮지 않는다.</li>
       <li><code>a | b</code>는 갈래 하나가 덮으면 덮고, <code>c | d</code>는 갈래가 모두 덮일 때 덮인다.</li>
     </ul>
@@ -46,7 +46,7 @@ match value:
   <li>괄호 없는 태그 패턴 <code>Red</code>는 심볼 <code>Red</code>에만 맞고 <code>Red(1)</code> 같은 태그 값에는 맞지 않는다. 태그 값은 <code>Red(_)</code>처럼 인자 모양까지 쓴다. <code>Ok</code>·<code>Err</code>도 같다: 패턴 <code>Ok</code>는 심볼 <code>Ok</code>에만 맞고, 결과값에는 <code>Ok(_)</code>로 맞춘다.</li>
 </ul>
 <h3>구조 분해 대입</h3>
-<p>대입의 왼쪽에도 패턴을 쓴다. 맞지 않으면 런타임 에러(E0602). 대입·<code>for</code>·매개변수는 같은 <strong>구조 분해 패턴</strong>을 받는다: 이름, <code>_</code>, 튜플, 리스트, 맵, 값을 담은 태그, 또는 그것들의 <code>|</code> 대안이다(<code>Ok(x) | Err(x) = r</code>). 값을 고르기만 하는 리터럴(<code>1</code>, <code>"a"</code>, <code>'a</code>, 인자 없는 태그, <code>nil</code>)은 맨 바깥에 올 수 없고(E0112) 안쪽에는 온다(<code>(1, y) = p</code>).</p>
+<p>대입의 왼쪽에도 패턴을 쓴다. 맞지 않으면 런타임 에러(E0602). 대입·<code>for</code>·매개변수는 같은 <strong>구조 분해 패턴</strong>을 받는다: 이름, <code>_</code>, 튜플, 리스트, 맵, 값을 담은 태그, 또는 그것들의 <code>|</code> 대안이다(<code>Ok(x) | Err(x) = r</code>). 값을 고르기만 하는 리터럴(<code>1</code>, <code>"a"</code>, <code>'a</code>, <code>nil</code>)은 맨 바깥에 올 수 없고(E0112) 안쪽에는 온다(<code>(1, y) = p</code>). 맨 바깥의 인자 없는 태그(<code>Red = x</code>)는 대문자 이름을 묶는 것이라 E0225다.</p>
 
 ```fung run
 (q, r) = (7 // 2, 7 % 2)

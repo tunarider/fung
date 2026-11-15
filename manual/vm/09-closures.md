@@ -42,7 +42,7 @@ CALL 1 0 직전               double의 프레임이 쌓인 뒤
 [0]  <fn print>             [0]  <fn print>   (main이 계산 중인 값)
 ```
 
-VM은 함수 값을 꺼내 그 칸을 비워 두고, 그 위의 인자부터를 새 프레임의 슬롯으로 삼는다. 인자를 한 칸씩 내려 함수 칸을 메우지 않으므로 인자가 몇 개든 움직이는 값이 없다. `double` 안의 `LOADLOCAL 0`은 "내 프레임의 슬롯 0"을 읽는다. 슬롯 0은 값 스택의 `base + 0`번 칸이고, 인자 `21`이 이미 그 자리에 있으므로 따로 복사할 필요가 없다. `MUL`이 42를 올리고, `RETURN`이 42를 꺼낸 뒤 스택을 `floor`(빈 칸)까지 잘라 내고 42를 부른 쪽 스택에 올린다. 함수가 남긴 임시 값은 이렇게 새지 않는다. 그다음 `<main>`의 `CALL 1 0`이 다시 `print`를 부른다.
+VM은 함수 값을 꺼내 그 칸을 비워 두고, 그 위의 인자부터를 새 프레임의 슬롯으로 삼는다. 인자를 한 칸씩 내려 함수 칸을 메우지 않으므로 인자가 몇 개든 움직이는 값이 없다. `double` 안의 `MOVELOCAL 0`은 "내 프레임의 슬롯 0"을 꺼낸다. 슬롯 0은 값 스택의 `base + 0`번 칸이고, 인자 `21`이 이미 그 자리에 있으므로 따로 복사할 필요가 없다. `MUL`이 42를 올리고, `RETURN`이 42를 꺼낸 뒤 스택을 `floor`(빈 칸)까지 잘라 내고 42를 부른 쪽 스택에 올린다. 함수가 남긴 임시 값은 이렇게 새지 않는다. 그다음 `<main>`의 `CALL 1 0`이 다시 `print`를 부른다.
 
 ```fung run
 fn double(x) = x * 2
@@ -160,7 +160,7 @@ print(adder(5)(1))
 ```
 
 - 컴파일러는 람다를 `adder`의 **자식 원형**(`== <lambda> ==`)으로 따로 컴파일하고, 그 원형에 "무엇을 붙잡는가" 목록(`captures`)을 적어 둔다. 여기서는 "만드는 프레임의 슬롯 0"(`n`) 하나다.
-- 실행 중 `adder`의 `CLOSURE 0`은 자식 원형 0번을 꺼내 그 목록대로 값을 **복사**해 `Closure{원형, 붙잡은 값들, 전역 표}`를 만든다(`crates/fung-vm/src/vm.rs`의 `make_closure`).
+- 실행 중 `adder`의 `CLOSURE 0`은 자식 원형 0번을 꺼내 그 목록대로 값을 **복사**해 `Closure{원형, 붙잡은 값들, 전역 표}`를 만든다(실제 구조체에는 원형의 명령 배열을 가까이 둔 `code` 칸이 하나 더 있다)(`crates/fung-vm/src/vm.rs`의 `make_closure`).
 - 람다 안의 `LOADCAPTURED 0`은 실행 중인 클로저의 붙잡은 값 0번을 읽는다. 바깥 프레임이 이미 사라졌어도 상관없다. 값은 클로저 안에 있다.
 - 아무것도 붙잡지 않는 함수(`map(xs, x => x + 1)`의 람다)는 만들 때마다 같은 값이다. 그래서 `CLOSURE`는 그런 함수를 모듈마다 한 번 만들어 부모 원형에 기억해 두고 다시 쓴다(`RtProto::made`, 2026-11-11 점검 VM20). 함수끼리 `==`로 견줄 수 없으므로(E0501) 프로그램은 차이를 볼 수 없고, 람다를 루프에서 만드는 비용(할당 하나)이 사라진다.
 
@@ -309,7 +309,7 @@ print(even(10))
 - `crates/fung-vm/src/vm/frame.rs`: `Frame` 구조체.
 - `crates/fung-vm/src/vm.rs`: 실행 루프 `step_loop`(`Op::Call`·`Op::TailCall`·`Op::Closure`·`Op::LoadCaptured`·`Op::LoadSelf`·`Op::JumpIfSet` 갈래), 클로저를 만드는 `make_closure`.
 - `crates/fung-vm/src/vm/call.rs`: 호출 규약. `call_op`(빠른 길), `bind_in_place`, `run_native`, `push_frame`, 꼬리 호출의 `reuse_frame`, `ret_with`, 깊이 한도 `MAX_FRAMES`.
-- `crates/fung-vm/src/value.rs`: 함수 값 `Closure{proto, captured, globals}`.
+- `crates/fung-vm/src/value.rs`: 함수 값 `Closure{proto, code, captured, globals}`.
 - `crates/fung-front/src/tree/fn_info.rs`: 붙잡기 목록 `Capture`와 `CaptureKind`.
 - `crates/fung-front/src/compiler.rs`, `compiler/fn_.rs`: `tail` 표시, `call`(CALL·TAILCALL 고르기), `function`(서두와 자식 원형).
 

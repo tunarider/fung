@@ -67,7 +67,8 @@ match env("ALERT_WEBHOOK"):
   nil =>
   url =>
     text = "${len(down)} of ${len(hosts)} servers down: ${down |> map(d => d.host) |> join(", ")}"
-    http.post(url, json.stringify({text}), headers: {"content-type": "application/json"})!
+    res = http.post(url, json.stringify({text}), headers: {"content-type": "application/json"})!
+    if res.status >= 300: fail("webhook: HTTP ${res.status}") ;;
 ;;
 exit(1)
 ```
@@ -90,7 +91,7 @@ $ echo $?
 - `conc.pmap(hosts, check, limit: 20)`: 20대씩 동시에 점검한다. 죽은 서버가 몇 대든 점검 시간은 대략 "한 대가 세 번 실패하는 시간"(10초 × 3 + 쉼 2초 × 2)으로 묶인다.
 - `zip` 뒤의 두 줄: `(서버, 결과)` 짝에서 실패만 남기고, 람다의 매개변수 패턴 `((host, Err(why)))`로 튜플과 그 안의 `Err`를 한 번에 풀어 맵을 만든다. 앞 줄에서 `Err`만 남겼으므로 이 패턴은 늘 맞는다.
 - `if len(down) == 0: exit(0) ;;`: 문제가 없으면 여기서 조용히 끝난다.
-- `match env("ALERT_WEBHOOK")`: 환경 변수가 없으면 `nil`이다. 있으면 그 주소로 JSON을 보낸다. `{text}`는 `{text: text}`의 축약이다. 웹훅 전송이 실패하면 `!`가 멈추고 종료 코드는 1이 된다. 알림이 안 갔다는 것을 숨기지 않기 위해서다.
+- `match env("ALERT_WEBHOOK")`: 환경 변수가 없으면 `nil`이다. 있으면 그 주소로 JSON을 보낸다. `{text}`는 `{text: text}`의 축약이다. 웹훅에 연결조차 못 하면 `!`가 멈추고, 거절 응답(4xx·5xx)은 `Ok`로 오므로 `status`를 따로 본다. 어느 쪽이든 종료 코드는 1이다. 알림이 안 갔다는 것을 숨기지 않기 위해서다.
 - 마지막 `exit(1)`: 하나라도 죽었으면 1로 끝내 cron 래퍼나 모니터링이 실패로 볼 수 있게 한다.
 
 :::box mistake 재시도할 함수 안의 `!`

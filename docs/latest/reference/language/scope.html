@@ -102,7 +102,7 @@ for f in files:
 total = len(files)              # 값을 식으로 만든다
 
 fn count(dir) = len(fs.list(dir)!)  # E0238: 매개변수 dir이 상수 dir을 가린다
-for len in [1, 2]: len ;;       # 된다: prelude 함수 len을 이 본문에서 가린다
+for len in [1, 2]: print(len) ;; # 된다: prelude 함수 len을 이 본문에서 가린다
 lines = lines(text)             # E0204: 이 블록의 lines는 이 대입이 묶는 이름이다</code></pre>
 <p><strong>함수 이름.</strong> 최상위 <code>fn</code>의 이름은 상수다: 같은 파일에 같은 이름의 <code>fn</code>을 둘 두거나 그 이름에 대입하면 E0238이다(REPL만 다시 정의할 수 있다. fung에는 인자 개수로 함수를 고르는 오버로딩이 없다). 블록 안의 지역 <code>fn</code> 이름도 같다. 블록 안의 지역 <code>fn</code>은 그 자리에서 만들어지는 함수 값이라 4번 규칙대로 바깥 인자와 지역 변수를 복사하고, 자기 자신과 앞에서 정의한 이름만 부를 수 있다. 같은 블록의 뒤에서 정의하는 지역 <code>fn</code>을 부르면 E0208이다. 서로 부르는 함수들은 최상위에 둔다.</p>
 <p><strong>값의 수명.</strong> 변수가 값을 언제 놓는지는 프로그램의 결과를 바꾸지 않는다. 홀로 쥔 맵·리스트를 제자리에서 고치는 빠르기와, 읽지 않은 태스크의 <code>Err</code>(E0607)가 보고되는 때, 닫지 않은 파일이 닫히는 때에만 보인다. 규칙은 VM 책의 <a href="../../vm/10-values-and-memory.html#lifetime">지역 변수의 수명</a>에 있다. 채널은 <code>close</code>로만 닫히므로(<a href="../prelude/concurrency.html">동시성</a>) 놓는 시점과 상관없다.</p>

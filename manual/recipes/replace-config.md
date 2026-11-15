@@ -68,9 +68,8 @@ each(added, l => eprint("added:", l))
 if get(opts.flags, "print", false):
   print(join(result, "\n"))
 else:
-  # a whole new file first, then one rename: never half a config
-  fs.write(file + ".tmp", join(result, "\n") + "\n")!
-  fs.move(file + ".tmp", file, overwrite: true)!
+  # fs.write replaces the file in one step: never half a config
+  fs.write(file, join(result, "\n") + "\n")!
 ;;
 ```
 
@@ -83,7 +82,7 @@ else:
 - `update`: `regex.find`는 맞는 것이 없으면 `nil`, 있으면 `{text, groups, …}` 맵을 준다. 맞으면 `groups`를 네 이름으로 풀고, 키가 바꿀 목록에 있으면 값 조각만 갈아 끼운다. 들여쓰기와 구분자(`" = "`인지 `"="`인지)는 원래 줄의 것을 그대로 쓴다. 문자열을 이어 붙여 만들기 때문에 새 값에 `/`, `&`, `$` 같은 글자가 있어도 아무 일이 없다.
 - `wanted`: `(키, 값)` 튜플 리스트를 `fold`로 맵 하나에 모은다. 람다의 매개변수 자리에서 `(k, v)` 패턴이 튜플을 바로 푼다.
 - `existing`·`added`: 파일에 이미 있는 키를 모으고, 없는 키만 `key=value` 줄로 만든다.
-- 마지막 `if`: 새 내용을 `app.conf.tmp`에 다 쓴 뒤 `fs.move`로 이름을 바꾼다. 같은 파일 시스템 안의 이름 바꾸기는 한 번에 일어나므로, 쓰는 도중에 디스크가 차거나 스크립트가 멈춰도 `app.conf`는 옛 내용 그대로다. `fs.move`는 대상이 있으면 거절하므로 바꿔치기가 목적인 여기서는 `overwrite: true`를 준다. 새 파일은 기본 권한(보통 0644)으로 만들어지므로, 비밀값이 든 설정이면 `fs.write(…, perm: 0o600)`으로 써서 바꿔치기한 뒤에도 남이 읽지 못하게 한다.
+- 마지막 `if`: `fs.write`는 같은 디렉터리의 임시 파일에 새 내용을 다 쓴 뒤 이름을 바꿔 덮는다. 이름 바꾸기는 한 번에 일어나므로, 쓰는 도중에 디스크가 차거나 스크립트가 멈춰도 `app.conf`는 옛 내용 그대로다. 있던 파일의 권한도 그대로 남는다.
 
 :::box mistake `replace`는 정규식이 아니다
 
@@ -109,10 +108,10 @@ print(regex.replace("price = 10", `\d+`, `$5`))
 
 ## 응용 {#vary}
 
-- **파일 권한**: 새로 쓴 `.tmp` 파일은 기본 권한(보통 `0644`)으로 만들어지므로, 이름을 바꾸고 나면 원래 파일의 권한이 사라진다. 비밀값이 든 `0600` 파일이면 뒤에 `exec(["chmod", "600", file])!`를 더한다. 권한을 지키는 쪽이 더 중요하면 `fs.write(file, …)!`로 제자리에 쓰되, 그러면 한 번에 바뀌는 성질은 잃는다.
+- **파일 권한**: `fs.write`는 있던 파일의 권한을 지킨다. 없던 파일을 새로 만들 때는 기본 권한(보통 `0644`)이므로, 비밀값이 든 설정을 새로 만든다면 `fs.write(file, …, perm: 0o600)!`으로 쓴다.
 - **값 뒤의 주석**: `port = 8080  # default`의 값 조각은 `8080  # default`까지다. 주석을 지키려면 정규식의 값 부분을 `([^#]*?)(\s*#.*)?$`처럼 나눈다. 주석이 없는 줄에서는 마지막 조각이 `nil`로 온다.
 - **백업**: `fs.copy(file, file + ".bak")!`을 쓰기 전에 둔다.
 - **env 파일 검사**: 필수 키가 다 있는지는 저장소 `examples/envcheck.fung`·`examples/dotenv.fung`가 보여 준다.
 - **여러 서버에**: 설정을 바꾼 뒤 `exec(["scp", file, "${host}:/etc/app/app.conf"])!`로 보낸다. 여러 대를 동시에 하는 방법은 [여러 서버에 명령 보내고 모으기](ssh-collect.html).
 
-배우기: [6장 문자열](../learn/06-strings.html), [11장 파일과 외부 명령](../learn/11-files-and-commands.html). 레퍼런스: [`regex.find`](../reference/modules/regex.html#fn-regex-find), [`regex.replace`](../reference/modules/regex.html#fn-regex-replace), [`replace`](../reference/prelude/strings.html#fn-replace), [`fs.write`](../reference/modules/fs.html#fn-fs-write), [`fs.move`](../reference/modules/fs.html#fn-fs-move), [`fold`](../reference/prelude/collections.html#fn-fold).
+배우기: [6장 문자열](../learn/06-strings.html), [11장 파일과 외부 명령](../learn/11-files-and-commands.html). 레퍼런스: [`regex.find`](../reference/modules/regex.html#fn-regex-find), [`regex.replace`](../reference/modules/regex.html#fn-regex-replace), [`replace`](../reference/prelude/strings.html#fn-replace), [`fs.write`](../reference/modules/fs.html#fn-fs-write), [`fold`](../reference/prelude/collections.html#fn-fold).

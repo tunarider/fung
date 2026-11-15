@@ -82,7 +82,7 @@ print(textutil.shout("deploy done"))
 print(textutil.tidy("  too   many    spaces "))
 ```
 
-모듈 이름은 파일 이름에서 온다. 다른 이름으로 부르고 싶으면 `as 별칭`을 붙인다. 자주 쓰는 함수 몇 개는 괄호 안에 이름을 적어 모듈 이름 없이 바로 쓸 수 있다. 이때 모듈 이름 자체는 묶이지 않는다.
+모듈 이름은 파일 이름에서 온다. 다른 이름으로 부르고 싶으면 `as 별칭`을 붙인다. 자주 쓰는 함수 몇 개는 괄호 안에 이름을 적어 모듈 이름 없이 바로 쓸 수 있다. 이름 목록만 쓰면(`import "./textutil" (slug)`) 목록의 이름만 묶이고 `textutil`은 묶이지 않는다. 모듈 이름도 쓰려면 아래처럼 `as`를 함께 쓴다.
 
 ```file textutil.fung
 fn slug(s) = s |> trim |> lower |> replace(" ", "-")
@@ -196,7 +196,7 @@ print(logstat.count_levels(rows))
 :::
 
 :::box mistake 서로를 가져오는 두 파일
-`a.fung`이 `b.fung`을 가져오고 `b.fung`이 다시 `a.fung`을 가져오면 순환 import로 컴파일 에러 E0302이고, 메시지가 `a.fung → b.fung → a.fung`처럼 고리 전체를 보여 준다. 둘이 같이 쓰는 부분을 세 번째 파일로 옮겨 둘 다 그것을 가져오게 한다. 진입 파일을 다른 파일이 가져오는 것도 같은 이유로 막혀 있다.
+`a.fung`이 `b.fung`을 가져오고 `b.fung`이 다시 `a.fung`을 가져오면 순환 import로 컴파일 에러 E0302이고, 메시지가 `a.fung → b.fung → a.fung`처럼 고리 전체를 보여 준다. 둘이 같이 쓰는 부분을 세 번째 파일로 옮겨 둘 다 그것을 가져오게 한다. 진입 파일을 다른 파일이 가져오는 것도 같은 이유로 막혀 있다(E0307).
 :::
 
 :::box mistake 모듈 이름을 변수로 쓰기

@@ -16,7 +16,7 @@ lede: 스크립트가 하는 일의 대부분은 파일을 읽고, 명령을 돌
 
 **파일**(file)은 디스크에 이름을 붙여 저장한 글자나 바이트의 묶음이고, **디렉터리**(directory, 폴더)는 파일과 다른 디렉터리를 담는 상자다. 파일의 위치는 **경로**(path)로 나타낸다. `/var/log/app.log`처럼 `/`로 시작하면 맨 위에서부터 적은 **절대 경로**, `logs/app.log`처럼 아니면 프로그램이 지금 서 있는 디렉터리(**현재 디렉터리**)에서부터 적은 **상대 경로**다.
 
-fung에서 파일을 다루는 함수는 `fs` 모듈에, 경로를 계산하는 함수는 `path` 모듈에 있다(10장). 파일 연산은 늘 실패할 수 있으므로(파일이 없다, 권한이 없다) 대부분 9장의 결과값을 돌려준다. 실패의 `kind`는 `'not_found`, `'exists`, `'permission`, `'io` 중 하나다.
+fung에서 파일을 다루는 함수는 `fs` 모듈에, 경로를 계산하는 함수는 `path` 모듈에 있다(10장). 파일 연산은 늘 실패할 수 있으므로(파일이 없다, 권한이 없다) 대부분 9장의 결과값을 돌려준다. 실패의 `kind`는 대개 `'not_found`, `'exists`, `'permission`, `'io` 중 하나다(전체 표는 [`fs` 레퍼런스](../reference/modules/fs.html)).
 
 이 장의 예제는 빈 디렉터리에서 준비물 파일만 두고 돈다. 준비물은 예제 위의 접힌 상자에서 볼 수 있다.
 
@@ -83,7 +83,7 @@ print(fs.exists("out/2026/report.txt")!)
 
 ## 디렉터리 돌기 {#dirs}
 
-`fs.list(디렉터리)`는 바로 안의 이름들을, `fs.walk(디렉터리)`는 아래의 모든 파일 경로를 하위 디렉터리까지 내려가며 돌려준다(디렉터리 자신은 빼고). `fs.stat(경로)`는 `{name, size, is_dir}`을 돌려준다. `size`는 바이트 수다. 셋을 합치면 "로그 디렉터리에서 큰 `.log` 파일 찾기"가 된다.
+`fs.list(디렉터리)`는 바로 안의 이름들을, `fs.walk(디렉터리)`는 아래의 모든 파일 경로를 하위 디렉터리까지 내려가며 돌려준다(디렉터리 자신은 빼고). `fs.stat(경로)`는 `{name, size, is_dir, mtime}`을 돌려준다. `size`는 바이트 수, `mtime`은 마지막으로 고친 시각(13장)이다. 셋을 합치면 "로그 디렉터리에서 큰 `.log` 파일 찾기"가 된다.
 
 ```file api.log
 GET /users 200
@@ -170,7 +170,7 @@ print(lines(sorted.out))
 
 ## 명령줄 인자 {#args}
 
-`fung script.fung a b c`로 실행하면 스크립트 이름 뒤의 인자가 `args`에 문자열 리스트로 들어온다(2장). `--dir logs` 같은 옵션을 받으려면 `cli` 모듈의 `cli.parse(args, bools: […], values: […])!`를 쓴다. 받을 옵션은 모두 적는다: 켜고 끄는 스위치는 `bools`, 값을 받는 옵션은 `values`다. 결과는 `Ok({flags, rest})`다(명령줄은 바깥 입력이라 잘못 친 명령줄, 예를 들어 목록에 없는 옵션이나 같은 옵션을 두 번 준 것은 `Err`이고, `!`가 거기서 멈춘다). `values`의 `--이름 값`과 `--이름=값`은 `flags`에 문자열로, `bools`의 `--이름`은 `true`로 들어가고, 나머지는 순서대로 `rest`에 간다. 이름의 `-`는 `_`로 바뀐다(`--dry-run` → `dry_run`).
+`fung script.fung a b c`로 실행하면 스크립트 이름 뒤의 인자가 `args`에 문자열 리스트로 들어온다(2장). `--dir logs` 같은 옵션을 받으려면 `cli` 모듈의 `cli.parse(args, bools: […], values: […])!`를 쓴다. 받을 옵션은 모두 적는다: 켜고 끄는 스위치는 `bools`, 값을 받는 옵션은 `values`다. 결과는 `Ok({flags, rest})`다(명령줄은 바깥 입력이라 잘못 친 명령줄, 예를 들어 목록에 없는 옵션이나 같은 옵션을 두 번 준 것은 `Err`이고, `!`가 거기서 멈춘다). `values`의 `--이름 값`과 `--이름=값`은 `flags`에 문자열로, `bools`의 `--이름`은 `true`로 들어가고, 나머지는 순서대로 `rest`에 간다. 이름의 `-`는 `_`로 바뀐다(`--dry-run` → `dry_run`). 옵션은 `--이름` 꼴만 받는다. `-v` 같은 한 글자 옵션은 `Err`이고, `-`로 시작하는 보통 인자는 `--` 뒤에 둔다.
 
 ```fung run args="--dir logs --min 100 --dry-run a.log b.log"
 import cli
@@ -362,7 +362,7 @@ print(trim(r.out), r.code)
 
 - `fs.read`·`fs.read_lines`로 읽고, `fs.write`·`fs.append`로 쓴다. 모두 결과값이라 스크립트에서는 `!`를 붙인다.
 - `fs.list`·`fs.walk`·`fs.glob`로 파일을 찾고, `fs.stat`로 크기를 본다. 경로 계산은 `path`.
-- `exec([프로그램, 인자…])`는 쉘 없이 명령을 돌리고 `Ok({out, err, code})`를 준다. 0이 아닌 종료는 `Err({kind: 'exit, …})`. 쉘 기능이 필요할 때만 `sh`.
+- `exec([프로그램, 인자…])`는 쉘 없이 명령을 돌리고 `Ok({out, err, code, signal})`을 준다. 0이 아닌 종료는 `Err({kind: 'exit, …})`. 쉘 기능이 필요할 때만 `sh`.
 - 인자는 `args`, 옵션은 `cli.parse(args, bools: […], values: […])!`, 환경 변수는 `env("이름") ?? 기본값`, 표준 입력은 `read_lines()`.
 - 결과는 `print`, 경고와 에러는 `eprint`, 끝내는 코드는 `exit(n)`.
 

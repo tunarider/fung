@@ -278,7 +278,7 @@ fn effect_free(n: &Node, pure: &Pure) -> bool {
         | Head::Symbol
         | Head::Duration
         | Head::Missing => true,
-        Head::Fn => fn_name(n).is_empty() && !for_body(n),
+        Head::Fn => fn_name(n).is_empty(),
         Head::Do => partial(n, pure),
         Head::Call => pure.contains_key(&(n.pos.line, n.pos.col)) && all(n),
         // `and` and `or` (an `if` over no blocks), and `then … else`.
@@ -410,10 +410,11 @@ const EQ_HELP: &str = "did you mean `=`? `==` compares; `=` assigns";
 const TEST_EQ_HELP: &str =
     "did you mean `assert` before it? a test checks a comparison with `assert a == b`";
 
-/// A function the code writes without a name: a lambda or an anonymous
-/// `fn` (not the function a `for` body becomes).
+/// A function the code writes without a name: a lambda, an anonymous
+/// `fn`, or the function a `for` body becomes (D160: a `for` is the
+/// `map` or `each` it is sugar for, to E0234 too).
 pub(super) fn is_lambda(n: &Node) -> bool {
-    n.head == Head::Fn && fn_name(n).is_empty() && !for_body(n)
+    n.head == Head::Fn && fn_name(n).is_empty()
 }
 
 fn for_body(n: &Node) -> bool {
@@ -466,7 +467,7 @@ pub(crate) fn known_type(n: &Node) -> Option<&str> {
         Head::Tuple => "tuple",
         Head::Range => "range",
         Head::Tag => lit_str(n),
-        Head::Fn if fn_name(n).is_empty() && !for_body(n) => "fn",
+        Head::Fn if fn_name(n).is_empty() => "fn",
         Head::Do if partial_shape(n) => "fn",
         _ => return None,
     })

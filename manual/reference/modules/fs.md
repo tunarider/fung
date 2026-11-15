@@ -45,7 +45,7 @@ match fs.read("config.txt"):
 
 :::box mistake 이름이 같은 다른 함수
 
-`fs.remove`·`close`는 prelude의 `remove`(맵에서 키 빼기)·`close`(채널 닫기)와 이름만 같은 다른 함수다. 파일에는 반드시 `fs.`를 붙인다. 붙이지 않으면 prelude 함수가 불려 인자가 모자라거나(E0407) 타입이 맞지 않는(E0403) 런타임 에러가 난다.
+`fs.remove`는 prelude의 `remove`(맵에서 키 빼기)와 이름만 같은 다른 함수다. 파일을 지울 때는 반드시 `fs.`를 붙인다. 붙이지 않으면 prelude 함수가 불려 인자가 모자라거나(E0407) 타입이 맞지 않는(E0403) 에러가 난다. 핸들을 닫는 것은 prelude의 `close` 하나다(`fs.close`는 없다).
 
 :::
 
@@ -59,7 +59,7 @@ match fs.read("config.txt"):
 
 #### 설명
 
-`path`의 내용을 처음부터 끝까지 읽어 문자열로 돌려준다. 줄바꿈도 그대로 들어 있다. 줄 단위로 다루려면 [`fs.read_lines`](#fn-fs-read_lines)가 편하다. UTF-8이 아닌 바이트는 U+FFFD로 바뀐다.
+`path`의 내용을 처음부터 끝까지 읽어 문자열로 돌려준다. 줄바꿈도 그대로 들어 있다. 줄 단위로 다루려면 [`fs.read_lines`](#fn-fs-read_lines)가 편하다. UTF-8이 아닌 바이트도 바뀌지 않고 그대로 들어온다([바이트](../prelude/strings.html#bytes)).
 
 #### 매개변수
 
@@ -292,8 +292,7 @@ print(fs.read_lines("audit.log")!)
 
 #### 에러
 
-- `Err({kind: 'not_found})`: 디렉터리가 없다.
-- `Err({kind: 'io})`: 디렉터리가 아니다.
+- `Err({kind: 'not_found})`: 디렉터리가 없거나 디렉터리가 아니다(``cannot list `a.txt`: not a directory``).
 
 #### 예제
 
@@ -549,8 +548,7 @@ print(big)
 #### 에러
 
 - `Err({kind: 'exists})`: 그 자리에 디렉터리가 아닌 파일이 있다.
-- `Err({kind: 'io})`: 중간 단계가 파일이다(``not a directory``).
-- `Err({kind: 'not_found})`: 빈 경로 `""`.
+- `Err({kind: 'not_found})`: 중간 단계가 파일이다(``not a directory``), 또는 빈 경로 `""`.
 - `Err({kind: 'permission})`: 만들 권한이 없다.
 
 #### 예제
@@ -640,7 +638,8 @@ print(fs.exists("tmp")!)
 
 #### 에러
 
-- `Err({kind: 'io})`: 거절한 경로(``invalid argument``).
+- `Err({kind: 'invalid})`: 거절한 경로(``invalid argument``).
+- `Err({kind: 'not_found})`: 경로 중간이 파일이다(``not a directory``).
 - `Err({kind: 'permission})`: 안의 무엇을 지울 권한이 없다.
 
 #### 예제

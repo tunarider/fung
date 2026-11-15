@@ -128,10 +128,11 @@ impl Resolver<'_> {
             if let Some(t) = &p.types {
                 p.types = Some(self.expand_types(t, p.pos)).filter(|t| !t.is_empty());
             }
-            // A rest parameter is always a list (07, T3).
+            // A rest parameter is always a list: `list` or nothing
+            // (07, T3; D161 took `any` out).
             if p.rest
                 && let Some(t) = &p.types
-                && t.iter().any(|t| t.name != "list" && t.name != "any")
+                && t.iter().any(|t| t.name != "list")
             {
                 self.errs.push(super::name_error("E0228", p.pos, &p.name));
             }

@@ -33,7 +33,7 @@ fung 프로그램이 끝나는 길은 다음과 같다.
 
 "여기 오면 버그"라고 말할 때 쓴다. 메시지는 [`print`](io.html#fn-print)와 같은 규칙으로 인자를 공백으로 이은 것이다. 인자가 없으면 메시지는 `fail`이다. 런타임 에러이므로 종료 코드는 1이고, 지나는 [`with`](#fn-with)의 정리는 돈다. 태스크 안에서 부르면 그 태스크가 실패하고, 태스크 범위가 그 실패를 받는다([`scope`](concurrency.html#fn-scope), [`supervise`](concurrency.html#fn-supervise)).
 
-`fail`은 값을 돌려주지 않으므로 어떤 식 자리에도 쓸 수 있다. 특히 `??`와 짝이 맞는다: `cfg.port ?? fail("config.port is required")`. 사용자가 고칠 수 있는 실패(잘못된 입력, 없는 파일)라면 `fail` 대신 `eprint`로 이유를 알리고 `exit(1)`하거나 `Err`를 돌려주는 편이 친절하다. `fail`의 메시지에는 소스 위치와 호출 경로가 붙기 때문이다.
+`fail`은 값을 돌려주지 않으므로 어떤 식 자리에도 쓸 수 있다. 특히 `??`와 짝이 맞는다: `get(cfg, "port") ?? fail("config.port is required")`. 사용자가 고칠 수 있는 실패(잘못된 입력, 없는 파일)라면 `fail` 대신 `eprint`로 이유를 알리고 `exit(1)`하거나 `Err`를 돌려주는 편이 친절하다. `fail`의 메시지에는 소스 위치와 호출 경로가 붙기 때문이다.
 
 #### 매개변수
 
@@ -89,7 +89,7 @@ print(check_port(70000))
 
 `release`는 그것을 부르게 만든 취소나 기한([`timeout`](concurrency.html#fn-timeout))에 끊기지 않는다. 정리가 반쯤 하다 마는 일이 없게 하려는 것이다.
 
-`release`의 실패는 버리지 않는다. `use`도 실패했으면 `use`의 에러에 `note: also failed in release`로 붙고(`release`를 부를 수조차 없을 때, 곧 인자 개수가 틀렸을 때도 같다), 아니면 `release`의 에러가 난다. `release`의 결과는 버리는 값이라 `Err`를 돌려주면 E0606이다. 실패해도 되는 정리는 `fn(c): _ = close(c) ;;`처럼 일부러 버린다. 프로그램이 끝날 때의 정리도 `with`로 한다(따로 `at_exit` 같은 것은 없다). 프로그램 전체를 `with`의 `use` 안에 두면 된다.
+`release`의 실패는 버리지 않는다. `use`도 실패했으면 `use`의 에러에 `note: also failed in release`로 붙고(`release`를 부를 수조차 없을 때, 곧 인자 개수가 틀렸을 때도 같다), 아니면 `release`의 에러가 난다. `release`의 결과는 버리는 값이라 `Err`를 돌려주면 E0606이다. 실패해도 되는 정리는 `fn(c): _ = close(c); nil ;;`처럼 일부러 버리고 `nil`로 맺는다. 프로그램이 끝날 때의 정리도 `with`로 한다(따로 `at_exit` 같은 것은 없다). 프로그램 전체를 `with`의 `use` 안에 두면 된다.
 
 #### 매개변수
 

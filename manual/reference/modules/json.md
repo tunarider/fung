@@ -49,7 +49,7 @@ JSON 텍스트를 fung 값으로 읽는다.
 
 #### 에러
 
-- `Err({kind: 'parse, line, col, message})`: 형식이 틀렸다. `line`·`col`은 1부터 세는 문제 글자의 위치(열은 글자 단위)이고, `message`는 ``invalid JSON at line 1, column 9: expected a string for an object key``처럼 위치와 이유를 담는다. 이유의 예: `unexpected end of input`, `unexpected text after the value`, ``duplicate key "a"``, `number out of range`, `nesting too deep (limit 10000)`.
+- `Err({kind: 'parse, line, col, message})`: 형식이 틀렸다. `line`·`col`은 1부터 세는 문제 글자의 위치(열은 글자 단위)이고, `message`는 ``invalid JSON at line 1, column 9: expected a string for an object key``처럼 위치와 이유를 담는다. 이유의 예: `unexpected end of input`, `unexpected text after the value`, ``duplicate key "a"``, `number out of range`, `invalid UTF-8`, `nesting too deep (limit 10000)`.
 - `s`가 문자열이 아니면 런타임 에러 E0403.
 
 #### 예제
@@ -118,7 +118,7 @@ fung 값을 JSON 텍스트로 쓴다.
 
 #### 설명
 
-`x`를 JSON 문자열로 바꾼다. 받는 것은 JSON에 있는 타입뿐이다: 맵·리스트·문자열·정수·실수·`true`·`false`·`nil`이 [위의 표](#concepts)대로 간다. 맵은 키 순서대로 쓴다. 실수는 늘 소수점을 붙인다(`1.0`). 그 밖의 값은 어디에 있든 런타임 에러 E0513이다. 무엇으로 바꿀지는 쓰는 쪽이 정한다: 심볼은 `sym_name(s)`로 문자열, 튜플은 리스트 `[a, b]`, 시각은 [`time.format(t)`](time.html#fn-time-format)로 문자열, 기간은 `d / 1s`처럼 숫자, 범위는 `map(r, x => x)`처럼 리스트로 바꿔서 넘긴다(태그 `Ok(1)`, 함수, 채널, atom도 E0513). 바꿔 주는 타입과 거절하는 타입의 선을 따로 외우지 않아도 되게 "JSON에 있는 타입만"이다.
+`x`를 JSON 문자열로 바꾼다. 받는 것은 JSON에 있는 타입뿐이다: 맵·리스트·문자열·정수·실수·`true`·`false`·`nil`이 [위의 표](#concepts)대로 간다. 맵은 키 순서대로 쓴다. 실수는 다시 읽어도 실수가 되도록 소수점이나 지수를 붙인다(`1.0`, `1e21`). 그 밖의 값은 어디에 있든 런타임 에러 E0513이다. 무엇으로 바꿀지는 쓰는 쪽이 정한다: 심볼은 `sym_name(s)`로 문자열, 튜플은 리스트 `[a, b]`, 시각은 [`time.format(t)`](time.html#fn-time-format)로 문자열, 기간은 `d / 1s`처럼 숫자, 범위는 `map(r, x => x)`처럼 리스트로 바꿔서 넘긴다(태그 `Ok(1)`, 함수, 채널, atom도 E0513). 바꿔 주는 타입과 거절하는 타입의 선을 따로 외우지 않아도 되게 "JSON에 있는 타입만"이다.
 
 `indent`가 없으면 공백 없는 한 줄이다. 숫자를 주면 그 칸 수로 들여 쓴 여러 줄이 된다(사람이 읽을 파일에). 문자열은 꼭 필요한 것만 이스케이프한다: `"`, `\`, U+0020 미만의 제어 문자. 한글 같은 비ASCII 글자는 그대로 둔다.
 
@@ -134,6 +134,7 @@ JSON 문자열.
 #### 에러
 
 - 런타임 에러 E0513: JSON으로 바꿀 수 없는 값이 들어 있다(``cannot convert dur to JSON``). 심볼·튜플·시각이면 바꾸는 법을 도움말로 보인다.
+- 런타임 에러 E0518: 문자열이나 맵 키에 UTF-8이 아닌 바이트가 있다(JSON은 글이어야 한다).
 - 런타임 에러 E0403: `indent`가 1보다 작다.
 - 런타임 에러 E0806: 결과가 1억 글자를 넘는다.
 

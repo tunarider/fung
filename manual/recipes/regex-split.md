@@ -114,7 +114,7 @@ print(regex.split(trim(line), `\s+`))
 
 - **HTTP로 바로 받기**: 파이프 대신 `http.get("http://${host}:9100/metrics")!.body |> lines`로 받으면 [여러 서버](ssh-collect.html)를 `conc.pmap`으로 한 번에 훑을 수 있다.
 - **다른 지표**: `by_mount`의 조건만 바꾸면 된다. 예를 들어 `node_load1`은 라벨이 없으므로 `find(samples, s => s.name == "node_load1")`로 꺼낸다.
-- **nginx stub_status**: `Active connections: 291`처럼 정해진 문장은 정규식 `Active connections: (\d+)`를 원시 문자열에 담아 `regex.find(text, pat)`로 찾고, `groups[0]`의 숫자를 `int`로 바꾼다.
+- **nginx stub_status**: `Active connections: 291`처럼 정해진 문장은 정규식 `Active connections: (\d+)`를 원시 문자열에 담아 `regex.find(text, pat)`로 찾고, `groups[0]`의 숫자를 `parse_int(…)!`로 읽는다.
 - **바꾸기**: 찾은 조각으로 문자열을 바꿀 때는 `regex.replace(s, pat, repl)`이고 `repl` 안의 `$1`이 첫 조각이다. [설정 파일 값 바꾸기](replace-config.html)에 주의점이 있다.
 
 배우기: [6장 문자열](../learn/06-strings.html), [8장 패턴](../learn/08-patterns.html). 레퍼런스: [`regex.find`](../reference/modules/regex.html#fn-regex-find), [`regex.find_all`](../reference/modules/regex.html#fn-regex-find_all), [`regex.split`](../reference/modules/regex.html#fn-regex-split), [`split`](../reference/prelude/strings.html#fn-split), [`parse_float`](../reference/prelude/convert.html#fn-parse_float), [`read_lines`](../reference/prelude/io.html#fn-read_lines).

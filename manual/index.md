@@ -66,7 +66,7 @@ match logs:
   <li><strong>안 쓰는 곳</strong>: 본격적인 쉘 작업(그건 계속 쉘로), 성능이 중요한 처리, GUI.</li>
   <li><strong>우선순위</strong>: 성능보다 쓰기 편함. 다만 조용히 틀리는 동작은 편함보다 위험하다고 보고 막는다.</li>
 </ul>
-<p>Rust로 구현한 바이트코드 VM이고, 실행 파일 <code>fung</code> 하나로 배포된다. 확장자는 <code>.fung</code>. 이름은 한국어 "펑"(빠르게 만들고 치고 빠진다)에서 왔다. 문법의 겉모양은 Go·Python을, 내부 구조는 Lisp를, 태스크와 에이전트는 Erlang·Elixir를 닮았다.</p>
+<p>Rust로 구현한 바이트코드 VM이고, 실행 파일 <code>fung</code> 하나로 배포된다. 확장자는 <code>.fung</code>. 이름은 한국어 "펑"(빠르게 만들고 치고 빠진다)에서 왔다. 문법의 겉모양은 Go·Python을, 내부 구조는 Lisp를, 태스크와 실패 보고는 Erlang·Elixir를 닮았다.</p>
 
 ## 기조 {#principles}
 
@@ -82,7 +82,7 @@ match logs:
 <h3>핵심은 작게, 나머지는 fung으로</h3>
 <p>언어 핵심은 최소한의 값 연산과 원시 연산만 가진다. <code>take</code>·<code>sum</code>·<code>conc.pmap</code>·<code>cli.parse</code>, 그리고 HTTP 프로토콜 같은 것은 fung으로 작성해 실행 파일에 넣었다. Rust로 쓰는 것은 바깥세상과의 다리(파일·소켓·TLS·프로세스)와 성능이 필요한 안쪽 루프(JSON 파싱, 정규식)뿐이다. prelude에는 확실한 것만 두고, 나머지는 <code>import</code>하는 모듈로 둔다.</p>
 <h3>같은 일을 하는 방법은 하나다</h3>
-<p>주석은 <code>#</code>만, 문자열은 보간이 되는 <code>"…"</code>와 원시 <code>`…`</code>로 역할이 나뉘고, 맵 키는 항상 문자열이다. 반복은 <code>map</code>·<code>filter</code>·<code>fold</code>와 꼬리 재귀뿐이고 <code>while</code>은 없다.</p>
+<p>주석은 <code>#</code>만, 문자열은 보간이 되는 <code>"…"</code>와 원시 <code>`…`</code>로 역할이 나뉘고, 맵 키는 항상 문자열이다. 반복은 <code>map</code>·<code>filter</code>·<code>fold</code>(와 그 설탕인 <code>for</code>), 꼬리 재귀뿐이고 <code>while</code>은 없다.</p>
 <h3>예외 조항을 줄인다</h3>
 <p>"이때는 이렇고 저때는 저렇다"는 규칙이 적어야 한다. 편의를 위한 특례를 더하기보다 규칙 하나에서 결과가 따라 나오게 한다. 예를 들어 클로저 규칙은 "함수는 만들어질 때 보이는 변수의 값을 복사한다" 하나뿐이고, 최상위 함수든 람다든 같다.</p>
 
@@ -115,7 +115,7 @@ curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
 fung version
 ```
 
-<p>버전과 위치는 환경 변수로 고른다: <code>FUNG_VERSION=0.4.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>. 다시 실행하면 업데이트, 지우려면 그 파일을 지우면 된다. 바이너리 하나에 표준 모듈이 다 들어 있어 따로 설치할 것이 없다.</p>
+<p>버전과 위치는 환경 변수로 고른다: <code>FUNG_VERSION=0.6.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>. 다시 실행하면 업데이트, 지우려면 그 파일을 지우면 된다. 바이너리 하나에 표준 모듈이 다 들어 있어 따로 설치할 것이 없다.</p>
 <p>Rust 1.94 이상이 있다면 저장소에서 직접 빌드할 수도 있다. 실행 파일은 <code>target/release/fung</code>이다.</p>
 
 ```plain
@@ -127,7 +127,7 @@ cp target/release/fung ~/.local/bin/
 <p><code>cargo install</code>로 바로 설치할 수도 있다(<code>~/.cargo/bin</code>에 들어간다). 이렇게 빌드한 바이너리는 <code>fung version</code>이 <code>0.0.0-dev</code>다.</p>
 
 ```plain
-cargo install --locked --git https://github.com/tunarider/fung --tag v0.4.0 fung-cli
+cargo install --locked --git https://github.com/tunarider/fung --tag v0.6.0 fung-cli
 ```
 
 <p class="note">받은 파일이 이 저장소의 GitHub Actions에서 빌드된 것인지는 <code>gh attestation verify &lt;파일&gt; --repo tunarider/fung</code>로 확인할 수 있다.</p>

@@ -130,7 +130,7 @@ error[E0603]: unhandled Err: not an integer: &quot;three&quot;
    example.fung:3 &lt;entry&gt;</code></pre></div>
 <p><code>?</code>와 <code>!</code>의 차이는 "누가 처리하는가"다. <code>?</code>는 부른 쪽에 맡기고, <code>!</code>는 그 자리에서 끝낸다. 다른 코드가 쓰는 함수(10장의 모듈)에는 <code>?</code>가 어울리고, 스크립트 맨 위에서 한 번만 하는 일에는 <code>!</code>가 어울린다.</p>
 <h2 id="default">??로 기본값</h2>
-<p><code>a ?? b</code>는 <code>a</code>가 <code>Ok(v)</code>면 <code>v</code>, <code>Err</code>나 <code>nil</code>이면 <code>b</code>다. 실패해도 쓸 기본값이 있을 때 쓴다. 환경 변수를 읽는 <code>env</code>는 변수가 없으면 <code>nil</code>을 돌려주므로 <code>??</code>와 잘 어울린다.</p>
+<p><code>a ?? b</code>는 <code>a</code>가 <code>Ok(v)</code>면 <code>v</code>, <code>Err</code>나 <code>nil</code>이면 <code>b</code>, 그 밖의 값이면 <code>a</code> 그대로다. 실패해도 쓸 기본값이 있을 때 쓴다. 환경 변수를 읽는 <code>env</code>는 변수가 없으면 <code>nil</code>을 돌려주므로 <code>??</code>와 잘 어울린다.</p>
 <div class="run"><pre><code>retries = parse_int(&quot;three&quot;) ?? 3
 port = env(&quot;PORT&quot;) ?? &quot;8080&quot;
 print(retries, port)</code></pre><pre class="out plain"><code>3 8080</code></pre></div>
@@ -155,20 +155,23 @@ print(&quot;여기까지 오지 않는다&quot;)</code></pre><pre class="out err
 
 _ = fs.remove(&quot;tmp-work.txt&quot;)
 print(&quot;cleaned up&quot;)</code></pre><pre class="out plain"><code>cleaned up</code></pre></div>
-<div class="run"><pre><code>fn parse_all(texts):
-  for t in texts: parse_int(t) ;;
+<p>버려지는 값이 리스트면 그 안도 본다. 아래 <code>remove_each</code>는 <code>for</code>로 끝나므로 파일마다의 결과를 모은 리스트를 돌려준다. 없는 파일이 있으면 그 리스트에 <code>Err</code>가 들어 있고, 호출을 문장으로 쓰면 리스트 안의 <code>Err</code>가 버려져 멈춘다.</p>
+<div class="run"><pre><code>import fs
+
+fn remove_each(paths):
+  for p in paths: fs.remove(p) ;;
 ;;
 
-parse_all([&quot;1&quot;, &quot;x&quot;])
-print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: &quot;x&quot;
-  --&gt; example.fung:5:1
+remove_each([&quot;tmp-a.txt&quot;, &quot;tmp-b.txt&quot;])
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: cannot remove `tmp-a.txt`: no such file or directory
+  --&gt; example.fung:7:1
   |
-5 | parse_all([&quot;1&quot;, &quot;x&quot;])
+7 | remove_each([&quot;tmp-a.txt&quot;, &quot;tmp-b.txt&quot;])
   | ^ this value is discarded
   |
-  note: element 2 of the discarded list (of 2)
+  note: element 1 of the discarded list (of 2)
  call path (innermost first):
-   example.fung:5 &lt;entry&gt;
+   example.fung:7 &lt;entry&gt;
  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`</code></pre></div>
 <p>리스트 안의 리스트, 튜플, 맵, <code>Ok(…)</code> 안까지 어느 깊이든 훑는다. 버려지는 값 어디에든 <code>Err</code>가 있으면 멈춘다.</p>
 <h2 id="own">내 함수에서 실패 돌려주기</h2>
@@ -266,11 +269,24 @@ Err({kind: 'syntax, message: &quot;not key=value: broken&quot;})</code></pre></d
 <div class="box learn"><b>"값"이라는 말</b>
 <p>숫자 <code>42</code>나 문자열 <code>&quot;hi&quot;</code>처럼, 변수에 담고 함수에 넘기고 돌려받을 수 있는 것을 <strong>값</strong>이라고 한다(3장). "에러가 값이다"는 에러도 변수에 담고, 함수에 넘기고, 리스트에 모을 수 있다는 뜻이다. 던지고 잡는 특별한 무엇이 아니다.</p>
 </div>
-<div class="box mistake"><b>map의 람다 안에서 ?</b>
+<div class="box mistake"><b>map의 람다와 for 안에서 ?</b>
 <p><code>xs |&gt; map(x =&gt; parse_int(x)?)</code>의 <code>?</code>는 바깥 함수가 아니라 <strong>람다에서</strong> 돌아온다. 그래서 실패는 바깥 함수로 가지 않고 그냥 리스트의 원소가 된다(<code>[1, Err(…)]</code>). 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 <code>try_map</code>을 쓴다. 모두 성공하면 <code>Ok(리스트)</code>, 아니면 처음 <code>Err</code>다.</p>
 <div class="run"><pre><code>print(try_map([&quot;1&quot;, &quot;2&quot;, &quot;3&quot;], parse_int))
 print(try_map([&quot;1&quot;, &quot;b&quot;, &quot;c&quot;], parse_int))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])
 Err({kind: 'parse, message: &quot;not an integer: \&quot;b\&quot;&quot;})</code></pre></div>
+<p><code>for</code>의 본문은 함수가 아니라서 돌아갈 곳이 없다. 그래서 <code>for</code> 본문 안의 <code>?</code>와 <code>return</code>은 컴파일 에러 E0237이다. 여기서도 <code>try_map</code>을 쓴다.</p>
+<div class="run"><pre><code>fn total(texts):
+  nums = for t in texts: parse_int(t)? ;;
+  Ok(sum(nums))
+;;
+
+print(total([&quot;1&quot;, &quot;x&quot;]))</code></pre><pre class="out err plain" data-code="2"><code>error[E0237]: `?` inside a `for` body
+  --&gt; example.fung:2:38
+  |
+2 |   nums = for t in texts: parse_int(t)? ;;
+  |                                      ^
+  |
+ help: a `for` body is the body of the function `map`/`each` is given, so it cannot return from the function around it; use `try_map`, `find`, `all`/`any` or `fold`, or an anonymous `fn(x): … ;;` to return from</code></pre></div>
 </div>
 <div class="box mistake"><b>??는 모든 실패를 덮는다</b>
 <p><code>fs.read(p) ?? &quot;{}&quot;</code>는 파일이 없을 때만이 아니라 권한이 없을 때도 <code>&quot;{}&quot;</code>다. 정말 문제인 실패까지 조용히 덮을 수 있다. 특정한 실패만 기본값으로 바꾸려면 위의 <code>load_config</code>처럼 <code>match</code>로 <code>kind</code>를 가린다.</p>
@@ -284,8 +300,9 @@ Err({kind: 'parse, message: &quot;not an integer: \&quot;b\&quot;&quot;})</code>
 </div>
 <h2 id="exercises">해 보기</h2>
 <div class="exercise"><b>포트 읽기</b>
-<p>문자열을 받아 1~65535의 포트면 <code>Ok(정수)</code>, 숫자가 아니면 <code>Err(&quot;not a number: …&quot;)</code>, 범위 밖이면 <code>Err(&quot;out of range: …&quot;)</code>를 돌려주는 함수를 <code>?</code>로 써 보자. <code>&quot;8080&quot;</code>, <code>&quot;http&quot;</code>, <code>&quot;70000&quot;</code>에 대해 찍는다.</p>
+<p>문자열을 받아 1~65535의 포트면 <code>Ok(정수)</code>, 숫자가 아니면 <code>Err(&quot;not a number: …&quot;)</code>, 범위 밖이면 <code>Err(&quot;out of range: …&quot;)</code>를 돌려주는 함수를 써 보자. <code>&quot;8080&quot;</code>, <code>&quot;http&quot;</code>, <code>&quot;70000&quot;</code>에 대해 찍는다.</p>
 <details><summary>풀이 보기</summary>
+<p><code>?</code>는 <code>parse_int</code>의 <code>Err</code>를 그대로 넘긴다. 이유를 내 말로 바꾸려면 <code>match</code>로 받아 새 <code>Err</code>를 <code>return</code>한다.</p>
 <div class="run"><pre><code>fn port(s):
   n = match parse_int(s):
     Ok(n)  =&gt; n

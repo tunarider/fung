@@ -98,7 +98,7 @@
 </ul>
 </div>
 <h2 id="walkthrough">따라가기</h2>
-<p>라이브러리 하나와 그것을 쓰는 두 파일을 만들어 보자. <code>servers.fung</code>은 최상위에서 한 줄을 출력하게 해 두었다(대입의 오른쪽에서 부른 <code>print</code>). 라이브러리 최상위에는 <code>import</code>, <code>fn</code>, <code>type</code>, 대입만 쓸 수 있기 때문이다.</p>
+<p>라이브러리 하나와 그것을 쓰는 두 파일을 만들어 보자. <code>servers.fung</code>은 최상위에서 한 줄을 출력하게 해 두었다. import된 파일의 최상위는 진입 파일의 최상위와 같아서 어떤 문장이든 올 수 있고, 처음 import될 때 한 번 돈다.</p>
 <details class="fixture"><summary>준비물: servers.fung, helper.fung</summary>
 <p><code>servers.fung</code></p>
 <pre class="plain"><code># servers: a small library
@@ -253,7 +253,7 @@ print(1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0310]
 <ul>
 <li>원칙 5는 "언어 핵심은 최소한, 나머지는 fung으로 직접"이다(<code>background.md</code>). 런타임은 파일·프로세스·소켓·TLS·시간·정규식 같은 원시 기능만 주고, HTTP 프로토콜·<code>cli</code> 등은 fung 라이브러리로 쓴다(open-questions).</li>
 <li>공개 API의 이름·인자·기본값·에러 모양은 fung 쪽에서 정하고, Rust 쪽은 되도록 작은 원시 기능만 둔다. 그래서 공개 이름은 바꾸지 않고 다리 쪽을 고칠 수 있다(노트 M5).</li>
-<li>prelude에는 확실한 것만 둔다. 더하는 것도 그 이름을 쓰던 사용자 코드를 E0238로 깨고, 빼는 것은 부르던 코드를 깬다(open-questions).</li>
+<li>prelude에는 확실한 것만 둔다. 이름을 더해도 같은 이름을 쓰던 사용자 코드는 그 이름을 가릴 뿐 깨지지 않지만, 빼는 것은 부르던 코드를 깬다(open-questions).</li>
 <li>fung 소스는 <code>include_str!</code>로 실행 파일 안에 들어간다(<code>crates/fung-front/src/extras.rs</code>). 배포는 여전히 <code>fung</code> 파일 하나다. 내장 모듈은 <code>import</code>될 때 컴파일하고, prelude만 시작할 때 컴파일한다. 스크립트 시작 시간을 지키기 위해서다(부록 <a href="internals.html#modules">내부 구조</a>).</li>
 </ul>
 </div>
@@ -312,7 +312,7 @@ each([512, 1536, 5242880], b =&gt; print(units.human(b)))</code></pre><pre class
 </div>
 <h2 id="summary">정리</h2>
 <ul>
-<li>로더는 진입 파일을 실행하기 전에 import 그래프 전체를 깊이 우선으로 읽고 컴파일한다. 고리, 없는 멤버, 비공개 접근, 라이브러리 최상위의 단독 문장은 모두 종료 코드 2다.</li>
+<li>로더는 진입 파일을 실행하기 전에 import 그래프 전체를 깊이 우선으로 읽고 컴파일한다. 고리, 없는 멤버, 비공개 접근은 모두 종료 코드 2다.</li>
 <li>모듈 본문은 그 모듈의 <code>IMPORT</code>가 처음 실행될 때 한 번 돌고, 공개 이름의 불변 레코드(모듈 값)로 캐시된다. 멤버 접근은 <code>FIELD</code>다.</li>
 <li>함수 값이 자기 모듈의 전역 표를 들고 다녀서, 어디서 불리든 자기 모듈을 본다.</li>
 <li>라이브러리는 core·native·extras(내장)·extras(프로젝트)의 네 층이다. <code>_native.*</code>는 숨겨져 있고(E0310), 내장 fung 소스는 실행 파일 안에 있다. prelude는 시작할 때 <code>boot</code>가 만든다.</li>

@@ -2531,11 +2531,13 @@
 -- exit: 0
 ==== manual learn/09-errors.md:11
 -- stdout
-| fn parse_all(texts):
-|   for t in texts: parse_int(t) ;;
+| import fs
+|
+| fn remove_each(paths):
+|   for p in paths: fs.remove(p) ;;
 | ;;
 |
-| parse_all(["1", "x"])
+| remove_each(["tmp-a.txt", "tmp-b.txt"])
 | print("not reached")
 -- stderr
 -- exit: 0
@@ -2618,6 +2620,16 @@
 -- exit: 0
 ==== manual learn/09-errors.md:19
 -- stdout
+| fn total(texts):
+|   nums = for t in texts: parse_int(t)? ;;
+|   Ok(sum(nums))
+| ;;
+|
+| print(total(["1", "x"]))
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:20
+-- stdout
 | fn port(s):
 |   n = match parse_int(s):
 |     Ok(n)  => n
@@ -2630,14 +2642,14 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:20
+==== manual learn/09-errors.md:21
 -- stdout
 | cfg = {timeout: "30", retries: "x"}
 | fn int_or(m, key, d) = parse_int(get(m, key, "")) ?? d
 | print(int_or(cfg, "timeout", 10), int_or(cfg, "retries", 3), int_or(cfg, "delay", 5))
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:21
+==== manual learn/09-errors.md:22
 -- stdout
 | texts = ["10", "x", "25", "", "7"]
 | (total, bad) = fold(texts, (0, 0), ((t, b), s) => match parse_int(s):
@@ -4128,9 +4140,8 @@
 | if get(opts.flags, "print", false):
 |   print(join(result, "\n"))
 | else:
-|   # a whole new file first, then one rename: never half a config
-|   fs.write(file + ".tmp", join(result, "\n") + "\n")!
-|   fs.move(file + ".tmp", file, overwrite: true)!
+|   # fs.write replaces the file in one step: never half a config
+|   fs.write(file, join(result, "\n") + "\n")!
 | ;;
 -- stderr
 -- exit: 0
@@ -4407,7 +4418,8 @@
 |   nil =>
 |   url =>
 |     text = "${len(down)} of ${len(hosts)} servers down: ${down |> map(d => d.host) |> join(", ")}"
-|     http.post(url, json.stringify({text}), headers: {"content-type": "application/json"})!
+|     res = http.post(url, json.stringify({text}), headers: {"content-type": "application/json"})!
+|     if res.status >= 300: fail("webhook: HTTP ${res.status}") ;;
 | ;;
 | exit(1)
 -- stderr
@@ -10558,12 +10570,20 @@
 -- exit: 0
 ==== manual vm/06-resolve.md:11
 -- stdout
+| fn double(x) = x * 2
+|
+| print("before")
+| print(double(1, 2))
+-- stderr
+-- exit: 0
+==== manual vm/06-resolve.md:12
+-- stdout
 | events = ["ok", "error: disk", "ok", "error: net"]
 | count = fold(events, 0, (n, l) => starts_with(l, "error") then n + 1 else n)
 | print(count)
 -- stderr
 -- exit: 0
-==== manual vm/06-resolve.md:13
+==== manual vm/06-resolve.md:14
 -- stdout
 | fn describe(host, port):
 |   addr = "${host}:${port}"
@@ -12246,7 +12266,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (5215 bytes, fnv1a64 c3579202001d2721)
+-- stdout (5592 bytes, fnv1a64 2950efa9a05130bc)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -12856,6 +12876,26 @@
 | # expect: Err({kind: 'error, code: "E0803", message: "in use", at: "tests/lang/discard_callbacks.fung:10"})
 -- stderr
 -- exit: 0
+==== tests/lang/discard_receiver.fung
+-- stdout
+| # Taking values from a receiving end only to drop them is written `_ =`
+| # (D159); the values are taken.
+| (tx, rx) = channel(4)
+| send(tx, nil)!
+| send(tx, 2)!
+| send(tx, 3)!
+| send(tx, 4)!
+| close(tx)!
+| _ = take(rx, 1)
+| _ = first(rx)
+| print(zip(rx, ["a"]))
+| # expect: [(3, "a")]
+| print(recv(rx))
+| # expect: Ok(4)
+| print(take(rx, 5), first(rx))
+| # expect: [] nil
+-- stderr
+-- exit: 0
 ==== tests/lang/dur_numbers.fung
 -- stdout
 | # A duration divided by a duration is a number in that unit (07).
@@ -13398,6 +13438,23 @@
 | print("not reached")
 -- stderr
 -- exit: 0
+==== tests/lang/err_discard_for_in_list.fung
+-- stdout
+| # A list of a `for` that only computes is computed and dropped (D160).
+| xs = [1, 2]
+| # expect-error: E0234
+| [for x in xs: x * 2 ;;]
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_for_value.fung
+-- stdout
+| # A `for` in a value place is `map`: a function that only computes with
+| # it has no effect, and a statement that drops its result is E0234 (D160).
+| fn double_all(xs) = for x in xs: x * 2 ;;
+| # expect-error: E0234
+| double_all([1, 2])
+-- stderr
+-- exit: 0
 ==== tests/lang/err_discard_fung_builtin.fung
 -- stdout
 | # A builtin that only computes is no statement, whether it is written in
@@ -13472,6 +13529,37 @@
 | supervise(s => spawn(s, () => fail("boom")), e => Err(e.message))
 | # expect-error: E0606
 | print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_receiver.fung
+-- stdout
+| # A collection function reads a receiving end as it reads a list: its
+| # value is computed, and a statement that drops it is E0234 (D159).
+| (tx, rx) = channel(3)
+| send(tx, 1)!
+| close(tx)!
+| # expect-error: E0234
+| take(rx, 1)
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_receiver_first.fung
+-- stdout
+| # `first` of a receiving end as a statement (D159).
+| (tx, rx) = channel(3)
+| send(tx, 1)!
+| close(tx)!
+| # expect-error: E0234
+| first(rx)
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_receiver_zip.fung
+-- stdout
+| # `zip` of a receiving end as a statement (D159).
+| (tx, rx) = channel(3)
+| send(tx, 1)!
+| close(tx)!
+| # expect-error: E0234
+| zip(rx, [1])
 -- stderr
 -- exit: 0
 ==== tests/lang/err_discard_release.fung
@@ -14943,6 +15031,15 @@
 -- stdout
 | # A rest parameter is a list: another annotation would fail every call.
 | fn f(...xs: int) = xs
+| # expect-error: E0228
+| print(f())
+-- stderr
+-- exit: 0
+==== tests/lang/err_rest_type_any.fung
+-- stdout
+| # A rest parameter is annotated `list` or not at all: `any` too is
+| # another annotation (D161).
+| fn f(...xs: any) = xs
 | # expect-error: E0228
 | print(f())
 -- stderr

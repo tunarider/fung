@@ -209,8 +209,8 @@ print([s, s[1]], len(s), byte_len(&quot;가&quot;), is_utf8(s))</code></pre><pre
 <div class="box mistake"><b>문자열에 숫자 더하기 (E0501)</b>
 <p><code>&quot;disk &quot; + 91 + &quot;%&quot;</code>는 <code>cannot add str and int</code> 에러다. fung은 숫자를 저절로 글자로 바꾸지 않는다. <code>&quot;disk ${91}%&quot;</code>처럼 보간을 쓴다.</p>
 </div>
-<div class="box mistake"><b>반복하며 문자열 쌓기</b>
-<p><code>fold(lines, &quot;&quot;, (acc, l) =&gt; acc + l + &quot;\n&quot;)</code>처럼 문자열을 조금씩 이어 붙이면, 매번 지금까지의 문자열 전체를 새로 만들어서 줄이 많으면 느려진다. 조각을 리스트로 모아 마지막에 <code>join</code>한다: <code>lines |&gt; join(&quot;\n&quot;)</code>.</p>
+<div class="box mistake"><b>문자열을 앞에서 쌓기</b>
+<p>줄을 이을 때는 <code>lines |&gt; join(&quot;\n&quot;)</code>이 가장 짧다. <code>fold</code>로 직접 쌓는다면 <code>acc + l</code>처럼 <strong>뒤에</strong> 붙인다. 뒤에 붙이기는 빠르지만, <code>l + acc</code>처럼 앞에 붙이면 매번 지금까지의 문자열 전체를 복사해서 줄이 많으면 느려진다.</p>
 </div>
 <div class="box other"><b>다른 언어는</b>
 <p>Python의 f-문자열 <code>f&quot;{host}: {usage}%&quot;</code>이 fung의 <code>&quot;${host}: ${usage}%&quot;</code>이고, Python의 <code>r&quot;…&quot;</code>이 fung의 <code>&#96;…&#96;</code>다. 쉘의 <code>&quot;$host&quot;</code>와 달리 fung은 <code>${…}</code>만 보간한다. 보통 문자열의 맨 <code>$</code>는 컴파일 에러 E0129이므로 글자 <code>$</code>는 <code>\$</code>로 쓴다(<code>&quot;$host&quot;</code>가 값이 들어간 줄 알고 넘어가는 일이 없다). 쉘 <code>cut -d' ' -f3</code>은 <code>split(line, &quot; &quot;)[2]</code>, <code>tr a-z A-Z</code>는 <code>upper</code>, <code>sed 's/a/b/g'</code>는 <code>replace</code>다. Python의 <code>len</code>도 코드 포인트를 세지만, JavaScript의 <code>length</code>는 UTF-16 단위라서 이모지 하나가 2로 세진다.</p>

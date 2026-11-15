@@ -3320,7 +3320,7 @@
 -- exit: 2
 ==== dump ast extras/prelude.fung
 -- stdout
-| (program (import _native.arg as _arg) (import _native.process as _p) (import _native.range as _r) (assign exec (field exec _p)) (assign sh (field sh _p)) (assign env (field env _p)) (assign env_all (field env_all _p)) (fn _list(xs, verb) (block (then (binary == (call type_of xs) 'list) xs (call map (call (field items _r) xs verb) (fn (x) (block x)))))) (fn _start(r) (block (call find r (fn ((pwild)) (block true))))) (fn _receive(rx, n, acc) (block (then (binary <= n 0) acc (match (call recv rx) (arm (ptag Ok (pbind x)) (nil) (block (call _receive rx (binary - n 1) (binary + acc (list x))))) (arm (ptag Err (pwild)) (nil) (block acc)))))) (fn _zip_count(xs) (block (match (call type_of (call (field items _r) xs "zip the elements of")) (arm (psym list) (nil) (block (call len xs))) (arm (psym range) (nil) (block (call len (call (field slice _r) xs 0 9223372036854775807)))) (arm (pwild) (nil) (block (nil)))))) (fn _zip_take(xs, n) (block (match (call type_of xs) (arm (psym list) (nil) (block (slice xs (missing) n))) (arm (psym range) (nil) (block (call map (call (field slice _r) xs 0 n) (fn (x) (block x))))) (arm (pwild) (nil) (block (call _receive xs n (list))))))) (fn _zip_ends(a, b, acc) (block (match (call recv a) (arm (ptag Ok (pbind x)) (nil) (block (match (call recv b) (arm (ptag Ok (pbind y)) (nil) (block (call _zip_ends a b (binary + acc (list (tuple x y)))))) (arm (ptag Err (pwild)) (nil) (block acc))))) (arm (ptag Err (pwild)) (nil) (block acc))))) (fn zip(xs, ys) (block (assign m (call _zip_count xs)) (assign n (call _zip_count ys)) (if (binary and (binary == m (nil)) (binary == n (nil))) (block (return (call _zip_ends xs ys (list)))) (nil)) (assign left (call _zip_take xs (then (binary or (binary == n (nil)) (binary and (binary != m (nil)) (binary < m n))) m n))) (assign right (call _zip_take ys (call len left))) (for (pbind i) (range .. 0 (call len right)) (block (tuple (index left i) (index right i)))))) (fn first(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call _start xs))) (nil)) (assign ys (then (binary == (call type_of xs) 'receiver) (call _receive xs 1 (list)) (call _list xs "take the first of"))) (then (binary == (call len ys) 0) (nil) (index ys 0)))) (fn last(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call (field last _r) xs))) (nil)) (assign ys (call _list xs "take the last of")) (then (binary == (call len ys) 0) (nil) (index ys (binary - (call len ys) 1))))) (fn _clamp(n, size) (block (assign (pwild) (call (field count _arg) "n" n)) (then (binary > n size) size n))) (fn take(xs, n) (block (assign (pwild) (call (field count _arg) "n" n)) (if (binary == (call type_of xs) 'receiver) (block (return (call _receive xs (call _clamp n n) (list)))) (nil)) (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs 0 (call _clamp n n)) (fn (x) (block x))))) (nil)) (assign ys (call _list xs "take from")) (slice ys (missing) (call _clamp n (call len ys))))) (fn drop(xs, n) (block (assign (pwild) (call (field count _arg) "n" n)) (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs (call _clamp n n)) (fn (x) (block x))))) (nil)) (assign ys (call _list xs "drop from")) (slice ys (call _clamp n (call len ys)) (missing)))) (fn _padding(s, n, pad) (block (assign (pwild) (call (field count _arg) "n" n)) (assign (pwild) (call (field pad _r) pad)) (assign missing (binary - n (call len s))) (assign width (call len pad)) (then (binary <= missing 0) "" (binary + (call repeat pad (binary // missing width)) (slice pad (missing) (binary % missing width)))))) (fn pad_left(s:str, n:int, pad:str=?) " " (block (binary + (call _padding s n pad) s))) (fn pad_right(s:str, n:int, pad:str=?) " " (block (binary + s (call _padding s n pad)))) (fn is_ok(x) (block (match x (arm (ptag Ok (pwild)) (nil) (block true)) (arm (pwild) (nil) (block false))))) (fn is_err(x) (block (match x (arm (ptag Err (pwild)) (nil) (block true)) (arm (pwild) (nil) (block false))))) (fn until(x, f:fn, pred:fn) (block (then (call pred x) x (call until (call f x) f pred)))) (fn iterate(x, f:fn, n:int) (block (call _iterate x f (call (field count _arg) "n" n)))) (fn _iterate(x, f, n) (block (then (binary == n 0) x (call _iterate (call f x) f (binary - n 1))))))
+| (program (import _native.arg as _arg) (import _native.process as _p) (import _native.range as _r) (assign exec (field exec _p)) (assign sh (field sh _p)) (assign env (field env _p)) (assign env_all (field env_all _p)) (fn _list(xs, verb) (block (then (binary == (call type_of xs) 'list) xs (call map (call (field items _r) xs verb) (fn (x) (block x)))))) (fn _start(r) (block (call find r (fn ((pwild)) (block true))))) (fn _next(rx) (block (call try_map rx (fn (x) (block (tag Err x)))))) (fn _receive(rx, n, acc) (block (then (binary <= n 0) acc (match (call _next rx) (arm (ptag Err (pbind x)) (nil) (block (call _receive rx (binary - n 1) (binary + acc (list x))))) (arm (ptag Ok (pwild)) (nil) (block acc)))))) (fn _zip_count(xs) (block (match (call type_of (call (field items _r) xs "zip the elements of")) (arm (psym list) (nil) (block (call len xs))) (arm (psym range) (nil) (block (call len (call (field slice _r) xs 0 9223372036854775807)))) (arm (pwild) (nil) (block (nil)))))) (fn _zip_take(xs, n) (block (match (call type_of xs) (arm (psym list) (nil) (block (slice xs (missing) n))) (arm (psym range) (nil) (block (call map (call (field slice _r) xs 0 n) (fn (x) (block x))))) (arm (pwild) (nil) (block (call _receive xs n (list))))))) (fn _zip_ends(a, b, acc) (block (match (call _next a) (arm (ptag Err (pbind x)) (nil) (block (match (call _next b) (arm (ptag Err (pbind y)) (nil) (block (call _zip_ends a b (binary + acc (list (tuple x y)))))) (arm (ptag Ok (pwild)) (nil) (block acc))))) (arm (ptag Ok (pwild)) (nil) (block acc))))) (fn zip(xs, ys) (block (assign m (call _zip_count xs)) (assign n (call _zip_count ys)) (if (binary and (binary == m (nil)) (binary == n (nil))) (block (return (call _zip_ends xs ys (list)))) (nil)) (assign left (call _zip_take xs (then (binary or (binary == n (nil)) (binary and (binary != m (nil)) (binary < m n))) m n))) (assign right (call _zip_take ys (call len left))) (for (pbind i) (range .. 0 (call len right)) (block (tuple (index left i) (index right i)))))) (fn first(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call _start xs))) (nil)) (assign ys (then (binary == (call type_of xs) 'receiver) (call _receive xs 1 (list)) (call _list xs "take the first of"))) (then (binary == (call len ys) 0) (nil) (index ys 0)))) (fn last(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call (field last _r) xs))) (nil)) (assign ys (call _list xs "take the last of")) (then (binary == (call len ys) 0) (nil) (index ys (binary - (call len ys) 1))))) (fn _clamp(n, size) (block (assign (pwild) (call (field count _arg) "n" n)) (then (binary > n size) size n))) (fn take(xs, n) (block (assign (pwild) (call (field count _arg) "n" n)) (if (binary == (call type_of xs) 'receiver) (block (return (call _receive xs (call _clamp n n) (list)))) (nil)) (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs 0 (call _clamp n n)) (fn (x) (block x))))) (nil)) (assign ys (call _list xs "take from")) (slice ys (missing) (call _clamp n (call len ys))))) (fn drop(xs, n) (block (assign (pwild) (call (field count _arg) "n" n)) (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs (call _clamp n n)) (fn (x) (block x))))) (nil)) (assign ys (call _list xs "drop from")) (slice ys (call _clamp n (call len ys)) (missing)))) (fn _padding(s, n, pad) (block (assign (pwild) (call (field count _arg) "n" n)) (assign (pwild) (call (field pad _r) pad)) (assign missing (binary - n (call len s))) (assign width (call len pad)) (then (binary <= missing 0) "" (binary + (call repeat pad (binary // missing width)) (slice pad (missing) (binary % missing width)))))) (fn pad_left(s:str, n:int, pad:str=?) " " (block (binary + (call _padding s n pad) s))) (fn pad_right(s:str, n:int, pad:str=?) " " (block (binary + s (call _padding s n pad)))) (fn is_ok(x) (block (match x (arm (ptag Ok (pwild)) (nil) (block true)) (arm (pwild) (nil) (block false))))) (fn is_err(x) (block (match x (arm (ptag Err (pwild)) (nil) (block true)) (arm (pwild) (nil) (block false))))) (fn until(x, f:fn, pred:fn) (block (then (call pred x) x (call until (call f x) f pred)))) (fn iterate(x, f:fn, n:int) (block (call _iterate x f (call (field count _arg) "n" n)))) (fn _iterate(x, f, n) (block (then (binary == n 0) x (call _iterate (call f x) f (binary - n 1))))))
 -- stderr
 -- exit: 0
 ==== dump core extras/prelude.fung
@@ -6414,6 +6414,88 @@
 | 0001  12:8  RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/discard_receiver.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 4)) (unwrap ! (call send tx (nil))) (unwrap ! (call send tx 2)) (unwrap ! (call send tx 3)) (unwrap ! (call send tx 4)) (unwrap ! (call close tx)) (assign (pwild) (call take rx 1)) (assign (pwild) (call first rx)) (call print (call zip rx (list "a"))) (call print (call recv rx)) (call print (call take rx 5) (call first rx)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/discard_receiver.fung
+-- stdout
+| (do (let (ptuple (pbind (global 0)) (pbind (global 1))) (call (prelude channel) 4)) (unwrap ! (call (prelude send) (global 0) (nil))) (unwrap ! (call (prelude send) (global 0) 2)) (unwrap ! (call (prelude send) (global 0) 3)) (unwrap ! (call (prelude send) (global 0) 4)) (unwrap ! (call (prelude close) (global 0))) (let (pwild) (call (prelude take) (global 1) 1)) (let (pwild) (call (prelude first) (global 1))) (call (prelude print) (call (prelude zip) (global 1) (list "a"))) (call (prelude print) (call (prelude recv) (global 1))) (call (prelude print) (call (prelude take) (global 1) 5) (call (prelude first) (global 1))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/discard_receiver.fung
+-- stdout
+| == <main> ==
+| 0000  3:12  CONST        0    ; <fn channel>
+| 0001  3:20  CONST        1    ; 4
+| 0002  3:19  CALL         1 0    ; 1 positional, 0 named
+| 0003  3:1   MATCHORFAIL  0    ; (@0, @1)
+| 0004  4:1   CONST        2    ; <fn send>
+| 0005  4:6   LOADGLOBAL   0    ; tx
+| 0006  4:10  CONST        3    ; nil
+| 0007  4:5   CALL         2 0    ; 2 positional, 0 named
+| 0008  4:14  UNWRAPABORT
+| 0009  4:1   POP
+| 0010  5:1   CONST        2    ; <fn send>
+| 0011  5:6   LOADGLOBAL   0    ; tx
+| 0012  5:10  CONST        4    ; 2
+| 0013  5:5   CALL         2 0    ; 2 positional, 0 named
+| 0014  5:12  UNWRAPABORT
+| 0015  5:1   POP
+| 0016  6:1   CONST        2    ; <fn send>
+| 0017  6:6   LOADGLOBAL   0    ; tx
+| 0018  6:10  CONST        5    ; 3
+| 0019  6:5   CALL         2 0    ; 2 positional, 0 named
+| 0020  6:12  UNWRAPABORT
+| 0021  6:1   POP
+| 0022  7:1   CONST        2    ; <fn send>
+| 0023  7:6   LOADGLOBAL   0    ; tx
+| 0024  7:10  CONST        1    ; 4
+| 0025  7:5   CALL         2 0    ; 2 positional, 0 named
+| 0026  7:12  UNWRAPABORT
+| 0027  7:1   POP
+| 0028  8:1   CONST        6    ; <fn close>
+| 0029  8:7   LOADGLOBAL   0    ; tx
+| 0030  8:6   CALL         1 0    ; 1 positional, 0 named
+| 0031  8:10  UNWRAPABORT
+| 0032  8:1   POP
+| 0033  9:5   CONST        7    ; <fn take>
+| 0034  9:10  LOADGLOBAL   1    ; rx
+| 0035  9:14  CONST        8    ; 1
+| 0036  9:9   CALL         2 0    ; 2 positional, 0 named
+| 0037  9:1   MATCHORFAIL  1    ; _
+| 0038  10:5  CONST        9    ; <fn first>
+| 0039  10:11 LOADGLOBAL   1    ; rx
+| 0040  10:10 CALL         1 0    ; 1 positional, 0 named
+| 0041  10:1  MATCHORFAIL  2    ; _
+| 0042  11:1  CONST        10    ; <fn print>
+| 0043  11:7  CONST        11    ; <fn zip>
+| 0044  11:11 LOADGLOBAL   1    ; rx
+| 0045  11:15 CONST        12    ; ["a"]
+| 0046  11:10 CALL         2 0    ; 2 positional, 0 named
+| 0047  11:6  CALL         1 0    ; 1 positional, 0 named
+| 0048  11:1  POP
+| 0049  13:1  CONST        10    ; <fn print>
+| 0050  13:7  CONST        13    ; <fn recv>
+| 0051  13:12 LOADGLOBAL   1    ; rx
+| 0052  13:11 CALL         1 0    ; 1 positional, 0 named
+| 0053  13:6  CALL         1 0    ; 1 positional, 0 named
+| 0054  13:1  POP
+| 0055  15:1  CONST        10    ; <fn print>
+| 0056  15:7  CONST        7    ; <fn take>
+| 0057  15:12 LOADGLOBAL   1    ; rx
+| 0058  15:16 CONST        14    ; 5
+| 0059  15:11 CALL         2 0    ; 2 positional, 0 named
+| 0060  15:20 CONST        9    ; <fn first>
+| 0061  15:26 LOADGLOBAL   1    ; rx
+| 0062  15:25 CALL         1 0    ; 1 positional, 0 named
+| 0063  15:6  CALL         2 0    ; 2 positional, 0 named
+| 0064  15:1  POP
+| 0065  15:1  CONST        3    ; nil
+| 0066  1:72  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/dur_numbers.fung
 -- stdout
 | (program (assign elapsed 1m30s) (call print (binary / elapsed 1s) (binary / elapsed 1ms) (binary // elapsed 1m) (binary % elapsed 1m)) (call print (binary // (unary - 1m30s) 1m) (binary % (unary - 1m30s) 1m)) (call print (binary * (binary * 4 (binary / elapsed 1s)) 1ms)) (assign ns (binary / 1ms 1000000)) (assign long (binary + 2600h ns)) (call print (binary * long 1.0) (binary * 1.0 long) (binary / long 2.0) (binary * ns 0.5) (binary * (unary - ns) 0.5) (binary * 1s 1e-10)))
@@ -8262,6 +8344,60 @@
 | 0012  6:1   RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/err_discard_for_in_list.fung
+-- stdout
+| (program (assign xs (list 1 2)) (list (for (pbind x) xs (block (binary * x 2)))))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_for_in_list.fung
+-- stdout
+-- stderr
+| error[E0234]: this value is computed and discarded
+|   --> tests/lang/err_discard_for_in_list.fung:4:1
+|   |
+| 4 | [for x in xs: x * 2 ;;]
+|   | ^
+|   |
+|  help: use the value, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump bytecode tests/lang/err_discard_for_in_list.fung
+-- stdout
+-- stderr
+| error[E0234]: this value is computed and discarded
+|   --> tests/lang/err_discard_for_in_list.fung:4:1
+|   |
+| 4 | [for x in xs: x * 2 ;;]
+|   | ^
+|   |
+|  help: use the value, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump ast tests/lang/err_discard_for_value.fung
+-- stdout
+| (program (fn double_all(xs) (block (for (pbind x) xs (block (binary * x 2))))) (call double_all (list 1 2)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_for_value.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `double_all(…)` is computed and discarded
+|   --> tests/lang/err_discard_for_value.fung:5:1
+|   |
+| 5 | double_all([1, 2])
+|   | ^^^^^^^^^^
+|   |
+|  help: `double_all` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump bytecode tests/lang/err_discard_for_value.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `double_all(…)` is computed and discarded
+|   --> tests/lang/err_discard_for_value.fung:5:1
+|   |
+| 5 | double_all([1, 2])
+|   | ^^^^^^^^^^
+|   |
+|  help: `double_all` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== dump ast tests/lang/err_discard_fung_builtin.fung
 -- stdout
 | (program (assign xs (list 1 2 3)) (call print (call drop xs 1)) (call drop xs 1))
@@ -8511,6 +8647,87 @@
 | 0003  2:48  RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/err_discard_receiver.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 3)) (unwrap ! (call send tx 1)) (unwrap ! (call close tx)) (call take rx 1))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_receiver.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `take(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver.fung:7:1
+|   |
+| 7 | take(rx, 1)
+|   | ^^^^
+|   |
+|  help: `take` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump bytecode tests/lang/err_discard_receiver.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `take(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver.fung:7:1
+|   |
+| 7 | take(rx, 1)
+|   | ^^^^
+|   |
+|  help: `take` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump ast tests/lang/err_discard_receiver_first.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 3)) (unwrap ! (call send tx 1)) (unwrap ! (call close tx)) (call first rx))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_receiver_first.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `first(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver_first.fung:6:1
+|   |
+| 6 | first(rx)
+|   | ^^^^^
+|   |
+|  help: `first` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump bytecode tests/lang/err_discard_receiver_first.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `first(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver_first.fung:6:1
+|   |
+| 6 | first(rx)
+|   | ^^^^^
+|   |
+|  help: `first` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump ast tests/lang/err_discard_receiver_zip.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 3)) (unwrap ! (call send tx 1)) (unwrap ! (call close tx)) (call zip rx (list 1)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_receiver_zip.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `zip(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver_zip.fung:6:1
+|   |
+| 6 | zip(rx, [1])
+|   | ^^^
+|   |
+|  help: `zip` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== dump bytecode tests/lang/err_discard_receiver_zip.fung
+-- stdout
+-- stderr
+| error[E0234]: the result of `zip(…)` is computed and discarded
+|   --> tests/lang/err_discard_receiver_zip.fung:6:1
+|   |
+| 6 | zip(rx, [1])
+|   | ^^^
+|   |
+|  help: `zip` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== dump ast tests/lang/err_discard_release.fung
 -- stdout
 | (program (assign r (call with (fn () (block 1)) (fn (x) (block (binary + x 1))) (fn ((pwild)) (block (tag Err "cannot release"))))) (call print "not reached" r))
@@ -13140,6 +13357,33 @@
 |   --> tests/lang/err_rest_type.fung:2:9
 |   |
 | 2 | fn f(...xs: int) = xs
+|   |         ^^
+|   |
+|  help: annotate it `list`, or not at all
+-- exit: 2
+==== dump ast tests/lang/err_rest_type_any.fung
+-- stdout
+| (program (fn f(...xs:any) (block xs)) (call print (call f)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_rest_type_any.fung
+-- stdout
+-- stderr
+| error[E0228]: the rest parameter `...xs` is always a list
+|   --> tests/lang/err_rest_type_any.fung:3:9
+|   |
+| 3 | fn f(...xs: any) = xs
+|   |         ^^
+|   |
+|  help: annotate it `list`, or not at all
+-- exit: 2
+==== dump bytecode tests/lang/err_rest_type_any.fung
+-- stdout
+-- stderr
+| error[E0228]: the rest parameter `...xs` is always a list
+|   --> tests/lang/err_rest_type_any.fung:3:9
+|   |
+| 3 | fn f(...xs: any) = xs
 |   |         ^^
 |   |
 |  help: annotate it `list`, or not at all

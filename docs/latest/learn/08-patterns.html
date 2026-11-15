@@ -314,7 +314,7 @@ print(pick(&quot;web&quot;))</code></pre><pre class="out err plain" data-code="2
 <p>바깥 값과 비교하려면 가드를 쓴다: <code>n when n == wanted =&gt; …</code>.</p>
 </div>
 <div class="box tip"><b>함수에 받을 종류를 적어 두기</b>
-<p><code>type</code>으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: <code>type color = Red | Green | Blue</code>, <code>fn hex(c: color) = …</code>. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이고 런타임에 검사한다. 규칙은 <a href="../reference/language/types.html">타입 표기</a>에 있다.</p>
+<p><code>type</code>으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: <code>type color = Red | Green | Blue</code>, <code>fn hex(c: color) = …</code>. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이다. 검사는 부를 때 하지만, <code>hex(3)</code>처럼 소스에 드러난 리터럴은 실행 전에 같은 E0403으로 잡는다. 규칙은 <a href="../reference/language/types.html">타입 표기</a>에 있다.</p>
 </div>
 <div class="box other"><b>다른 언어는</b>
 <p>태그와 <code>match</code>는 Rust의 <code>enum</code>과 <code>match</code>, OCaml·Haskell의 대수적 데이터 타입과 같은 생각이다. 다만 fung은 태그를 미리 선언하지 않는다. Python 3.10의 <code>match</code>와도 모양이 비슷하다. 쉘의 <code>case &quot;$x&quot; in start) … ;; esac</code>는 문자열 리터럴만 나눌 수 있지만, 패턴은 리스트·맵의 안쪽까지 본다.</p>

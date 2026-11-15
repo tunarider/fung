@@ -643,6 +643,7 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
+| in/extras~prelude@halfbytes.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -1044,6 +1045,18 @@
 | in/tests~lang~discard_callbacks@tight.fung
 | in/tests~lang~discard_callbacks@trailing.fung
 | in/tests~lang~discard_callbacks@wide4.fung
+| in/tests~lang~discard_receiver@bom.fung
+| in/tests~lang~discard_receiver@cglued.fung
+| in/tests~lang~discard_receiver@cpushed.fung
+| in/tests~lang~discard_receiver@crlf.fung
+| in/tests~lang~discard_receiver@halfbytes.fung
+| in/tests~lang~discard_receiver@moreblank.fung
+| in/tests~lang~discard_receiver@nofinal.fung
+| in/tests~lang~discard_receiver@opsplit.fung
+| in/tests~lang~discard_receiver@spaced.fung
+| in/tests~lang~discard_receiver@split.fung
+| in/tests~lang~discard_receiver@tight.fung
+| in/tests~lang~discard_receiver@trailing.fung
 | in/tests~lang~dur_numbers@bom.fung
 | in/tests~lang~dur_numbers@cglued.fung
 | in/tests~lang~dur_numbers@cpushed.fung
@@ -1592,6 +1605,30 @@
 | in/tests~lang~err_discard_for@tight.fung
 | in/tests~lang~err_discard_for@trailing.fung
 | in/tests~lang~err_discard_for@wide4.fung
+| in/tests~lang~err_discard_for_in_list@bom.fung
+| in/tests~lang~err_discard_for_in_list@cglued.fung
+| in/tests~lang~err_discard_for_in_list@cpushed.fung
+| in/tests~lang~err_discard_for_in_list@crlf.fung
+| in/tests~lang~err_discard_for_in_list@halfbytes.fung
+| in/tests~lang~err_discard_for_in_list@moreblank.fung
+| in/tests~lang~err_discard_for_in_list@nofinal.fung
+| in/tests~lang~err_discard_for_in_list@opsplit.fung
+| in/tests~lang~err_discard_for_in_list@spaced.fung
+| in/tests~lang~err_discard_for_in_list@split.fung
+| in/tests~lang~err_discard_for_in_list@tight.fung
+| in/tests~lang~err_discard_for_in_list@trailing.fung
+| in/tests~lang~err_discard_for_value@bom.fung
+| in/tests~lang~err_discard_for_value@cglued.fung
+| in/tests~lang~err_discard_for_value@cpushed.fung
+| in/tests~lang~err_discard_for_value@crlf.fung
+| in/tests~lang~err_discard_for_value@halfbytes.fung
+| in/tests~lang~err_discard_for_value@moreblank.fung
+| in/tests~lang~err_discard_for_value@nofinal.fung
+| in/tests~lang~err_discard_for_value@opsplit.fung
+| in/tests~lang~err_discard_for_value@spaced.fung
+| in/tests~lang~err_discard_for_value@split.fung
+| in/tests~lang~err_discard_for_value@tight.fung
+| in/tests~lang~err_discard_for_value@trailing.fung
 | in/tests~lang~err_discard_fung_builtin@bom.fung
 | in/tests~lang~err_discard_fung_builtin@cglued.fung
 | in/tests~lang~err_discard_fung_builtin@cpushed.fung
@@ -1682,6 +1719,42 @@
 | in/tests~lang~err_discard_on_fail@split.fung
 | in/tests~lang~err_discard_on_fail@tight.fung
 | in/tests~lang~err_discard_on_fail@trailing.fung
+| in/tests~lang~err_discard_receiver@bom.fung
+| in/tests~lang~err_discard_receiver@cglued.fung
+| in/tests~lang~err_discard_receiver@cpushed.fung
+| in/tests~lang~err_discard_receiver@crlf.fung
+| in/tests~lang~err_discard_receiver@halfbytes.fung
+| in/tests~lang~err_discard_receiver@moreblank.fung
+| in/tests~lang~err_discard_receiver@nofinal.fung
+| in/tests~lang~err_discard_receiver@opsplit.fung
+| in/tests~lang~err_discard_receiver@spaced.fung
+| in/tests~lang~err_discard_receiver@split.fung
+| in/tests~lang~err_discard_receiver@tight.fung
+| in/tests~lang~err_discard_receiver@trailing.fung
+| in/tests~lang~err_discard_receiver_first@bom.fung
+| in/tests~lang~err_discard_receiver_first@cglued.fung
+| in/tests~lang~err_discard_receiver_first@cpushed.fung
+| in/tests~lang~err_discard_receiver_first@crlf.fung
+| in/tests~lang~err_discard_receiver_first@halfbytes.fung
+| in/tests~lang~err_discard_receiver_first@moreblank.fung
+| in/tests~lang~err_discard_receiver_first@nofinal.fung
+| in/tests~lang~err_discard_receiver_first@opsplit.fung
+| in/tests~lang~err_discard_receiver_first@spaced.fung
+| in/tests~lang~err_discard_receiver_first@split.fung
+| in/tests~lang~err_discard_receiver_first@tight.fung
+| in/tests~lang~err_discard_receiver_first@trailing.fung
+| in/tests~lang~err_discard_receiver_zip@bom.fung
+| in/tests~lang~err_discard_receiver_zip@cglued.fung
+| in/tests~lang~err_discard_receiver_zip@cpushed.fung
+| in/tests~lang~err_discard_receiver_zip@crlf.fung
+| in/tests~lang~err_discard_receiver_zip@halfbytes.fung
+| in/tests~lang~err_discard_receiver_zip@moreblank.fung
+| in/tests~lang~err_discard_receiver_zip@nofinal.fung
+| in/tests~lang~err_discard_receiver_zip@opsplit.fung
+| in/tests~lang~err_discard_receiver_zip@spaced.fung
+| in/tests~lang~err_discard_receiver_zip@split.fung
+| in/tests~lang~err_discard_receiver_zip@tight.fung
+| in/tests~lang~err_discard_receiver_zip@trailing.fung
 | in/tests~lang~err_discard_release@bom.fung
 | in/tests~lang~err_discard_release@cglued.fung
 | in/tests~lang~err_discard_release@cpushed.fung
@@ -3144,6 +3217,18 @@
 | in/tests~lang~err_rest_type@split.fung
 | in/tests~lang~err_rest_type@tight.fung
 | in/tests~lang~err_rest_type@trailing.fung
+| in/tests~lang~err_rest_type_any@bom.fung
+| in/tests~lang~err_rest_type_any@cglued.fung
+| in/tests~lang~err_rest_type_any@cpushed.fung
+| in/tests~lang~err_rest_type_any@crlf.fung
+| in/tests~lang~err_rest_type_any@halfbytes.fung
+| in/tests~lang~err_rest_type_any@moreblank.fung
+| in/tests~lang~err_rest_type_any@nofinal.fung
+| in/tests~lang~err_rest_type_any@opsplit.fung
+| in/tests~lang~err_rest_type_any@spaced.fung
+| in/tests~lang~err_rest_type_any@split.fung
+| in/tests~lang~err_rest_type_any@tight.fung
+| in/tests~lang~err_rest_type_any@trailing.fung
 | in/tests~lang~err_result_arity_pattern@halfbytes.fung
 | in/tests~lang~err_result_arity_pipe@bom.fung
 | in/tests~lang~err_result_arity_pipe@cglued.fung
@@ -5747,12 +5832,12 @@
 |   | ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halfbytes.fung:68:15
+|   --> in/extras~prelude@halflines.fung:78:1
 |    |
-| 68 |   n = _zip_cou
-|    |               ^
+| 78 | 
+|    | ^
 |    |
-|   note: the `fn` opened at 66:1
+|   note: the `fn` opened at 73:1
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
 |   |
@@ -15184,6 +15269,7 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
+| in/extras~prelude@halfbytes.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -15585,6 +15671,18 @@
 | in/tests~lang~discard_callbacks@tight.fung
 | in/tests~lang~discard_callbacks@trailing.fung
 | in/tests~lang~discard_callbacks@wide4.fung
+| in/tests~lang~discard_receiver@bom.fung
+| in/tests~lang~discard_receiver@cglued.fung
+| in/tests~lang~discard_receiver@cpushed.fung
+| in/tests~lang~discard_receiver@crlf.fung
+| in/tests~lang~discard_receiver@halfbytes.fung
+| in/tests~lang~discard_receiver@moreblank.fung
+| in/tests~lang~discard_receiver@nofinal.fung
+| in/tests~lang~discard_receiver@opsplit.fung
+| in/tests~lang~discard_receiver@spaced.fung
+| in/tests~lang~discard_receiver@split.fung
+| in/tests~lang~discard_receiver@tight.fung
+| in/tests~lang~discard_receiver@trailing.fung
 | in/tests~lang~dur_numbers@bom.fung
 | in/tests~lang~dur_numbers@cglued.fung
 | in/tests~lang~dur_numbers@cpushed.fung
@@ -16133,6 +16231,30 @@
 | in/tests~lang~err_discard_for@tight.fung
 | in/tests~lang~err_discard_for@trailing.fung
 | in/tests~lang~err_discard_for@wide4.fung
+| in/tests~lang~err_discard_for_in_list@bom.fung
+| in/tests~lang~err_discard_for_in_list@cglued.fung
+| in/tests~lang~err_discard_for_in_list@cpushed.fung
+| in/tests~lang~err_discard_for_in_list@crlf.fung
+| in/tests~lang~err_discard_for_in_list@halfbytes.fung
+| in/tests~lang~err_discard_for_in_list@moreblank.fung
+| in/tests~lang~err_discard_for_in_list@nofinal.fung
+| in/tests~lang~err_discard_for_in_list@opsplit.fung
+| in/tests~lang~err_discard_for_in_list@spaced.fung
+| in/tests~lang~err_discard_for_in_list@split.fung
+| in/tests~lang~err_discard_for_in_list@tight.fung
+| in/tests~lang~err_discard_for_in_list@trailing.fung
+| in/tests~lang~err_discard_for_value@bom.fung
+| in/tests~lang~err_discard_for_value@cglued.fung
+| in/tests~lang~err_discard_for_value@cpushed.fung
+| in/tests~lang~err_discard_for_value@crlf.fung
+| in/tests~lang~err_discard_for_value@halfbytes.fung
+| in/tests~lang~err_discard_for_value@moreblank.fung
+| in/tests~lang~err_discard_for_value@nofinal.fung
+| in/tests~lang~err_discard_for_value@opsplit.fung
+| in/tests~lang~err_discard_for_value@spaced.fung
+| in/tests~lang~err_discard_for_value@split.fung
+| in/tests~lang~err_discard_for_value@tight.fung
+| in/tests~lang~err_discard_for_value@trailing.fung
 | in/tests~lang~err_discard_fung_builtin@bom.fung
 | in/tests~lang~err_discard_fung_builtin@cglued.fung
 | in/tests~lang~err_discard_fung_builtin@cpushed.fung
@@ -16223,6 +16345,42 @@
 | in/tests~lang~err_discard_on_fail@split.fung
 | in/tests~lang~err_discard_on_fail@tight.fung
 | in/tests~lang~err_discard_on_fail@trailing.fung
+| in/tests~lang~err_discard_receiver@bom.fung
+| in/tests~lang~err_discard_receiver@cglued.fung
+| in/tests~lang~err_discard_receiver@cpushed.fung
+| in/tests~lang~err_discard_receiver@crlf.fung
+| in/tests~lang~err_discard_receiver@halfbytes.fung
+| in/tests~lang~err_discard_receiver@moreblank.fung
+| in/tests~lang~err_discard_receiver@nofinal.fung
+| in/tests~lang~err_discard_receiver@opsplit.fung
+| in/tests~lang~err_discard_receiver@spaced.fung
+| in/tests~lang~err_discard_receiver@split.fung
+| in/tests~lang~err_discard_receiver@tight.fung
+| in/tests~lang~err_discard_receiver@trailing.fung
+| in/tests~lang~err_discard_receiver_first@bom.fung
+| in/tests~lang~err_discard_receiver_first@cglued.fung
+| in/tests~lang~err_discard_receiver_first@cpushed.fung
+| in/tests~lang~err_discard_receiver_first@crlf.fung
+| in/tests~lang~err_discard_receiver_first@halfbytes.fung
+| in/tests~lang~err_discard_receiver_first@moreblank.fung
+| in/tests~lang~err_discard_receiver_first@nofinal.fung
+| in/tests~lang~err_discard_receiver_first@opsplit.fung
+| in/tests~lang~err_discard_receiver_first@spaced.fung
+| in/tests~lang~err_discard_receiver_first@split.fung
+| in/tests~lang~err_discard_receiver_first@tight.fung
+| in/tests~lang~err_discard_receiver_first@trailing.fung
+| in/tests~lang~err_discard_receiver_zip@bom.fung
+| in/tests~lang~err_discard_receiver_zip@cglued.fung
+| in/tests~lang~err_discard_receiver_zip@cpushed.fung
+| in/tests~lang~err_discard_receiver_zip@crlf.fung
+| in/tests~lang~err_discard_receiver_zip@halfbytes.fung
+| in/tests~lang~err_discard_receiver_zip@moreblank.fung
+| in/tests~lang~err_discard_receiver_zip@nofinal.fung
+| in/tests~lang~err_discard_receiver_zip@opsplit.fung
+| in/tests~lang~err_discard_receiver_zip@spaced.fung
+| in/tests~lang~err_discard_receiver_zip@split.fung
+| in/tests~lang~err_discard_receiver_zip@tight.fung
+| in/tests~lang~err_discard_receiver_zip@trailing.fung
 | in/tests~lang~err_discard_release@bom.fung
 | in/tests~lang~err_discard_release@cglued.fung
 | in/tests~lang~err_discard_release@cpushed.fung
@@ -17685,6 +17843,18 @@
 | in/tests~lang~err_rest_type@split.fung
 | in/tests~lang~err_rest_type@tight.fung
 | in/tests~lang~err_rest_type@trailing.fung
+| in/tests~lang~err_rest_type_any@bom.fung
+| in/tests~lang~err_rest_type_any@cglued.fung
+| in/tests~lang~err_rest_type_any@cpushed.fung
+| in/tests~lang~err_rest_type_any@crlf.fung
+| in/tests~lang~err_rest_type_any@halfbytes.fung
+| in/tests~lang~err_rest_type_any@moreblank.fung
+| in/tests~lang~err_rest_type_any@nofinal.fung
+| in/tests~lang~err_rest_type_any@opsplit.fung
+| in/tests~lang~err_rest_type_any@spaced.fung
+| in/tests~lang~err_rest_type_any@split.fung
+| in/tests~lang~err_rest_type_any@tight.fung
+| in/tests~lang~err_rest_type_any@trailing.fung
 | in/tests~lang~err_result_arity_pattern@halfbytes.fung
 | in/tests~lang~err_result_arity_pipe@bom.fung
 | in/tests~lang~err_result_arity_pipe@cglued.fung
@@ -20288,12 +20458,12 @@
 |   | ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halfbytes.fung:68:15
+|   --> in/extras~prelude@halflines.fung:78:1
 |    |
-| 68 |   n = _zip_cou
-|    |               ^
+| 78 | 
+|    | ^
 |    |
-|   note: the `fn` opened at 66:1
+|   note: the `fn` opened at 73:1
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
 |   |
@@ -30143,27 +30313,27 @@
 | extras~path@trailing.fung 153 585962f5f75e35cf
 | extras~path@wide4.fung unchanged
 | extras~prelude.fung unchanged
-| extras~prelude@bom.fung 5215 c3579202001d2721
-| extras~prelude@cglued.fung 5215 c3579202001d2721
+| extras~prelude@bom.fung 5592 2950efa9a05130bc
+| extras~prelude@cglued.fung 5592 2950efa9a05130bc
 | extras~prelude@cnospace.fung unchanged
 | extras~prelude@contsplit.fung unchanged
-| extras~prelude@cpushed.fung 5215 c3579202001d2721
-| extras~prelude@crlf.fung 5215 c3579202001d2721
-| extras~prelude@dedent.fung 5215 c3579202001d2721
-| extras~prelude@halfbytes.fung unchanged
+| extras~prelude@cpushed.fung 5592 2950efa9a05130bc
+| extras~prelude@crlf.fung 5592 2950efa9a05130bc
+| extras~prelude@dedent.fung 5592 2950efa9a05130bc
+| extras~prelude@halfbytes.fung 2797 154e3530082abd28
 | extras~prelude@halflines.fung unchanged
 | extras~prelude@joined.fung unchanged
-| extras~prelude@moreblank.fung 5265 5c6a3ea62c6f724b
+| extras~prelude@moreblank.fung 5647 0829db1406b07b2e
 | extras~prelude@noblank.fung unchanged
-| extras~prelude@nofinal.fung 5215 c3579202001d2721
-| extras~prelude@odd3.fung 5215 c3579202001d2721
-| extras~prelude@opsplit.fung 5691 553ef5fce4ef58af
-| extras~prelude@spaced.fung 5215 c3579202001d2721
-| extras~prelude@split.fung 6438 2b8a90b16dd9f819
-| extras~prelude@tabs.fung 5215 c3579202001d2721
-| extras~prelude@tight.fung 5215 c3579202001d2721
-| extras~prelude@trailing.fung 5215 c3579202001d2721
-| extras~prelude@wide4.fung 5215 c3579202001d2721
+| extras~prelude@nofinal.fung 5592 2950efa9a05130bc
+| extras~prelude@odd3.fung 5592 2950efa9a05130bc
+| extras~prelude@opsplit.fung 6074 34f9c57d4fe795ae
+| extras~prelude@spaced.fung 5592 2950efa9a05130bc
+| extras~prelude@split.fung 6834 a5b1f6efcd584e64
+| extras~prelude@tabs.fung 5592 2950efa9a05130bc
+| extras~prelude@tight.fung 5592 2950efa9a05130bc
+| extras~prelude@trailing.fung 5592 2950efa9a05130bc
+| extras~prelude@wide4.fung 5592 2950efa9a05130bc
 | extras~regex.fung unchanged
 | extras~regex@bom.fung 232 6e7eb71ebf51009b
 | extras~regex@cglued.fung unchanged
@@ -30846,6 +31016,28 @@
 | tests~lang~discard_callbacks@tight.fung 511 7f936a150228f265
 | tests~lang~discard_callbacks@trailing.fung 511 7f936a150228f265
 | tests~lang~discard_callbacks@wide4.fung 511 7f936a150228f265
+| tests~lang~discard_receiver.fung unchanged
+| tests~lang~discard_receiver@bom.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@cglued.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@cnospace.fung unchanged
+| tests~lang~discard_receiver@contsplit.fung unchanged
+| tests~lang~discard_receiver@cpushed.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@crlf.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@dedent.fung unchanged
+| tests~lang~discard_receiver@halfbytes.fung 172 b1f9d655d4f3ead1
+| tests~lang~discard_receiver@halflines.fung unchanged
+| tests~lang~discard_receiver@joined.fung unchanged
+| tests~lang~discard_receiver@moreblank.fung 358 ffd7a95825d39f92
+| tests~lang~discard_receiver@noblank.fung unchanged
+| tests~lang~discard_receiver@nofinal.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@odd3.fung unchanged
+| tests~lang~discard_receiver@opsplit.fung 349 4a4b03e9943e549e
+| tests~lang~discard_receiver@spaced.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@split.fung 430 84b6cf1b1a23899a
+| tests~lang~discard_receiver@tabs.fung unchanged
+| tests~lang~discard_receiver@tight.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@trailing.fung 343 59cb5bedbcce7588
+| tests~lang~discard_receiver@wide4.fung unchanged
 | tests~lang~dur_numbers.fung unchanged
 | tests~lang~dur_numbers@bom.fung 672 42f503333867cb5b
 | tests~lang~dur_numbers@cglued.fung 672 42f503333867cb5b
@@ -31968,6 +32160,50 @@
 | tests~lang~err_discard_for@tight.fung 272 54081916f14d5be9
 | tests~lang~err_discard_for@trailing.fung 272 54081916f14d5be9
 | tests~lang~err_discard_for@wide4.fung 272 54081916f14d5be9
+| tests~lang~err_discard_for_in_list.fung unchanged
+| tests~lang~err_discard_for_in_list@bom.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@cglued.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@cnospace.fung unchanged
+| tests~lang~err_discard_for_in_list@contsplit.fung unchanged
+| tests~lang~err_discard_for_in_list@cpushed.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@crlf.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@dedent.fung unchanged
+| tests~lang~err_discard_for_in_list@halfbytes.fung 65 5da4e74d496612f7
+| tests~lang~err_discard_for_in_list@halflines.fung unchanged
+| tests~lang~err_discard_for_in_list@joined.fung unchanged
+| tests~lang~err_discard_for_in_list@moreblank.fung 132 f23950dc455a5834
+| tests~lang~err_discard_for_in_list@noblank.fung unchanged
+| tests~lang~err_discard_for_in_list@nofinal.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@odd3.fung unchanged
+| tests~lang~err_discard_for_in_list@opsplit.fung 135 193f5dd50e68d45e
+| tests~lang~err_discard_for_in_list@spaced.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@split.fung 137 25a6d2914b69af5c
+| tests~lang~err_discard_for_in_list@tabs.fung unchanged
+| tests~lang~err_discard_for_in_list@tight.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@trailing.fung 129 8655737441ab0856
+| tests~lang~err_discard_for_in_list@wide4.fung unchanged
+| tests~lang~err_discard_for_value.fung unchanged
+| tests~lang~err_discard_for_value@bom.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@cglued.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@cnospace.fung unchanged
+| tests~lang~err_discard_for_value@contsplit.fung unchanged
+| tests~lang~err_discard_for_value@cpushed.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@crlf.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@dedent.fung unchanged
+| tests~lang~err_discard_for_value@halfbytes.fung 116 989805fbde0cde88
+| tests~lang~err_discard_for_value@halflines.fung unchanged
+| tests~lang~err_discard_for_value@joined.fung unchanged
+| tests~lang~err_discard_for_value@moreblank.fung 234 b2086a33d27178ba
+| tests~lang~err_discard_for_value@noblank.fung unchanged
+| tests~lang~err_discard_for_value@nofinal.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@odd3.fung unchanged
+| tests~lang~err_discard_for_value@opsplit.fung 238 67200e4de5916fb2
+| tests~lang~err_discard_for_value@spaced.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@split.fung 245 e087aaefce19f0e0
+| tests~lang~err_discard_for_value@tabs.fung unchanged
+| tests~lang~err_discard_for_value@tight.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@trailing.fung 230 5482afde0498ec2e
+| tests~lang~err_discard_for_value@wide4.fung unchanged
 | tests~lang~err_discard_fung_builtin.fung unchanged
 | tests~lang~err_discard_fung_builtin@bom.fung 236 67bc4122c646d758
 | tests~lang~err_discard_fung_builtin@cglued.fung 236 67bc4122c646d758
@@ -32122,6 +32358,72 @@
 | tests~lang~err_discard_on_fail@tight.fung 171 300b5750dbc9354f
 | tests~lang~err_discard_on_fail@trailing.fung 171 300b5750dbc9354f
 | tests~lang~err_discard_on_fail@wide4.fung unchanged
+| tests~lang~err_discard_receiver.fung unchanged
+| tests~lang~err_discard_receiver@bom.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@cglued.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@cnospace.fung unchanged
+| tests~lang~err_discard_receiver@contsplit.fung unchanged
+| tests~lang~err_discard_receiver@cpushed.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@crlf.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@dedent.fung unchanged
+| tests~lang~err_discard_receiver@halfbytes.fung 110 31b653adba9a58fb
+| tests~lang~err_discard_receiver@halflines.fung unchanged
+| tests~lang~err_discard_receiver@joined.fung unchanged
+| tests~lang~err_discard_receiver@moreblank.fung 224 1ff9dbf9f46c3927
+| tests~lang~err_discard_receiver@noblank.fung unchanged
+| tests~lang~err_discard_receiver@nofinal.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@odd3.fung unchanged
+| tests~lang~err_discard_receiver@opsplit.fung 220 49fc2b39b90af605
+| tests~lang~err_discard_receiver@spaced.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@split.fung 241 709b2b423a651e0d
+| tests~lang~err_discard_receiver@tabs.fung unchanged
+| tests~lang~err_discard_receiver@tight.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@trailing.fung 218 2232f6abf5e6a72f
+| tests~lang~err_discard_receiver@wide4.fung unchanged
+| tests~lang~err_discard_receiver_first.fung unchanged
+| tests~lang~err_discard_receiver_first@bom.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@cglued.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@cnospace.fung unchanged
+| tests~lang~err_discard_receiver_first@contsplit.fung unchanged
+| tests~lang~err_discard_receiver_first@cpushed.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@crlf.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@dedent.fung unchanged
+| tests~lang~err_discard_receiver_first@halfbytes.fung 66 db26bf2645eb9eae
+| tests~lang~err_discard_receiver_first@halflines.fung unchanged
+| tests~lang~err_discard_receiver_first@joined.fung unchanged
+| tests~lang~err_discard_receiver_first@moreblank.fung 135 68192a5d127d2d65
+| tests~lang~err_discard_receiver_first@noblank.fung unchanged
+| tests~lang~err_discard_receiver_first@nofinal.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@odd3.fung unchanged
+| tests~lang~err_discard_receiver_first@opsplit.fung 132 630c95227866bb83
+| tests~lang~err_discard_receiver_first@spaced.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@split.fung 151 cfc15b8bdc5e85c7
+| tests~lang~err_discard_receiver_first@tabs.fung unchanged
+| tests~lang~err_discard_receiver_first@tight.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@trailing.fung 130 c1b5a0040320fa45
+| tests~lang~err_discard_receiver_first@wide4.fung unchanged
+| tests~lang~err_discard_receiver_zip.fung unchanged
+| tests~lang~err_discard_receiver_zip@bom.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@cglued.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@cnospace.fung unchanged
+| tests~lang~err_discard_receiver_zip@contsplit.fung unchanged
+| tests~lang~err_discard_receiver_zip@cpushed.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@crlf.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@dedent.fung unchanged
+| tests~lang~err_discard_receiver_zip@halfbytes.fung 66 d204c4c401ad8cea
+| tests~lang~err_discard_receiver_zip@halflines.fung unchanged
+| tests~lang~err_discard_receiver_zip@joined.fung unchanged
+| tests~lang~err_discard_receiver_zip@moreblank.fung 136 d4969be06c256d1e
+| tests~lang~err_discard_receiver_zip@noblank.fung unchanged
+| tests~lang~err_discard_receiver_zip@nofinal.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@odd3.fung unchanged
+| tests~lang~err_discard_receiver_zip@opsplit.fung 133 18fb551975f0b04e
+| tests~lang~err_discard_receiver_zip@spaced.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@split.fung 159 3d52d37444cff658
+| tests~lang~err_discard_receiver_zip@tabs.fung unchanged
+| tests~lang~err_discard_receiver_zip@tight.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@trailing.fung 131 ad6e3d98c1341c10
+| tests~lang~err_discard_receiver_zip@wide4.fung unchanged
 | tests~lang~err_discard_release.fung unchanged
 | tests~lang~err_discard_release@bom.fung 176 37889de163bf2ee0
 | tests~lang~err_discard_release@cglued.fung 176 37889de163bf2ee0
@@ -35459,6 +35761,28 @@
 | tests~lang~err_rest_type@tight.fung 127 12462581c52572a9
 | tests~lang~err_rest_type@trailing.fung 127 12462581c52572a9
 | tests~lang~err_rest_type@wide4.fung unchanged
+| tests~lang~err_rest_type_any.fung unchanged
+| tests~lang~err_rest_type_any@bom.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@cglued.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@cnospace.fung unchanged
+| tests~lang~err_rest_type_any@contsplit.fung unchanged
+| tests~lang~err_rest_type_any@cpushed.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@crlf.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@dedent.fung unchanged
+| tests~lang~err_rest_type_any@halfbytes.fung 76 5ce6957d110e5366
+| tests~lang~err_rest_type_any@halflines.fung unchanged
+| tests~lang~err_rest_type_any@joined.fung unchanged
+| tests~lang~err_rest_type_any@moreblank.fung 155 fd8c110d660f9c69
+| tests~lang~err_rest_type_any@noblank.fung unchanged
+| tests~lang~err_rest_type_any@nofinal.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@odd3.fung unchanged
+| tests~lang~err_rest_type_any@opsplit.fung 153 76b22896be0d08cb
+| tests~lang~err_rest_type_any@spaced.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@split.fung 160 a93b05e6c7209663
+| tests~lang~err_rest_type_any@tabs.fung unchanged
+| tests~lang~err_rest_type_any@tight.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@trailing.fung 151 8c7ff9b50ace3b25
+| tests~lang~err_rest_type_any@wide4.fung unchanged
 | tests~lang~err_result_arity_pattern.fung unchanged
 | tests~lang~err_result_arity_pattern@bom.fung unchanged
 | tests~lang~err_result_arity_pattern@cglued.fung unchanged

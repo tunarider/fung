@@ -100,7 +100,7 @@ print("never printed")
 
 ## ??로 기본값 {#default}
 
-`a ?? b`는 `a`가 `Ok(v)`면 `v`, `Err`나 `nil`이면 `b`다. 실패해도 쓸 기본값이 있을 때 쓴다. 환경 변수를 읽는 `env`는 변수가 없으면 `nil`을 돌려주므로 `??`와 잘 어울린다.
+`a ?? b`는 `a`가 `Ok(v)`면 `v`, `Err`나 `nil`이면 `b`, 그 밖의 값이면 `a` 그대로다. 실패해도 쓸 기본값이 있을 때 쓴다. 환경 변수를 읽는 `env`는 변수가 없으면 `nil`을 돌려주므로 `??`와 잘 어울린다.
 
 ```fung run
 retries = parse_int("three") ?? 3
@@ -132,12 +132,16 @@ _ = fs.remove("tmp-work.txt")
 print("cleaned up")
 ```
 
+버려지는 값이 리스트면 그 안도 본다. 아래 `remove_each`는 `for`로 끝나므로 파일마다의 결과를 모은 리스트를 돌려준다. 없는 파일이 있으면 그 리스트에 `Err`가 들어 있고, 호출을 문장으로 쓰면 리스트 안의 `Err`가 버려져 멈춘다.
+
 ```fung run exit=1 error=E0606
-fn parse_all(texts):
-  for t in texts: parse_int(t) ;;
+import fs
+
+fn remove_each(paths):
+  for p in paths: fs.remove(p) ;;
 ;;
 
-parse_all(["1", "x"])
+remove_each(["tmp-a.txt", "tmp-b.txt"])
 print("not reached")
 ```
 
@@ -246,12 +250,23 @@ print(parse_all(["port=8080", "broken", "debug=true"]))
 숫자 `42`나 문자열 `"hi"`처럼, 변수에 담고 함수에 넘기고 돌려받을 수 있는 것을 **값**이라고 한다(3장). "에러가 값이다"는 에러도 변수에 담고, 함수에 넘기고, 리스트에 모을 수 있다는 뜻이다. 던지고 잡는 특별한 무엇이 아니다.
 :::
 
-:::box mistake map의 람다 안에서 ?
+:::box mistake map의 람다와 for 안에서 ?
 `xs |> map(x => parse_int(x)?)`의 `?`는 바깥 함수가 아니라 **람다에서** 돌아온다. 그래서 실패는 바깥 함수로 가지 않고 그냥 리스트의 원소가 된다(`[1, Err(…)]`). 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 `try_map`을 쓴다. 모두 성공하면 `Ok(리스트)`, 아니면 처음 `Err`다.
 
 ```fung run
 print(try_map(["1", "2", "3"], parse_int))
 print(try_map(["1", "b", "c"], parse_int))
+```
+
+`for`의 본문은 함수가 아니라서 돌아갈 곳이 없다. 그래서 `for` 본문 안의 `?`와 `return`은 컴파일 에러 E0237이다. 여기서도 `try_map`을 쓴다.
+
+```fung run exit=2 error=E0237
+fn total(texts):
+  nums = for t in texts: parse_int(t)? ;;
+  Ok(sum(nums))
+;;
+
+print(total(["1", "x"]))
 ```
 
 :::
@@ -274,9 +289,11 @@ Python·Java·JavaScript는 예외를 던지고 `try`로 잡는다. Rust는 fung
 
 :::exercise 포트 읽기
 
-문자열을 받아 1~65535의 포트면 `Ok(정수)`, 숫자가 아니면 `Err("not a number: …")`, 범위 밖이면 `Err("out of range: …")`를 돌려주는 함수를 `?`로 써 보자. `"8080"`, `"http"`, `"70000"`에 대해 찍는다.
+문자열을 받아 1~65535의 포트면 `Ok(정수)`, 숫자가 아니면 `Err("not a number: …")`, 범위 밖이면 `Err("out of range: …")`를 돌려주는 함수를 써 보자. `"8080"`, `"http"`, `"70000"`에 대해 찍는다.
 
 :::solution
+
+`?`는 `parse_int`의 `Err`를 그대로 넘긴다. 이유를 내 말로 바꾸려면 `match`로 받아 새 `Err`를 `return`한다.
 
 ```fung run
 fn port(s):

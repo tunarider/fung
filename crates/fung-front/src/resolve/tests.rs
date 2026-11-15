@@ -1496,8 +1496,13 @@ fn binding_a_visible_name_again_is_one_error() {
     ];
     for (src, note, help) in cases {
         let (_, errs) = resolve_with(src, &["print"], &m5_opts(false));
-        // (a statement `for` that ends a library file is E0234 here)
-        let errs: Vec<Diag> = errs.into_iter().filter(|e| e.code != "E0234").collect();
+        // (`core_of` keeps the file's last item, so a `for` that ends
+        // the file is a `map` whose value is dropped here: E0234, and
+        // E0224 for a body that ends in an assignment)
+        let errs: Vec<Diag> = errs
+            .into_iter()
+            .filter(|e| e.code != "E0234" && e.code != "E0224")
+            .collect();
         assert_eq!(codes(&errs), ["E0238"], "{src:?}: {errs:?}");
         let e = &errs[0];
         assert!(e.notes.iter().any(|n| n == note), "{src:?}: {:?}", e.notes);

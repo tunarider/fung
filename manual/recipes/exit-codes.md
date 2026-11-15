@@ -102,8 +102,8 @@ fung 자신의 종료 코드는 0(정상), 1(실행 중 실패), 2(문법 같은
 
 ## 응용 {#vary}
 
-- **명령의 종료 코드 받기**: `exec`는 0이 아닌 종료를 `Err({kind: 'exit, code, out, err})`로 준다. `systemctl is-active nginx`는 멈춘 서비스에 3을 돌려주므로 `match exec(["systemctl", "is-active", "nginx"]): Ok(_) => finish(0, "nginx active"); Err({kind: 'exit, out}) => finish(2, "nginx ${trim(out)}"); Err(e) => finish(3, e.message) ;;`처럼 옮긴다.
-- **종료 코드 그대로 넘기기**: 감싸는 스크립트라면 `Err({kind: 'exit, code, ...}) => exit(code)`로 안쪽 명령의 코드를 그대로 돌려준다.
+- **명령의 종료 코드 받기**: `exec`는 0이 아닌 종료를 `Err({kind: 'exit, code, signal, out, err, message})`로 준다. `systemctl is-active nginx`는 멈춘 서비스에 3을 돌려주므로 `match exec(["systemctl", "is-active", "nginx"]): Ok(_) => finish(0, "nginx active"); Err({kind: 'exit, out, ...}) => finish(2, "nginx ${trim(out)}"); Err(e) => finish(3, e.message) ;;`처럼 옮긴다. 맵 패턴은 적은 키와 정확히 맞으므로, 다른 키가 더 있어도 되게 `...`로 연다.
+- **종료 코드 그대로 넘기기**: 감싸는 스크립트라면 `Err({kind: 'exit, code, signal, ...}) => exit(code ?? 128 + signal)`로 안쪽 명령의 코드를 그대로 돌려준다. 신호로 끝난 명령은 `code`가 `nil`이고 `signal`에 번호가 오므로, 쉘의 관례대로 128에 신호 번호를 더한다.
 - **cron과 systemd**: cron은 출력이 있으면 메일을 보내고 종료 코드는 보지 않는다. systemd는 0이 아닌 코드를 실패로 기록하고 `Restart=on-failure`면 다시 띄운다. 어떤 프로그램이 부를지에 따라 출력과 코드를 정한다.
 - **사용법 오류는 2**: 일반 명령줄 도구에서는 잘못 쓴 인자에 2를 쓰는 관례가 있다. [명령줄 옵션과 도움말](cli-options.html).
 - **실패한 서버만**: 여러 대를 점검해 하나라도 실패하면 1로 끝내는 모양은 [실패·무응답 서버만 알리기](unreachable-servers.html).

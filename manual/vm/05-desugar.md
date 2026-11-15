@@ -22,7 +22,7 @@ lede: 사람이 쓰기 편한 문법은 많을수록 좋지만, 컴파일러가 
 fung에서 편의 문법은 생각보다 많다. 파이프만이 아니다.
 
 - `a and b`는 "a가 참이면 b, 아니면 거짓"인 `if`다.
-- `cond then a else b`도 `if`다.
+- `cond then a else b`는 코어에 그대로 남는다(값 자리 검사가 블록 `if`와 다르게 보기 때문이다, 아래). 컴파일러는 `if`와 같은 점프로 옮긴다.
 - `for x in xs: … ;;`는 "`xs`의 각 원소에 함수를 적용"인 `map` 호출이다.
 - `"hi ${name}"`은 조각들을 잇는 연산이다.
 - `f(1, _)`는 "나머지 인자 하나를 받는 함수"를 만드는 람다다.
@@ -54,10 +54,10 @@ fung의 코어는 겉 트리와 **같은 모양**(균일 트리, 4장)이다. �
     <tr><td><code>(call f 인자…)</code></td><td>호출</td><td>호출, 파이프 <code>|&gt;</code>, <code>for</code></td></tr>
     <tr><td><code>(op 연산자 a b)</code></td><td>원시 연산</td><td>산술, 비교, <code>in</code>, <code>not</code>, 단항 <code>-</code></td></tr>
     <tr><td><code>(concat 조각…)</code></td><td>문자열 잇기</td><td>보간 <code>"…${e}…"</code></td></tr>
-    <tr><td><code>(field x "k")</code> <code>(index x i)</code> <code>(slice x a b)</code></td><td>접근</td><td><code>x.k</code>, <code>x[i]</code>, <code>x[a..b]</code></td></tr>
+    <tr><td><code>(field k x)</code> <code>(index x i)</code> <code>(slice x a b)</code></td><td>접근</td><td><code>x.k</code>, <code>x[i]</code>, <code>x[a..b]</code></td></tr>
     <tr><td><code>(tag Ok e…)</code></td><td>태그 값</td><td><code>Ok(e)</code>, <code>e |&gt; Ok()</code></td></tr>
     <tr><td><code>(match e (arm 패턴 조건 본문)…)</code></td><td>패턴 매칭</td><td><code>match</code></td></tr>
-    <tr><td><code>(unwrap e "!")</code> <code>(coalesce a b)</code></td><td>결과값 축약</td><td><code>e!</code>, <code>e?</code>, <code>a ?? b</code></td></tr>
+    <tr><td><code>(unwrap ! e)</code> <code>(unwrap ? e)</code> <code>(coalesce a b)</code></td><td>결과값 축약</td><td><code>e!</code>, <code>e?</code>, <code>a ?? b</code></td></tr>
     <tr><td><code>(return e)</code> <code>(import …)</code> <code>(test …)</code> <code>(assert e)</code></td><td></td><td>그대로</td></tr>
   </tbody>
 </table>
@@ -150,9 +150,9 @@ for x in [1, 2]:
 ;;
 ```
 
-두 가지를 눈여겨볼 만하다. 첫째, 코어에는 `(prelude map)`이 직접 박혀 있다. 사용자가 `map`이라는 이름을 자기 함수로 덮어써도 `for`는 내장 `map`을 부른다. 둘째, 본문이 람다가 되었으므로 `for` 안에서 `return`을 쓰면 람다에서 돌아올 뿐 바깥 함수는 끝나지 않는다. 그 함정을 막으려고 desugar는 이 람다에 "for의 본문"이라는 표시를 해 두고, 다음 장의 이름 해석이 그 안의 `return`을 `E0237`로 거절한다. 사용자가 쓴 람다 `=>`도 파서가 표시를 해 두어 같은 번호로 거절한다(람다도 일찍 돌아가지 못한다).
+두 가지를 눈여겨볼 만하다. 첫째, 코어에는 `(prelude map)`이 직접 박혀 있다. 사용자가 `map`이라는 이름을 자기 함수로 덮어써도 `for`는 내장 `map`을 부른다. 둘째, 본문이 람다가 되었으므로 `for` 안에서 `return`을 쓰면 람다에서 돌아올 뿐 바깥 함수는 끝나지 않는다. 그 함정을 막으려고 desugar는 이 람다에 "for의 본문"이라는 표시를 해 두고, 다음 장의 이름 해석이 그 안의 `return`을 `E0237`로 거절한다. 사용자가 쓴 람다 `=>`는 다르다. 람다의 `return`·`?`는 익명 `fn`처럼 그 람다에서 돌아온다. `for`만 막는 까닭은 `for`의 본문이 함수라는 것이 소스에 보이지 않기 때문이다.
 
-### 보간과 `then`: 조각 잇기와 `if` {#interp}
+### 보간과 `then`: 조각 잇기, 그리고 남는 `then` {#interp}
 
 ```dump ast
 name = "fung"
@@ -199,7 +199,7 @@ match half(6):
 ;;
 ```
 
-`(let (local 0) (call (global 0) 6))`이 숨은 변수(`$m0`)에 대상을 담는 부분이다. 대상이 처음부터 이름(`match r:`)이면 담지 않고 그 이름을 절마다 그대로 읽는다. 다시 계산할 것이 없기 때문이다. 다만 어느 절의 패턴이 그 이름을 다시 묶으면(`match r: [r] => …`) 숨은 변수에 담는다. 실패한 패턴이 이름을 이미 바꿔 놓았을 수 있어서 다음 절이 원래 대상을 봐야 한다. 패턴 매칭 자체(`MATCH` 명령과 패턴 트리)는 8장 이후에서 본다.
+`(let (local 0) (call (global 0) 6))`이 숨은 변수(`$m0`)에 대상을 담는 부분이다. 대상이 처음부터 이름(`match r:`)이면 담지 않고 그 이름을 절마다 그대로 읽는다. 다시 계산할 것이 없기 때문이다. 다만 어느 절의 패턴이 그 이름을 다시 묶을 수 있으면 숨은 변수에 담는다. 실패한 패턴이 이름을 이미 바꿔 놓았을 수 있어서 다음 절이 원래 대상을 봐야 한다(파일에서 `match r: [r] => …`는 E0238이라 보기 드문 경우다). 패턴 매칭 자체(`MATCH` 명령과 패턴 트리)와 결과값 축약의 명령은 부록 [내부 구조](internals.html)에서 본다.
 
 :::box learn 같은 모양의 트리를 돌려준다
 desugar는 겉 트리를 **읽기만** 하고 새 트리를 만든다(1장). 입력과 출력이 같은 `Node` 모양이라 desugar는 커다란 `match` 하나다. "이 머리 단어면 이렇게 바꿔서 새 노드를 만들고, 자식들도 같은 함수로 바꾼다." 대부분의 머리 단어(`list`, `index`, `return` …)는 자식만 바꾸고 머리는 그대로 둔다. 변환이 필요한 것만 따로 갈래를 둔다.
@@ -220,13 +220,13 @@ desugar는 겉 트리를 **읽기만** 하고 새 트리를 만든다(1장). 입
 ## 코드에서 찾아보기 {#source}
 
 - `crates/fung-front/src/desugar.rs`: 입구 `desugar(n, keep_value)`. `keep_value`는 파일의 마지막 식이 값으로 남는가(REPL)를 정한다. 아니면 그 자리는 버려지는 자리다.
-  - `Desugarer::walk_node`: 머리 단어마다 갈래를 타는 큰 `match`. `and`·`or`를 `if`로 바꾸는 곳, `binary`·`unary`를 `op`로, `then`을 `if`로, `interp`를 `concat`으로 바꾸는 곳이 모두 여기다. `check_bool`이 `(op bool …)`을 만든다.
+  - `Desugarer::walk_node`: 머리 단어마다 갈래를 타는 큰 `match`. `and`·`or`를 `if`로 바꾸는 곳, `binary`·`unary`를 `op`로, `interp`를 `concat`으로 바꾸는 곳이 모두 여기다(`then`은 자식만 바꿔 그대로 둔다). `check_bool`이 `(op bool …)`을 만든다.
   - `Desugarer::pipe`: 파이프와 `E0227`. `Desugarer::call`과 `Desugarer::partial`: `_` 부분 적용.
   - `Desugarer::for_loop`: `for`를 `(prelude map)` 또는 `(prelude each)` 호출로.
   - `Desugarer::fn_node`: 함수. 구조 분해 매개변수를 숨은 이름 `$aN`과 본문 맨 앞의 대입으로 푼다.
   - `Desugarer::match_expr`: `match`의 대상을 숨은 변수에 담는다.
   - `Desugarer::hidden`: `$p0`, `$m0` 같은 숨은 이름을 만든다.
-- `crates/fung-front/src/compiler.rs`의 `Compiler::expr`: 컴파일러가 아는 코어 형태의 목록이 이 `match`의 갈래들이다. 겉 문법의 머리(`pipe`, `for`, `then`, `binary`)는 여기 없다.
+- `crates/fung-front/src/compiler.rs`의 `Compiler::expr`: 컴파일러가 아는 코어 형태의 목록이 이 `match`의 갈래들이다. 겉 문법의 머리(`pipe`, `for`, `binary`, `interp`)는 여기 없다. `then`은 `if`와 한 갈래다.
 
 :::exercise 코어를 예상하기
 다음 프로그램의 `fung dump core`를 예상해 보자. 특히 `or`와 파이프가 어떻게 바뀔지 적어 보고 확인하자.
@@ -260,7 +260,7 @@ print(ok, names |> map(upper))
 
 - 편의 문법은 표현력을 늘리지 않고 쓰기만 편하게 하는 문법이다. desugar는 그것을 코어 언어로 푼다.
 - 코어를 두면 컴파일러는 몇 안 되는 형태만 알면 되고, 겉 문법을 늘려도 컴파일러와 VM은 그대로다.
-- `and`·`or`·`then`은 `if`로, 파이프와 `for`는 호출로, 보간은 `concat`으로 풀린다. `and`·`or`의 단락 평가는 `if`에서 공짜로 나온다.
+- `and`·`or`는 `if`로, 파이프와 `for`는 호출로, 보간은 `concat`으로 풀린다. `then`은 코어에 남아 `if`와 같은 점프로 컴파일된다. `and`·`or`의 단락 평가는 `if`에서 공짜로 나온다.
 - `_` 부분 적용과 `match`는 숨은 변수(`$p0`, `$m0`)를 써서 식을 한 번만 계산한다.
 - fung의 코어는 겉 트리와 같은 균일 트리이고, 이 구조는 Lisp에서 빌렸다.
 

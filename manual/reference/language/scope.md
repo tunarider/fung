@@ -28,7 +28,7 @@ for f in files:
 total = len(files)              # 값을 식으로 만든다
 
 fn count(dir) = len(fs.list(dir)!)  # E0238: 매개변수 dir이 상수 dir을 가린다
-for len in [1, 2]: len ;;       # 된다: prelude 함수 len을 이 본문에서 가린다
+for len in [1, 2]: print(len) ;; # 된다: prelude 함수 len을 이 본문에서 가린다
 lines = lines(text)             # E0204: 이 블록의 lines는 이 대입이 묶는 이름이다
 ```
 

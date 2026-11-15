@@ -26,12 +26,14 @@ curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
 
 ```plain
 $ fung version
-fung 0.4.0
+fung 0.6.0
 ```
+
+숫자는 설치한 버전에 따라 다르다.
 
 `fung: command not found`가 나오면 `~/.local/bin`이 `PATH`에 없는 것이다. 쉘 설정 파일(`~/.bashrc`, `~/.zshrc`)에 `export PATH="$HOME/.local/bin:$PATH"`를 넣고 터미널을 새로 연다.
 
-- 특정 버전이나 다른 위치가 필요하면 환경 변수로 고른다: `FUNG_VERSION=0.4.0`, `FUNG_INSTALL_DIR=/usr/local/bin`.
+- 특정 버전이나 다른 위치가 필요하면 환경 변수로 고른다: `FUNG_VERSION=0.6.0`, `FUNG_INSTALL_DIR=/usr/local/bin`.
 - 같은 명령을 다시 실행하면 새 버전으로 바뀐다. 지우려면 그 파일 하나를 지우면 된다.
 - Rust 도구가 있으면 저장소에서 직접 빌드할 수도 있다(`cargo build --release --locked`, 실행 파일은 `target/release/fung`). 이렇게 만든 것은 버전이 `0.0.0-dev`로 찍힌다.
 
@@ -145,9 +147,11 @@ nil
 
 REPL에서 에러가 나도 세션은 계속된다. 고쳐서 다시 치면 된다.
 
+식의 값을 찍어 주는 것은 REPL뿐이다. 스크립트 파일에 `1 + 2`나 `upper("warn")`만 한 줄로 쓰면 계산한 값을 버리는 것이라 컴파일 에러(E0234)다. 파일에서는 값을 `print`로 찍거나 이름에 붙인다.
+
 ## fung check: 실행하지 않고 검사하기 {#check}
 
-`fung check 파일`은 실행하지 않고 문법, 이름, `import`만 검사한다. 파일을 지우거나 서버에 명령을 보내는 스크립트를 고친 뒤, 돌리기 전에 오타부터 잡고 싶을 때 쓴다. 문제가 없으면 아무것도 찍지 않고 끝난다.
+`fung check 파일`은 실행하지 않고, 실행 전에 알 수 있는 에러(문법, 없는 이름, `import`, 인자 개수, 쓰지 않는 이름 같은 컴파일 에러 전부)를 찾는다. 파일을 지우거나 서버에 명령을 보내는 스크립트를 고친 뒤, 돌리기 전에 오타부터 잡고 싶을 때 쓴다. 문제가 없으면 아무것도 찍지 않고 끝난다.
 
 ```plain
 $ fung check hello.fung
@@ -232,9 +236,9 @@ print(percent(45, 0))
 
 :::
 
-:::box mistake 닫는 따옴표나 ;;를 빠뜨림
+:::box mistake 닫는 괄호나 ;;를 빠뜨림
 
-문자열의 닫는 `"`나 블록의 닫는 `;;`를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 **마지막 줄 다음**으로 찍힌다. `print("checking ${host}"`처럼 닫는 괄호를 빠뜨리면 ``E0112 expected `,` or `)`, found end of file``이고, `note`가 괄호를 연 자리를 알려 준다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다.
+닫는 괄호나 블록의 닫는 `;;`를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 **마지막 줄 다음**으로 찍힌다. `print("checking ${host}"`처럼 닫는 괄호를 빠뜨리면 ``E0112 expected `,` or `)`, found end of file``이고, `note`가 괄호를 연 자리를 알려 준다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다. 문자열의 닫는 `"`는 다르다: 문자열은 줄을 넘지 못하므로 그 줄에서 바로 E0104 `unterminated string`이고, 위치는 여는 따옴표다.
 
 ```fung run exit=2 error=E0112
 host = "web-1"

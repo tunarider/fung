@@ -129,7 +129,7 @@ bad: out of range: 70000</code></pre></div>
   </tbody>
 </table>
 <p>운영체제의 에러 번호(errno)는 표의 앞 다섯 줄로 옮긴다: <code>ENOENT</code>·<code>ENOTDIR</code> → <code>'not_found</code>, <code>EACCES</code>·<code>EPERM</code> → <code>'permission</code>, <code>EEXIST</code>·<code>ENOTEMPTY</code> → <code>'exists</code>, NUL·<code>EINVAL</code> → <code>'invalid</code>, 나머지 → <code>'io</code>. <code>fs</code>·<code>exec</code>·<code>sh</code>가 이 한 표를 쓴다. <code>'invalid</code>처럼 다시 해도 같은 실패와 <code>'network</code>처럼 다시 해 볼 만한 실패를 <code>kind</code>로 가를 수 있다.</p>
-<p><code>'closed</code>는 두 뜻이다. 파일·소켓 핸들에서는 "이미 닫은 핸들을 썼다"(버그)이고, 채널에서는 "보내는 쪽이 모두 끝났고 남은 값이 없다"(정상적인 끝)이다. 흐름의 끝도 두 모양이다: 파일과 표준 입력의 <code>read_line</code>은 끝에서 <code>Ok(nil)</code>이고, 채널의 <code>recv</code>는 <code>Err({kind: 'closed})</code>다. 채널은 <code>nil</code>을 값으로 보낼 수 있어 <code>Ok(nil)</code>이 끝을 뜻할 수 없기 때문이다. 채널을 끝까지 받을 때는 <code>for x in rx:</code>가 닫힘에서 멈추므로 <code>'closed</code>를 직접 볼 일이 드물다.</p>
+<p><code>'closed</code>는 두 뜻이다. 파일·소켓 핸들에서는 "이미 닫은 핸들을 썼다"(버그)이고, 채널에서는 "<code>close</code>로 닫혔고 남은 값이 없다"(정상적인 끝)이거나, 닫힌 채널에 보내거나 다시 닫은 것이다. 흐름의 끝도 두 모양이다: 파일과 표준 입력의 <code>read_line</code>은 끝에서 <code>Ok(nil)</code>이고, 채널의 <code>recv</code>는 <code>Err({kind: 'closed})</code>다. 채널은 <code>nil</code>을 값으로 보낼 수 있어 <code>Ok(nil)</code>이 끝을 뜻할 수 없기 때문이다. 채널을 끝까지 받을 때는 <code>for x in rx:</code>가 닫힘에서 멈추므로 <code>'closed</code>를 직접 볼 일이 드물다.</p>
 <p>결과값과 다른 실패도 하나 있다. <strong>런타임 에러</strong>는 코드가 틀린 경우(없는 키 읽기, 0으로 나누기, 타입이 틀린 인자)에 프로그램을 멈추는 것으로, 값으로 받을 수 없다(태스크 경계의 <a href="concurrency.html#fn-supervise"><code>supervise</code></a>만 예외로 그 태스크의 에러를 <code>Err({kind: 'error, …})</code>로 준다). 에러 번호와 뜻은 <a href="../errors.html">에러 목록</a>에 있다.</p>
 <h2 id="functions">함수</h2>
 <section class="entry" id="fn-is_ok">

@@ -86,7 +86,7 @@
 print(server.host, server[&quot;port&quot;], len(server))</code></pre><pre class="out plain"><code>web-1 22 3</code></pre></div>
 <p>fung의 맵에는 규칙이 셋 있다(<a href="../language/values.html">값과 타입</a>).</p>
 <ul>
-<li><strong>키는 언제나 문자열이다.</strong> <code>{host: &quot;a&quot;}</code>는 <code>{&quot;host&quot;: &quot;a&quot;}</code>의 축약이다. 수나 심볼은 키가 될 수 없으므로 <code>str</code>로 바꿔 쓴다. 값은 아무 타입이나 된다.</li>
+<li><strong>키는 언제나 문자열이다.</strong> <code>{host: &quot;a&quot;}</code>는 <code>{&quot;host&quot;: &quot;a&quot;}</code>의 축약이다. 수나 심볼은 키가 될 수 없으므로 수는 <code>str</code>로, 심볼은 <code>sym_name</code>으로 바꿔 쓴다. 값은 아무 타입이나 된다.</li>
 <li><strong>넣은 순서를 지킨다.</strong> 출력, <code>keys</code>, <code>pairs</code>, <code>for</code>가 모두 넣은 순서대로 나온다. <code>==</code>는 순서를 보지 않는다(키와 값이 같으면 같다).</li>
 <li><strong>없는 키를 읽으면 런타임 에러다</strong>(E0508). <code>m.port</code>는 "반드시 있다"는 뜻이다. 없을 수 있으면 <a href="#fn-get"><code>get</code></a>으로 기본값을 준다.</li>
 </ul>
@@ -218,7 +218,7 @@ print(merge(defaults, user))</code></pre><pre class="out plain"><code>{host: &qu
 <h4>돌려주는 값</h4>
 <p>새 맵.</p>
 <h4>에러</h4>
-<p><code>k</code>가 문자열이 아니면 런타임 에러 E0514.</p>
+<p><code>k</code>가 문자열이 아니면 런타임 에러 E0514. <code>m</code>이 맵이 아니면 E0506(<code>cannot remove from list</code>).</p>
 <h4>예제</h4>
 <p><strong>빼기</strong></p>
 <div class="run"><pre><code>print(remove({a: 1, b: 2}, &quot;a&quot;), remove({a: 1}, &quot;z&quot;))</code></pre><pre class="out plain"><code>{b: 2} {a: 1}</code></pre></div>

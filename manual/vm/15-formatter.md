@@ -94,7 +94,7 @@ print( h,status(200) )
 
 ## 줄로 나누기 {#lines}
 
-포맷터(`crates/fung-front/src/format.rs`의 `format_bytes`)는 이 순서로 일한다.
+포맷터(`crates/fung-front/src/format.rs`의 `format`)는 이 순서로 일한다.
 
 1. **렉싱.** 렉서로 토큰과 주석을 얻는다. 포맷터는 토큰마다 종류, 줄 번호, 원문에서의 바이트 위치만 본다(`Tok`). 문자열·숫자·기간은 토큰의 **원문 바이트**를 그대로 쓴다. 그래서 리터럴은 절대 바뀌지 않는다.
 2. **파싱.** 파서를 한 번 돌려 문법이 맞는지만 본다. 구문 에러가 있으면 아무것도 고치지 않고 에러를 낸다(종료 코드 2).
@@ -167,7 +167,7 @@ print(label(200), total)
 
 ## 코드에서 찾아보기 {#source}
 
-- `crates/fung-front/src/format.rs`: `format`, `format_bytes`, 출력 비교 `same`, 빈 줄 정리 `tidy_blank`, 토큰의 포맷터 쪽 모양 `Tok`.
+- `crates/fung-front/src/format.rs`: `format`, 출력 비교 `same`, 빈 줄 정리 `tidy_blank`, 토큰의 포맷터 쪽 모양 `Tok`.
 - `crates/fung-front/src/format/lines.rs`: 줄 `Line`, `split_lines`.
 - `crates/fung-front/src/format/layout.rs`: 들여쓰기 상태 기계 `Layouter`, 열린 것 `Opener`, 기다리는 블록 키워드 `Pending`.
 - `crates/fung-front/src/format/spacing.rs`: 공백 표 `gap`, `prefix_context`, `is_callee`.

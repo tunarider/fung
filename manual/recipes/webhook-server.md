@@ -109,13 +109,15 @@ $ cat alerts.jsonl
 {"at":"2026-10-20T14:19:40.619491Z","status":"resolved","name":"HighLoad","severity":"warning","instance":"db1:9100"}
 ```
 
+시각은 호스트의 시간대로 찍힌다(위는 UTC인 호스트다). 어디서 돌리든 UTC로 남기려면 `time.format(time.utc(time.now()))`로 쓴다.
+
 ## 줄별 설명 {#how}
 
 - `token = env("WEBHOOK_TOKEN") ?? fail(…)`: 비밀값은 코드나 명령줄 인자(다른 사용자가 `ps`로 볼 수 있다)가 아니라 환경 변수로 받는다. 없으면 서버를 띄우지 않는다.
 - `received = atom(0)`: 받은 알림 수다. `http.serve`는 요청마다 새 태스크(task, 동시에 도는 작업 단위)에서 처리기를 부르므로, 요청 사이에 나누는 상태는 `atom`에 둔다. `swap(received, n => n + len(es))`가 이전 값으로 새 값을 만들어 한 번에 바꾸고, `deref(received)`가 지금 값을 읽는다.
 - `reply`: 응답은 `{status, headers, body}` 맵이다. 처리기가 문자열만 돌려주면 200과 `text/plain`이 된다.
 - `entry`: 알림 하나에서 필요한 것만 골라 기록할 줄을 만든다. `labels`가 없거나 `null`이어도 `get(a, "labels") ?? {}`로 빈 맵을 쓴다. `a.labels`로 바로 읽으면 키가 없을 때 런타임 에러다.
-- `alerts`: 먼저 토큰을 확인하고 틀리면 401로 일찍 돌아간다(`return`). 맵 패턴 `Ok({alerts: list})`는 "JSON이 맞고 `alerts` 키가 있다"를 한 번에 확인하고 그 값을 `list`로 꺼낸다. JSON이 아니면 `Err(e)`, 모양이 다르면 `Ok(_)` 가지로 가서 400을 답한다.
+- `alerts`: 먼저 토큰을 확인하고 틀리면 401로 일찍 돌아간다(`return`). 맵 패턴 `Ok({alerts: list, ...})`는 "JSON이 맞고 `alerts` 키가 있다"를 한 번에 확인하고 그 값을 `list`로 꺼낸다. 맵 패턴은 적은 키와 정확히 맞으므로, 다른 키가 더 있어도 되게 `...`로 연다. JSON이 아니면 `Err(e)`, 모양이 다르면 `Ok(_)` 가지로 가서 400을 답한다.
 - `fs.append(…)!`: 줄을 파일 끝에 덧붙인다(없으면 만든다). 디스크가 차서 실패하면 `!`가 이 요청의 처리만 실패시킨다. 서버는 그 요청에 500으로 답하고 표준 에러에 `http: handler failed: …`를 남긴 뒤 계속 돈다. 보낸 쪽(Alertmanager)은 실패 응답을 보고 다시 보낸다.
 - `handle`: `(메서드, 경로)` 튜플 하나로 `match`하면 라우팅 표처럼 읽힌다. `(_, "/alerts")`는 "다른 메서드로 온 `/alerts`"다.
 - `http.serve(…, drain: 5s)`: 주소에서 요청을 받으며 여기서 멈춰 있다. 첫 Ctrl-C나 SIGTERM(systemd의 `stop`, 쿠버네티스의 파드 종료)을 받으면 새 연결을 그만 받고, 처리 중인 요청을 최대 5초 기다린 뒤 `Ok(nil)`을 돌려준다. 포트를 이미 누가 쓰고 있으면 `Err`다.

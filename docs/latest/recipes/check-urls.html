@@ -140,9 +140,9 @@ if res.status &gt;= 400: fail(&quot;${url}: HTTP ${res.status}&quot;) ;;</code><
 <li><strong>느린 응답도 실패로</strong>: <code>ok: res.status &lt; 400 and ms &lt; 1000</code>처럼 기준에 시간을 더한다.</li>
 <li><strong>재시도</strong>: 한 번 실패로 알리지 않으려면 <code>conc.retry(() =&gt; …, times: 3, delay: 1s)</code>로 감싼다. 이때 <code>check</code>가 실패를 <code>Err</code>로 돌려주게 바꿔야 <code>retry</code>가 다시 시도한다. <a href="unreachable-servers.html">실패·무응답 서버만 알리기</a>.</li>
 <li><strong>결과 저장</strong>: 매번 결과를 JSON 줄로 <code>fs.append</code>해 두면 시간에 따른 응답 시간을 볼 수 있다. <a href="save-csv-json.html">CSV와 JSON으로 저장하기</a>.</li>
-<li>저장소의 <code>examples/checkurls.fung</code>·<code>examples/urlcheck.fung</code>는 JSON 응답의 최상위 키까지 보여 주는 판이고, <code>test</code> 블록 안에서 서버를 띄워 스스로를 시험한다.</li>
+<li>저장소의 <code>examples/checkurls.fung</code>·<code>examples/urlcheck.fung</code>는 JSON 응답의 최상위 키까지 보여 주는 판이고, <code>urlcheck.fung</code>는 <code>test</code> 블록 안에서 서버를 띄워 스스로를 시험한다.</li>
 </ul>
-<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>. 레퍼런스: <a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a>, <a href="../reference/modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>, <a href="../reference/modules/time.html#fn-time-now"><code>time.now</code></a>, <a href="../reference/prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>, <a href="../reference/prelude/program.html#fn-exit"><code>exit</code></a>.</p>
+<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>. 레퍼런스: <a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a>, <a href="../reference/modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>, <a href="../reference/modules/time.html#fn-time-monotonic"><code>time.monotonic</code></a>, <a href="../reference/prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>, <a href="../reference/prelude/program.html#fn-exit"><code>exit</code></a>.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/json-fields.html"><small>이전</small>JSON API에서 필드 뽑기</a><a class="next" href="../recipes/regex-split.html"><small>다음</small>텍스트 응답을 정규식으로 쪼개기</a></nav>
 </div></main>
 </div>

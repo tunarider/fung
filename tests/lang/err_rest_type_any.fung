@@ -1,0 +1,5 @@
+# A rest parameter is annotated `list` or not at all: `any` too is
+# another annotation (D161).
+fn f(...xs: any) = xs
+# expect-error: E0228
+print(f())

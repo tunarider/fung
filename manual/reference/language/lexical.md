@@ -17,7 +17,7 @@ lede: 토큰의 규칙: 이름, 숫자, 문자열, 기간, 주석, 예약어.
 </ul>
 <h3>예약어</h3>
 <p><code>fn</code> <code>if</code> <code>else</code> <code>then</code> <code>match</code> <code>when</code> <code>for</code> <code>in</code> <code>not</code> <code>and</code> <code>or</code> <code>return</code> <code>import</code> <code>as</code> <code>type</code> <code>test</code> <code>assert</code> <code>true</code> <code>false</code> <code>nil</code></p>
-<p>이름만 올 수 있는 세 자리, 곧 <code>.</code> 뒤, 맵 리터럴의 키, 맵 패턴의 키에서는 예약어도 그냥 이름이다. JSON의 <code>type</code> 같은 키를 그대로 쓰기 위해서다. 변수나 함수 이름으로는 쓸 수 없다.</p>
+<p>이름만 올 수 있는 자리, 곧 <code>.</code> 뒤, 맵 리터럴의 키, 맵 패턴의 키, 심볼의 <code>'</code> 뒤(<code>'type</code>)에서는 예약어도 그냥 이름이다. JSON의 <code>type</code> 같은 키를 그대로 쓰기 위해서다. 변수나 함수 이름으로는 쓸 수 없다.</p>
 
 ```fung run
 event = {type: "deploy", match: "api-*"}
@@ -30,12 +30,12 @@ print(event.type, event.match)
   <tbody>
     <tr><td>정수</td><td><code>42</code> <code>1_000_000</code></td><td>64비트. <code>_</code>는 숫자 사이에만. 두 자리 이상이면 <code>0</code>으로 시작하지 않는다(<code>0755</code>는 E0102, 8진수는 <code>0o755</code>).</td></tr>
     <tr><td>진법</td><td><code>0xff</code> <code>0o17</code> <code>0b1010</code></td><td>정수. 범위는 10진 정수와 같은 64비트다(<code>-0x8000000000000000</code>까지). 16진 숫자는 대소문자를 가리지 않는다(<code>0xFF</code>, <code>0xCafe</code>; 찍을 때는 10진). 접두사는 문법 글자라 소문자만이다(<code>0XFF</code>는 E0102). 그 진법에 없는 숫자도 E0102다(<code>0b12</code>). 모양은 맞는데 64비트에 담기지 않는 정수는 진법과 상관없이 E0135다(<code>9223372036854775808</code>, <code>0xffffffffffffffffff</code>).</td></tr>
-    <tr><td>실수</td><td><code>3.14</code> <code>2.5e-3</code> <code>1e9</code></td><td>소수점 양쪽에 숫자가 필요하다(<code>.5</code>, <code>1.</code>은 안 됨, E0102). 정수 바로 뒤의 <code>.</code>는 소수부나 범위 <code>..</code>만 될 수 있다(<code>1.foo</code>도 E0102). 지수가 있으면 실수이고 지수는 소문자 <code>e</code>만(<code>1E5</code>는 E0102). 0이 아닌 수가 0.0으로 아래 넘치거나(<code>1e-400</code>) 실수의 범위를 넘으면(<code>1e400</code>) E0135.</td></tr>
+    <tr><td>실수</td><td><code>3.14</code> <code>2.5e-3</code> <code>1e9</code></td><td>소수점 양쪽에 숫자가 필요하다(<code>1.</code>은 E0102, <code>.5</code>는 숫자가 아니라 <code>.</code>으로 읽혀 E0110). 정수 바로 뒤의 <code>.</code>는 소수부나 범위 <code>..</code>만 될 수 있다(<code>1.foo</code>도 E0102). 지수가 있으면 실수이고 지수는 소문자 <code>e</code>만(<code>1E5</code>는 E0102). 0이 아닌 수가 0.0으로 아래 넘치거나(<code>1e-400</code>) 실수의 범위를 넘으면(<code>1e400</code>) E0135.</td></tr>
   </tbody>
 </table>
 <h3>문자열</h3>
 <ul>
-  <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code> <code>\xHH</code>뿐이고, 모르는 이스케이프(<code>"C:\data"</code>)는 컴파일 에러다. <code>\xHH</code>는 16진 숫자 꼭 둘, <code>\u{…}</code>는 중괄호 안에 16진 숫자 1~6개다(모양이 틀리면 E0103). 16진 숫자는 숫자 리터럴처럼 대소문자를 가리지 않고(<code>\xFF</code>, <code>\u{1F600}</code>), 이스케이프 글자 <code>\x</code>·<code>\u</code>는 소문자만이다. <code>\xHH</code>는 바이트 하나다(<code>"\xe9"</code>는 글자 <code>é</code>가 아니라 바이트 0xE9, 글자는 <code>"\u{e9}"</code>). 실제 줄바꿈은 넣을 수 없다.</li>
+  <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code> <code>\xHH</code>뿐이고, 모르는 이스케이프(<code>"C:\data"</code>)는 컴파일 에러다. <code>\xHH</code>는 16진 숫자 꼭 둘, <code>\u{…}</code>는 중괄호 안에 16진 숫자 1~6개다(모양이 틀리면 E0103). 코드 포인트는 10FFFF 이하이고 대리 영역(D800~DFFF)이 아니어야 한다(E0106). 16진 숫자는 숫자 리터럴처럼 대소문자를 가리지 않고(<code>\xFF</code>, <code>\u{1F600}</code>), 이스케이프 글자 <code>\x</code>·<code>\u</code>는 소문자만이다. <code>\xHH</code>는 바이트 하나다(<code>"\xe9"</code>는 글자 <code>é</code>가 아니라 바이트 0xE9, 글자는 <code>"\u{e9}"</code>). 실제 줄바꿈은 넣을 수 없다.</li>
   <li>보통 문자열의 <code>$</code>는 <code>${</code>(보간)와 <code>\$</code>(글자)로만 쓴다. 그 밖의 맨 <code>$</code>는 뒤에 무엇이 오든 컴파일 에러 E0129다(<code>"$name"</code>, <code>"cost: $5"</code>, 끝의 <code>$</code>). 값은 <code>"${name}"</code>, 글자 그대로는 <code>"\$5"</code>로 쓴다. 셸 명령이나 정규식처럼 <code>$</code>가 많은 글은 원시 문자열로 쓴다.</li>
   <li><code>`…`</code>: 원시 문자열. 이스케이프도 보간도 없고, 여러 줄이 된다. 정규식과 Windows 경로에 쓴다. 안의 줄 끝은 파일이 <code>\r\n</code>으로 끝나도 값에서는 <code>\n</code>이다. 보간 없는 문자열이 필요한 자리(문자열 패턴, 맵 키와 맵 패턴의 키, <code>import</code> 경로, <code>test</code> 이름)에는 원시 문자열도 같은 것으로 온다.</li>
   <li>보간 안에는 어떤 식이든 온다: <code>"${m["k"]}"</code>.</li>
@@ -51,7 +51,7 @@ print(pattern)
 ```
 
 <h3>심볼</h3>
-<p><code>'ok</code>, <code>'not_found</code>. <code>'</code> 뒤에 이름이 온다. 이름만 있는 값으로, 선언 없이 쓰는 열거형이다. 대문자로 시작하는 심볼은 인자 없는 태그로 쓴다: <code>Red</code>가 그 심볼이고, <code>'Red</code>는 같은 값의 둘째 표기라 컴파일 에러 E0128이다. 찍을 때도 쓴 그대로 <code>Red</code>다(<code>print(Red)</code>, <code>print(sym("Red"))</code>). <code>Ok</code>·<code>Err</code>도 같다: 맨 <code>Ok</code>는 심볼이고, 값을 담은 <code>Ok(1)</code>만 결과값이다. 문자열과는 다른 타입이라 <code>'ok == "ok"</code>는 <code>false</code>다(바깥에서 온 문자열은 <code>sym(s)</code>로 바꿔 비교한다).</p>
+<p><code>'ok</code>, <code>'not_found</code>. <code>'</code> 뒤에 이름이 온다(예약어 모양도 된다: <code>'type</code>, <code>'in</code>). 이름만 있는 값으로, 선언 없이 쓰는 열거형이다. 대문자로 시작하는 심볼은 인자 없는 태그로 쓴다: <code>Red</code>가 그 심볼이고, <code>'Red</code>는 같은 값의 둘째 표기라 컴파일 에러 E0128이다. 찍을 때도 쓴 그대로 <code>Red</code>다(<code>print(Red)</code>, <code>print(sym("Red"))</code>). <code>Ok</code>·<code>Err</code>도 같다: 맨 <code>Ok</code>는 심볼이고, 값을 담은 <code>Ok(1)</code>만 결과값이다. 문자열과는 다른 타입이라 <code>'ok == "ok"</code>는 <code>false</code>다(바깥에서 온 문자열은 <code>sym(s)</code>로 바꿔 비교한다).</p>
 <h3>기간</h3>
 <p><code>500ms</code> <code>30s</code> <code>1.5s</code> <code>1h30m</code>. 단위는 <code>ms</code> <code>s</code> <code>m</code> <code>h</code>이고 큰 단위부터 쓴다. 숫자 바로 뒤에 붙여야 한다(<code>30 s</code>는 숫자와 이름 <code>s</code>).</p>
 <p>성분마다 숫자는 10진 정수처럼 <code>0</code>으로 시작하지 않고(<code>1h05m</code>은 E0105), 소수점은 마지막 성분에만 온다(<code>1h30.5m</code>은 되고 <code>1.5h30m</code>은 E0105). 기간은 나노초 단위라, 0이 아닌 성분이 0 ns로 반올림되면 E0105다(<code>0.0000004ms</code>). 모양은 맞는데 기간의 범위(약 292년)를 넘으면 정수처럼 E0135다(<code>9999999999h</code>). 성분의 크기에는 제한이 없다: <code>1h90m</code>과 <code>1m0s</code>도 되고 각각 <code>2h30m</code>, <code>1m</code>과 같은 값이다.</p>

@@ -1,0 +1,6 @@
+# `zip` of a receiving end as a statement (D159).
+(tx, rx) = channel(3)
+send(tx, 1)!
+close(tx)!
+# expect-error: E0234
+zip(rx, [1])

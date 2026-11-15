@@ -12,7 +12,7 @@ description: fung prelude 프로세스와 환경: exec, sh, env, env_all.
 
 **환경 변수**(environment variable)는 프로세스가 부모에게서 물려받는 `이름=값` 목록이다. `HOME`, `PATH`, 그리고 `DB_HOST`처럼 설정을 넘기는 데 쓰는 것들이 있다. [`env`](#fn-env)로 읽고, 자식 프로세스에 더 넘길 것은 `exec`의 `env` 인자로 준다. fung에는 자기 환경을 바꾸는 함수가 없다.
 
-이 페이지의 세 함수는 fung으로 쓴 prelude가 네이티브 함수를 그대로 이름 붙인 것이다.
+이 페이지의 네 함수는 fung으로 쓴 prelude가 네이티브 함수를 그대로 이름 붙인 것이다.
 
 ## 함수 {#functions}
 
@@ -135,7 +135,7 @@ print(timeout(() => exec(["sleep", "5"]), 100ms))
 
 :::box mistake 바깥에서 온 값을 sh 문자열에 끼워 넣지 않는다
 
-`sh("grep ${pattern} app.log")`에서 `pattern`이 사용자 입력이면, `x; rm -rf ~` 같은 값이 명령이 되어 실행된다(명령 주입). 값이 들어가는 명령은 `exec(["grep", "--", pattern, "app.log"])`처럼 리스트로 쓴다. 리스트로 넘겨도 `-`로 시작하는 값(`-r`, `--help`)은 그 명령이 옵션으로 읽으므로, 옵션이 끝나는 자리에 `--`를 둔다(`--`를 아는 명령이면). 쉘 기능이 꼭 필요하면 값을 `env`로 넘기고 쉘 안에서 `"$PATTERN"`으로 따옴표를 쳐서 읽는다(fung의 보통 문자열에서 `$` 뒤에 이름이 오면 컴파일 에러이므로 명령은 원시 문자열 `` `grep -- "$PATTERN" app.log` ``로 쓴다).
+`sh("grep ${pattern} app.log")`에서 `pattern`이 사용자 입력이면, `x; rm -rf ~` 같은 값이 명령이 되어 실행된다(명령 주입). 값이 들어가는 명령은 `exec(["grep", "--", pattern, "app.log"])`처럼 리스트로 쓴다. 리스트로 넘겨도 `-`로 시작하는 값(`-r`, `--help`)은 그 명령이 옵션으로 읽으므로, 옵션이 끝나는 자리에 `--`를 둔다(`--`를 아는 명령이면). 쉘 기능이 꼭 필요하면 값을 `env`로 넘기고 쉘 안에서 `"$PATTERN"`으로 따옴표를 쳐서 읽는다(fung의 보통 문자열에서 맨 `$`는 컴파일 에러 E0129이므로 명령은 원시 문자열 `` `grep -- "$PATTERN" app.log` ``로 쓴다).
 
 :::
 

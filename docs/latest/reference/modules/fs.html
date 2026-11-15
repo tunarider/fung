@@ -110,7 +110,7 @@ match fs.read(&quot;config.txt&quot;):
 ;;</code></pre><pre class="out plain"><code>no config, using defaults</code></pre></div>
 <p>파일 내용은 문자열로 읽는다. fung의 문자열은 어떤 바이트든 담으므로 UTF-8이 아닌 파일도 바이트 그대로 읽히고, 그대로 쓰면 같은 파일이 된다. 파일 이름도 바이트 그대로다. 그런 바이트가 글자로 어떻게 세어지는지는 <a href="../prelude/strings.html#bytes">바이트</a>에 있다.</p>
 <div class="box mistake"><b>이름이 같은 다른 함수</b>
-<p><code>fs.remove</code>·<code>close</code>는 prelude의 <code>remove</code>(맵에서 키 빼기)·<code>close</code>(채널 닫기)와 이름만 같은 다른 함수다. 파일에는 반드시 <code>fs.</code>를 붙인다. 붙이지 않으면 prelude 함수가 불려 인자가 모자라거나(E0407) 타입이 맞지 않는(E0403) 런타임 에러가 난다.</p>
+<p><code>fs.remove</code>는 prelude의 <code>remove</code>(맵에서 키 빼기)와 이름만 같은 다른 함수다. 파일을 지울 때는 반드시 <code>fs.</code>를 붙인다. 붙이지 않으면 prelude 함수가 불려 인자가 모자라거나(E0407) 타입이 맞지 않는(E0403) 에러가 난다. 핸들을 닫는 것은 prelude의 <code>close</code> 하나다(<code>fs.close</code>는 없다).</p>
 </div>
 <h2 id="whole">통째로 읽고 쓰기</h2>
 <p>작은 파일(설정, 로그 한 개, 목록)은 한 번에 읽고 한 번에 쓰는 것이 가장 쉽다. 수백 MB 이상의 큰 파일을 한 줄씩 다룰 때는 <a href="#handles">파일 핸들</a>을 쓴다.</p>
@@ -119,7 +119,7 @@ match fs.read(&quot;config.txt&quot;):
 <p>파일 전체를 문자열 하나로 읽는다.</p>
 <div class="sig"><code>fs.read(path)</code></div>
 <h4>설명</h4>
-<p><code>path</code>의 내용을 처음부터 끝까지 읽어 문자열로 돌려준다. 줄바꿈도 그대로 들어 있다. 줄 단위로 다루려면 <a href="#fn-fs-read_lines"><code>fs.read_lines</code></a>가 편하다. UTF-8이 아닌 바이트는 U+FFFD로 바뀐다.</p>
+<p><code>path</code>의 내용을 처음부터 끝까지 읽어 문자열로 돌려준다. 줄바꿈도 그대로 들어 있다. 줄 단위로 다루려면 <a href="#fn-fs-read_lines"><code>fs.read_lines</code></a>가 편하다. UTF-8이 아닌 바이트도 바뀌지 않고 그대로 들어온다(<a href="../prelude/strings.html#bytes">바이트</a>).</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>path</code>: 읽을 파일의 경로(문자열).</li>
@@ -277,8 +277,7 @@ print(fs.read_lines(&quot;audit.log&quot;)!)</code></pre><pre class="out plain">
 <p><code>Ok(문자열 리스트)</code>.</p>
 <h4>에러</h4>
 <ul>
-<li><code>Err({kind: 'not_found})</code>: 디렉터리가 없다.</li>
-<li><code>Err({kind: 'io})</code>: 디렉터리가 아니다.</li>
+<li><code>Err({kind: 'not_found})</code>: 디렉터리가 없거나 디렉터리가 아니다(<code>cannot list `a.txt`: not a directory</code>).</li>
 </ul>
 <h4>예제</h4>
 <p><strong>이름과 경로</strong></p>
@@ -466,8 +465,7 @@ print(big)</code></pre><pre class="out plain"><code>[&quot;big.log&quot;]</code>
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'exists})</code>: 그 자리에 디렉터리가 아닌 파일이 있다.</li>
-<li><code>Err({kind: 'io})</code>: 중간 단계가 파일이다(<code>not a directory</code>).</li>
-<li><code>Err({kind: 'not_found})</code>: 빈 경로 <code>&quot;&quot;</code>.</li>
+<li><code>Err({kind: 'not_found})</code>: 중간 단계가 파일이다(<code>not a directory</code>), 또는 빈 경로 <code>&quot;&quot;</code>.</li>
 <li><code>Err({kind: 'permission})</code>: 만들 권한이 없다.</li>
 </ul>
 <h4>예제</h4>
@@ -534,7 +532,8 @@ false</code></pre></div>
 <p><code>Ok(nil)</code>.</p>
 <h4>에러</h4>
 <ul>
-<li><code>Err({kind: 'io})</code>: 거절한 경로(<code>invalid argument</code>).</li>
+<li><code>Err({kind: 'invalid})</code>: 거절한 경로(<code>invalid argument</code>).</li>
+<li><code>Err({kind: 'not_found})</code>: 경로 중간이 파일이다(<code>not a directory</code>).</li>
 <li><code>Err({kind: 'permission})</code>: 안의 무엇을 지울 권한이 없다.</li>
 </ul>
 <h4>예제</h4>

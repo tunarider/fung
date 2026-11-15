@@ -67,10 +67,11 @@
 <pre class="plain"><code>curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh</code></pre>
 <p>설치가 끝나면 터미널에서 버전을 찍어 본다.</p>
 <pre class="plain"><code>$ fung version
-fung 0.4.0</code></pre>
+fung 0.6.0</code></pre>
+<p>숫자는 설치한 버전에 따라 다르다.</p>
 <p><code>fung: command not found</code>가 나오면 <code>~/.local/bin</code>이 <code>PATH</code>에 없는 것이다. 쉘 설정 파일(<code>~/.bashrc</code>, <code>~/.zshrc</code>)에 <code>export PATH=&quot;$HOME/.local/bin:$PATH&quot;</code>를 넣고 터미널을 새로 연다.</p>
 <ul>
-<li>특정 버전이나 다른 위치가 필요하면 환경 변수로 고른다: <code>FUNG_VERSION=0.4.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>.</li>
+<li>특정 버전이나 다른 위치가 필요하면 환경 변수로 고른다: <code>FUNG_VERSION=0.6.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>.</li>
 <li>같은 명령을 다시 실행하면 새 버전으로 바뀐다. 지우려면 그 파일 하나를 지우면 된다.</li>
 <li>Rust 도구가 있으면 저장소에서 직접 빌드할 수도 있다(<code>cargo build --release --locked</code>, 실행 파일은 <code>target/release/fung</code>). 이렇게 만든 것은 버전이 <code>0.0.0-dev</code>로 찍힌다.</li>
 </ul>
@@ -149,8 +150,9 @@ nil
 <li><code>:help</code>는 명령 목록, <code>:load 파일.fung</code>은 파일을 이 세션에서 실행(정의가 남는다), <code>:quit</code>나 <kbd>Ctrl</kbd>+<kbd>D</kbd>는 종료다. 입력 기록은 <code>~/.fung_history</code>에 남아 위쪽 화살표로 다시 꺼낼 수 있다.</li>
 </ul>
 <p>REPL에서 에러가 나도 세션은 계속된다. 고쳐서 다시 치면 된다.</p>
+<p>식의 값을 찍어 주는 것은 REPL뿐이다. 스크립트 파일에 <code>1 + 2</code>나 <code>upper(&quot;warn&quot;)</code>만 한 줄로 쓰면 계산한 값을 버리는 것이라 컴파일 에러(E0234)다. 파일에서는 값을 <code>print</code>로 찍거나 이름에 붙인다.</p>
 <h2 id="check">fung check: 실행하지 않고 검사하기</h2>
-<p><code>fung check 파일</code>은 실행하지 않고 문법, 이름, <code>import</code>만 검사한다. 파일을 지우거나 서버에 명령을 보내는 스크립트를 고친 뒤, 돌리기 전에 오타부터 잡고 싶을 때 쓴다. 문제가 없으면 아무것도 찍지 않고 끝난다.</p>
+<p><code>fung check 파일</code>은 실행하지 않고, 실행 전에 알 수 있는 에러(문법, 없는 이름, <code>import</code>, 인자 개수, 쓰지 않는 이름 같은 컴파일 에러 전부)를 찾는다. 파일을 지우거나 서버에 명령을 보내는 스크립트를 고친 뒤, 돌리기 전에 오타부터 잡고 싶을 때 쓴다. 문제가 없으면 아무것도 찍지 않고 끝난다.</p>
 <pre class="plain"><code>$ fung check hello.fung
 $ echo $?
 0</code></pre>
@@ -227,8 +229,8 @@ error[E0502]: division by zero
 <div class="box learn"><b>컴파일 에러와 런타임 에러</b>
 <p>많은 언어가 에러를 두 때로 나눈다. <strong>실행 전에</strong> 글만 보고 알 수 있는 것(괄호가 안 닫힘, 없는 이름)과, <strong>실행해 봐야</strong> 알 수 있는 것(파일에서 읽은 값이 숫자가 아님, 0으로 나눔)이다. 앞의 것은 일찍 잡을수록 좋다. 그래서 fung은 실행 전에 할 수 있는 검사를 최대한 하고, <code>fung check</code>로 그 검사만 따로 돌릴 수 있게 했다.</p>
 </div>
-<div class="box mistake"><b>닫는 따옴표나 ;;를 빠뜨림</b>
-<p>문자열의 닫는 <code>&quot;</code>나 블록의 닫는 <code>;;</code>를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 <strong>마지막 줄 다음</strong>으로 찍힌다. <code>print(&quot;checking ${host}&quot;</code>처럼 닫는 괄호를 빠뜨리면 <code>E0112 expected `,` or `)`, found end of file</code>이고, <code>note</code>가 괄호를 연 자리를 알려 준다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다.</p>
+<div class="box mistake"><b>닫는 괄호나 ;;를 빠뜨림</b>
+<p>닫는 괄호나 블록의 닫는 <code>;;</code>를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 <strong>마지막 줄 다음</strong>으로 찍힌다. <code>print(&quot;checking ${host}&quot;</code>처럼 닫는 괄호를 빠뜨리면 <code>E0112 expected `,` or `)`, found end of file</code>이고, <code>note</code>가 괄호를 연 자리를 알려 준다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다. 문자열의 닫는 <code>&quot;</code>는 다르다: 문자열은 줄을 넘지 못하므로 그 줄에서 바로 E0104 <code>unterminated string</code>이고, 위치는 여는 따옴표다.</p>
 <div class="run"><pre><code>host = &quot;web-1&quot;
 print(&quot;checking ${host}&quot;</code></pre><pre class="out err plain" data-code="2"><code>error[E0112]: expected `,` or `)`, found end of file
   --&gt; example.fung:3:1

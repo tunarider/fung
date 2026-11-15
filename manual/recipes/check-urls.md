@@ -104,6 +104,6 @@ if res.status >= 400: fail("${url}: HTTP ${res.status}") ;;
 - **느린 응답도 실패로**: `ok: res.status < 400 and ms < 1000`처럼 기준에 시간을 더한다.
 - **재시도**: 한 번 실패로 알리지 않으려면 `conc.retry(() => …, times: 3, delay: 1s)`로 감싼다. 이때 `check`가 실패를 `Err`로 돌려주게 바꿔야 `retry`가 다시 시도한다. [실패·무응답 서버만 알리기](unreachable-servers.html).
 - **결과 저장**: 매번 결과를 JSON 줄로 `fs.append`해 두면 시간에 따른 응답 시간을 볼 수 있다. [CSV와 JSON으로 저장하기](save-csv-json.html).
-- 저장소의 `examples/checkurls.fung`·`examples/urlcheck.fung`는 JSON 응답의 최상위 키까지 보여 주는 판이고, `test` 블록 안에서 서버를 띄워 스스로를 시험한다.
+- 저장소의 `examples/checkurls.fung`·`examples/urlcheck.fung`는 JSON 응답의 최상위 키까지 보여 주는 판이고, `urlcheck.fung`는 `test` 블록 안에서 서버를 띄워 스스로를 시험한다.
 
-배우기: [13장 JSON과 HTTP](../learn/13-json-and-http.html), [12장 동시에 여러 일 하기](../learn/12-concurrency.html). 레퍼런스: [`http.get`](../reference/modules/http.html#fn-http-get), [`conc.pmap`](../reference/modules/conc.html#fn-conc-pmap), [`time.now`](../reference/modules/time.html#fn-time-now), [`parse_dur`](../reference/prelude/convert.html#fn-parse_dur), [`exit`](../reference/prelude/program.html#fn-exit).
+배우기: [13장 JSON과 HTTP](../learn/13-json-and-http.html), [12장 동시에 여러 일 하기](../learn/12-concurrency.html). 레퍼런스: [`http.get`](../reference/modules/http.html#fn-http-get), [`conc.pmap`](../reference/modules/conc.html#fn-conc-pmap), [`time.monotonic`](../reference/modules/time.html#fn-time-monotonic), [`parse_dur`](../reference/prelude/convert.html#fn-parse_dur), [`exit`](../reference/prelude/program.html#fn-exit).

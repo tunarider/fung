@@ -179,7 +179,7 @@ print(r)</code></pre><pre class="out plain"><code>task failed: E0502 division by
 other task finished
 Ok(&quot;body finished&quot;)</code></pre></div>
 <h2 id="timeout">기한: timeout</h2>
-<p>응답하지 않는 서버를 영원히 기다릴 수는 없다. <code>timeout(함수, 기간)</code>는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 기간 안에 끝나면 함수의 값을 <code>Ok</code>로 감싸 돌려준다. 함수가 <code>Err</code>를 돌려줘도 <code>Ok(Err(e))</code>라서 시간 초과와 섞이지 않는다.</p>
+<p>응답하지 않는 서버를 영원히 기다릴 수는 없다. <code>timeout(함수, 기간)</code>는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 <code>Err({kind: 'timeout, message})</code>를 돌려준다. 기간 안에 끝나면 함수의 값을 <code>Ok</code>로 감싸 돌려준다. 함수가 <code>Err</code>를 돌려줘도 <code>Ok(Err(e))</code>라서 시간 초과와 섞이지 않는다.</p>
 <div class="run"><pre><code>fn answer(d):
   sleep(d)
   &quot;answered after ${d}&quot;
@@ -201,7 +201,7 @@ fn probe(host):
 results = conc.pmap([&quot;web1&quot;, &quot;slow-db&quot;, &quot;web2&quot;], h =&gt; timeout(() =&gt; probe(h), 1s))
 print(results)</code></pre><pre class="out plain"><code>[Ok(Ok(&quot;web1 ok&quot;)), Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), Ok(Ok(&quot;web2 ok&quot;))]</code></pre></div>
 <h3 id="cancel">취소</h3>
-<p><code>cancel(태스크)</code>는 그 태스크를 취소하고, <code>cancel(태스크 범위)</code>는 그 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled})</code>를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.</p>
+<p><code>cancel(태스크)</code>는 그 태스크를 취소하고, <code>cancel(태스크 범위)</code>는 그 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled, message})</code>를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.</p>
 <div class="run"><pre><code>scope(fn(s):
   t = spawn(s, fn():
     sleep(1s)
@@ -232,6 +232,7 @@ scope(fn(s):
 got 2
 got 1</code></pre></div>
 <p><code>reverse(1..=n)</code>은 <code>n</code>부터 1까지 거꾸로 센 리스트다. <code>send</code>와 <code>close</code>는 닫힌 채널이면 <code>Err({kind: 'closed})</code>를 돌려주므로 결과를 <code>!</code>로 다룬다. 받는 쪽이 먼저 그만둘 때는 받는 끝을 <code>close(rx)</code>로 닫는다. 그 뒤의 <code>send</code>는 <code>Err({kind: 'closed})</code>라 보내는 쪽도 멈출 수 있다.</p>
+<p>아래 예제에 나오는 <code>each(리스트, 함수)</code>는 원소마다 함수를 부르기만 하고 결과를 모으지 않는다(<code>nil</code>을 돌려준다). 결과 리스트가 필요 없을 때 <code>for</code>나 <code>map</code> 대신 쓴다.</p>
 <p>채널로 일감을 나누는 <strong>일꾼</strong>(worker) 모양도 흔하다. 일감 채널 하나를 일꾼 여럿이 함께 받고, 결과는 다른 채널로 모은다. 일감을 다 보낸 쪽이 일감 채널을, 일꾼이 모두 끝난 뒤 결과 채널을 닫는다.</p>
 <div class="run"><pre><code>fn worker(id, jobs, results):
   for job in jobs:

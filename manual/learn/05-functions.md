@@ -43,6 +43,8 @@ print(disk_level(91), disk_level(80), disk_level(12))
 
 마지막 항목이 반환값이므로, 거기에 `else` 없는 `if`나 대입을 두면 컴파일 에러다(E0223·E0224). 부르는 쪽이 그 값을 쓰면 조용히 `nil`이 되기 때문이다. 돌려줄 것이 없는 함수는 `if`에 `else: nil`을 붙이거나 마지막 줄에 `nil`을 쓴다.
 
+함수 안에서 만들고 쓰지 않은 변수, 받고 쓰지 않은 매개변수는 E0239다. 일부러 받기만 하는 자리는 `_`나 `_`로 시작하는 이름(`_unused`)으로 쓴다.
+
 ```fung run
 fn warn(usage):
   if usage >= 90:
@@ -194,6 +196,8 @@ log_dir = "/var/log/app"
 print(log_path("api.log"))
 ```
 
+부를 때 읽으므로, 함수를 **부르는** 줄은 그 상수를 대입하는 줄보다 아래에 있어야 한다. `log_dir = …`보다 위에서 `log_path(…)`를 부르면 E0809(`read before its assignment ran`)로 멈춘다. 상수를 파일 위쪽에 모아 두면 걸릴 일이 없다.
+
 ## 파이프 {#pipe}
 
 함수 결과를 다음 함수에 넣고, 그 결과를 또 다음 함수에 넣다 보면 괄호가 깊어진다. `len(filter(lines, is_error))`는 안쪽부터 거꾸로 읽어야 한다. **파이프** `|>`는 같은 것을 데이터가 흐르는 순서대로 쓰게 해 준다. 규칙은 둘뿐이다.
@@ -285,7 +289,7 @@ countdown(3)
 
 :::box mistake 꼬리가 아닌 깊은 재귀 (E0804)
 
-`fn total(n) = n == 0 then 0 else n + total(n - 1)`은 자기 호출이 끝난 뒤 `n +`을 해야 하므로 꼬리 호출이 아니다. 깊이가 100,000을 넘으면 `stack overflow` 에러다. 모은 값을 인자로 넘기는 꼬리 재귀(4장)로 바꾸거나 `fold`·`sum`을 쓴다.
+`fn total(n) = n == 0 then 0 else n + total(n - 1)`은 자기 호출이 끝난 뒤 `n +`을 해야 하므로 꼬리 호출이 아니다. 깊이가 100,000을 넘으면 `stack overflow` 에러다. 모은 값을 인자로 넘기는 꼬리 재귀(위 "재귀" 절)로 바꾸거나 `fold`·`sum`을 쓴다.
 
 :::
 

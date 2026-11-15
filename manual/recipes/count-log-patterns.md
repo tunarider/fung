@@ -119,7 +119,7 @@ print(total, running)
 
 - **다른 로그 형식**: nginx 접근 로그처럼 공백으로 깔끔히 나뉘지 않는 형식은 `split` 대신 `regex.find(line, pattern)`의 `groups`로 읽는다. [정규식으로 텍스트 쪼개기](regex-split.html)를 참고한다.
 - **여러 서버의 로그**: 로그가 원격에 있으면 `exec(["ssh", host, "cat", "/var/log/app.log"])!.out`을 `lines`로 쪼개 같은 `parse`에 넘긴다. 여러 대를 동시에 하는 방법은 [여러 서버에 명령 보내고 모으기](ssh-collect.html).
-- **표준 입력으로**: `journalctl -u app | fung logcount.fung -`처럼 받으려면 [표준 입력을 받아 파이프 중간에서 쓰기](stdin-filter.html)의 `read_lines()`를 쓴다.
+- **표준 입력으로**: `journalctl -u app | fung logcount.fung -`처럼 받으려면 [표준 입력을 받아 파이프 중간에서 쓰기](stdin-filter.html)의 `read_lines()`를 쓴다. 지금 스크립트는 `-`를 파일 패턴으로 읽어 "맞는 파일 없음"으로 끝나므로, 인자가 `"-"`이면 `fs.glob` 대신 `read_lines()!`의 줄을 같은 `parse`에 넘기는 가지를 더한다.
 - **결과 저장**: 표를 CSV로 남기려면 [CSV와 JSON으로 저장하기](save-csv-json.html).
 
 배우기: [8장 패턴](../learn/08-patterns.html), [7장 컬렉션](../learn/07-collections.html), [6장 문자열](../learn/06-strings.html). 레퍼런스: [`fs.glob`](../reference/modules/fs.html#fn-fs-glob), [`fs.read_lines`](../reference/modules/fs.html#fn-fs-read_lines), [`group_by`](../reference/prelude/collections.html#fn-group_by), [`flatten`](../reference/prelude/collections.html#fn-flatten), [`pairs`](../reference/prelude/maps.html#fn-pairs), [`regex.replace`](../reference/modules/regex.html#fn-regex-replace), [match와 패턴](../reference/language/match.html).

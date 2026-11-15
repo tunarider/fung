@@ -116,9 +116,8 @@ each(added, l =&gt; eprint(&quot;added:&quot;, l))
 if get(opts.flags, &quot;print&quot;, false):
   print(join(result, &quot;\n&quot;))
 else:
-  # a whole new file first, then one rename: never half a config
-  fs.write(file + &quot;.tmp&quot;, join(result, &quot;\n&quot;) + &quot;\n&quot;)!
-  fs.move(file + &quot;.tmp&quot;, file, overwrite: true)!
+  # fs.write replaces the file in one step: never half a config
+  fs.write(file, join(result, &quot;\n&quot;) + &quot;\n&quot;)!
 ;;</code></pre><pre class="out plain"><code>port: 8080 -&gt; 9090
 log_level: info -&gt; debug
 added: timeout=30s
@@ -137,7 +136,7 @@ timeout=30s</code></pre></div>
 <li><code>update</code>: <code>regex.find</code>는 맞는 것이 없으면 <code>nil</code>, 있으면 <code>{text, groups, …}</code> 맵을 준다. 맞으면 <code>groups</code>를 네 이름으로 풀고, 키가 바꿀 목록에 있으면 값 조각만 갈아 끼운다. 들여쓰기와 구분자(<code>&quot; = &quot;</code>인지 <code>&quot;=&quot;</code>인지)는 원래 줄의 것을 그대로 쓴다. 문자열을 이어 붙여 만들기 때문에 새 값에 <code>/</code>, <code>&amp;</code>, <code>$</code> 같은 글자가 있어도 아무 일이 없다.</li>
 <li><code>wanted</code>: <code>(키, 값)</code> 튜플 리스트를 <code>fold</code>로 맵 하나에 모은다. 람다의 매개변수 자리에서 <code>(k, v)</code> 패턴이 튜플을 바로 푼다.</li>
 <li><code>existing</code>·<code>added</code>: 파일에 이미 있는 키를 모으고, 없는 키만 <code>key=value</code> 줄로 만든다.</li>
-<li>마지막 <code>if</code>: 새 내용을 <code>app.conf.tmp</code>에 다 쓴 뒤 <code>fs.move</code>로 이름을 바꾼다. 같은 파일 시스템 안의 이름 바꾸기는 한 번에 일어나므로, 쓰는 도중에 디스크가 차거나 스크립트가 멈춰도 <code>app.conf</code>는 옛 내용 그대로다. <code>fs.move</code>는 대상이 있으면 거절하므로 바꿔치기가 목적인 여기서는 <code>overwrite: true</code>를 준다. 새 파일은 기본 권한(보통 0644)으로 만들어지므로, 비밀값이 든 설정이면 <code>fs.write(…, perm: 0o600)</code>으로 써서 바꿔치기한 뒤에도 남이 읽지 못하게 한다.</li>
+<li>마지막 <code>if</code>: <code>fs.write</code>는 같은 디렉터리의 임시 파일에 새 내용을 다 쓴 뒤 이름을 바꿔 덮는다. 이름 바꾸기는 한 번에 일어나므로, 쓰는 도중에 디스크가 차거나 스크립트가 멈춰도 <code>app.conf</code>는 옛 내용 그대로다. 있던 파일의 권한도 그대로 남는다.</li>
 </ul>
 <div class="box mistake"><b><code>replace</code>는 정규식이 아니다</b>
 <p><code>replace(s, old, new)</code>는 글자 그대로 찾아 바꾼다. <code>replace(line, &quot;port=.*&quot;, &quot;port=9090&quot;)</code>은 <code>.*</code>라는 글자를 찾으므로 아무것도 바꾸지 않는다. 패턴으로 바꾸려면 <code>regex.replace(s, pat, repl)</code>을 쓰는데, 그 <code>repl</code> 안의 <code>$1</code>·<code>$0</code>은 잡은 조각을 가리키는 특별한 표기다. 사용자가 준 값처럼 무엇이 들어 있을지 모르는 문자열은 위 스크립트처럼 조각을 잡아서(<code>regex.find</code>) 이어 붙이는 쪽이 안전하다.</p>
@@ -162,13 +161,13 @@ print(regex.replace(&quot;price = 10&quot;, `\d+`, `$5`))</code></pre><pre class
 </div>
 <h2 id="vary">응용</h2>
 <ul>
-<li><strong>파일 권한</strong>: 새로 쓴 <code>.tmp</code> 파일은 기본 권한(보통 <code>0644</code>)으로 만들어지므로, 이름을 바꾸고 나면 원래 파일의 권한이 사라진다. 비밀값이 든 <code>0600</code> 파일이면 뒤에 <code>exec([&quot;chmod&quot;, &quot;600&quot;, file])!</code>를 더한다. 권한을 지키는 쪽이 더 중요하면 <code>fs.write(file, …)!</code>로 제자리에 쓰되, 그러면 한 번에 바뀌는 성질은 잃는다.</li>
+<li><strong>파일 권한</strong>: <code>fs.write</code>는 있던 파일의 권한을 지킨다. 없던 파일을 새로 만들 때는 기본 권한(보통 <code>0644</code>)이므로, 비밀값이 든 설정을 새로 만든다면 <code>fs.write(file, …, perm: 0o600)!</code>으로 쓴다.</li>
 <li><strong>값 뒤의 주석</strong>: <code>port = 8080  # default</code>의 값 조각은 <code>8080  # default</code>까지다. 주석을 지키려면 정규식의 값 부분을 <code>([^#]*?)(\s*#.*)?$</code>처럼 나눈다. 주석이 없는 줄에서는 마지막 조각이 <code>nil</code>로 온다.</li>
 <li><strong>백업</strong>: <code>fs.copy(file, file + &quot;.bak&quot;)!</code>을 쓰기 전에 둔다.</li>
 <li><strong>env 파일 검사</strong>: 필수 키가 다 있는지는 저장소 <code>examples/envcheck.fung</code>·<code>examples/dotenv.fung</code>가 보여 준다.</li>
 <li><strong>여러 서버에</strong>: 설정을 바꾼 뒤 <code>exec([&quot;scp&quot;, file, &quot;${host}:/etc/app/app.conf&quot;])!</code>로 보낸다. 여러 대를 동시에 하는 방법은 <a href="ssh-collect.html">여러 서버에 명령 보내고 모으기</a>.</li>
 </ul>
-<p>배우기: <a href="../learn/06-strings.html">6장 문자열</a>, <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>. 레퍼런스: <a href="../reference/modules/regex.html#fn-regex-find"><code>regex.find</code></a>, <a href="../reference/modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>, <a href="../reference/prelude/strings.html#fn-replace"><code>replace</code></a>, <a href="../reference/modules/fs.html#fn-fs-write"><code>fs.write</code></a>, <a href="../reference/modules/fs.html#fn-fs-move"><code>fs.move</code></a>, <a href="../reference/prelude/collections.html#fn-fold"><code>fold</code></a>.</p>
+<p>배우기: <a href="../learn/06-strings.html">6장 문자열</a>, <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>. 레퍼런스: <a href="../reference/modules/regex.html#fn-regex-find"><code>regex.find</code></a>, <a href="../reference/modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>, <a href="../reference/prelude/strings.html#fn-replace"><code>replace</code></a>, <a href="../reference/modules/fs.html#fn-fs-write"><code>fs.write</code></a>, <a href="../reference/prelude/collections.html#fn-fold"><code>fold</code></a>.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/count-log-patterns.html"><small>이전</small>여러 로그에서 패턴 세고 요약하기</a><a class="next" href="../recipes/stdin-filter.html"><small>다음</small>표준 입력을 받아 파이프 중간에서 쓰기</a></nav>
 </div></main>
 </div>
