@@ -774,25 +774,42 @@ fn a_light_request_beside_a_heavy_parse() {
 /// A long native gives its turn about every millisecond (L6): beside a
 /// big `json.parse`, `json.stringify`, `sort`, `unique` or `split`, a task
 /// that ticks every millisecond is never kept waiting long (before L6:
-/// 78 ms beside a 6 MB parse, the whole native). A busy machine only
-/// makes a gap longer (a CI runner once took 13 ms where this one takes
-/// 2.4), so the best of three runs counts: a native that holds the run
-/// thread is long in all three.
+/// 78 ms beside a 6 MB parse, the whole native). The longest wait is
+/// held against the time the native itself took in the same run, not
+/// against a fixed number of milliseconds: a native that holds the run
+/// thread keeps the ticker waiting for all of its time, one that gives
+/// its turn for a small part of it (here 2 to 4 ms of 30 to 180), and a
+/// slow or busy machine stretches both (a fixed 10 ms failed on a CI
+/// runner that took 11.3 ms beside `unique`, while the shortest native
+/// here took 9 ms in all, so a held run thread would have passed). A
+/// busy machine can still stall one run, so the best of three counts: a
+/// native that holds the run thread does in all three.
 #[test]
 fn long_natives_give_their_turn() {
     let _serial = serial();
     for (what, work) in LONG_WORK {
-        let src = format!("{LONG_SETUP}{GAP}work = () => {work}\nprint(gap(work))");
-        let ms = (0..3)
+        let src = format!(
+            "{LONG_SETUP}{GAP}work = () => {work}\n(gap_ms, work_ms) = gap(work)\nprint(gap_ms, work_ms)"
+        );
+        let (part, waited, took) = (0..3)
             .map(|_| {
                 let (out, _) = run_file("gap", &src);
-                out.trim()
-                    .parse::<f64>()
-                    .unwrap_or_else(|_| panic!("{what}: {out}"))
+                let ms: Vec<f64> = out
+                    .split_whitespace()
+                    .map(|n| n.parse().unwrap_or_else(|_| panic!("{what}: {out}")))
+                    .collect();
+                assert_eq!(ms.len(), 2, "{what}: {out}");
+                (ms[0] / ms[1], ms[0], ms[1])
             })
-            .fold(f64::INFINITY, f64::min);
-        eprintln!("worst gap beside {what}: {ms} ms");
-        assert!(ms < 10.0, "{what}: a 1 ms ticker waited {ms} ms");
+            .fold(
+                (f64::INFINITY, 0.0, 0.0),
+                |a, b| if b.0 < a.0 { b } else { a },
+            );
+        eprintln!("worst gap beside {what}: {waited} ms of {took} ms");
+        assert!(
+            part < 0.5,
+            "{what}: a 1 ms ticker waited {waited} ms beside a native that took {took} ms"
+        );
     }
 }
 
@@ -811,7 +828,7 @@ fn deadlines_cut_long_natives() {
 }
 
 /// Inputs that take about 50 to 300 ms each in one go (release build).
-const LONG_SETUP: &str = "import json\nimport time\n_rows = map(0..200000, i => {a: i, b: \"xxxxxxxx\"})\n_big = json.stringify(_rows)\n_xs = map(0..500000, i => (i * 7919) % 1000003)\n_text = repeat(\"word \", 1000000)\n";
+const LONG_SETUP: &str = "import json\nimport time\n_rows = map(0..300000, i => {a: i, b: \"xxxxxxxx\"})\n_big = json.stringify(_rows)\n_xs = map(0..750000, i => (i * 7919) % 1000003)\n_text = repeat(\"word \", 4000000)\n";
 
 const LONG_WORK: &[(&str, &str)] = &[
     ("json.parse", "len(json.parse(_big)!)"),
@@ -825,9 +842,10 @@ const LONG_WORK: &[(&str, &str)] = &[
 ];
 
 /// `gap(work)`: runs `work` beside a task that sleeps 1 ms at a time and
-/// gives the longest wait between its wake-ups, in milliseconds. The
-/// ticker has started before the work does (a state, not a sleep).
-const GAP: &str = "fn gap(job) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(prev, worst, start):\n    if start: send(started_tx, true) ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - prev])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  job()\n  send(done_tx, true)\n  ms(await(w)!)\n;;)!\nfn ms(d) = d / 1ms\n";
+/// gives the longest wait between its wake-ups and the time `work` took,
+/// in milliseconds. The ticker has started before the work does (a
+/// state, not a sleep).
+const GAP: &str = "fn gap(job) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(prev, worst, start):\n    if start: send(started_tx, true) ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - prev])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  t0 = time.monotonic()\n  job()\n  took = time.monotonic() - t0\n  send(done_tx, true)\n  (ms(await(w)!), ms(took))\n;;)!\nfn ms(d) = d / 1ms\n";
 
 const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    _ = len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(() => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)!) ;;\n  cancel(s)\n;;, _e => nil), 20s))\n";
 
