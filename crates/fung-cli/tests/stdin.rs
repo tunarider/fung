@@ -79,34 +79,39 @@ fn a_line_past_the_string_limit_is_an_err_while_it_is_read() {
 
 /// The same for a FIFO, as a handle's lines and as `fs.read`: the writer
 /// writes a terabyte of zeros (endless here; `head` writes in large
-/// pieces, which macOS's FIFOs pass on fast), and a cancel ends it.
+/// pieces, which macOS's FIFOs pass on fast), and a cancel ends it. Each
+/// read has a FIFO of its own: the cancel ends the shell, and the `head`
+/// it started can outlive it for a moment. On one FIFO the second read
+/// could open while that `head` was still its writer and then see it go:
+/// an end of file with nothing read, `Ok("")` (a busy macOS runner).
 #[test]
 fn a_fifo_past_the_string_limit_is_an_err_while_it_is_read() {
     let dir = std::env::temp_dir().join(format!("fung-stdin-fifo-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let fifo = dir.join("f");
-    let fifo_s = fifo.to_str().unwrap().to_owned();
-    assert!(
-        Command::new("mkfifo")
-            .arg(&fifo)
-            .status()
-            .unwrap()
-            .success()
-    );
+    let [fifo_s, second_s] = ["f", "g"].map(|name| {
+        let fifo = dir.join(name);
+        assert!(
+            Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fifo.to_str().unwrap().to_owned()
+    });
     // fung starts `cat` into the FIFO in a task, then reads it.
     let src = format!(
         r#"import fs
-p = "{fifo_s}"
-fn feed() = sh("head -c 1000000000000 /dev/zero > '{fifo_s}'")
+fn feed(p) = sh("head -c 1000000000000 /dev/zero > '" + p + "'")
 scope(fn(s):
-  t = spawn(s, feed)
-  h = fs.open(p)!
+  t = spawn(s, () => feed("{fifo_s}"))
+  h = fs.open("{fifo_s}")!
   print(read_line(h))
   cancel(t)
 ;;)
 scope(fn(s):
-  t = spawn(s, feed)
-  print(fs.read(p))
+  t = spawn(s, () => feed("{second_s}"))
+  print(fs.read("{second_s}"))
   cancel(t)
 ;;)
 exit(0)"#
@@ -118,7 +123,7 @@ exit(0)"#
         (
             format!(
                 "Err({{kind: 'io, message: \"cannot read `{fifo_s}`: line is longer than the string limit (100000000 characters)\"}})\n\
-                 Err({{kind: 'io, message: \"cannot read `{fifo_s}`: file is longer than the string limit (100000000 characters)\"}})\n"
+                 Err({{kind: 'io, message: \"cannot read `{second_s}`: file is longer than the string limit (100000000 characters)\"}})\n"
             )
             .as_str(),
             ""

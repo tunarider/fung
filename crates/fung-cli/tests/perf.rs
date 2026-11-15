@@ -268,6 +268,8 @@ fn a_long_operator_chain_compiles_in_linear_time() {
 /// effect is worked out in linear time: a body is looked at again only
 /// when what it calls changed (D141: going over every body until nothing
 /// changed took about 11 s here, an effect moving a step or two a round).
+/// Linear is about 170 ms here and 500 ms on a busy CI runner, so the
+/// bound is 2 s: far from both.
 #[test]
 fn a_long_call_chain_is_judged_in_linear_time() {
     let _serial = serial();
@@ -292,7 +294,7 @@ fn a_long_call_chain_is_judged_in_linear_time() {
             eprintln!("{n} chained functions ({name}, down: {down}) {took:?}");
             assert!(out.ends_with("done\n"), "{out}");
             assert!(
-                took < Duration::from_millis(500),
+                took < Duration::from_secs(2),
                 "{n} chained functions ({name}, down: {down}) took {took:?}"
             );
         }
