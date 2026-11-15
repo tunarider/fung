@@ -18,8 +18,11 @@
 //!
 //! A read gives 0 bytes both before any writer came and after the last
 //! one left. It is the end only once a writer was seen: data or EAGAIN
-//! came, or (Linux) the loop woke the task, which epoll does on data and
-//! on the hang-up. macOS reports neither a writer's open nor its close on
+//! came, or (Linux) `poll` reports the hang-up, which it does only after
+//! a writer came and went. That a parked task woke says nothing: it
+//! wakes for other reasons than its event, and a look before any writer
+//! was once read as the end (`fs.read` gave `Ok("")` while the writer
+//! was still starting). macOS reports neither a writer's open nor its close on
 //! a FIFO (neither kqueue nor poll), so there the read looks again every
 //! `RELOOK`; a writer that opens and closes without writing between two
 //! looks is not seen there, and the read waits for the next writer.
@@ -76,8 +79,6 @@ pub(crate) struct Pipe {
     eof: bool,
     /// A writer was seen (data or EAGAIN came).
     seen: bool,
-    /// The read parked once: on Linux the next look follows an event.
-    parked: bool,
     /// The looks in a row that found nothing to read since data came.
     quiet: u32,
 }
@@ -117,7 +118,6 @@ impl Pipe {
             wbuf: Vec::new(),
             eof: false,
             seen: false,
-            parked: false,
             quiet: 0,
         }
     }
@@ -227,7 +227,7 @@ impl Pipe {
     fn fill<T>(&mut self) -> Option<Step<T>> {
         let mut chunk = vec![0; CHUNK];
         match self.file.read(&mut chunk) {
-            Ok(0) if self.seen || (cfg!(target_os = "linux") && self.parked) => {
+            Ok(0) if self.seen || self.hung_up() => {
                 self.eof = true;
                 None
             }
@@ -250,8 +250,24 @@ impl Pipe {
         }
     }
 
+    /// (Linux) Whether a writer came and left: `poll` says POLLHUP on a
+    /// FIFO's read end only then, not before the first writer. macOS
+    /// does not say it (see the module doc).
+    fn hung_up(&self) -> bool {
+        if !cfg!(target_os = "linux") {
+            return false;
+        }
+        let mut p = libc::pollfd {
+            fd: self.fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: `p` is one valid `pollfd`, and the call does not wait.
+        let n = unsafe { libc::poll(&mut p, 1, 0) };
+        n > 0 && p.revents & libc::POLLHUP != 0
+    }
+
     fn wait_read<T>(&mut self) -> Step<T> {
-        self.parked = true;
         let after = backoff(self.quiet);
         self.quiet = self.quiet.saturating_add(1);
         Step::Wait(self.fd(), Interest::Read, relook(after))
@@ -376,6 +392,47 @@ mod tests {
         assert!(matches!(r.read_line(), Step::Wait(..)));
         assert_eq!(r.quiet, 1);
         drop((r, w));
+        std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    fn fifo(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let d = std::env::temp_dir().join(format!("fung-pipe-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir(&d).unwrap();
+        let f = d.join("pipe");
+        let made =
+            crate::testutil::child::status(std::process::Command::new("mkfifo").arg(&f)).unwrap();
+        assert!(made.success());
+        (d, f)
+    }
+
+    /// A look that finds no writer yet is not the end, however many came
+    /// before it: a parked task wakes for other reasons than its event.
+    #[test]
+    fn a_look_before_any_writer_is_not_the_end() {
+        let (d, f) = fifo("early");
+        let mut r = Pipe::open_read(f.as_os_str().as_encoded_bytes()).unwrap();
+        for _ in 0..3 {
+            assert!(matches!(r.read_to_end(), Step::Wait(..)));
+        }
+        let mut w = std::fs::OpenOptions::new().write(true).open(&f).unwrap();
+        w.write_all(b"a").unwrap();
+        drop(w);
+        assert!(matches!(r.read_to_end(), Step::Ready(b) if b == b"a"));
+        drop(r);
+        std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// (Linux) A writer that came and went without writing is the end.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_writer_that_left_without_writing_is_the_end() {
+        let (d, f) = fifo("silent");
+        let mut r = Pipe::open_read(f.as_os_str().as_encoded_bytes()).unwrap();
+        assert!(matches!(r.read_to_end(), Step::Wait(..)));
+        drop(std::fs::OpenOptions::new().write(true).open(&f).unwrap());
+        assert!(matches!(r.read_to_end(), Step::Ready(b) if b.is_empty()));
+        drop(r);
         std::fs::remove_dir_all(&d).unwrap();
     }
 }

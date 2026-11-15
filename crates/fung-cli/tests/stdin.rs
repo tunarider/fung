@@ -81,9 +81,10 @@ fn a_line_past_the_string_limit_is_an_err_while_it_is_read() {
 /// writes a terabyte of zeros (endless here; `head` writes in large
 /// pieces, which macOS's FIFOs pass on fast), and a cancel ends it. Each
 /// read has a FIFO of its own: the cancel ends the shell, and the `head`
-/// it started can outlive it for a moment. On one FIFO the second read
-/// could open while that `head` was still its writer and then see it go:
-/// an end of file with nothing read, `Ok("")` (a busy macOS runner).
+/// it started can outlive it for a moment, so on one FIFO the second
+/// read could open while that `head` was still its writer and then see
+/// it go. (The `Ok("")` this test once gave on Linux was the runtime's:
+/// a look before any writer read as the end, `pipe.rs`.)
 #[test]
 fn a_fifo_past_the_string_limit_is_an_err_while_it_is_read() {
     let dir = std::env::temp_dir().join(format!("fung-stdin-fifo-{}", std::process::id()));
