@@ -88,7 +88,7 @@
 <li><strong>글자 단위</strong>다. 문자열은 UTF-8로 저장되지만 <code>len</code>, 인덱스 <code>s[0]</code>, 슬라이스 <code>s[1..3]</code>은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 <code>&quot;참치&quot;[0]</code>은 <code>&quot;참&quot;</code>이고 <code>len(&quot;참치&quot;)</code>는 2다.</li>
 <li><strong>어떤 바이트든 담는다</strong>. 문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. 파일, 명령 출력, 환경 변수, 인자는 UTF-8이 아니어도 바이트 그대로 들어오고 그대로 나간다. UTF-8에 속하지 않는 바이트는 그 바이트 하나가 한 글자다. 값으로 보일 때는 <code>&quot;a\xff&quot;</code>처럼 <code>\xHH</code>로 보이고, 그 모양을 리터럴로 그대로 쓸 수 있다(<a href="#bytes">바이트</a>).</li>
 <li><strong>잇기는 <code>+</code>, 끼워 넣기는 보간</strong>이다. <code>&quot;a&quot; + &quot;b&quot;</code>는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 <code>&quot;${name}: ${count}&quot;</code>처럼 쓴다. 보간은 값을 <a href="convert.html#fn-str"><code>str</code></a>과 같은 규칙으로 바꿔 넣는다. 다만 <code>nil</code>, 결과값(<code>Ok</code>·<code>Err</code>), 핸들(함수·태스크·채널 끝 등)은 글에 말없이 넣지 않는다(E0519): 그대로 보이려면 <code>str(x)</code>로 먼저 바꾼다.</li>
-<li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>도 <code>take(&quot;abc&quot;, 2)</code>·<code>first(&quot;abc&quot;)</code>도 에러다(E0506). 앞뒤를 자르려면 슬라이스(<code>s[..2]</code>, <code>s[1..]</code>, <code>s[len(s) - 1]</code>)를, 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
+<li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>도 <code>take(&quot;abc&quot;, 2)</code>·<code>first(&quot;abc&quot;)</code>도 에러다(E0403). 앞뒤를 자르려면 슬라이스(<code>s[..2]</code>, <code>s[1..]</code>, <code>s[len(s) - 1]</code>)를, 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
 </ul>
 <div class="run"><pre><code>s = &quot;  ERROR disk full  &quot;
 clean = trim(s)
@@ -100,7 +100,7 @@ true</code></pre></div>
 <section class="entry" id="fn-split">
 <h3>split</h3>
 <p><code>s</code>를 구분자 <code>sep</code>로 나눈 문자열의 리스트를 돌려준다.</p>
-<div class="sig"><code>split(s, sep)</code></div>
+<div class="sig"><code>split(s: str, sep: str)</code></div>
 <h4>설명</h4>
 <p><code>sep</code>가 나올 때마다 자른다. 구분자가 연달아 있거나 맨 앞·맨 뒤에 있으면 그 사이의 <strong>빈 조각도 남긴다</strong>(<code>split(&quot;a,,b&quot;, &quot;,&quot;)</code>는 <code>[&quot;a&quot;, &quot;&quot;, &quot;b&quot;]</code>). 그래서 CSV처럼 칸 수가 중요한 데이터를 잘 다룬다. 구분자가 없으면 원래 문자열 하나짜리 리스트이고, 빈 문자열을 나누면 <code>[&quot;&quot;]</code>이다. 그래서 원소 수는 언제나 구분자 수 + 1이고 <code>join(split(s, sep), sep) == s</code>다. <code>sep</code>는 빈 문자열일 수 없다(E0403). 글자 단위로 나누려면 <a href="#fn-chars"><code>chars</code></a>를 쓴다.</p>
 <p>공백이 여러 개 섞인 글을 낱말로 나눌 때는 빈 조각을 걸러 낸다: <code>split(s, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;)</code>. 줄로 나눌 때는 <code>split(s, &quot;\n&quot;)</code> 대신 <a href="#fn-lines"><code>lines</code></a>를 쓴다(마지막 줄바꿈과 <code>\r</code>을 처리해 준다). 정규식으로 나누려면 <a href="../modules/regex.html#fn-regex-split"><code>regex.split</code></a>.</p>
@@ -131,7 +131,7 @@ print(split(line, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;))</code>
 <section class="entry" id="fn-join">
 <h3>join</h3>
 <p>리스트의 원소를 <code>sep</code>로 이어 문자열 하나로 만든다.</p>
-<div class="sig"><code>join(xs, sep = &quot;&quot;)</code></div>
+<div class="sig"><code>join(xs: list | range | receiver, sep: str = &quot;&quot;)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-split"><code>split</code></a>의 반대다. 원소 사이에만 <code>sep</code>를 넣고 앞뒤에는 넣지 않는다. 빈 리스트는 <code>&quot;&quot;</code>이다. 문자열이 아닌 원소는 <a href="convert.html#fn-str"><code>str</code></a>처럼 바꿔 넣으므로 수의 리스트도 바로 잇는다. 다만 문자열 보간과 같이 <code>nil</code>, 결과값(<code>Ok</code>·<code>Err</code>), 핸들(함수·모듈·태스크·범위·채널 끝·atom·파일)은 원소 안 어느 깊이에 있어도 넣지 않는다. <code>sep</code>를 주지 않으면 그냥 붙인다.</p>
 <p>조각을 리스트에 모아 한 번에 <code>join</code>하면 구분자까지 한 번에 넣는다. 문자열을 뒤에 <code>+</code>로 붙여 쌓는 것도 선형이지만, 앞에 붙여 쌓는 것(<code>s + acc</code>)은 매번 전체를 복사하니 그때는 <code>join</code>을 쓴다. 여러 줄 출력을 만들 때는 <code>join(rows, &quot;\n&quot;)</code>.</p>
@@ -144,7 +144,7 @@ print(split(line, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;))</code>
 <p>문자열.</p>
 <h4>에러</h4>
 <ul>
-<li><code>xs</code>가 리스트 등이 아니면 런타임 에러 E0506(<code>cannot join str</code>).</li>
+<li><code>xs</code>가 리스트 등이 아니면 E0403(<code>argument `xs` must be list | range | receiver, got str</code>).</li>
 <li><code>sep</code>가 문자열이 아니면 E0403.</li>
 <li>원소(또는 원소 안)에 <code>nil</code>·<code>Ok</code>·<code>Err</code>·핸들이 있으면 E0519(글에 말없이 넣지 않는다, 보간과 같다). 그대로 보이려면 <code>map(xs, str)</code>로 먼저 바꾼다.</li>
 </ul>
@@ -164,7 +164,7 @@ print(split(path, &quot;/&quot;) |&gt; filter(p =&gt; p != &quot;&quot;) |&gt; m
 <section class="entry" id="fn-lines">
 <h3>lines</h3>
 <p>글을 줄의 리스트로 나눈다.</p>
-<div class="sig"><code>lines(s)</code></div>
+<div class="sig"><code>lines(s: str)</code></div>
 <h4>설명</h4>
 <p><code>\n</code>으로 나누되, 줄 끝의 <code>\r</code>(Windows식 줄 끝 <code>\r\n</code>)을 떼고, 마지막 줄바꿈 뒤에 빈 줄을 만들지 않는다. 그래서 파일 끝에 줄바꿈이 있든 없든 같은 결과다. 가운데의 빈 줄은 <code>&quot;&quot;</code>로 남는다. 빈 문자열은 <code>[]</code>이다. <a href="io.html#fn-read_lines"><code>read_lines</code></a>와 같은 규칙이다.</p>
 <p><code>split(s, &quot;\n&quot;)</code>을 쓰면 끝에 빈 문자열이 하나 더 붙으므로(<code>split(&quot;a\n&quot;, &quot;\n&quot;)</code>은 <code>[&quot;a&quot;, &quot;&quot;]</code>), 글을 줄로 나눌 때는 언제나 <code>lines</code>를 쓴다.</p>
@@ -193,7 +193,7 @@ for (i, host) in zip(1..100, lines(out)):
 <section class="entry" id="fn-chars">
 <h3>chars</h3>
 <p>문자열을 글자 하나짜리 문자열의 리스트로 나눈다.</p>
-<div class="sig"><code>chars(s)</code></div>
+<div class="sig"><code>chars(s: str)</code></div>
 <h4>설명</h4>
 <p>글자는 유니코드 코드 포인트 하나다. 그래서 결합 문자로 쓴 <code>&quot;e\u{301}&quot;</code>(é)나 피부색이 붙은 이모지는 둘로 나뉜다. UTF-8에 속하지 않는 바이트는 그 바이트 하나짜리 문자열 한 글자다(<code>chars(&quot;a\xff&quot;)</code>는 <code>[&quot;a&quot;, &quot;\xff&quot;]</code>). 글자 리스트를 얻으면 컬렉션 함수(<code>map</code>, <code>filter</code>, <code>reverse</code>, <code>unique</code> …)를 모두 쓸 수 있고, 다 고친 뒤 <code>join</code>으로 다시 잇는다.</p>
 <h4>매개변수</h4>
@@ -219,7 +219,7 @@ print(chars(&quot;a1b2c3&quot;) |&gt; filter(c =&gt; c &gt;= &quot;0&quot; and c
 <section class="entry" id="fn-trim">
 <h3>trim</h3>
 <p>양 끝의 공백을 지운다. <code>cut</code>을 주면 그 글자들을 지운다.</p>
-<div class="sig"><code>trim(s, cut = nil)</code></div>
+<div class="sig"><code>trim(s: str, cut: str | nil = nil)</code></div>
 <h4>설명</h4>
 <p><code>cut</code>이 없으면 양 끝의 공백 글자(스페이스, 탭, <code>\n</code>, <code>\r</code>, 유니코드 공백)를 모두 지운다. 가운데의 공백은 건드리지 않는다. 파일이나 명령 출력에서 읽은 값은 끝에 줄바꿈이 붙어 있는 일이 많으므로 비교하거나 수로 바꾸기 전에 <code>trim</code>한다.</p>
 <p><code>cut</code>을 주면 <code>cut</code>에 든 <strong>글자 하나하나</strong>를 지울 글자로 본다. 접두사·접미사 문자열이 아니다. <code>trim(&quot;abcxcba&quot;, &quot;abc&quot;)</code>는 양 끝에서 <code>a</code>·<code>b</code>·<code>c</code> 중 하나인 글자를 계속 지워 <code>&quot;x&quot;</code>가 된다. 정해진 접두사 하나만 떼려면 <code>starts_with</code>와 슬라이스를 쓴다.</p>
@@ -246,7 +246,7 @@ print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <section class="entry" id="fn-trim_left">
 <h3>trim_left</h3>
 <p>앞(왼쪽) 끝만 <a href="#fn-trim"><code>trim</code></a>한다.</p>
-<div class="sig"><code>trim_left(s, cut = nil)</code></div>
+<div class="sig"><code>trim_left(s: str, cut: str | nil = nil)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-trim"><code>trim</code></a>과 같은 규칙으로 앞 끝의 공백이나 <code>cut</code>의 글자를 지우고, 뒤 끝은 그대로 둔다. 이름은 <a href="#fn-pad_left"><code>pad_left</code></a>와 짝이다.</p>
 <h4>매개변수</h4>
@@ -267,7 +267,7 @@ print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <section class="entry" id="fn-trim_right">
 <h3>trim_right</h3>
 <p>뒤(오른쪽) 끝만 <a href="#fn-trim"><code>trim</code></a>한다.</p>
-<div class="sig"><code>trim_right(s, cut = nil)</code></div>
+<div class="sig"><code>trim_right(s: str, cut: str | nil = nil)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-trim"><code>trim</code></a>과 같은 규칙으로 뒤 끝의 공백이나 <code>cut</code>의 글자를 지우고, 앞 끝은 그대로 둔다. 줄 끝의 <code>\r</code>이나 뒤에 붙은 공백만 떼고 들여쓰기는 남길 때 쓴다.</p>
 <h4>매개변수</h4>
@@ -288,7 +288,7 @@ print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <section class="entry" id="fn-upper">
 <h3>upper</h3>
 <p>대문자로 바꾼 문자열을 돌려준다.</p>
-<div class="sig"><code>upper(s)</code></div>
+<div class="sig"><code>upper(s: str)</code></div>
 <h4>설명</h4>
 <p>유니코드 기본 대소문자 변환(전체 매핑)을 쓴다. 그래서 글자 수가 바뀔 수 있다: <code>upper(&quot;straße&quot;)</code>는 <code>&quot;STRASSE&quot;</code>. 한글처럼 대소문자가 없는 글자는 그대로다. UTF-8에 속하지 않는 바이트도 글자가 아니므로 그대로 둔다.</p>
 <h4>매개변수</h4>
@@ -308,7 +308,7 @@ print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <section class="entry" id="fn-lower">
 <h3>lower</h3>
 <p>소문자로 바꾼 문자열을 돌려준다.</p>
-<div class="sig"><code>lower(s)</code></div>
+<div class="sig"><code>lower(s: str)</code></div>
 <h4>설명</h4>
 <p>전체 매핑이고, 그리스어 시그마는 단어 끝에서 <code>ς</code>가 된다: <code>lower(&quot;ΟΔΟΣ&quot;)</code>는 <code>&quot;οδος&quot;</code>. 대소문자를 무시하고 비교하려면 양쪽을 <code>lower</code>해서 비교한다. UTF-8에 속하지 않는 바이트는 그대로 둔다.</p>
 <h4>매개변수</h4>
@@ -331,7 +331,7 @@ true</code></pre></div>
 <section class="entry" id="fn-replace">
 <h3>replace</h3>
 <p><code>s</code> 안의 모든 <code>old</code>를 <code>new</code>로 바꾼 문자열을 돌려준다.</p>
-<div class="sig"><code>replace(s, old, new)</code></div>
+<div class="sig"><code>replace(s: str, old: str, new: str)</code></div>
 <h4>설명</h4>
 <p>왼쪽부터 겹치지 않게 찾아 모두 바꾼다(<code>replace(&quot;aaa&quot;, &quot;aa&quot;, &quot;b&quot;)</code>는 <code>&quot;ba&quot;</code>). <code>new</code>가 <code>&quot;&quot;</code>면 지우는 것이다. <code>old</code>는 <code>&quot;&quot;</code>일 수 없다(<code>split</code>의 빈 구분자와 같다). 첫 번째 것만 바꾸거나 패턴으로 바꾸려면 <a href="../modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>를 쓴다.</p>
 <h4>매개변수</h4>
@@ -361,7 +361,7 @@ print(fold(pairs(vals), tmpl, (acc, (k, v)) =&gt; replace(acc, &quot;{{${k}}}&qu
 <section class="entry" id="fn-starts_with">
 <h3>starts_with</h3>
 <p><code>s</code>가 <code>prefix</code>로 시작하면 <code>true</code>.</p>
-<div class="sig"><code>starts_with(s, prefix)</code></div>
+<div class="sig"><code>starts_with(s: str, prefix: str)</code></div>
 <h4>설명</h4>
 <p>찾을 글인 <code>prefix</code>는 비어 있을 수 없다: 빈 글은 어디에나 맞으므로, 비어 있는 변수가 모든 줄에 맞는 실수를 막으려고 에러다(<code>split</code>의 <code>sep</code>, <code>index_of</code>의 <code>sub</code>, <code>in</code>과 같은 규칙). 부분 문자열이 어디에든 있는지는 <code>x in s</code>, 패턴은 <a href="../modules/regex.html#fn-regex-is_match"><code>regex.is_match</code></a>로 본다.</p>
 <h4>매개변수</h4>
@@ -388,7 +388,7 @@ print(starts_with(tag, &quot;v&quot;) then tag[1..] else tag)</code></pre><pre c
 <section class="entry" id="fn-index_of">
 <h3>index_of</h3>
 <p><code>s</code>에서 <code>sub</code>가 처음 나오는 글자 위치. 없으면 <code>nil</code>.</p>
-<div class="sig"><code>index_of(s, sub)</code></div>
+<div class="sig"><code>index_of(s: str, sub: str)</code></div>
 <h4>설명</h4>
 <p>위치는 바이트가 아니라 <strong>글자</strong> 단위다. 인덱스 <code>s[i]</code>·슬라이스·<code>len</code>과 같은 단위라서 <code>s[i..i + len(sub)]</code>이 찾은 부분이다. <code>sub in s</code>가 참이면 <code>index_of(s, sub)</code>는 <code>nil</code>이 아니다: 둘은 같은 것(바이트 열)을 찾는다. UTF-8이 아닌 바이트로 찾아 글자 안에서 맞으면 그 글자의 위치를 돌려준다. 있는지만 알면 될 때는 <code>sub in s</code>, 패턴으로 찾을 때는 <a href="../modules/regex.html#fn-regex-find"><code>regex.find</code></a>를 쓴다. 빈 <code>sub</code>는 어디에나 있으므로 에러다.</p>
 <h4>매개변수</h4>
@@ -413,7 +413,7 @@ nil</code></pre></div>
 <section class="entry" id="fn-ends_with">
 <h3>ends_with</h3>
 <p><code>s</code>가 <code>suffix</code>로 끝나면 <code>true</code>.</p>
-<div class="sig"><code>ends_with(s, suffix)</code></div>
+<div class="sig"><code>ends_with(s: str, suffix: str)</code></div>
 <h4>설명</h4>
 <p>확장자 검사에 많이 쓴다. 대소문자를 가리므로 <code>&quot;A.LOG&quot;</code>도 받으려면 <code>ends_with(lower(name), &quot;.log&quot;)</code>. 찾을 글인 <code>suffix</code>는 <code>starts_with</code>의 <code>prefix</code>처럼 비어 있을 수 없다.</p>
 <h4>매개변수</h4>
@@ -435,7 +435,7 @@ print(filter(files, f =&gt; ends_with(lower(f), &quot;.log&quot;)))</code></pre>
 <section class="entry" id="fn-repeat">
 <h3>repeat</h3>
 <p><code>s</code>를 <code>n</code>번 이어 붙인 문자열을 돌려준다.</p>
-<div class="sig"><code>repeat(s, n)</code></div>
+<div class="sig"><code>repeat(s: str, n: int)</code></div>
 <h4>설명</h4>
 <p>fung에는 <code>&quot;a&quot; * 3</code>이 없다(문자열과 수의 곱은 에러다). 구분선이나 들여쓰기를 만들 때 쓴다. <code>n</code>이 0이면 <code>&quot;&quot;</code>이고, 음수면 E0403이다.</p>
 <h4>매개변수</h4>
@@ -461,7 +461,7 @@ print(repeat(&quot;-&quot;, 20))</code></pre><pre class="out plain"><code>ababab
 <section class="entry" id="fn-pad_left">
 <h3>pad_left<span class="by">fung으로 작성</span></h3>
 <p>왼쪽을 <code>pad</code>로 채워 <code>n</code>글자로 만든다. 이미 <code>n</code>글자 이상이면 그대로.</p>
-<div class="sig"><code>pad_left(s, n, pad = &quot; &quot;)</code></div>
+<div class="sig"><code>pad_left(s: str, n: int, pad: str = &quot; &quot;)</code></div>
 <h4>설명</h4>
 <p>수를 오른쪽으로 맞추거나 앞에 0을 채울 때 쓴다. <code>pad</code>가 여러 글자면 돌려 가며 채우고 모자란 만큼에서 자른다(<code>pad_left(&quot;1&quot;, 5, &quot;ab&quot;)</code>는 <code>&quot;abab1&quot;</code>). 길이는 <a href="collections.html#fn-len"><code>len</code></a>처럼 글자 수로 센다. 한글처럼 화면에서 두 칸을 차지하는 글자도 한 글자로 세므로, 한글이 섞인 표는 터미널에서 줄이 어긋날 수 있다.</p>
 <h4>매개변수</h4>
@@ -498,7 +498,7 @@ db-1       5%</code></pre></div>
 <section class="entry" id="fn-pad_right">
 <h3>pad_right<span class="by">fung으로 작성</span></h3>
 <p>오른쪽을 <code>pad</code>로 채워 <code>n</code>글자로 만든다. 이미 <code>n</code>글자 이상이면 그대로.</p>
-<div class="sig"><code>pad_right(s, n, pad = &quot; &quot;)</code></div>
+<div class="sig"><code>pad_right(s: str, n: int, pad: str = &quot; &quot;)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-pad_left"><code>pad_left</code></a>와 같은 규칙으로 오른쪽을 채운다. 표의 왼쪽 칸(이름)을 맞출 때 쓴다.</p>
 <h4>매개변수</h4>
@@ -528,7 +528,7 @@ print([s, s[1], s + &quot;!&quot;], len(s), byte_len(s), is_utf8(s))</code></pre
 <section class="entry" id="fn-byte_len">
 <h3>byte_len</h3>
 <p>문자열의 바이트 수.</p>
-<div class="sig"><code>byte_len(s)</code></div>
+<div class="sig"><code>byte_len(s: str)</code></div>
 <h4>설명</h4>
 <p><code>len</code>은 글자를, <code>byte_len</code>은 바이트를 센다. 둘은 ASCII 문자열에서만 같다. 파일 크기, 네트워크로 보낼 길이(<code>Content-Length</code>), 바이트 한도를 다룰 때 쓴다.</p>
 <h4>매개변수</h4>
@@ -548,7 +548,7 @@ print([s, s[1], s + &quot;!&quot;], len(s), byte_len(s), is_utf8(s))</code></pre
 <section class="entry" id="fn-bytes">
 <h3>bytes</h3>
 <p>문자열의 바이트를 0부터 255까지의 정수 리스트로 돌려준다.</p>
-<div class="sig"><code>bytes(s)</code></div>
+<div class="sig"><code>bytes(s: str)</code></div>
 <h4>설명</h4>
 <p>바이트 하나하나를 수로 다뤄야 할 때 쓴다: 퍼센트 인코딩, 체크섬, 이진 형식 읽기. JSON처럼 글만 받는 곳에 바이트를 옮길 때도 쓴다. <a href="#fn-from_bytes"><code>from_bytes</code></a>가 거꾸로다.</p>
 <h4>매개변수</h4>
@@ -570,7 +570,7 @@ print([s, s[1], s + &quot;!&quot;], len(s), byte_len(s), is_utf8(s))</code></pre
 <section class="entry" id="fn-from_bytes">
 <h3>from_bytes</h3>
 <p>0부터 255까지의 정수 리스트를 그 바이트로 된 문자열로 만든다.</p>
-<div class="sig"><code>from_bytes(xs)</code></div>
+<div class="sig"><code>from_bytes(xs: list)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-bytes"><code>bytes</code></a>의 반대다. 바이트가 UTF-8이 아니어도 그대로 문자열이 된다. 값을 바꾸지 않으므로 <code>from_bytes(bytes(s)) == s</code>다.</p>
 <h4>매개변수</h4>
@@ -592,7 +592,7 @@ true</code></pre></div>
 <section class="entry" id="fn-is_utf8">
 <h3>is_utf8</h3>
 <p>문자열이 올바른 UTF-8 글인지.</p>
-<div class="sig"><code>is_utf8(s)</code></div>
+<div class="sig"><code>is_utf8(s: str)</code></div>
 <h4>설명</h4>
 <p>글이 필요한 곳(JSON, 정규식 패턴, 시간 형식, 호스트 이름)에 넘기기 전에 확인할 때 쓴다. 그런 곳에 UTF-8이 아닌 문자열을 넘기면 에러 <a href="../errors.html#E0518">E0518</a>이다.</p>
 <h4>매개변수</h4>

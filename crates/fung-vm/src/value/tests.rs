@@ -1368,6 +1368,136 @@ fn list_ordering() {
     }
 }
 
+/// VA72: a slice of a string that is not UTF-8 is what a copy of the
+/// bytes would be (its bytes, whether it is UTF-8, its text), and a big
+/// piece that holds a byte outside UTF-8 shares the bytes.
+#[test]
+fn a_slice_of_bytes_is_what_a_copy_is() {
+    let mut rng = Rng::new(72);
+    for round in 0..300 {
+        let n = 200 + rng.int_n(400);
+        let mut bytes = Vec::new();
+        while bytes.len() < n {
+            match rng.int_n(40) {
+                0 => bytes.push(0xe9),
+                1 => bytes.extend_from_slice(&[0xe2, 0x82]),
+                2 => bytes.push(0x80),
+                3 => bytes.extend_from_slice("\u{d55c}".as_bytes()),
+                _ => bytes.push(b'a' + (rng.int_n(26) as u8)),
+            }
+        }
+        if round % 3 == 0 {
+            bytes.push(0xff);
+        }
+        let whole = Rc::new(Text::new(bytes.clone()));
+        // character boundaries, as the string operations find them
+        let mut cuts = vec![0];
+        let mut at = 0;
+        while at < bytes.len() {
+            at += fung_front::text::first(&bytes[at..]).unwrap().byte_len();
+            cuts.push(at);
+        }
+        let mut piece = whole.clone();
+        let (mut lo, mut hi) = (0, cuts.len() - 1);
+        // slices of slices, narrowing
+        for _ in 0..6 {
+            let a = lo + rng.int_n(hi - lo + 1);
+            let b = a + rng.int_n(hi - a + 1);
+            let base = cuts[lo];
+            piece = Text::slice(&piece, cuts[a] - base, cuts[b] - base, b - a);
+            (lo, hi) = (a, b);
+            let want = Text::new(bytes[cuts[lo]..cuts[hi]].to_vec());
+            assert_eq!(piece.as_bytes(), want.as_bytes());
+            assert_eq!(piece.is_utf8(), want.is_utf8(), "round {round}");
+            assert_eq!(piece.as_str(), want.as_str());
+            assert_eq!(piece.is_ascii(), want.is_ascii());
+            assert_eq!(piece.char_len(), hi - lo);
+            assert_eq!(piece.char_len(), want.char_len());
+        }
+    }
+    // a big piece with the bad byte in it keeps the bytes, and so does a
+    // piece of that piece
+    let mut bytes = vec![b'a'; 1000];
+    bytes[900] = 0xe9;
+    let whole = Rc::new(Text::new(bytes));
+    let tail = Text::slice(&whole, 100, 1000, 900);
+    assert!(tail.views(&whole) && !tail.is_utf8());
+    let tail = Text::slice(&tail, 100, 900, 800);
+    assert!(tail.views(&whole) && !tail.is_utf8());
+    // one without it is text of its own
+    let head = Text::slice(&whole, 0, 900, 900);
+    assert!(!head.views(&whole) && head.is_utf8() && head.is_ascii());
+}
+
+/// D171: the items one list has past the end of the other are looked at
+/// too: a value with no order there is E0501 whatever the other's
+/// length, as `x < x` is, so `a < b` works exactly when `sort([a, b])`
+/// does.
+#[test]
+fn an_unpaired_tail_must_have_an_order() {
+    use fung_front::diag::message;
+    let l = |items: Vec<Value>| list(items);
+    let fails = |a: &Value, b: &Value, want: &str| {
+        for (x, y) in [(a, b), (b, a)] {
+            let e = compare(x, y).unwrap_err();
+            assert_eq!(e.code, "E0501");
+            assert_eq!(
+                message(&e.code, &e.args),
+                want,
+                "{} {}",
+                format(x),
+                format(y)
+            );
+        }
+        let mut shapes = super::compare::Shapes::default();
+        assert!(
+            shapes
+                .add(a)
+                .and_then(|_| shapes.add(b))
+                .and_then(|_| shapes.finish())
+                .is_err(),
+            "sort agrees"
+        );
+    };
+    fails(
+        &l(vec![Value::Int(1), Value::Nil]),
+        &l(vec![Value::Int(2)]),
+        "cannot compare nil and nil",
+    );
+    fails(
+        &l(vec![Value::Nil]),
+        &l(vec![]),
+        "cannot compare nil and nil",
+    );
+    // inside the tail too
+    fails(
+        &l(vec![
+            Value::Int(1),
+            l(vec![Value::Int(1), Value::Bool(true)]),
+        ]),
+        &l(vec![Value::Int(1)]),
+        "cannot compare bool and bool",
+    );
+    fails(
+        &l(vec![Value::Int(1), Value::tuple(vec![s("a"), Value::Nil])]),
+        &l(vec![Value::Int(0)]),
+        "cannot compare nil and nil",
+    );
+    // a tail of values that have an order is the longer list's length
+    let (a, b) = (
+        l(vec![Value::Int(1), s("a"), l(vec![Value::Int(2)])]),
+        l(vec![Value::Int(1)]),
+    );
+    assert_eq!(compare(&a, &b).unwrap(), Ordering::Greater);
+    assert_eq!(compare(&b, &a).unwrap(), Ordering::Less);
+    // the first difference is still the answer
+    let (a, b) = (
+        l(vec![Value::Int(1), Value::Int(9)]),
+        l(vec![Value::Int(2)]),
+    );
+    assert_eq!(compare(&a, &b).unwrap(), Ordering::Less);
+}
+
 /// Two elements that do not compare name their own types, not the
 /// collections' (sort reports what actually failed).
 #[test]

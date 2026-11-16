@@ -45,6 +45,11 @@ pub(super) struct Extra {
     /// when it returns, the latest first. One per place that took it
     /// along, so tail calls going round (`a` ↔ `b`) do not pile them up.
     pub checks: Vec<Check>,
+    /// The values the functions a tail call replaced only held (a name
+    /// never read, `_watch = stop_signal()`): they live until this frame
+    /// returns, as they would have had the call not been a tail call
+    /// (D162).
+    pub holds: Vec<crate::value::Value>,
 }
 
 /// A return check a tail call took along (D44): `proto`'s `types[ty]`,
@@ -115,22 +120,43 @@ impl Frame {
         self.extra.as_ref()?.tail_from.as_ref()
     }
 
+    /// Keeps `v` until the frame returns (D162).
+    #[inline(never)]
+    pub fn hold(&mut self, v: crate::value::Value) {
+        self.extra
+            .get_or_insert_with(Default::default)
+            .holds
+            .push(v);
+    }
+
     /// Whether the frame's value has return checks to pass (D44).
     #[inline(always)]
     pub fn has_checks(&self) -> bool {
         self.extra.as_ref().is_some_and(|x| !x.checks.is_empty())
     }
 
-    /// Whether the frame carries the check `types[ty]` of `proto`
-    /// already: every check runs on the frame's value, so taking it again
-    /// would add nothing (VM44).
+    /// Whether the latest check the frame carries is `types[ty]` of
+    /// `proto`: taking it again would change nothing (VM44, VM57).
     #[inline(always)]
-    pub fn has_check(&self, proto: &Rc<RtProto>, ty: usize) -> bool {
-        self.extra.as_ref().is_some_and(|x| {
-            x.checks
-                .iter()
-                .any(|c| c.ty == Some(ty) && Rc::ptr_eq(&c.proto, proto))
-        })
+    pub fn last_check_is_of(&self, proto: &Rc<RtProto>, ty: usize) -> bool {
+        self.extra
+            .as_ref()
+            .and_then(|x| x.checks.last())
+            .is_some_and(|c| c.ty == Some(ty) && Rc::ptr_eq(&c.proto, proto))
+    }
+
+    /// Takes the return type check `c` along as the latest: the one the
+    /// frame carries for the same function and type, wherever it was
+    /// taken, gives way to it (VM44, VM57).
+    pub fn take_check(&mut self, c: Check) {
+        let checks = &mut self.extra.get_or_insert_with(Default::default).checks;
+        if let Some(i) = checks
+            .iter()
+            .position(|d| d.ty == c.ty && Rc::ptr_eq(&d.proto, &c.proto))
+        {
+            checks.remove(i);
+        }
+        checks.push(c);
     }
 
     /// Whether the latest check the frame carries is `proto`'s check `ty`

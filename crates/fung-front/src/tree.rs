@@ -496,6 +496,7 @@ mod tests {
             for_body: false,
             lambda: false,
             num_locals: 0,
+            held: vec![],
             captures: vec![],
         }
     }

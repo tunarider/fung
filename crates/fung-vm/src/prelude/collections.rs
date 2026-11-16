@@ -18,45 +18,130 @@ use crate::vm::pieces::{self, STEP_COMPARES, STEP_COPIES, STEP_ITEMS, Work};
 use crate::vm::{Flow, Stop, Task, discarded_err};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
-    add(def_step("filter", filter_fn, vec![param("xs"), param("f")]));
+    add(def_step(
+        "filter",
+        filter_fn,
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
+    ));
     add(def_step(
         "fold",
         fold_fn,
-        vec![param("xs"), param("init"), param("f")],
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("init"),
+            param("f").of("fn"),
+        ],
     ));
-    add(def_step("each", each_fn, vec![param("xs"), param("f")]));
-    add(def_step("sort", sort_fn, vec![param("xs")]));
-    add(def_step("unique", unique_fn, vec![param("xs")]));
+    add(def_step(
+        "each",
+        each_fn,
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
+    ));
+    add(def_step(
+        "sort",
+        sort_fn,
+        vec![param("xs").of("list | range | receiver")],
+    ));
+    add(def_step(
+        "unique",
+        unique_fn,
+        vec![param("xs").of("list | range | receiver")],
+    ));
     add(def_step(
         "sort_by",
         sort_by_fn,
-        vec![param("xs"), param("f")],
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
     ));
-    add(def_step("find", find_fn, vec![param("xs"), param("f")]));
-    add(def_step("any", any_fn, vec![param("xs"), param("f")]));
-    add(def_step("all", all_fn, vec![param("xs"), param("f")]));
-    add(def_step("flatten", flatten_fn, vec![param("xs")]));
+    add(def_step(
+        "find",
+        find_fn,
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
+    ));
+    add(def_step(
+        "any",
+        any_fn,
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
+    ));
+    add(def_step(
+        "all",
+        all_fn,
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
+    ));
+    add(def_step(
+        "flatten",
+        flatten_fn,
+        vec![param("xs").of("list | range | receiver")],
+    ));
     add(def_step(
         "group_by",
         group_by_fn,
-        vec![param("xs"), param("f")],
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
     ));
-    add(def_step("reverse", reverse_fn, vec![param("xs")]));
-    add(def_step("sum", sum_fn, vec![param("xs")]));
-    add(def_step("min", min_fn, vec![param("xs")]));
-    add(def_step("max", max_fn, vec![param("xs")]));
-    add(def_step("pairs", pairs_fn, vec![param("m")]));
-    add(def_step("keys", keys_fn, vec![param("m")]));
-    add(def_step("values", values_fn, vec![param("m")]));
+    add(def_step(
+        "reverse",
+        reverse_fn,
+        vec![param("xs").of("list | range | receiver")],
+    ));
+    add(def_step(
+        "sum",
+        sum_fn,
+        vec![param("xs").of("list | range | receiver")],
+    ));
+    add(def_step(
+        "min",
+        min_fn,
+        vec![param("xs").of("list | range | receiver")],
+    ));
+    add(def_step(
+        "max",
+        max_fn,
+        vec![param("xs").of("list | range | receiver")],
+    ));
+    add(def_step("pairs", pairs_fn, vec![param("m").of("map")]));
+    add(def_step("keys", keys_fn, vec![param("m").of("map")]));
+    add(def_step("values", values_fn, vec![param("m").of("map")]));
     add(def(
         "get",
         get_fn,
-        vec![param("m"), param("k"), opt("default", Lit::Nil)],
+        vec![param("m").of("map"), param("k"), opt("default", Lit::Nil)],
     ));
-    add(def("put", put_fn, vec![param("m"), param("k"), param("v")]));
-    add(def_step("merge", merge_fn, vec![param("a"), param("b")]));
-    add(def("remove", remove_fn, vec![param("m"), param("k")]));
-    add(def_step("chars", chars_fn, vec![param("s")]));
+    add(def(
+        "put",
+        put_fn,
+        vec![param("m").of("map"), param("k"), param("v")],
+    ));
+    add(def_step(
+        "merge",
+        merge_fn,
+        vec![param("a").of("map"), param("b").of("map")],
+    ));
+    add(def(
+        "remove",
+        remove_fn,
+        vec![param("m").of("map"), param("k")],
+    ));
+    add(def_step("chars", chars_fn, vec![param("s").of("str")]));
 }
 
 /// The collection `a[0]`, then the function `a[f_at]`, in argument order.

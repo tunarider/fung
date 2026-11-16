@@ -66,6 +66,7 @@ fn blank_info(name: &str, pos: Pos) -> FnInfo {
         for_body: false,
         lambda: false,
         num_locals: 0,
+        held: Vec::new(),
         captures: Vec::new(),
     }
 }

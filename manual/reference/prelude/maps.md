@@ -25,7 +25,7 @@ fung의 맵에는 규칙이 셋 있다([값과 타입](../language/values.html))
 
 ## 함수 {#functions}
 
-:::fn get(m, k, default = nil)
+:::fn get(m: map, k, default = nil)
 
 키 `k`가 있으면 그 값을, 없으면 `default`를 돌려준다.
 
@@ -47,7 +47,7 @@ fung의 맵에는 규칙이 셋 있다([값과 타입](../language/values.html))
 
 #### 에러
 
-- `m`이 맵이 아니면 E0506(`cannot get a key from list`). 리스트는 인덱스로 읽는다.
+- `m`이 맵이 아니면 E0403(``argument `m` must be map, got list``). 리스트는 인덱스로 읽는다.
 - `k`가 문자열이 아니면 E0514(맵의 키는 문자열이다).
 
 #### 예제
@@ -78,7 +78,7 @@ print(cfg.port)
 
 :::
 
-:::fn put(m, k, v)
+:::fn put(m: map, k, v)
 
 키 `k`를 값 `v`로 둔 새 맵을 돌려준다.
 
@@ -100,7 +100,7 @@ print(cfg.port)
 
 #### 에러
 
-`k`가 문자열이 아니면 런타임 에러 E0514(`cannot use a value of type sym as a map key`, 심볼이면 `"retries"`로 쓰라는 도움말). `m`이 맵이 아니면 E0506(`cannot put into list`).
+`k`가 문자열이 아니면 런타임 에러 E0514(`cannot use a value of type sym as a map key`, 심볼이면 `"retries"`로 쓰라는 도움말). `m`이 맵이 아니면 E0403(``argument `m` must be map, got list``).
 
 #### 예제
 
@@ -137,7 +137,7 @@ print(put({}, 'retries, 3))
 
 :::
 
-:::fn merge(a, b)
+:::fn merge(a: map, b: map)
 
 두 맵을 합친 새 맵을 돌려준다. 같은 키는 `b`의 값이 이긴다.
 
@@ -158,7 +158,7 @@ print(put({}, 'retries, 3))
 
 #### 에러
 
-둘 중 하나가 맵이 아니면 런타임 에러 E0506(`cannot merge list`).
+둘 중 하나가 맵이 아니면 E0403(``argument `a` must be map, got list``).
 
 #### 예제
 
@@ -184,7 +184,7 @@ print(merge({db: {host: "a", port: 1}}, {db: {port: 2}}))
 
 :::
 
-:::fn remove(m, k)
+:::fn remove(m: map, k)
 
 키 `k`를 뺀 새 맵을 돌려준다. 없는 키면 그대로 돌려준다.
 
@@ -203,7 +203,7 @@ print(merge({db: {host: "a", port: 1}}, {db: {port: 2}}))
 
 #### 에러
 
-`k`가 문자열이 아니면 런타임 에러 E0514. `m`이 맵이 아니면 E0506(`cannot remove from list`).
+`k`가 문자열이 아니면 런타임 에러 E0514. `m`이 맵이 아니면 E0403(``argument `m` must be map, got list``).
 
 #### 예제
 
@@ -226,7 +226,7 @@ print(cfg |> remove("password"))
 
 :::
 
-:::fn keys(m)
+:::fn keys(m: map)
 
 키의 리스트를 넣은 순서대로 돌려준다.
 
@@ -244,7 +244,7 @@ print(cfg |> remove("password"))
 
 #### 에러
 
-`m`이 맵이 아니면 런타임 에러 E0506(`cannot list the keys of list`).
+`m`이 맵이 아니면 E0403(``argument `m` must be map, got list``).
 
 #### 예제
 
@@ -269,7 +269,7 @@ print(missing)
 
 :::
 
-:::fn values(m)
+:::fn values(m: map)
 
 값의 리스트를 키의 순서대로 돌려준다.
 
@@ -287,7 +287,7 @@ print(missing)
 
 #### 에러
 
-`m`이 맵이 아니면 런타임 에러 E0506(`cannot list the values of int`).
+`m`이 맵이 아니면 E0403(``argument `m` must be map, got int``).
 
 #### 예제
 
@@ -304,13 +304,13 @@ print(values(usage), max(values(usage)))
 
 :::
 
-:::fn pairs(m)
+:::fn pairs(m: map)
 
 `(키, 값)` 튜플의 리스트를 넣은 순서대로 돌려준다.
 
 #### 설명
 
-맵을 도는 표준 방법이다. 맵을 그대로 `for`나 `map`에 넣을 수는 없고(E0506), `pairs`로 리스트를 만들어 돈다: `for (k, v) in pairs(m):`. 튜플은 패턴으로 꺼낸다. 람다의 인자에서 꺼낼 때는 괄호를 한 겹 더 쓴다: `map(pairs(m), ((k, v)) => …)`.
+맵을 도는 표준 방법이다. 맵을 그대로 `for`나 `map`에 넣을 수는 없고(E0403), `pairs`로 리스트를 만들어 돈다: `for (k, v) in pairs(m):`. 튜플은 패턴으로 꺼낸다. 람다의 인자에서 꺼낼 때는 괄호를 한 겹 더 쓴다: `map(pairs(m), ((k, v)) => …)`.
 
 리스트 함수(`filter`, `sort_by` 등)를 쓴 뒤 다시 맵이 필요하면 `fold`와 `put`으로 만든다.
 
@@ -324,7 +324,7 @@ print(values(usage), max(values(usage)))
 
 #### 에러
 
-`m`이 맵이 아니면 런타임 에러 E0506(`cannot list the pairs of list`).
+`m`이 맵이 아니면 E0403(``argument `m` must be map, got list``).
 
 #### 예제
 
@@ -347,7 +347,7 @@ print(fold(full, {}, (acc, (k, v)) => put(acc, k, v)))
 
 **맵은 바로 돌 수 없다**
 
-```fung run exit=1 error=E0506
+```fung run exit=2 error=E0403
 for k in {a: 1}:
   print(k)
 ;;

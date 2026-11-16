@@ -26,7 +26,7 @@ print(countdown(3))
 
 ## 함수 {#functions}
 
-:::fn until(x, f, pred) fung
+:::fn until(x, f: fn, pred: fn) fung
 
 `pred(x)`가 참이 될 때까지 `x = f(x)`를 되풀이하고, 그때의 `x`를 돌려준다.
 
@@ -81,7 +81,7 @@ print(delays)
 
 :::
 
-:::fn iterate(x, f, n) fung
+:::fn iterate(x, f: fn, n: int) fung
 
 `f`를 `x`에 `n`번 거듭 적용한 값을 돌려준다.
 

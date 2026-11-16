@@ -45,12 +45,16 @@ const HEADER: &str = "\
 fn native_params(ps: &[NativeParam]) -> String {
     ps.iter()
         .map(|p| {
+            let types = match p.types {
+                Some(t) => format!(": {t}"),
+                None => String::new(),
+            };
             if p.rest {
-                format!("...{}", p.name)
+                format!("...{}{types}", p.name)
             } else if p.default.is_some() {
-                format!("{}=?", p.name)
+                format!("{}{types}=?", p.name)
             } else {
-                p.name.to_string()
+                format!("{}{types}", p.name)
             }
         })
         .collect::<Vec<_>>()

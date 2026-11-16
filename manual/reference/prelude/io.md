@@ -122,7 +122,7 @@ match parse_int(port):
 
 :::
 
-:::fn write(s)
+:::fn write(s: str)
 
 문자열을 줄바꿈 없이 그대로 표준 출력에 쓴다.
 
@@ -159,7 +159,7 @@ print("done")
 
 :::
 
-:::fn ewrite(s)
+:::fn ewrite(s: str)
 
 `write`와 같이 줄바꿈 없이 표준 에러에 쓴다.
 
@@ -195,7 +195,7 @@ print("result 42")
 
 :::
 
-:::fn read_line(file = nil)
+:::fn read_line(file: file | nil = nil)
 
 한 줄을 읽어 `Ok(줄)`을, 더 읽을 것이 없으면 `Ok(nil)`을 돌려준다.
 
@@ -274,7 +274,7 @@ print(read_line(f))
 
 :::
 
-:::fn read_lines(file = nil)
+:::fn read_lines(file: file | nil = nil)
 
 남은 줄을 모두 읽어 `Ok(리스트)`로 돌려준다.
 

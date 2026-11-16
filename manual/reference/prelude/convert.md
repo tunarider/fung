@@ -272,7 +272,7 @@ print(sym("not-found"))
 
 :::
 
-:::fn sym_name(s)
+:::fn sym_name(s: sym)
 
 심볼의 이름을 문자열로 돌려준다(`sym_name('ok) == "ok"`). [`sym`](#fn-sym)의 반대다.
 
@@ -303,7 +303,7 @@ print("status: ${sym_name(status)}", str(status), sym_name(Red))
 
 **문자열은 받지 않는다**
 
-```fung run exit=1 error=E0403
+```fung run exit=2 error=E0403
 print(sym_name("ok"))
 ```
 
@@ -313,7 +313,7 @@ print(sym_name("ok"))
 
 :::
 
-:::fn parse_int(s)
+:::fn parse_int(s: str)
 
 문자열을 정수로 읽어 `Ok(정수)` 또는 `Err({kind: 'parse, message})`를 돌려준다.
 
@@ -373,7 +373,7 @@ print(["1", "two", "3"] |> try_map(parse_int))
 
 :::
 
-:::fn parse_float(s)
+:::fn parse_float(s: str)
 
 문자열을 실수로 읽어 `Ok(실수)` 또는 `Err({kind: 'parse, message})`를 돌려준다.
 
@@ -420,7 +420,7 @@ print(ratio("high"))
 
 :::
 
-:::fn parse_dur(s)
+:::fn parse_dur(s: str)
 
 기간 리터럴 문법의 문자열(`"1h30m"`, `"500ms"`)을 `Ok(dur)` 또는 `Err({kind: 'parse, message})`로 읽는다.
 

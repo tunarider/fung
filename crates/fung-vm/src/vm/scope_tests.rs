@@ -354,7 +354,7 @@ fn a_thousand_supervised_failures_leave_no_node() {
 
 #[test]
 fn spawn_needs_a_scope() {
-    let (out, err, code) = run("spawn(1, () => 1)\nprint(\"not here\")");
+    let (out, err, code) = run("x = 1\nspawn(x, () => 1)\nprint(\"not here\")");
     assert_eq!(out, "");
     assert!(
         err.contains("error[E0403]: argument `s` must be scope"),

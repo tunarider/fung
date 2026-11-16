@@ -269,12 +269,37 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
         };
         match (x.next(), y.next()) {
             (Some(p), Some(q)) => next = Some((p, q)),
-            _ => {
+            // What one list has past the end of the other has no pair,
+            // and still must be values that have an order (D171): each is
+            // compared with itself, as `x < x` would be, so that a value
+            // with no order is an error whatever the other's length.
+            (Some(p), None) | (None, Some(p)) => {
+                // a number, a string, a duration and a time have one
+                let mut item = Some(p);
+                let rest = if *xn > *yn { &mut *x } else { &mut *y };
+                while let Some(p) = item {
+                    if !has_order(p) {
+                        next = Some((p, p));
+                        break;
+                    }
+                    item = rest.next();
+                }
+            }
+            (None, None) => {
                 found = found.then((*xn).cmp(yn));
                 open.pop();
             }
         }
     }
+}
+
+/// Whether `v` is of a type whose values compare with one another as
+/// they are (`compare_leaf`).
+fn has_order(v: &Value) -> bool {
+    matches!(
+        v,
+        Value::Int(_) | Value::Float(_) | Value::Str(_) | Value::Dur(_) | Value::Time(_)
+    )
 }
 
 /// The one shape of the values an ordering function sorts or searches

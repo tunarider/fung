@@ -15,55 +15,74 @@ use crate::vm::pieces::{self, STEP_BYTES, STEP_ITEMS, STEP_SCAN, Work};
 use crate::vm::{Flow, Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
-    add(def_step("split", split_fn, vec![param("s"), param("sep")]));
-    add(def_step("lines", lines_fn, vec![param("s")]));
+    add(def_step(
+        "split",
+        split_fn,
+        vec![param("s").of("str"), param("sep").of("str")],
+    ));
+    add(def_step("lines", lines_fn, vec![param("s").of("str")]));
     add(def_step(
         "join",
         join_fn,
-        vec![param("xs"), opt("sep", Lit::Str(""))],
+        vec![
+            param("xs").of("list | range | receiver"),
+            opt("sep", Lit::Str("")).of("str"),
+        ],
     ));
     add(def_step(
         "trim",
         trim_fn,
-        vec![param("s"), opt("cut", Lit::Nil)],
+        vec![param("s").of("str"), opt("cut", Lit::Nil).of("str | nil")],
     ));
     add(def_step(
         "trim_left",
         trim_left_fn,
-        vec![param("s"), opt("cut", Lit::Nil)],
+        vec![param("s").of("str"), opt("cut", Lit::Nil).of("str | nil")],
     ));
     add(def_step(
         "trim_right",
         trim_right_fn,
-        vec![param("s"), opt("cut", Lit::Nil)],
+        vec![param("s").of("str"), opt("cut", Lit::Nil).of("str | nil")],
     ));
     add(def_step(
         "index_of",
         index_of_fn,
-        vec![param("s"), param("sub")],
+        vec![param("s").of("str"), param("sub").of("str")],
     ));
-    add(def("upper", upper_fn, vec![param("s")]));
-    add(def("lower", lower_fn, vec![param("s")]));
+    add(def("upper", upper_fn, vec![param("s").of("str")]));
+    add(def("lower", lower_fn, vec![param("s").of("str")]));
     add(def_step(
         "replace",
         replace_fn,
-        vec![param("s"), param("old"), param("new")],
+        vec![
+            param("s").of("str"),
+            param("old").of("str"),
+            param("new").of("str"),
+        ],
     ));
     add(def(
         "starts_with",
         starts_with_fn,
-        vec![param("s"), param("prefix")],
+        vec![param("s").of("str"), param("prefix").of("str")],
     ));
     add(def(
         "ends_with",
         ends_with_fn,
-        vec![param("s"), param("suffix")],
+        vec![param("s").of("str"), param("suffix").of("str")],
     ));
-    add(def_step("repeat", repeat_fn, vec![param("s"), param("n")]));
-    add(def("byte_len", byte_len_fn, vec![param("s")]));
-    add(def_step("bytes", bytes_fn, vec![param("s")]));
-    add(def_step("from_bytes", from_bytes_fn, vec![param("xs")]));
-    add(def("is_utf8", is_utf8_fn, vec![param("s")]));
+    add(def_step(
+        "repeat",
+        repeat_fn,
+        vec![param("s").of("str"), param("n").of("int")],
+    ));
+    add(def("byte_len", byte_len_fn, vec![param("s").of("str")]));
+    add(def_step("bytes", bytes_fn, vec![param("s").of("str")]));
+    add(def_step(
+        "from_bytes",
+        from_bytes_fn,
+        vec![param("xs").of("list")],
+    ));
+    add(def("is_utf8", is_utf8_fn, vec![param("s").of("str")]));
 }
 
 fn string(s: Vec<u8>) -> Value {
@@ -330,8 +349,18 @@ fn trim_ends(t: &mut Task<'_>, a: Args, front: bool, back: bool) -> Result<Flow,
         to: usize,
         /// Whether the back is cut too.
         back: bool,
+        /// The characters cut off so far.
+        gone: usize,
     }
     impl Trim {
+        /// Bytes `from..to` of the string: a piece of it, not a copy
+        /// (VA73).
+        fn kept(&self, from: usize, to: usize) -> Value {
+            match &self.s {
+                Value::Str(t) => Value::Str(Text::cut(t, from, to, self.gone)),
+                _ => unreachable!("checked as a string"),
+            }
+        }
         fn gone(&self, u: Unit) -> bool {
             match u {
                 Unit::Char(c) if self.space => c.is_whitespace(),
@@ -348,7 +377,7 @@ fn trim_ends(t: &mut Task<'_>, a: Args, front: bool, back: bool) -> Result<Flow,
                     let u = fung_front::text::first(&s[self.at..]).expect("not at the end");
                     if !self.gone(u) {
                         if !self.back {
-                            return Ok(Some(string(s[self.at..].to_vec())));
+                            return Ok(Some(self.kept(self.at, s.len())));
                         }
                         // On from the back in the same step: a short
                         // string is one step.
@@ -356,6 +385,7 @@ fn trim_ends(t: &mut Task<'_>, a: Args, front: bool, back: bool) -> Result<Flow,
                         return self.step(_t);
                     }
                     self.at += u.byte_len();
+                    self.gone += 1;
                 }
                 if self.at < s.len() {
                     return Ok(None);
@@ -366,12 +396,10 @@ fn trim_ends(t: &mut Task<'_>, a: Args, front: bool, back: bool) -> Result<Flow,
             while self.to > stop {
                 let u = fung_front::text::last(&s[from..self.to]).expect("from is kept");
                 if !self.gone(u) {
-                    if from == 0 && self.to == s.len() {
-                        return Ok(Some(self.s.clone()));
-                    }
-                    return Ok(Some(string(s[from..self.to].to_vec())));
+                    return Ok(Some(self.kept(from, self.to)));
                 }
                 self.to -= u.byte_len();
+                self.gone += 1;
             }
             // Cut to nothing from the back alone (`trim_right`).
             if self.to == from {
@@ -392,6 +420,7 @@ fn trim_ends(t: &mut Task<'_>, a: Args, front: bool, back: bool) -> Result<Flow,
             at: 0,
             to: len,
             back,
+            gone: 0,
         },
     )
 }

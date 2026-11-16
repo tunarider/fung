@@ -362,7 +362,7 @@ fn plain_native_callbacks_report_as_before() {
         ("print(map([1, 2], exit))", "", 1),
         (
             "print(each([\"a\", 1], len))",
-            "error[E0506]: cannot take the length of int\n  --> -e:1:11\n  |\n1 | print(each([\"a\", 1], len))\n  |           ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n",
+            "error[E0403]: argument `x` must be str | list | map | range, got int\n  --> -e:1:11\n  |\n1 | print(each([\"a\", 1], len))\n  |           ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n",
             1,
         ),
     ];

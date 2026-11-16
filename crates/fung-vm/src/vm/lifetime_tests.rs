@@ -120,3 +120,103 @@ fn a_local_lets_go_after_its_last_read() {
         assert_eq!(out(src), want, "{src}");
     }
 }
+
+/// A local never read is held until its function returns, whatever comes
+/// after it in the function (VM55): a later block's names do not take
+/// its slot, and a failed arm's pattern does not clear it.
+#[test]
+fn a_held_local_outlives_the_blocks_after_it() {
+    for (src, want) in [
+        // a later sibling block binds a name
+        (
+            "fn f(flag):\n  if flag:\n    _t = token(\"a\")\n  ;;\n  if flag:\n    n = alive(\"a\")\n    print(n)\n  ;;\n  alive(\"a\")\n;;\nprint(f(true))",
+            "true\ntrue\n",
+        ),
+        // an arm that fails wrote its pattern's slot
+        (
+            "fn f(flag, m):\n  if flag: _t = token(\"b\") ;;\n  match m:\n    {port: p} => print(p)\n    _ => print(\"none\")\n  ;;\n  alive(\"b\")\n;;\nprint(f(true, {}))",
+            "none\ntrue\n",
+        ),
+        // held inside a nested block, a sibling of the outer one binds
+        (
+            "fn f(flag):\n  if flag:\n    if flag: _t = token(\"c\") ;;\n  ;;\n  if flag:\n    (x, y) = (1, 2)\n    print(x + y)\n  ;;\n  alive(\"c\")\n;;\nprint(f(true))",
+            "3\ntrue\n",
+        ),
+        // the file's blocks are the same
+        (
+            "fn id(v) = v\nif id(true): _t = token(\"d\") ;;\nif id(true):\n  n = id(1)\n  print(n)\n;;\nprint(alive(\"d\"))",
+            "1\ntrue\n",
+        ),
+        // and it goes when the function returns
+        (
+            "fn f(flag):\n  if flag: _t = token(\"e\") ;;\n  alive(\"e\")\n;;\nprint(f(true), alive(\"e\"))",
+            "true false\n",
+        ),
+    ] {
+        assert_eq!(out(src), want, "{src}");
+    }
+}
+
+/// A tail call hands the frame over, and the values the caller only
+/// holds go with it: they are let go when that frame returns, whether
+/// the callee is a fung function or a native (D162).
+#[test]
+fn a_held_local_outlives_a_tail_call() {
+    for (src, want) in [
+        // a fung function in the tail place
+        (
+            "fn g() = alive(\"a\")\nfn f():\n  _t = token(\"a\")\n  g()\n;;\nprint(f(), alive(\"a\"))",
+            "true false\n",
+        ),
+        // a fung prelude function and a native one, the same
+        (
+            "fn w(x) = alive(\"b\") then x else -1\nfn f():\n  _t = token(\"b\")\n  iterate(1, w, 1)\n;;\nprint(f(), alive(\"b\"))",
+            "1 false\n",
+        ),
+        (
+            "fn w(x) = alive(\"c\") then x else -1\nfn f():\n  _t = token(\"c\")\n  map([1], w)\n;;\nprint(f(), alive(\"c\"))",
+            "[1] false\n",
+        ),
+        // a chain of tail calls: each caller's holds live to the end
+        (
+            "fn h() = (alive(\"d\"), alive(\"e\"))\nfn g():\n  _u = token(\"e\")\n  h()\n;;\nfn f():\n  _t = token(\"d\")\n  g()\n;;\nprint(f(), alive(\"d\"), alive(\"e\"))",
+            "(true, true) false false\n",
+        ),
+        // a tail call through `and`, `??` and a branch
+        (
+            "fn g() = alive(\"f\")\nfn f(c):\n  _t = token(\"f\")\n  c and g()\n;;\nprint(f(true), alive(\"f\"))",
+            "true false\n",
+        ),
+        (
+            "fn g() = alive(\"g\")\nfn f(c):\n  _t = token(\"g\")\n  if c: g() else: false ;;\n;;\nprint(f(true), alive(\"g\"))",
+            "true false\n",
+        ),
+        // a local that is read is not held: it goes at its last read
+        (
+            "fn g() = alive(\"h\")\nfn f():\n  t = token(\"h\")\n  _ = keep(t)\n  g()\n;;\nprint(f())",
+            "false\n",
+        ),
+        // a parameter never read is held like any name (D172)
+        (
+            "fn g() = alive(\"i\")\nfn f(_t) = g()\nprint(f(token(\"i\")), alive(\"i\"))",
+            "true false\n",
+        ),
+        // so is a pattern's name, and each turn of a loop holds its own
+        (
+            "fn go(n) = match (n, token(\"j${n}\")):\n  (0, _t) => (alive(\"j2\"), alive(\"j1\"), alive(\"j0\"))\n  (_, _t) => go(n - 1)\n;;\nprint(go(2), alive(\"j2\"), alive(\"j0\"))",
+            "(true, true, true) false false\n",
+        ),
+        // `_` binds nothing: its value goes with the frame's slots
+        (
+            "fn g() = alive(\"k\")\nfn f(_) = g()\nprint(f(token(\"k\")))",
+            "false\n",
+        ),
+        // a function with nothing held still runs in constant stack
+        (
+            "fn count(n) = n == 0 then \"done\" else count(n - 1)\nprint(count(200000))",
+            "done\n",
+        ),
+    ] {
+        assert_eq!(out(src), want, "{src}");
+    }
+}

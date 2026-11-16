@@ -34,6 +34,7 @@ print(take(c, 2), first(c), recv(c), first(c))
 # Argument errors come before any value is received.
 (d_tx, d) = channel(2)
 send(d_tx, 1); send(d_tx, 2); close(d_tx)
-t = supervise(s => spawn(s, () => map(d, 3)), _ => nil)!
+three = 3
+t = supervise(s => spawn(s, () => map(d, three)), _ => nil)!
 print(type_of(await(t)), recv(d))
 # expect: Err Ok(1)

@@ -160,14 +160,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `full` must be bool, got int
-|   --> -e:3:14
+|   --> -e:3:24
 |   |
 | 3 | print(fs.list(d, full: 1))
-|   |              ^
+|   |                        ^
 |   |
-|  call path (innermost first):
-|    -e:3       <entry>
--- exit: 1
+-- exit: 2
 ==== program 8
 -- stdout
 -- stderr

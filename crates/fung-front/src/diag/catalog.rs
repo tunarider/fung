@@ -132,7 +132,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0132",
         "`return` used as a value",
         "",
-        "`return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it",
+        "`return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it",
     ],
     [
         "E0133",

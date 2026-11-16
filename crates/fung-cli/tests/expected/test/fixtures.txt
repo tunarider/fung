@@ -54,7 +54,7 @@
 |   error[E0505]: expected bool, got int
 |     --> crates/fung-cli/tests/data/test/asserts.fung:10:20
 |      |
-|   10 | test "not a bool": assert 3 ;;
+|   10 | test "not a bool": assert len("abc") ;;
 |      |                    ^
 |      |
 |    call path (innermost first):
@@ -251,7 +251,7 @@
 |   error[E0505]: expected bool, got int
 |     --> crates/fung-cli/tests/data/test/asserts.fung:10:20
 |      |
-|   10 | test "not a bool": assert 3 ;;
+|   10 | test "not a bool": assert len("abc") ;;
 |      |                    ^
 |      |
 |    call path (innermost first):
@@ -386,7 +386,7 @@
 |   error[E0505]: expected bool, got int
 |     --> crates/fung-cli/tests/data/test/asserts.fung:10:20
 |      |
-|   10 | test "not a bool": assert 3 ;;
+|   10 | test "not a bool": assert len("abc") ;;
 |      |                    ^
 |      |
 |    call path (innermost first):
@@ -541,7 +541,7 @@
 |   error[E0505]: expected bool, got int
 |     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:10:20
 |      |
-|   10 | test "not a bool": assert 3 ;;
+|   10 | test "not a bool": assert len("abc") ;;
 |      |                    ^
 |      |
 |    call path (innermost first):

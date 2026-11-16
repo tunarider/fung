@@ -261,26 +261,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `indent` must be int | nil, got float
-|   --> -e:4:21
+|   --> -e:4:33
 |   |
 | 4 | print(json.stringify(1, indent: 1.0))
-|   |                     ^
+|   |                                 ^
 |   |
-|  call path (innermost first):
-|    -e:4       <entry>
--- exit: 1
+-- exit: 2
 ==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(1, indent: \"2\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `indent` must be int | nil, got str
-|   --> -e:4:21
+|   --> -e:4:33
 |   |
 | 4 | print(json.stringify(1, indent: "2"))
-|   |                     ^
+|   |                                 ^
 |   |
-|  call path (innermost first):
-|    -e:4       <entry>
--- exit: 1
+-- exit: 2
 ==== "import json\nimport time\n_imports = [json, time]\nprint(json.stringify(1, 2, 3))"
 -- stdout
 -- stderr
@@ -305,26 +301,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:4:17
+|   --> -e:4:18
 |   |
 | 4 | print(json.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:4       <entry>
--- exit: 1
+-- exit: 2
 ==== "import json\nimport time\n_imports = [json, time]\nprint(json.parse(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got nil
-|   --> -e:4:17
+|   --> -e:4:18
 |   |
 | 4 | print(json.parse(nil))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:4       <entry>
--- exit: 1
+-- exit: 2
 ==== "import json\nimport time\n_imports = [json, time]\nprint(json.parse())"
 -- stdout
 -- stderr

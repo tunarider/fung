@@ -127,7 +127,7 @@ print(elapsed >= 50ms)
 
 :::
 
-:::fn time.parse(s, format = nil)
+:::fn time.parse(s: str, format: str | nil = nil)
 
 글자로 적은 시각을 읽어 시각 값으로 바꾼다.
 
@@ -151,7 +151,7 @@ print(elapsed >= 50ms)
 #### 에러
 
 - `Err({kind: 'parse, message})`: 형식에 맞지 않거나 범위를 넘는다(13월, 2월 30일, 서머타임 빈틈의 로컬 시각). `message`는 ``cannot parse `2026-13-04T09:05:07Z` as a time: month out of range``처럼 이유를 담는다. `ddd`가 날짜의 요일과 다르면 ``weekday Mon does not match 2026-01-02 (Fri)``다.
-- `s`가 문자열이 아니거나, `format`에 연·월·일 중 빠진 것이 있거나(`"HH:mm"`), 같은 필드를 두 번 쓰면(`"YYYY-MM-DD MMM"`) 런타임 에러 E0403. 시각만 적힌 글은 날짜를 붙여 읽는다: `time.parse("2026-10-04 " + s, "YYYY-MM-DD HH:mm")`.
+- `s`가 문자열이 아니면 E0403. `format`에 연·월·일 중 빠진 것이 있거나(`"HH:mm"`), 같은 필드를 두 번 쓰면(`"YYYY-MM-DD MMM"`) 런타임 에러 E0403. 시각만 적힌 글은 날짜를 붙여 읽는다: `time.parse("2026-10-04 " + s, "YYYY-MM-DD HH:mm")`.
 
 #### 예제
 
@@ -200,7 +200,7 @@ print(time.parse("2026-11-01 01:30", "YYYY-MM-DD HH:mm")!)
 
 :::
 
-:::fn time.format(t, format = nil)
+:::fn time.format(t: time, format: str | nil = nil)
 
 시각을 문자열로 쓴다.
 
@@ -251,7 +251,7 @@ print("backup-${time.format(t + 1m, "YYYYMMDD-HHmm")}.tar.gz")
 
 :::
 
-:::fn time.utc(t)
+:::fn time.utc(t: time)
 
 같은 순간을 UTC 시간대로 바꾼다.
 
@@ -283,7 +283,7 @@ print(u, u == seoul, time.parts(u).hour)
 
 :::
 
-:::fn time.local(t)
+:::fn time.local(t: time)
 
 같은 순간을 로컬 시간대로 바꾼다.
 
@@ -314,7 +314,7 @@ print(time.local(t), time.format(time.local(t), "HH:mm"))
 
 :::
 
-:::fn time.unix(t)
+:::fn time.unix(t: time)
 
 시각을 유닉스 시간(초)으로 바꾼다.
 
@@ -347,7 +347,7 @@ print(time.unix(time.parse("1969-12-31T23:59:59Z")!))
 
 :::
 
-:::fn time.from_unix(n)
+:::fn time.from_unix(n: int)
 
 유닉스 시간(초)을 시각으로 바꾼다.
 
@@ -369,7 +369,7 @@ print(time.unix(time.parse("1969-12-31T23:59:59Z")!))
 
 #### 에러
 
-- 런타임 에러 E0403: `n`이 정수가 아니거나, 로컬 시간대로 본 날짜가 0000~9999년 범위를 벗어난다.
+- E0403: `n`이 정수가 아니거나, 로컬 시간대로 본 날짜가 0000~9999년 범위를 벗어난다.
 
 #### 예제
 
@@ -397,7 +397,7 @@ print(time.from_unix(0))
 
 :::
 
-:::fn time.parts(t)
+:::fn time.parts(t: time)
 
 시각을 연·월·일·시·분·초·요일로 나눈다.
 

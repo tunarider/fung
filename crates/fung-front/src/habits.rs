@@ -121,6 +121,10 @@ pub fn compound(op: &str) -> String {
     format!("fung has no `{op}=`: bind a new name (`m = n {op} 1`) or compute it in one expression")
 }
 
+/// The help for an assignment to a part of a value (`m.a = 2`,
+/// `xs[0] = 2`).
+pub const IN_PLACE: &str = "a value is never changed in place: make a changed copy and give it a name of its own (`put(m, k, v)` for a map, slices and `+` for a list)";
+
 /// The help for `++` between two values (`"a" ++ "b"`).
 pub const JOIN: &str = "strings and lists join with `+`";
 

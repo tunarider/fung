@@ -67,6 +67,10 @@ pub struct Proto {
     pub consts: Vec<Const>,
     pub pos: Vec<Pos>,
     pub num_locals: usize,
+    /// The slots that only hold a value (a name never read): a tail call
+    /// takes what they have along, and the frame lets go of it when it
+    /// returns (D162).
+    pub held: Vec<usize>,
     pub global_names: Vec<String>,
     pub params: Vec<Param>,
     /// Child functions, referenced by CLOSURE.
@@ -168,6 +172,7 @@ impl Default for Proto {
             consts: Vec::new(),
             pos: Vec::new(),
             num_locals: 0,
+            held: Vec::new(),
             global_names: Vec::new(),
             params: Vec::new(),
             protos: Vec::new(),

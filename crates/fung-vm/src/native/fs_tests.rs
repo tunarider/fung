@@ -155,10 +155,11 @@ fn running_as_root(locked: &Path) -> bool {
 fn render_params(ps: &[NativeParam]) -> String {
     ps.iter()
         .map(|p| {
+            let types = p.types.map(|t| format!(": {t}")).unwrap_or_default();
             if p.default.is_some() {
-                format!("{}=?", p.name)
+                format!("{}{types}=?", p.name)
             } else {
-                p.name.to_string()
+                format!("{}{types}", p.name)
             }
         })
         .collect::<Vec<_>>()

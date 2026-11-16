@@ -37,6 +37,9 @@ pub(super) struct Scope {
     pub(super) made: Made,
     /// First slot this block may use; restored on exit.
     pub(super) base: usize,
+    /// A block inside this one kept its slots: one of its names is never
+    /// read, so it holds its value until the function returns (VM55).
+    pub(super) held: bool,
     /// For E0239 (D38): where each name was bound, which were read, and
     /// which are parameters.
     pub(super) pos: HashMap<String, Pos>,
@@ -49,9 +52,6 @@ pub(super) struct Scope {
     /// `fn`, or the callee a partial application keeps): a call of one
     /// is checked as a top-level fn's is (FE65).
     pub(super) sigs: HashMap<String, (String, super::call::Sig)>,
-    /// The names of this block whose one binding is a literal, with it
-    /// and where the name was bound (D149).
-    pub(super) lits: HashMap<String, (std::rc::Rc<crate::tree::Node>, Pos)>,
 }
 
 impl Scope {
@@ -61,12 +61,12 @@ impl Scope {
             file,
             made: Made::Block,
             base,
+            held: false,
             pos: HashMap::new(),
             used: HashSet::new(),
             param: HashSet::new(),
             fns: HashSet::new(),
             sigs: HashMap::new(),
-            lits: HashMap::new(),
         }
     }
 }
@@ -79,8 +79,17 @@ pub(super) struct FnScope {
     pub(super) blocks: Vec<Scope>,
     pub(super) next_slot: usize,
     pub(super) max_slot: usize,
+    /// The slots of the names never read that its ended blocks bound,
+    /// parameters too (D172): each holds its value until the function returns
+    /// (03, VM55, D162).
+    pub(super) held: Vec<usize>,
     pub(super) captures: Vec<Capture>,
     pub(super) cap_index: HashMap<String, usize>,
+    /// Per capture: the parameter it is, of the function around this one
+    /// that binds it (D169).
+    pub(super) cap_params: Vec<Option<super::effect::Dep>>,
+    /// Where the function is written: its key in the table of bodies.
+    pub(super) key: super::effect::FnKey,
     pub(super) self_name: String,
     /// The parameters of a named local fn, for its calls of itself.
     pub(super) self_sig: Option<super::call::Sig>,

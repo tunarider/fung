@@ -251,6 +251,9 @@ impl<'a> Parser<'a> {
                 self.next();
             }
             self.skip_newlines_after_operator();
+            // The right side of `??`, `and` and `or` is evaluated only
+            // when needed: a branch, whose end may be a `return` (D167).
+            self.return_ok = matches!(info.text, "??" | "and" | "or");
             let rhs = self.expr(info.right)?;
             lhs = match info.text {
                 "|>" => {

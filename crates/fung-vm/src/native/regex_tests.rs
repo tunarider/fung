@@ -115,13 +115,21 @@ fn bad_patterns_and_arguments() {
         shown(call_values("find", vec![Value::str("x"), Value::Nil])),
         "E0403"
     );
-    // the pattern is compiled before the replacement is checked
+    // the pattern is compiled before the replacement's groups are checked
+    assert_eq!(
+        shown(call_values(
+            "replace",
+            vec![Value::str("x"), Value::str("("), Value::str("$9")]
+        )),
+        "E0515"
+    );
+    // and a type the table names comes before both (D173)
     assert_eq!(
         shown(call_values(
             "replace",
             vec![Value::str("x"), Value::str("("), Value::Int(1)]
         )),
-        "E0515"
+        "E0403"
     );
     assert_eq!(
         shown(call_values(

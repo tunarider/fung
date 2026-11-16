@@ -32,18 +32,18 @@ static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new()
 /// The `_native.process` module.
 pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
-        let run = || {
+        let run = |cmd: &'static str| {
             vec![
-                param("cmd"),
-                opt("cwd", Lit::Nil),
-                opt("env", Lit::Nil),
-                opt("stdin", Lit::Nil),
+                param("cmd").of(cmd),
+                opt("cwd", Lit::Nil).of("str | nil"),
+                opt("env", Lit::Nil).of("map | nil"),
+                opt("stdin", Lit::Nil).of("str | nil"),
             ]
         };
         vec![
-            ("exec", nat::native_step("exec", exec_fn, run())),
-            ("sh", nat::native_step("sh", sh_fn, run())),
-            ("env", native("env", env_fn, vec![param("name")])),
+            ("exec", nat::native_step("exec", exec_fn, run("list"))),
+            ("sh", nat::native_step("sh", sh_fn, run("str"))),
+            ("env", native("env", env_fn, vec![param("name").of("str")])),
             ("env_all", native("env_all", env_all_fn, vec![])),
         ]
     });

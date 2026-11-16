@@ -28,24 +28,40 @@ pub fn module() -> Rc<Module> {
             ("monotonic", native("monotonic", monotonic_fn, vec![])),
             (
                 "parse",
-                native("parse", parse_fn, vec![param("s"), opt("format", Lit::Nil)]),
+                native(
+                    "parse",
+                    parse_fn,
+                    vec![
+                        param("s").of("str"),
+                        opt("format", Lit::Nil).of("str | nil"),
+                    ],
+                ),
             ),
             (
                 "format",
                 native(
                     "format",
                     format_fn,
-                    vec![param("t"), opt("format", Lit::Nil)],
+                    vec![
+                        param("t").of("time"),
+                        opt("format", Lit::Nil).of("str | nil"),
+                    ],
                 ),
             ),
-            ("utc", native("utc", utc_fn, vec![param("t")])),
-            ("local", native("local", local_fn, vec![param("t")])),
-            ("unix", native("unix", unix_fn, vec![param("t")])),
+            ("utc", native("utc", utc_fn, vec![param("t").of("time")])),
+            (
+                "local",
+                native("local", local_fn, vec![param("t").of("time")]),
+            ),
+            ("unix", native("unix", unix_fn, vec![param("t").of("time")])),
             (
                 "from_unix",
-                native("from_unix", from_unix_fn, vec![param("n")]),
+                native("from_unix", from_unix_fn, vec![param("n").of("int")]),
             ),
-            ("parts", native("parts", parts_fn, vec![param("t")])),
+            (
+                "parts",
+                native("parts", parts_fn, vec![param("t").of("time")]),
+            ),
         ]
     });
     let mut m = Module::new("time", "_native.time");

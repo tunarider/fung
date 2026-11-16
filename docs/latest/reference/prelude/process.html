@@ -89,7 +89,7 @@
 <section class="entry" id="fn-exec">
 <h3>exec</h3>
 <p>명령을 쉘 없이 실행하고 끝나기를 기다려 <code>Ok({out, err, code, signal})</code>를 돌려준다. 0이 아닌 종료와 신호로 끝난 것은 <code>Err</code>.</p>
-<div class="sig"><code>exec(cmd, cwd = nil, env = nil, stdin = nil)</code></div>
+<div class="sig"><code>exec(cmd: list, cwd: str | nil = nil, env: map | nil = nil, stdin: str | nil = nil)</code></div>
 <h4>설명</h4>
 <p><code>cmd</code>의 첫 원소를 <code>PATH</code>에서 찾아 나머지를 인자로 실행한다(<code>/</code>가 든 이름이면 그 경로를 쓴다). 명령이 끝나면 표준 출력과 표준 에러를 문자열로 모아 돌려준다. 출력 끝의 줄바꿈도 그대로 들어 있으므로 값 하나를 얻을 때는 <a href="strings.html#fn-trim"><code>trim</code></a>하고, 여러 줄이면 <a href="strings.html#fn-lines"><code>lines</code></a>로 나눈다.</p>
 <ul>
@@ -113,7 +113,7 @@
 <h4>돌려주는 값</h4>
 <p><code>Ok({out: 문자열, err: 문자열, code: 0, signal: nil})</code>, 또는 <code>Err({kind: 'exit, code, signal, out, err, message})</code>(종료 코드면 <code>signal: nil</code>, 신호면 <code>code: nil</code>), 또는 시작하지 못한 <code>Err({kind, message})</code>(<code>'not_found</code>·<code>'permission</code>·<code>'invalid</code>·<code>'io</code>), 또는 <code>Err({kind: 'io, message})</code>(출력이 문자열 한도를 넘음).</p>
 <h4>에러</h4>
-<p>인자의 타입이 틀리면 런타임 에러 E0403: <code>cmd</code>가 문자열이거나(<code>exec(&quot;ls -l&quot;)</code>은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(<code>exec([&quot;&quot;])</code>), 문자열이 아닌 원소가 있을 때, <code>cwd</code>가 빈 문자열일 때, <code>env</code>의 값이 문자열이 아니거나 이름이 비었거나 <code>=</code>·NUL이 있을 때 등.</p>
+<p>인자가 틀리면 E0403: <code>cmd</code>가 리스트가 아니거나(<code>exec(&quot;ls -l&quot;)</code>은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(<code>exec([&quot;&quot;])</code>), 문자열이 아닌 원소가 있을 때, <code>cwd</code>가 빈 문자열일 때, <code>env</code>의 값이 문자열이 아니거나 이름이 비었거나 <code>=</code>·NUL이 있을 때 등.</p>
 <h4>예제</h4>
 <p><strong>출력 얻기</strong></p>
 <div class="run"><pre><code>r = exec([&quot;echo&quot;, &quot;hi&quot;])!
@@ -172,7 +172,7 @@ true</code></pre></div>
 <section class="entry" id="fn-sh">
 <h3>sh</h3>
 <p>문자열 <code>cmd</code>를 <code>/bin/sh -c cmd</code>로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다. 문자열은 쉘에 그대로 넘기고 그 뜻은 쉘이 정한다(<code>sh(&quot;&quot;)</code>는 쉘이 아무 일도 하지 않고 끝나 <code>code: 0</code>이다).</p>
-<div class="sig"><code>sh(cmd, cwd = nil, env = nil, stdin = nil)</code></div>
+<div class="sig"><code>sh(cmd: str, cwd: str | nil = nil, env: map | nil = nil, stdin: str | nil = nil)</code></div>
 <h4>설명</h4>
 <p><code>exec([&quot;/bin/sh&quot;, &quot;-c&quot;, cmd], …)</code>와 같다. 돌려주는 값, <code>cwd</code>·<code>env</code>·<code>stdin</code>, 취소의 규칙이 모두 <a href="#fn-exec"><code>exec</code></a>와 같다. 종료 코드는 쉘의 것, 곧 파이프라인의 마지막 명령의 것이다.</p>
 <div class="box mistake"><b>바깥에서 온 값을 sh 문자열에 끼워 넣지 않는다</b>
@@ -210,7 +210,7 @@ print(trim(r.out))</code></pre><pre class="out plain"><code>two; echo injected</
 <section class="entry" id="fn-env">
 <h3>env</h3>
 <p>환경 변수 <code>name</code>의 값(문자열)을, 없으면 <code>nil</code>을 돌려준다.</p>
-<div class="sig"><code>env(name)</code></div>
+<div class="sig"><code>env(name: str)</code></div>
 <h4>설명</h4>
 <p>값은 언제나 문자열이다. 수가 필요하면 <a href="convert.html#fn-parse_int"><code>parse_int</code></a>로 바꾼다. 없는 변수는 에러가 아니라 <code>nil</code>이므로 <code>??</code>로 기본값을 붙이기 좋다: <code>env(&quot;PORT&quot;) ?? &quot;8080&quot;</code>. 꼭 있어야 하는 변수면 <code>env(&quot;DB_HOST&quot;) ?? fail(&quot;DB_HOST is required&quot;)</code>.</p>
 <p>모든 환경 변수가 필요하면 <a href="#fn-env_all"><code>env_all</code></a>을 쓴다.</p>
@@ -221,7 +221,7 @@ print(trim(r.out))</code></pre><pre class="out plain"><code>two; echo injected</
 <h4>돌려주는 값</h4>
 <p>문자열 또는 <code>nil</code>.</p>
 <h4>에러</h4>
-<p><code>name</code>이 문자열이 아니거나 변수 이름이 될 수 없으면(빈 이름, <code>=</code>나 NUL이 든 이름) 런타임 에러 E0403. 그런 변수는 있을 수 없으므로 <code>nil</code>이 아니라 코드의 실수다. <a href="#fn-exec"><code>exec</code></a>·<a href="#fn-sh"><code>sh</code></a>의 <code>env</code> 맵의 이름도 같은 검사다.</p>
+<p><code>name</code>이 문자열이 아니거나 변수 이름이 될 수 없으면(빈 이름, <code>=</code>나 NUL이 든 이름) E0403. 그런 변수는 있을 수 없으므로 <code>nil</code>이 아니라 코드의 실수다. <a href="#fn-exec"><code>exec</code></a>·<a href="#fn-sh"><code>sh</code></a>의 <code>env</code> 맵의 이름도 같은 검사다.</p>
 <h4>예제</h4>
 <p><strong>기본값과 함께</strong></p>
 <div class="run"><pre><code>port = env(&quot;PORT&quot;) ?? &quot;8080&quot;

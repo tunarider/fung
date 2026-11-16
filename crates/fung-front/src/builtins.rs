@@ -170,8 +170,14 @@ mod tests {
     #[test]
     fn native_signature_is_the_spec_parameter_list() {
         let b = builtins();
-        assert_eq!(b.native_signature("fold"), Some("xs, init, f"));
-        assert_eq!(b.native_signature("join"), Some("xs, sep=?"));
+        assert_eq!(
+            b.native_signature("fold"),
+            Some("xs: list | range | receiver, init, f: fn")
+        );
+        assert_eq!(
+            b.native_signature("join"),
+            Some("xs: list | range | receiver, sep: str=?")
+        );
         assert_eq!(b.native_signature("print"), Some("...args"));
         assert_eq!(b.native_signature("args"), None);
         assert_eq!(b.native_signature("take"), None);
@@ -185,7 +191,7 @@ mod tests {
         for name in ["atom", "deref", "swap", "reset"] {
             assert!(b.prelude_native.iter().any(|n| n == name), "{name}");
         }
-        assert_eq!(b.native_signature("swap"), Some("a, f"));
+        assert_eq!(b.native_signature("swap"), Some("a: atom, f: fn"));
         let names = b.prelude_names();
         assert!(names.windows(2).all(|w| w[0] < w[1]));
         assert!(!names.iter().any(|n| n == "agent"));
@@ -202,11 +208,17 @@ mod tests {
             assert!(!b.prelude_fung.iter().any(|n| n == name), "{name}");
         }
         assert_eq!(b.modules["conc"], ["fan_in", "pmap", "retry"]);
-        assert_eq!(b.module_signature("conc", "fan_in"), Some("s, rxs"));
-        assert_eq!(b.module_signature("conc", "pmap"), Some("xs, f, limit=?"));
+        assert_eq!(
+            b.module_signature("conc", "fan_in"),
+            Some("s: scope, rxs: list")
+        );
+        assert_eq!(
+            b.module_signature("conc", "pmap"),
+            Some("xs, f: fn, limit: int | nil=?")
+        );
         assert_eq!(
             b.module_signature("conc", "retry"),
-            Some("f, times=?, delay=?")
+            Some("f: fn, times: int=?, delay: dur=?")
         );
     }
 
@@ -250,9 +262,12 @@ mod tests {
         let b = builtins();
         assert_eq!(
             b.module_signature("_native.process", "exec"),
-            Some("cmd, cwd=?, env=?, stdin=?")
+            Some("cmd: list, cwd: str | nil=?, env: map | nil=?, stdin: str | nil=?")
         );
-        assert_eq!(b.module_signature("_native.process", "env"), Some("name"));
+        assert_eq!(
+            b.module_signature("_native.process", "env"),
+            Some("name: str")
+        );
         assert_eq!(b.module_signature("_native.process", "env_all"), Some(""));
         assert_eq!(b.module_signature("_native.fs", "temp_dir"), Some(""));
         assert!(!b.modules.contains_key("_native.conc"), "gone with R1b");
@@ -260,7 +275,7 @@ mod tests {
         assert_eq!(b.module_signature("_native.nope", "exec"), None);
         assert_eq!(
             b.module_signature("http", "serve"),
-            Some("addr, handler, ready=?, drain=?, reuse_port=?")
+            Some("addr: str, handler: fn, ready: fn | nil=?, drain: dur=?, reuse_port: bool=?")
         );
         assert!(!b.modules.contains_key("_native.http"));
     }

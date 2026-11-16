@@ -105,7 +105,7 @@
 <section class="entry" id="fn-http-get">
 <h3>http.get<span class="by">fung으로 작성</span></h3>
 <p>URL에 <code>GET</code> 요청을 보내고 응답을 돌려준다.</p>
-<div class="sig"><code>http.get(url, headers = {}, timeout = 30s, max_body = 67108864, redirects = 10)</code></div>
+<div class="sig"><code>http.get(url: str, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10)</code></div>
 <h4>설명</h4>
 <p>가장 흔한 요청이다. <code>curl URL</code>과 같다. 리다이렉트(3xx)는 <code>redirects</code>번(기본 10)까지 따라간다. 요청에는 <code>Host</code>, <code>User-Agent: fung/&lt;버전&gt;</code>이 자동으로 붙고, <code>headers</code>의 것이 같은 이름의 자동 헤더를 대신한다. URL에 <code>user:pass@</code>가 있으면 <code>Authorization: Basic …</code> 헤더가 된다. 프록시 환경 변수(<code>HTTPS_PROXY</code> 등)를 따른다. 자세한 규칙은 <a href="#promises">약속</a>에 있다.</p>
 <p><code>timeout</code>은 이름 조회·연결·TLS 핸드셰이크·리다이렉트를 모두 포함한 <strong>요청 전체</strong>의 한도 하나다. prelude의 <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a>과 같은 규칙이라 <code>0s</code> 이하면 곧바로 시간 초과이고, 요청 자신의 한도를 두지 않으려면 <code>timeout: nil</code>을 준다. 바깥에 더 짧은 <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a> 범위가 있으면 그쪽이 먼저 끊는다(그때는 바깥 <code>timeout</code>의 <code>Err({kind: 'timeout})</code>).</p>
@@ -188,7 +188,7 @@ theme=dark; Expires=Wed, 21 Oct 2026 07:28:00 GMT</code></pre>
 <section class="entry" id="fn-http-post">
 <h3>http.post<span class="by">fung으로 작성</span></h3>
 <p>URL에 <code>POST</code> 요청으로 본문을 보내고 응답을 돌려준다.</p>
-<div class="sig"><code>http.post(url, body, headers = {}, timeout = 30s, max_body = 67108864, redirects = 10)</code></div>
+<div class="sig"><code>http.post(url: str, body: str | nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10)</code></div>
 <h4>설명</h4>
 <p>본문은 문자열이다(<code>nil</code>이면 본문 없이 보낸다). JSON을 보내려면 <a href="json.html#fn-json-stringify"><code>json.stringify</code></a>로 바꾸고 <code>Content-Type: application/json</code> 헤더를 붙인다(자동으로 붙지 않는다). <code>Content-Length</code>는 클라이언트가 쓴다. 나머지는 <a href="#fn-http-get"><code>http.get</code></a>과 같다.</p>
 <h4>매개변수</h4>
@@ -236,7 +236,7 @@ match notify(&quot;backup finished&quot;):
 <section class="entry" id="fn-http-request">
 <h3>http.request<span class="by">fung으로 작성</span></h3>
 <p>아무 메서드로나 요청을 보낸다.</p>
-<div class="sig"><code>http.request(method, url, body = nil, headers = {}, timeout = 30s, max_body = 67108864, redirects = 10)</code></div>
+<div class="sig"><code>http.request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10)</code></div>
 <h4>설명</h4>
 <p><code>PUT</code>, <code>DELETE</code>, <code>PATCH</code>, <code>HEAD</code> 등 <code>get</code>·<code>post</code>가 아닌 메서드에 쓴다. <code>method</code>는 <strong>쓴 그대로</strong> 보낸다: 메서드 이름은 대소문자를 가리므로(<code>&quot;delete&quot;</code>는 <code>DELETE</code>가 아니다) 보통 대문자로 쓴다. <code>HEAD</code> 응답과 1xx·204·304 응답에는 본문이 없다. 나머지는 <a href="#fn-http-get"><code>http.get</code></a>과 같다.</p>
 <h4>매개변수</h4>
@@ -281,7 +281,7 @@ print(r.status, r.headers[&quot;content-length&quot;], r.body == &quot;&quot;)</
 <section class="entry" id="fn-http-serve">
 <h3>http.serve<span class="by">fung으로 작성</span></h3>
 <p>주소에서 HTTP 요청을 받아 <code>handler</code>로 답한다. 멈출 때까지 돌아오지 않는다.</p>
-<div class="sig"><code>http.serve(addr, handler, ready = nil, drain = 10s, reuse_port = false)</code></div>
+<div class="sig"><code>http.serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_port: bool = false)</code></div>
 <h4>설명</h4>
 <p><code>addr</code>에서 듣기 시작하고, 요청마다 <strong>새 태스크</strong>에서 <code>handler(req)</code>를 불러 그 결과로 답한다. 요청이 동시에 여럿 오면 핸들러도 동시에 돈다. 그래서 요청 수 같은 공유 상태는 <a href="../prelude/concurrency.html#fn-atom"><code>atom</code></a>에 둔다. 라우팅 기능은 따로 없고 <code>match req.path:</code>(또는 <code>match (req.method, req.path):</code>)로 나눈다.</p>
 <p><code>req</code>는 <code>{method, target, host, path, query, query_pairs, headers, header_lines, body}</code> 맵이다.</p>
@@ -394,7 +394,7 @@ stopped</code></pre>
 <section class="entry" id="fn-http-url_encode">
 <h3>http.url_encode</h3>
 <p>문자열을 URL의 쿼리 값이나 경로 한 조각으로 쓸 수 있게 바꾼다.</p>
-<div class="sig"><code>http.url_encode(s)</code></div>
+<div class="sig"><code>http.url_encode(s: str)</code></div>
 <h4>설명</h4>
 <p>영문자·숫자와 <code>-._~</code>(RFC 3986의 "예약되지 않은 글자") 밖의 모든 바이트를 <code>%XX</code>(대문자 16진)로 쓴다. 그래서 <code>&amp;</code>·<code>=</code>·<code>+</code>·<code>#</code>·<code>/</code>·공백·한글이 든 값도 URL을 조립할 때 다른 뜻으로 읽히지 않는다. 공백은 <code>+</code>가 아니라 <code>%20</code>이다. URL 전체가 아니라 <strong>값 하나</strong>에 쓴다(<code>&quot;${base}/search?q=${http.url_encode(q)}&quot;</code>).</p>
 <h4>매개변수</h4>
@@ -419,7 +419,7 @@ print(http.url_encode(&quot;한글/a b&quot;))</code></pre><pre class="out plain
 <section class="entry" id="fn-http-url_decode">
 <h3>http.url_decode</h3>
 <p><code>%XX</code>로 쓴 글자를 원래 바이트로 되돌린다.</p>
-<div class="sig"><code>http.url_decode(s)</code></div>
+<div class="sig"><code>http.url_decode(s: str)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-http-url_encode"><code>http.url_encode</code></a>의 반대다. 바깥에서 온 글(로그 속 URL, 리다이렉트 주소)을 읽는 것이라 결과값을 돌려준다. <code>%</code> 뒤에 16진 숫자 두 개가 오지 않으면 <code>Err</code>다. <code>+</code>는 공백으로 바꾸지 않는다(HTML 폼의 규칙이지 URL의 규칙이 아니다). 서버의 핸들러가 받는 <code>req.query</code>는 이미 풀려 있으므로 여기에 다시 넣지 않는다.</p>
 <h4>매개변수</h4>

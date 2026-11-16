@@ -278,6 +278,22 @@ fn time_arithmetic() {
         "E0501",
         "cannot multiply time and int",
     );
+    // the operands as written (VA75)
+    fails(
+        mul(&Value::str("a"), &Value::Dur(1)),
+        "E0501",
+        "cannot multiply str and dur",
+    );
+    fails(
+        mul(&Value::Dur(1), &Value::str("a")),
+        "E0501",
+        "cannot multiply dur and str",
+    );
+    fails(
+        mul(&Value::Dur(1), &Value::Dur(1)),
+        "E0501",
+        "cannot multiply dur and dur",
+    );
     fails(
         sub(&Value::Dur(1), &a),
         "E0501",

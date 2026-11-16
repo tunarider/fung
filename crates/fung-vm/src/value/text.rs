@@ -8,7 +8,10 @@
 //! from, made in O(1) (VA69): the slices of a loop that eats a string from
 //! either end copy nothing. A piece much smaller than the bytes it would
 //! keep alive is copied instead (`Text::slice`), so a small piece of a
-//! big text lets the big text go.
+//! big text lets the big text go. A string that is not UTF-8 remembers
+//! where its first and last bytes outside UTF-8 are: a piece that holds
+//! one is a view too (VA72), and one before the first or after the last
+//! is copied once into text of its own, whose slices are views again.
 
 use std::borrow::Borrow;
 use std::cell::{Cell, OnceCell};
@@ -27,8 +30,9 @@ use fung_front::text;
 enum Repr {
     Utf8(String),
     Bytes(Vec<u8>),
-    /// Bytes `lo..hi` of `root`, at character boundaries. `root` is valid
-    /// UTF-8 and never a view itself (VA69).
+    /// Bytes `lo..hi` of `root`, at character boundaries. `root` is never
+    /// a view itself (VA69). A view of a root that is not UTF-8 holds one
+    /// of its bytes outside UTF-8, so it is not UTF-8 either (VA72).
     View {
         root: Rc<Text>,
         lo: usize,
@@ -67,6 +71,10 @@ struct Seek {
     /// a character is looked up far behind the cursor (VA68): any lookup
     /// after that reads fewer than `STRIDE` characters.
     marks: OnceCell<Box<[usize]>>,
+    /// Of a string that is not UTF-8: the offsets of its first and last
+    /// bytes outside UTF-8, found the first time a big piece is cut from
+    /// it (VA72).
+    bad: OnceCell<(usize, usize)>,
 }
 
 const UNCOUNTED: usize = usize::MAX;
@@ -148,7 +156,11 @@ impl Text {
     }
 
     pub fn is_utf8(&self) -> bool {
-        !matches!(self.repr, Repr::Bytes(_))
+        match &self.repr {
+            Repr::Utf8(_) => true,
+            Repr::Bytes(_) => false,
+            Repr::View { root, .. } => root.is_utf8(),
+        }
     }
 
     /// The number of characters when it is known without counting.
@@ -174,40 +186,92 @@ impl Text {
     }
 
     /// Bytes `from..to` of `this` (character boundaries), which hold
-    /// `chars` characters. A piece of valid UTF-8 is a view of the bytes
-    /// `this` shares, unless it is small or a small part of them: then it
-    /// is copied (VA69). Other bytes are copied and looked at again (a
-    /// piece of them may be valid UTF-8).
+    /// `chars` characters. A piece is a view of the bytes `this` shares,
+    /// unless it is small or a small part of them: then it is copied
+    /// (VA69). A piece of bytes that are not UTF-8 is a view when it
+    /// holds one of the bytes outside UTF-8; otherwise it may be valid
+    /// UTF-8, and is copied and looked at again (VA72).
     pub fn slice(this: &Rc<Text>, from: usize, to: usize, chars: usize) -> Rc<Text> {
+        Text::piece(this, from, to, Some(chars))
+    }
+
+    /// Bytes `from..to` of `this` (character boundaries) after `gone`
+    /// characters were cut off its ends: `this` itself when nothing was
+    /// (VA73).
+    pub fn cut(this: &Rc<Text>, from: usize, to: usize, gone: usize) -> Rc<Text> {
+        if from == 0 && to == this.as_bytes().len() {
+            return this.clone();
+        }
+        Text::piece(this, from, to, this.counted().map(|n| n - gone))
+    }
+
+    /// `slice`, the number of characters given when it is known.
+    fn piece(this: &Rc<Text>, from: usize, to: usize, chars: Option<usize>) -> Rc<Text> {
         let (root, base) = match &this.repr {
-            Repr::Bytes(b) => return Rc::new(Text::new(b[from..to].to_vec())),
-            Repr::Utf8(_) => (this, 0),
+            Repr::Utf8(_) | Repr::Bytes(_) => (this, 0),
             Repr::View { root, lo, .. } => (root, *lo),
         };
         let (lo, hi) = (base + from, base + to);
         let whole = root.as_bytes().len();
-        let piece = if to - from <= SMALL_PIECE || (to - from) * KEEP < whole {
-            let s = root.as_str().expect("a root is UTF-8")[lo..hi].to_string();
-            // Copying looks at every byte anyway.
-            let ascii = this.known_ascii() || s.is_ascii();
-            Text::ascii(s, ascii)
-        } else {
-            let ascii = if this.known_ascii() {
-                ASCII
-            } else {
-                ASCII_UNKNOWN
-            };
-            Text::with(
+        let small = to - from <= SMALL_PIECE || (to - from) * KEEP < whole;
+        let piece = match root.as_str() {
+            None if !small && root.holds_bad_byte(lo, hi) => Text::with(
                 Repr::View {
                     root: root.clone(),
                     lo,
                     hi,
                 },
-                ascii,
-            )
+                NOT_ASCII,
+            ),
+            // looked at again: it may be valid UTF-8
+            None => Text::new(root.as_bytes()[lo..hi].to_vec()),
+            Some(s) if small => {
+                let s = s[lo..hi].to_string();
+                // Copying looks at every byte anyway.
+                let ascii = this.known_ascii() || s.is_ascii();
+                Text::ascii(s, ascii)
+            }
+            Some(_) => {
+                let ascii = if this.known_ascii() {
+                    ASCII
+                } else {
+                    ASCII_UNKNOWN
+                };
+                Text::with(
+                    Repr::View {
+                        root: root.clone(),
+                        lo,
+                        hi,
+                    },
+                    ascii,
+                )
+            }
         };
-        piece.chars.set(chars);
+        if let Some(chars) = chars {
+            piece.chars.set(chars);
+        }
         Rc::new(piece)
+    }
+
+    /// Whether bytes `lo..hi` (character boundaries) of this string, which
+    /// is not UTF-8, are known to hold a byte outside UTF-8: its first or
+    /// its last. A character of valid UTF-8 never holds one, so a piece
+    /// with one is not UTF-8 whatever else it holds.
+    fn holds_bad_byte(&self, lo: usize, hi: usize) -> bool {
+        let seek = self.seek.get_or_init(Box::default);
+        let (first, last) = *seek.bad.get_or_init(|| {
+            let (mut at, mut first, mut last) = (0, None, 0);
+            for chunk in self.as_bytes().utf8_chunks() {
+                at += chunk.valid().len();
+                if !chunk.invalid().is_empty() {
+                    first.get_or_insert(at);
+                    at += chunk.invalid().len();
+                    last = at - 1;
+                }
+            }
+            (first.expect("not UTF-8"), last)
+        });
+        (lo..hi).contains(&first) || (lo..hi).contains(&last)
     }
 
     /// `x` followed by `y`. Two valid UTF-8 texts are joined as text, with
@@ -240,8 +304,10 @@ impl Text {
             return false;
         };
         if let Repr::View { .. } = self.repr {
-            let own = self.as_str().expect("a view is UTF-8").to_string();
-            self.repr = Repr::Utf8(own);
+            let Some(own) = self.as_str() else {
+                return false;
+            };
+            self.repr = Repr::Utf8(own.to_string());
         }
         let counted = match (self.counted(), y.counted()) {
             (Some(m), Some(n)) => m + n,

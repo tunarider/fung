@@ -70,7 +70,7 @@ fn _zip_ends(a, b, acc) = match _next(a):
 
 # A side that counts says how many pairs there can be, and a receiving
 # end gives only that many (D105, D119): the rest stays in the channel.
-fn zip(xs, ys):
+fn zip(xs: list | range | receiver, ys: list | range | receiver):
   m = _zip_count(xs)
   n = _zip_count(ys)
   if m == nil and n == nil: return _zip_ends(xs, ys, []) ;;
@@ -79,13 +79,13 @@ fn zip(xs, ys):
   for i in 0..len(right): (left[i], right[i]) ;;
 ;;
 
-fn first(xs):
+fn first(xs: list | range | receiver):
   if type_of(xs) == 'range: return _start(xs) ;;
   ys = type_of(xs) == 'receiver then _receive(xs, 1, []) else _list(xs, "take the first of")
   len(ys) == 0 then nil else ys[0]
 ;;
 
-fn last(xs):
+fn last(xs: list | range | receiver):
   if type_of(xs) == 'range: return _r.last(xs) ;;
   ys = _list(xs, "take the last of")
   len(ys) == 0 then nil else ys[len(ys) - 1]
@@ -100,7 +100,7 @@ fn _clamp(n, size):
   n > size then size else n
 ;;
 
-fn take(xs, n):
+fn take(xs: list | range | receiver, n: int):
   _ = _arg.count("n", n)
   if type_of(xs) == 'receiver: return _receive(xs, _clamp(n, n), []) ;;
   if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp(n, n)), x => x) ;;
@@ -108,7 +108,7 @@ fn take(xs, n):
   ys[.._clamp(n, len(ys))]
 ;;
 
-fn drop(xs, n):
+fn drop(xs: list | range | receiver, n: int):
   _ = _arg.count("n", n)
   if type_of(xs) == 'range: return map(_r.slice(xs, _clamp(n, n)), x => x) ;;
   ys = _list(xs, "drop from")

@@ -235,7 +235,11 @@ pub fn mul(a: &Value, b: &Value) -> Result<Value, Diag> {
         return scale_dur(*d, b);
     }
     if let Value::Dur(d) = b {
-        return scale_dur(*d, a);
+        // the error names the operands as written (VA75)
+        return scale_dur(*d, a).map_err(|e| match matches!(a, Value::Int(_) | Value::Float(_)) {
+            true => e,
+            false => type_error("multiply", &type_name(a), &type_name(b)),
+        });
     }
     match numeric("multiply", a, b)? {
         Num::Floats(x, y) => finite(x * y),

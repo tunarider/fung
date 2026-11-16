@@ -59,11 +59,15 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "header_problem",
-                native("header_problem", header_problem_fn, vec![param("m")]),
+                native(
+                    "header_problem",
+                    header_problem_fn,
+                    vec![param("m").of("map")],
+                ),
             ),
             (
                 "is_token",
-                native("is_token", is_token_fn, vec![param("s")]),
+                native("is_token", is_token_fn, vec![param("s").of("str")]),
             ),
             (
                 "result",

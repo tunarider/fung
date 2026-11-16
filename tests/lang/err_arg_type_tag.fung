@@ -1,4 +1,4 @@
 fn f(s: Circle) = s
 n = 1
-f(n)
+print(f(n))
 # expect-error: E0403

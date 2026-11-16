@@ -72,7 +72,7 @@ print(check_port(70000))
 
 :::
 
-:::fn with(acquire, use, release)
+:::fn with(acquire: fn, use: fn, release: fn)
 
 `acquire()`로 얻은 것을 `use`에 넘기고, `use`가 어떻게 끝나든 `release`를 부른다.
 
@@ -160,7 +160,7 @@ print(r)
 
 :::
 
-:::fn exit(code = 0)
+:::fn exit(code: int = 0)
 
 프로그램을 끝내고 종료 코드 `code`를 남긴다.
 

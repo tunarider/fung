@@ -219,7 +219,6 @@
 | in/crates~fung-cli~tests~data~test~asserts@cpushed.fung
 | in/crates~fung-cli~tests~data~test~asserts@crlf.fung
 | in/crates~fung-cli~tests~data~test~asserts@dedent.fung
-| in/crates~fung-cli~tests~data~test~asserts@halfbytes.fung
 | in/crates~fung-cli~tests~data~test~asserts@moreblank.fung
 | in/crates~fung-cli~tests~data~test~asserts@nofinal.fung
 | in/crates~fung-cli~tests~data~test~asserts@odd3.fung
@@ -853,7 +852,6 @@
 | in/tests~lang~channel_stream@cpushed.fung
 | in/tests~lang~channel_stream@crlf.fung
 | in/tests~lang~channel_stream@dedent.fung
-| in/tests~lang~channel_stream@halfbytes.fung
 | in/tests~lang~channel_stream@moreblank.fung
 | in/tests~lang~channel_stream@nofinal.fung
 | in/tests~lang~channel_stream@odd3.fung
@@ -1193,6 +1191,7 @@
 | in/tests~lang~err_arg_type_tag@bom.fung
 | in/tests~lang~err_arg_type_tag@cpushed.fung
 | in/tests~lang~err_arg_type_tag@crlf.fung
+| in/tests~lang~err_arg_type_tag@halfbytes.fung
 | in/tests~lang~err_arg_type_tag@moreblank.fung
 | in/tests~lang~err_arg_type_tag@nofinal.fung
 | in/tests~lang~err_arg_type_tag@opsplit.fung
@@ -3476,7 +3475,6 @@
 | in/tests~lang~err_tail_library@cpushed.fung
 | in/tests~lang~err_tail_library@crlf.fung
 | in/tests~lang~err_tail_library@dedent.fung
-| in/tests~lang~err_tail_library@halfbytes.fung
 | in/tests~lang~err_tail_library@halflines.fung
 | in/tests~lang~err_tail_library@moreblank.fung
 | in/tests~lang~err_tail_library@nofinal.fung
@@ -4853,6 +4851,22 @@
 | in/tests~lang~return@tight.fung
 | in/tests~lang~return@trailing.fung
 | in/tests~lang~return@wide4.fung
+| in/tests~lang~return_branch@bom.fung
+| in/tests~lang~return_branch@cglued.fung
+| in/tests~lang~return_branch@contsplit.fung
+| in/tests~lang~return_branch@cpushed.fung
+| in/tests~lang~return_branch@crlf.fung
+| in/tests~lang~return_branch@dedent.fung
+| in/tests~lang~return_branch@moreblank.fung
+| in/tests~lang~return_branch@nofinal.fung
+| in/tests~lang~return_branch@odd3.fung
+| in/tests~lang~return_branch@opsplit.fung
+| in/tests~lang~return_branch@spaced.fung
+| in/tests~lang~return_branch@split.fung
+| in/tests~lang~return_branch@tabs.fung
+| in/tests~lang~return_branch@tight.fung
+| in/tests~lang~return_branch@trailing.fung
+| in/tests~lang~return_branch@wide4.fung
 | in/tests~lang~rules_w4a@bom.fung
 | in/tests~lang~rules_w4a@cglued.fung
 | in/tests~lang~rules_w4a@contsplit.fung
@@ -5581,6 +5595,13 @@
 | 2 | test "only when it is
 |   |      ^
 |   |
+| error[E0112]: expected `,` or `)`, found end of file
+|   --> in/crates~fung-cli~tests~data~test~asserts@halfbytes.fung:10:36
+|    |
+| 10 | test "not a bool": assert len("abc"
+|    |                                    ^
+|    |
+|   note: the `(` opened at 10:30
 | error[E0112]: expected `;;` to close the test, found end of file
 |   --> in/crates~fung-cli~tests~data~test~asserts@halflines.fung:16:1
 |    |
@@ -5934,6 +5955,13 @@
 |   | ^
 |   |
 |   note: the `fn` opened at 1:7
+| error[E0112]: expected `,` or `)`, found end of file
+|   --> in/tests~lang~channel_stream@halfbytes.fung:26:24
+|    |
+| 26 | send(b_tx, 1); send(b_t
+|    |                        ^
+|    |
+|   note: the `(` opened at 26:20
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~channels@halflines.fung:18:1
 |    |
@@ -11514,56 +11542,56 @@
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@bom.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@cglued.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@cnospace.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@contsplit.fung:7:11
 |   |
 | 7 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@cpushed.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@crlf.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@dedent.fung:5:9
 |   |
 | 5 | x = 1 + return a
 |   |         ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~err_return_operand@halflines.fung:5:1
 |   |
@@ -11577,84 +11605,84 @@
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@moreblank.fung:13:11
 |    |
 | 13 |   x = 1 + return a
 |    |           ^^^^^^
 |    |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@noblank.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@nofinal.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@odd3.fung:5:12
 |   |
 | 5 |    x = 1 + return a
 |   |            ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@opsplit.fung:10:2
 |    |
 | 10 |  return a
 |    |  ^^^^^^
 |    |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@spaced.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@split.fung:9:11
 |   |
 | 9 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@tabs.fung:5:10
 |   |
 | 5 |     x = 1 + return a
 |   |             ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@tight.fung:5:7
 |   |
 | 5 |   x=1+return a
 |   |       ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@trailing.fung:5:11
 |   |
 | 5 |   x = 1 + return a      
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@wide4.fung:5:13
 |   |
 | 5 |     x = 1 + return a
 |   |             ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0112]: expected `,` or `)`, found end of file
 |   --> in/tests~lang~err_return_type@halfbytes.fung:2:8
 |   |
@@ -12526,13 +12554,12 @@
 |   |                   ^
 |   |
 |  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
-| error[E0112]: expected `,` or `)`, found end of file
-|   --> in/tests~lang~err_spread_value@halfbytes.fung:3:8
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~err_spread_value@halfbytes.fung:3:11
 |   |
-| 3 | print(a
-|   |        ^
+| 3 | print(add(
+|   |           ^
 |   |
-|   note: the `(` opened at 3:6
 | error[E0112]: expected `,` or `)`, found end of file
 |   --> in/tests~lang~err_stack_overflow@halfbytes.fung:1:41
 |   |
@@ -13430,6 +13457,12 @@
 |   |  ^^^^ this is a tag
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+| error[E0112]: expected `(` after fn, found end of file
+|   --> in/tests~lang~err_tail_library@halfbytes.fung:3:5
+|   |
+| 3 | fn f
+|   |     ^
+|   |
 | error[E0112]: expected `(` after fn, found end of file
 |   --> in/tests~lang~err_tail_return_inherited@halfbytes.fung:3:4
 |   |
@@ -14370,6 +14403,12 @@
 | 6 | print(classify(1), 
 |   |                    ^
 |   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~return_branch@halfbytes.fung:12:15
+|    |
+| 12 | fn count(n) = 
+|    |               ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~scopes@halfbytes.fung:10:5
 |    |
@@ -14845,7 +14884,6 @@
 | in/crates~fung-cli~tests~data~test~asserts@cpushed.fung
 | in/crates~fung-cli~tests~data~test~asserts@crlf.fung
 | in/crates~fung-cli~tests~data~test~asserts@dedent.fung
-| in/crates~fung-cli~tests~data~test~asserts@halfbytes.fung
 | in/crates~fung-cli~tests~data~test~asserts@moreblank.fung
 | in/crates~fung-cli~tests~data~test~asserts@nofinal.fung
 | in/crates~fung-cli~tests~data~test~asserts@odd3.fung
@@ -15479,7 +15517,6 @@
 | in/tests~lang~channel_stream@cpushed.fung
 | in/tests~lang~channel_stream@crlf.fung
 | in/tests~lang~channel_stream@dedent.fung
-| in/tests~lang~channel_stream@halfbytes.fung
 | in/tests~lang~channel_stream@moreblank.fung
 | in/tests~lang~channel_stream@nofinal.fung
 | in/tests~lang~channel_stream@odd3.fung
@@ -15819,6 +15856,7 @@
 | in/tests~lang~err_arg_type_tag@bom.fung
 | in/tests~lang~err_arg_type_tag@cpushed.fung
 | in/tests~lang~err_arg_type_tag@crlf.fung
+| in/tests~lang~err_arg_type_tag@halfbytes.fung
 | in/tests~lang~err_arg_type_tag@moreblank.fung
 | in/tests~lang~err_arg_type_tag@nofinal.fung
 | in/tests~lang~err_arg_type_tag@opsplit.fung
@@ -18102,7 +18140,6 @@
 | in/tests~lang~err_tail_library@cpushed.fung
 | in/tests~lang~err_tail_library@crlf.fung
 | in/tests~lang~err_tail_library@dedent.fung
-| in/tests~lang~err_tail_library@halfbytes.fung
 | in/tests~lang~err_tail_library@halflines.fung
 | in/tests~lang~err_tail_library@moreblank.fung
 | in/tests~lang~err_tail_library@nofinal.fung
@@ -19479,6 +19516,22 @@
 | in/tests~lang~return@tight.fung
 | in/tests~lang~return@trailing.fung
 | in/tests~lang~return@wide4.fung
+| in/tests~lang~return_branch@bom.fung
+| in/tests~lang~return_branch@cglued.fung
+| in/tests~lang~return_branch@contsplit.fung
+| in/tests~lang~return_branch@cpushed.fung
+| in/tests~lang~return_branch@crlf.fung
+| in/tests~lang~return_branch@dedent.fung
+| in/tests~lang~return_branch@moreblank.fung
+| in/tests~lang~return_branch@nofinal.fung
+| in/tests~lang~return_branch@odd3.fung
+| in/tests~lang~return_branch@opsplit.fung
+| in/tests~lang~return_branch@spaced.fung
+| in/tests~lang~return_branch@split.fung
+| in/tests~lang~return_branch@tabs.fung
+| in/tests~lang~return_branch@tight.fung
+| in/tests~lang~return_branch@trailing.fung
+| in/tests~lang~return_branch@wide4.fung
 | in/tests~lang~rules_w4a@bom.fung
 | in/tests~lang~rules_w4a@cglued.fung
 | in/tests~lang~rules_w4a@contsplit.fung
@@ -20207,6 +20260,13 @@
 | 2 | test "only when it is
 |   |      ^
 |   |
+| error[E0112]: expected `,` or `)`, found end of file
+|   --> in/crates~fung-cli~tests~data~test~asserts@halfbytes.fung:10:36
+|    |
+| 10 | test "not a bool": assert len("abc"
+|    |                                    ^
+|    |
+|   note: the `(` opened at 10:30
 | error[E0112]: expected `;;` to close the test, found end of file
 |   --> in/crates~fung-cli~tests~data~test~asserts@halflines.fung:16:1
 |    |
@@ -20560,6 +20620,13 @@
 |   | ^
 |   |
 |   note: the `fn` opened at 1:7
+| error[E0112]: expected `,` or `)`, found end of file
+|   --> in/tests~lang~channel_stream@halfbytes.fung:26:24
+|    |
+| 26 | send(b_tx, 1); send(b_t
+|    |                        ^
+|    |
+|   note: the `(` opened at 26:20
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~channels@halflines.fung:18:1
 |    |
@@ -26140,56 +26207,56 @@
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@bom.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@cglued.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@cnospace.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@contsplit.fung:7:11
 |   |
 | 7 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@cpushed.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@crlf.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@dedent.fung:5:9
 |   |
 | 5 | x = 1 + return a
 |   |         ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~err_return_operand@halflines.fung:5:1
 |   |
@@ -26203,84 +26270,84 @@
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@moreblank.fung:13:11
 |    |
 | 13 |   x = 1 + return a
 |    |           ^^^^^^
 |    |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@noblank.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@nofinal.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@odd3.fung:5:12
 |   |
 | 5 |    x = 1 + return a
 |   |            ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@opsplit.fung:10:2
 |    |
 | 10 |  return a
 |    |  ^^^^^^
 |    |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@spaced.fung:5:11
 |   |
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@split.fung:9:11
 |   |
 | 9 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@tabs.fung:5:10
 |   |
 | 5 |     x = 1 + return a
 |   |             ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@tight.fung:5:7
 |   |
 | 5 |   x=1+return a
 |   |       ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@trailing.fung:5:11
 |   |
 | 5 |   x = 1 + return a      
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0132]: `return` used as a value
 |   --> in/tests~lang~err_return_operand@wide4.fung:5:13
 |   |
 | 5 |     x = 1 + return a
 |   |             ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 | error[E0112]: expected `,` or `)`, found end of file
 |   --> in/tests~lang~err_return_type@halfbytes.fung:2:8
 |   |
@@ -27152,13 +27219,12 @@
 |   |                   ^
 |   |
 |  help: `...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
-| error[E0112]: expected `,` or `)`, found end of file
-|   --> in/tests~lang~err_spread_value@halfbytes.fung:3:8
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~err_spread_value@halfbytes.fung:3:11
 |   |
-| 3 | print(a
-|   |        ^
+| 3 | print(add(
+|   |           ^
 |   |
-|   note: the `(` opened at 3:6
 | error[E0112]: expected `,` or `)`, found end of file
 |   --> in/tests~lang~err_stack_overflow@halfbytes.fung:1:41
 |   |
@@ -28056,6 +28122,12 @@
 |   |  ^^^^ this is a tag
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+| error[E0112]: expected `(` after fn, found end of file
+|   --> in/tests~lang~err_tail_library@halfbytes.fung:3:5
+|   |
+| 3 | fn f
+|   |     ^
+|   |
 | error[E0112]: expected `(` after fn, found end of file
 |   --> in/tests~lang~err_tail_return_inherited@halfbytes.fung:3:4
 |   |
@@ -28996,6 +29068,12 @@
 | 6 | print(classify(1), 
 |   |                    ^
 |   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~return_branch@halfbytes.fung:12:15
+|    |
+| 12 | fn count(n) = 
+|    |               ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~scopes@halfbytes.fung:10:5
 |    |
@@ -29609,27 +29687,27 @@
 | crates~fung-cli~tests~data~test~_lib~good@trailing.fung 64 22fd773a30b715be
 | crates~fung-cli~tests~data~test~_lib~good@wide4.fung unchanged
 | crates~fung-cli~tests~data~test~asserts.fung unchanged
-| crates~fung-cli~tests~data~test~asserts@bom.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@cglued.fung 629 2fd3dd279baffaf0
+| crates~fung-cli~tests~data~test~asserts@bom.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@cglued.fung 638 e3f2152851124645
 | crates~fung-cli~tests~data~test~asserts@cnospace.fung unchanged
-| crates~fung-cli~tests~data~test~asserts@contsplit.fung 633 9a3686b952d6dd1e
-| crates~fung-cli~tests~data~test~asserts@cpushed.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@crlf.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@dedent.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@halfbytes.fung 315 3fed9eb4247737a0
+| crates~fung-cli~tests~data~test~asserts@contsplit.fung 642 2702d77652c35937
+| crates~fung-cli~tests~data~test~asserts@cpushed.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@crlf.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@dedent.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@halfbytes.fung unchanged
 | crates~fung-cli~tests~data~test~asserts@halflines.fung unchanged
 | crates~fung-cli~tests~data~test~asserts@joined.fung unchanged
-| crates~fung-cli~tests~data~test~asserts@moreblank.fung 644 2254c657474b6054
+| crates~fung-cli~tests~data~test~asserts@moreblank.fung 653 6d70dd9a1abda9e9
 | crates~fung-cli~tests~data~test~asserts@noblank.fung unchanged
-| crates~fung-cli~tests~data~test~asserts@nofinal.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@odd3.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@opsplit.fung 655 25b56734840f291a
-| crates~fung-cli~tests~data~test~asserts@spaced.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@split.fung 713 dae23aefe1d49962
-| crates~fung-cli~tests~data~test~asserts@tabs.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@tight.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@trailing.fung 629 2fd3dd279baffaf0
-| crates~fung-cli~tests~data~test~asserts@wide4.fung 629 2fd3dd279baffaf0
+| crates~fung-cli~tests~data~test~asserts@nofinal.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@odd3.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@opsplit.fung 664 94d002826e681337
+| crates~fung-cli~tests~data~test~asserts@spaced.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@split.fung 725 48a28330460a47a7
+| crates~fung-cli~tests~data~test~asserts@tabs.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@tight.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@trailing.fung 638 e3f2152851124645
+| crates~fung-cli~tests~data~test~asserts@wide4.fung 638 e3f2152851124645
 | crates~fung-cli~tests~data~test~deadlock.fung unchanged
 | crates~fung-cli~tests~data~test~deadlock@bom.fung 105 293b097f0ca09ce5
 | crates~fung-cli~tests~data~test~deadlock@cglued.fung unchanged
@@ -30313,27 +30391,27 @@
 | extras~path@trailing.fung 153 585962f5f75e35cf
 | extras~path@wide4.fung unchanged
 | extras~prelude.fung unchanged
-| extras~prelude@bom.fung 5592 2950efa9a05130bc
-| extras~prelude@cglued.fung 5592 2950efa9a05130bc
+| extras~prelude@bom.fung 5752 34c0b156c5b3d144
+| extras~prelude@cglued.fung 5752 34c0b156c5b3d144
 | extras~prelude@cnospace.fung unchanged
 | extras~prelude@contsplit.fung unchanged
-| extras~prelude@cpushed.fung 5592 2950efa9a05130bc
-| extras~prelude@crlf.fung 5592 2950efa9a05130bc
-| extras~prelude@dedent.fung 5592 2950efa9a05130bc
-| extras~prelude@halfbytes.fung 2797 154e3530082abd28
+| extras~prelude@cpushed.fung 5752 34c0b156c5b3d144
+| extras~prelude@crlf.fung 5752 34c0b156c5b3d144
+| extras~prelude@dedent.fung 5752 34c0b156c5b3d144
+| extras~prelude@halfbytes.fung 2877 558a573e04eba6dc
 | extras~prelude@halflines.fung unchanged
 | extras~prelude@joined.fung unchanged
-| extras~prelude@moreblank.fung 5647 0829db1406b07b2e
+| extras~prelude@moreblank.fung 5807 7419c6c0669e1476
 | extras~prelude@noblank.fung unchanged
-| extras~prelude@nofinal.fung 5592 2950efa9a05130bc
-| extras~prelude@odd3.fung 5592 2950efa9a05130bc
-| extras~prelude@opsplit.fung 6074 34f9c57d4fe795ae
-| extras~prelude@spaced.fung 5592 2950efa9a05130bc
-| extras~prelude@split.fung 6834 a5b1f6efcd584e64
-| extras~prelude@tabs.fung 5592 2950efa9a05130bc
-| extras~prelude@tight.fung 5592 2950efa9a05130bc
-| extras~prelude@trailing.fung 5592 2950efa9a05130bc
-| extras~prelude@wide4.fung 5592 2950efa9a05130bc
+| extras~prelude@nofinal.fung 5752 34c0b156c5b3d144
+| extras~prelude@odd3.fung 5752 34c0b156c5b3d144
+| extras~prelude@opsplit.fung 6234 a727cdb452363972
+| extras~prelude@spaced.fung 5752 34c0b156c5b3d144
+| extras~prelude@split.fung 6994 9a9f08d3c14dd980
+| extras~prelude@tabs.fung 5752 34c0b156c5b3d144
+| extras~prelude@tight.fung 5752 34c0b156c5b3d144
+| extras~prelude@trailing.fung 5752 34c0b156c5b3d144
+| extras~prelude@wide4.fung 5752 34c0b156c5b3d144
 | extras~regex.fung unchanged
 | extras~regex@bom.fung 232 6e7eb71ebf51009b
 | extras~regex@cglued.fung unchanged
@@ -30709,27 +30787,27 @@
 | tests~lang~cancel@trailing.fung 430 e98ad3fddfec7c71
 | tests~lang~cancel@wide4.fung 430 e98ad3fddfec7c71
 | tests~lang~channel_stream.fung unchanged
-| tests~lang~channel_stream@bom.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@cglued.fung 994 53fdd5cae98881a7
+| tests~lang~channel_stream@bom.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@cglued.fung 1008 88afdf4bdbd049ec
 | tests~lang~channel_stream@cnospace.fung unchanged
 | tests~lang~channel_stream@contsplit.fung unchanged
-| tests~lang~channel_stream@cpushed.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@crlf.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@dedent.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@halfbytes.fung 498 c88638257206abf3
+| tests~lang~channel_stream@cpushed.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@crlf.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@dedent.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@halfbytes.fung unchanged
 | tests~lang~channel_stream@halflines.fung unchanged
 | tests~lang~channel_stream@joined.fung unchanged
-| tests~lang~channel_stream@moreblank.fung 1020 957e8bc11169af75
+| tests~lang~channel_stream@moreblank.fung 1035 cfb947d650a7bbd4
 | tests~lang~channel_stream@noblank.fung unchanged
-| tests~lang~channel_stream@nofinal.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@odd3.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@opsplit.fung 1028 c8832ac36fc26587
-| tests~lang~channel_stream@spaced.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@split.fung 1374 7c9afdfe401ed7a9
-| tests~lang~channel_stream@tabs.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@tight.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@trailing.fung 994 53fdd5cae98881a7
-| tests~lang~channel_stream@wide4.fung 994 53fdd5cae98881a7
+| tests~lang~channel_stream@nofinal.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@odd3.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@opsplit.fung 1044 c4ada4b8d1a5e036
+| tests~lang~channel_stream@spaced.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@split.fung 1388 38f060ea22cfb832
+| tests~lang~channel_stream@tabs.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@tight.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@trailing.fung 1008 88afdf4bdbd049ec
+| tests~lang~channel_stream@wide4.fung 1008 88afdf4bdbd049ec
 | tests~lang~channels.fung unchanged
 | tests~lang~channels@bom.fung 821 a6f57d3be923a229
 | tests~lang~channels@cglued.fung 821 a6f57d3be923a229
@@ -31259,48 +31337,48 @@
 | tests~lang~err_arg_twice@trailing.fung 45 0980c65f58c4300f
 | tests~lang~err_arg_twice@wide4.fung unchanged
 | tests~lang~err_arg_type.fung unchanged
-| tests~lang~err_arg_type@bom.fung 52 d2f5f746f5c81002
+| tests~lang~err_arg_type@bom.fung 59 f137a5054fa6b210
 | tests~lang~err_arg_type@cglued.fung unchanged
 | tests~lang~err_arg_type@cnospace.fung unchanged
 | tests~lang~err_arg_type@contsplit.fung unchanged
-| tests~lang~err_arg_type@cpushed.fung 52 d2f5f746f5c81002
-| tests~lang~err_arg_type@crlf.fung 52 d2f5f746f5c81002
+| tests~lang~err_arg_type@cpushed.fung 59 f137a5054fa6b210
+| tests~lang~err_arg_type@crlf.fung 59 f137a5054fa6b210
 | tests~lang~err_arg_type@dedent.fung unchanged
-| tests~lang~err_arg_type@halfbytes.fung 27 8d84c554005b0079
+| tests~lang~err_arg_type@halfbytes.fung 30 3e759dd2770e0e82
 | tests~lang~err_arg_type@halflines.fung unchanged
 | tests~lang~err_arg_type@joined.fung unchanged
-| tests~lang~err_arg_type@moreblank.fung 55 b7f26cd841645174
+| tests~lang~err_arg_type@moreblank.fung 62 9e7fe9653adb969e
 | tests~lang~err_arg_type@noblank.fung unchanged
-| tests~lang~err_arg_type@nofinal.fung 52 d2f5f746f5c81002
+| tests~lang~err_arg_type@nofinal.fung 59 f137a5054fa6b210
 | tests~lang~err_arg_type@odd3.fung unchanged
-| tests~lang~err_arg_type@opsplit.fung 56 5c8fb124d069021a
-| tests~lang~err_arg_type@spaced.fung 52 d2f5f746f5c81002
-| tests~lang~err_arg_type@split.fung 58 4c5f6a574db6e2ca
+| tests~lang~err_arg_type@opsplit.fung 63 4276425d0cc89e38
+| tests~lang~err_arg_type@spaced.fung 59 f137a5054fa6b210
+| tests~lang~err_arg_type@split.fung 70 28c17ed6154f6468
 | tests~lang~err_arg_type@tabs.fung unchanged
-| tests~lang~err_arg_type@tight.fung 52 d2f5f746f5c81002
-| tests~lang~err_arg_type@trailing.fung 52 d2f5f746f5c81002
+| tests~lang~err_arg_type@tight.fung 59 f137a5054fa6b210
+| tests~lang~err_arg_type@trailing.fung 59 f137a5054fa6b210
 | tests~lang~err_arg_type@wide4.fung unchanged
 | tests~lang~err_arg_type_tag.fung unchanged
-| tests~lang~err_arg_type_tag@bom.fung 53 12fb5dea01e7236b
+| tests~lang~err_arg_type_tag@bom.fung 60 ad84ccb34a456e2f
 | tests~lang~err_arg_type_tag@cglued.fung unchanged
 | tests~lang~err_arg_type_tag@cnospace.fung unchanged
 | tests~lang~err_arg_type_tag@contsplit.fung unchanged
-| tests~lang~err_arg_type_tag@cpushed.fung 53 12fb5dea01e7236b
-| tests~lang~err_arg_type_tag@crlf.fung 53 12fb5dea01e7236b
+| tests~lang~err_arg_type_tag@cpushed.fung 60 ad84ccb34a456e2f
+| tests~lang~err_arg_type_tag@crlf.fung 60 ad84ccb34a456e2f
 | tests~lang~err_arg_type_tag@dedent.fung unchanged
-| tests~lang~err_arg_type_tag@halfbytes.fung unchanged
+| tests~lang~err_arg_type_tag@halfbytes.fung 31 31de11f5b003e08a
 | tests~lang~err_arg_type_tag@halflines.fung unchanged
 | tests~lang~err_arg_type_tag@joined.fung unchanged
-| tests~lang~err_arg_type_tag@moreblank.fung 56 24ba823a532b58dd
+| tests~lang~err_arg_type_tag@moreblank.fung 63 222ced6a6aa05339
 | tests~lang~err_arg_type_tag@noblank.fung unchanged
-| tests~lang~err_arg_type_tag@nofinal.fung 53 12fb5dea01e7236b
+| tests~lang~err_arg_type_tag@nofinal.fung 60 ad84ccb34a456e2f
 | tests~lang~err_arg_type_tag@odd3.fung unchanged
-| tests~lang~err_arg_type_tag@opsplit.fung 57 2c6400692a001983
-| tests~lang~err_arg_type_tag@spaced.fung 53 12fb5dea01e7236b
-| tests~lang~err_arg_type_tag@split.fung 59 1a9ab2ca5025ae23
+| tests~lang~err_arg_type_tag@opsplit.fung 64 33ce4ee1d928d5b7
+| tests~lang~err_arg_type_tag@spaced.fung 60 ad84ccb34a456e2f
+| tests~lang~err_arg_type_tag@split.fung 71 9642bd27d77f3eb7
 | tests~lang~err_arg_type_tag@tabs.fung unchanged
-| tests~lang~err_arg_type_tag@tight.fung 53 12fb5dea01e7236b
-| tests~lang~err_arg_type_tag@trailing.fung 53 12fb5dea01e7236b
+| tests~lang~err_arg_type_tag@tight.fung 60 ad84ccb34a456e2f
+| tests~lang~err_arg_type_tag@trailing.fung 60 ad84ccb34a456e2f
 | tests~lang~err_arg_type_tag@wide4.fung unchanged
 | tests~lang~err_assert.fung unchanged
 | tests~lang~err_assert@bom.fung 65 536d3faeed82e1c2
@@ -34817,26 +34895,26 @@
 | tests~lang~err_mixed_inexact@trailing.fung 275 70186c5adc107e52
 | tests~lang~err_mixed_inexact@wide4.fung unchanged
 | tests~lang~err_named_literal.fung unchanged
-| tests~lang~err_named_literal@bom.fung 187 6b6cebf4e01a926c
-| tests~lang~err_named_literal@cglued.fung 187 6b6cebf4e01a926c
+| tests~lang~err_named_literal@bom.fung 247 6a66a5ac09395f82
+| tests~lang~err_named_literal@cglued.fung 247 6a66a5ac09395f82
 | tests~lang~err_named_literal@cnospace.fung unchanged
 | tests~lang~err_named_literal@contsplit.fung unchanged
-| tests~lang~err_named_literal@cpushed.fung 187 6b6cebf4e01a926c
-| tests~lang~err_named_literal@crlf.fung 187 6b6cebf4e01a926c
+| tests~lang~err_named_literal@cpushed.fung 247 6a66a5ac09395f82
+| tests~lang~err_named_literal@crlf.fung 247 6a66a5ac09395f82
 | tests~lang~err_named_literal@dedent.fung unchanged
-| tests~lang~err_named_literal@halfbytes.fung 94 7aa5340f2bdb61b0
+| tests~lang~err_named_literal@halfbytes.fung 124 2102e03ed7d29f8a
 | tests~lang~err_named_literal@halflines.fung unchanged
 | tests~lang~err_named_literal@joined.fung unchanged
-| tests~lang~err_named_literal@moreblank.fung 192 e72edd436177130e
+| tests~lang~err_named_literal@moreblank.fung 254 472f3d8ec609dc08
 | tests~lang~err_named_literal@noblank.fung unchanged
-| tests~lang~err_named_literal@nofinal.fung 187 6b6cebf4e01a926c
+| tests~lang~err_named_literal@nofinal.fung 247 6a66a5ac09395f82
 | tests~lang~err_named_literal@odd3.fung unchanged
-| tests~lang~err_named_literal@opsplit.fung 189 f291d031a846e186
-| tests~lang~err_named_literal@spaced.fung 187 6b6cebf4e01a926c
-| tests~lang~err_named_literal@split.fung 193 c0cb12a26d7a1152
+| tests~lang~err_named_literal@opsplit.fung 249 6eceb8b81563da40
+| tests~lang~err_named_literal@spaced.fung 247 6a66a5ac09395f82
+| tests~lang~err_named_literal@split.fung 253 bc94361ddecad83c
 | tests~lang~err_named_literal@tabs.fung unchanged
-| tests~lang~err_named_literal@tight.fung 187 6b6cebf4e01a926c
-| tests~lang~err_named_literal@trailing.fung 187 6b6cebf4e01a926c
+| tests~lang~err_named_literal@tight.fung 247 6a66a5ac09395f82
+| tests~lang~err_named_literal@trailing.fung 247 6a66a5ac09395f82
 | tests~lang~err_named_literal@wide4.fung unchanged
 | tests~lang~err_native_import.fung unchanged
 | tests~lang~err_native_import@bom.fung 40 35da5ed681a7ec63
@@ -36290,26 +36368,26 @@
 | tests~lang~err_spread_not_last@trailing.fung unchanged
 | tests~lang~err_spread_not_last@wide4.fung unchanged
 | tests~lang~err_spread_value.fung unchanged
-| tests~lang~err_spread_value@bom.fung 137 015b918dde21e5a8
-| tests~lang~err_spread_value@cglued.fung 137 015b918dde21e5a8
+| tests~lang~err_spread_value@bom.fung 143 ee2a704befc1f80d
+| tests~lang~err_spread_value@cglued.fung 143 ee2a704befc1f80d
 | tests~lang~err_spread_value@cnospace.fung unchanged
 | tests~lang~err_spread_value@contsplit.fung unchanged
-| tests~lang~err_spread_value@cpushed.fung 137 015b918dde21e5a8
-| tests~lang~err_spread_value@crlf.fung 137 015b918dde21e5a8
+| tests~lang~err_spread_value@cpushed.fung 143 ee2a704befc1f80d
+| tests~lang~err_spread_value@crlf.fung 143 ee2a704befc1f80d
 | tests~lang~err_spread_value@dedent.fung unchanged
 | tests~lang~err_spread_value@halfbytes.fung unchanged
 | tests~lang~err_spread_value@halflines.fung unchanged
 | tests~lang~err_spread_value@joined.fung unchanged
-| tests~lang~err_spread_value@moreblank.fung 142 8cc81d959a4c157e
+| tests~lang~err_spread_value@moreblank.fung 149 8930a4ef7c5007b1
 | tests~lang~err_spread_value@noblank.fung unchanged
-| tests~lang~err_spread_value@nofinal.fung 137 015b918dde21e5a8
+| tests~lang~err_spread_value@nofinal.fung 143 ee2a704befc1f80d
 | tests~lang~err_spread_value@odd3.fung unchanged
-| tests~lang~err_spread_value@opsplit.fung 141 8268431c8e9b1170
-| tests~lang~err_spread_value@spaced.fung 137 015b918dde21e5a8
-| tests~lang~err_spread_value@split.fung 171 067c92c7361e6548
+| tests~lang~err_spread_value@opsplit.fung 149 1004942e91229333
+| tests~lang~err_spread_value@spaced.fung 143 ee2a704befc1f80d
+| tests~lang~err_spread_value@split.fung 177 d7b03d24c50ece8d
 | tests~lang~err_spread_value@tabs.fung unchanged
-| tests~lang~err_spread_value@tight.fung 137 015b918dde21e5a8
-| tests~lang~err_spread_value@trailing.fung 137 015b918dde21e5a8
+| tests~lang~err_spread_value@tight.fung 143 ee2a704befc1f80d
+| tests~lang~err_spread_value@trailing.fung 143 ee2a704befc1f80d
 | tests~lang~err_spread_value@wide4.fung unchanged
 | tests~lang~err_stack_overflow.fung unchanged
 | tests~lang~err_stack_overflow@bom.fung 81 c2915ad1fd02806b
@@ -36584,27 +36662,27 @@
 | tests~lang~err_tag_shorthand_pattern@trailing.fung unchanged
 | tests~lang~err_tag_shorthand_pattern@wide4.fung unchanged
 | tests~lang~err_tail_library.fung unchanged
-| tests~lang~err_tail_library@bom.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@cglued.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@bom.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@cglued.fung 235 3b9b194f4855a549
 | tests~lang~err_tail_library@cnospace.fung unchanged
 | tests~lang~err_tail_library@contsplit.fung unchanged
-| tests~lang~err_tail_library@cpushed.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@crlf.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@dedent.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@halfbytes.fung 115 f72d513ecc11ed25
-| tests~lang~err_tail_library@halflines.fung 149 66e1e06bc601f94b
+| tests~lang~err_tail_library@cpushed.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@crlf.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@dedent.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@halfbytes.fung unchanged
+| tests~lang~err_tail_library@halflines.fung 148 cbfe3ee02cf5becb
 | tests~lang~err_tail_library@joined.fung unchanged
-| tests~lang~err_tail_library@moreblank.fung 233 478f151340b3fdbd
+| tests~lang~err_tail_library@moreblank.fung 239 f2d92cff1353f34d
 | tests~lang~err_tail_library@noblank.fung unchanged
-| tests~lang~err_tail_library@nofinal.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@odd3.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@opsplit.fung 233 d25484fc349052bb
-| tests~lang~err_tail_library@spaced.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@split.fung 272 52af41e37eaded5d
-| tests~lang~err_tail_library@tabs.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@tight.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@trailing.fung 229 d0e833a06505efb9
-| tests~lang~err_tail_library@wide4.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@nofinal.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@odd3.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@opsplit.fung 239 577768505085e7a7
+| tests~lang~err_tail_library@spaced.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@split.fung 284 5c101681125922e9
+| tests~lang~err_tail_library@tabs.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@tight.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@trailing.fung 235 3b9b194f4855a549
+| tests~lang~err_tail_library@wide4.fung 235 3b9b194f4855a549
 | tests~lang~err_tail_return_inherited.fung unchanged
 | tests~lang~err_tail_return_inherited@bom.fung 257 8f6b0ee0f5f3a750
 | tests~lang~err_tail_return_inherited@cglued.fung 257 8f6b0ee0f5f3a750
@@ -39003,6 +39081,28 @@
 | tests~lang~return@tight.fung 206 ef2c18b607397e00
 | tests~lang~return@trailing.fung 206 ef2c18b607397e00
 | tests~lang~return@wide4.fung 206 ef2c18b607397e00
+| tests~lang~return_branch.fung unchanged
+| tests~lang~return_branch@bom.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@cglued.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@cnospace.fung unchanged
+| tests~lang~return_branch@contsplit.fung 832 0fc0d1ace87fe664
+| tests~lang~return_branch@cpushed.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@crlf.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@dedent.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@halfbytes.fung unchanged
+| tests~lang~return_branch@halflines.fung unchanged
+| tests~lang~return_branch@joined.fung unchanged
+| tests~lang~return_branch@moreblank.fung 825 6813bf8541078a44
+| tests~lang~return_branch@noblank.fung unchanged
+| tests~lang~return_branch@nofinal.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@odd3.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@opsplit.fung 875 69d78dc2191a86ee
+| tests~lang~return_branch@spaced.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@split.fung 997 61da416a970e8622
+| tests~lang~return_branch@tabs.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@tight.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@trailing.fung 810 3c0a38fe8bf9d532
+| tests~lang~return_branch@wide4.fung 810 3c0a38fe8bf9d532
 | tests~lang~rules_w4a.fung unchanged
 | tests~lang~rules_w4a@bom.fung 848 764059aae4c27374
 | tests~lang~rules_w4a@cglued.fung 848 764059aae4c27374

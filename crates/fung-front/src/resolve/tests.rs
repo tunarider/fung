@@ -236,12 +236,32 @@ fn top_level_names_become_globals() {
 
 #[test]
 fn block_names_become_slots_and_are_reused() {
-    let r = ok("if true: a = 1; _b = a ;;\nif true: _c = 2 ;;");
+    let r = ok("if true: a = 1; b = a; print(b) ;;\nif true: c = 2; print(c) ;;");
     assert_eq!(
         r.core.to_string(),
-        "(do (if true (do (let (local 0) 1) (let (local 1) (local 0))) (nil)) (if true (do (let (local 0) 2)) (nil)))"
+        "(do (if true (do (let (local 0) 1) (let (local 1) (local 0)) (call (prelude print) (local 1))) (nil)) (if true (do (let (local 0) 2) (call (prelude print) (local 0))) (nil)))"
     );
     assert_eq!(r.num_locals, 2);
+    assert_eq!(r.held, Vec::<usize>::new());
+}
+
+/// A name never read holds its value until the function returns: its
+/// slot is one no name had before, and it is not handed to a later block
+/// (VM55, D162).
+#[test]
+fn a_held_name_keeps_a_slot_of_its_own() {
+    let r = ok("if true: a = 1; _b = a ;;\nif true: c = 2; print(c) ;;");
+    assert_eq!(
+        r.core.to_string(),
+        "(do (if true (do (let (local 0) 1) (let (local 1) (local 0))) (nil)) (if true (do (let (local 2) 2) (call (prelude print) (local 2))) (nil)))"
+    );
+    assert_eq!((r.num_locals, r.held), (3, vec![1]));
+    // a slot an earlier block gave back is not the held name's
+    let r = ok("if true: a = 1; print(a) ;;\nif true: _b = 2 ;;\nif true: c = 3; print(c) ;;");
+    assert_eq!((r.num_locals, r.held), (3, vec![1]));
+    // a `_` name that is read is a name like any other
+    let r = ok("if true: _a = 1; print(_a) ;;\nif true: c = 3; print(c) ;;");
+    assert_eq!((r.num_locals, r.held), (1, vec![]));
 }
 
 #[test]
@@ -574,11 +594,12 @@ fn defaults_see_names_of_earlier_pattern_params() {
 
 #[test]
 fn a_closed_name_is_not_read_as_the_prelude() {
-    // A name that left its block is E0206 before it is the prelude's,
-    // even when it is a prelude name the block hid (03, rule 4; D138).
+    // A name that left its block is E0206 before it is the prelude's
+    // (03, rule 4), unless it is a prelude name: a block hides the
+    // prelude function only inside itself (D163).
     let opts = Options::default();
     let (_, errs) = resolve_with(
-        "if true: lines = [1] ;;\nprint(lines)",
+        "if true: found = [1]; print(found) ;;\nprint(found)",
         &["print", "lines"],
         &opts,
     );
@@ -2548,8 +2569,8 @@ fn literals_against_annotations_are_checked() {
         ),
         ("fn f(c) -> int | nil = c then 1 else nil\nprint(f)", ""),
         ("fn f(a: Ok | Err = Ok(1)) = a\nprint(f)", ""),
-        // a name whose one binding is a literal is that literal (D149)
-        ("fn g(a: int) = a\ns = \"x\"\nprint(g(s))", "E0403"),
+        // a name is not followed to the literal it holds (D164)
+        ("fn g(a: int) = a\ns = \"x\"\nprint(g(s))", ""),
         // a name bound to a call's result is not
         ("fn g(a: int) = a\ns = map([1], g)\nprint(g(s))", ""),
         // a rest parameter is always a list
@@ -2705,9 +2726,8 @@ fn prelude_names_can_be_shadowed_for_the_whole_block() {
     let (_, errs) = resolve_with("x = lines(\"a\")\nlines = 1\nprint(x, lines)", pre, &opts);
     let help = errs[0].help.clone().unwrap_or_default();
     assert!(help.contains("line 2"), "{help}");
-    // A block that binds nothing of that name has the prelude function;
-    // after a block that bound it, the name left its block: E0206, as
-    // for any name (03 rule 4), not the prelude's.
+    // A block that binds nothing of that name has the prelude function,
+    // and so does the code after a block that bound it (D163).
     let (_, errs) = resolve_with(
         "fn f(s):\n  if true: print(1) ;;\n  lines(s)\n;;",
         pre,
@@ -2719,82 +2739,50 @@ fn prelude_names_can_be_shadowed_for_the_whole_block() {
         pre,
         &opts,
     );
-    assert_eq!(codes(&errs), ["E0206"], "{errs:?}");
+    assert!(errs.is_empty(), "{errs:?}");
 }
 
-/// D149: a name whose one binding is a literal is checked at compile time
-/// as the literal is (D99, D113): the run's error, at the name, with a
-/// note where it was bound. A name bound to a computed value, and a
-/// parameter, are left to the run.
+/// D164: the compile-time type checks look at the literals written
+/// where the value is used, not at what a name holds: a name bound to a
+/// literal is left to the run, like a name bound to any value (D149,
+/// which followed such names, refused programs that run without error).
 #[test]
-fn names_bound_to_literals_are_checked_like_literals() {
+fn names_bound_to_literals_are_left_to_the_run() {
     let twice = "fn twice(n: int) = n * 2\n";
-    for (src, want) in [
-        (
-            format!("{twice}count = \"4\"\nprint(twice(count))"),
-            "E0403",
-        ),
-        (
-            format!("{twice}count = \"4\"\nd = count\nprint(twice(d))"),
-            "E0403",
-        ),
-        (
-            format!("{twice}count = \"4\"\nfn h() = twice(count)"),
-            "E0403",
-        ),
-        (
-            format!("{twice}fn h():\n  count = \"4\"\n  twice(count)\n;;"),
-            "E0403",
-        ),
-        (
-            format!("{twice}(a, b) = (1, \"x\")\nprint(twice(b), a)"),
-            "E0403",
-        ),
-        ("c = 1\nif c: print(1) ;;".to_string(), "E0505"),
-        ("c = [1]\nprint(c then 1 else 2)".to_string(), "E0505"),
-        ("c = 1\nprint(c and true)".to_string(), "E0505"),
-        ("c = 1\nprint(not c)".to_string(), "E0505"),
-        ("f = 1\nprint(f(2))".to_string(), "E0401"),
-        ("x = 1\nprint(x + \"a\")".to_string(), "E0501"),
-        ("x = \"a\"\nprint(-x)".to_string(), "E0506"),
-        ("x = 1\nprint(x ?? 2)".to_string(), "E0243"),
-        (
-            "fn g():\n  c = 1\n  if c: 1 else: 2 ;;\n;;".to_string(),
-            "E0505",
-        ),
-        // left to the run
-        ("fn g(c) = if c: 1 else: 2 ;;".to_string(), ""),
-        (
-            "c = parse_int(\"1\")\nif c == Ok(1): print(1) ;;".to_string(),
-            "",
-        ),
-        ("x = len(\"a\")\nprint(x + 1)".to_string(), ""),
-        ("x = [1]\ny = [\"a\"]\nprint(x < y)".to_string(), ""),
-        ("x = Ok(1)\nprint(x ?? 2)".to_string(), ""),
-        (format!("{twice}count = 4\nprint(twice(count))"), ""),
+    for src in [
+        // a switch that is `nil` when off, checked before it is used
+        "log_path = nil\nfn open_log(p: str) = p\nif log_path != nil: print(open_log(log_path)) ;;"
+            .to_string(),
+        "max_size = nil\nfn too_big(n) = max_size != nil and n > max_size + 1\nprint(too_big(2))"
+            .to_string(),
+        "wait = 5s\nprint(wait ?? 30s)".to_string(),
+        "wait = nil\nprint(wait ?? 30s)".to_string(),
+        // the run finds these
+        format!("{twice}count = \"4\"\nprint(twice(count))"),
+        format!("{twice}fn h():\n  count = \"4\"\n  twice(count)\n;;\nprint(h)"),
+        format!("{twice}(a, b) = (1, \"x\")\nprint(twice(b), a)"),
+        "c = 1\nif c: print(1) ;;".to_string(),
+        "c = 1\nprint(c and true)".to_string(),
+        "c = 1\nprint(not c)".to_string(),
+        "f = 1\nprint(f(2))".to_string(),
+        "x = 1\nprint(x + \"a\")".to_string(),
+        "x = \"a\"\nprint(-x)".to_string(),
+        "fn g(c) = if c: 1 else: 2 ;;\nprint(g)".to_string(),
+        "x = len(\"a\")\nprint(x + 1)".to_string(),
     ] {
         let (_, errs) = resolve_with(&src, &["print", "parse_int", "len"], &Options::default());
-        let got = codes(&errs);
-        if want.is_empty() {
-            assert!(got.is_empty(), "{src}: {errs:?}");
-        } else {
-            assert_eq!(got, [want], "{src}: {errs:?}");
-        }
+        assert!(errs.is_empty(), "{src}: {errs:?}");
     }
-    // At the name, with the line the name was bound on.
-    let (_, errs) = resolve_with(
-        "c = 1\nx = 2\nif c: print(x) ;;",
-        &["print"],
-        &Options::default(),
-    );
-    assert_eq!((errs[0].pos.line, errs[0].pos.col), (3, 4), "{errs:?}");
-    assert!(
-        errs[0]
-            .notes
-            .iter()
-            .any(|n| n == "note: `c` is bound to a literal on line 1"),
-        "{errs:?}"
-    );
+    // the literal written where it is used is still the compiler's
+    for (src, want) in [
+        (format!("{twice}print(twice(\"4\"))"), "E0403"),
+        ("if 1: print(1) ;;".to_string(), "E0505"),
+        ("print(1 + \"a\")".to_string(), "E0501"),
+        ("print(5s ?? 30s)".to_string(), "E0243"),
+    ] {
+        let (_, errs) = resolve_with(&src, &["print"], &Options::default());
+        assert_eq!(codes(&errs), [want], "{src}: {errs:?}");
+    }
 }
 
 /// D141: whether a function has no effect is read from its body: a fung
@@ -2821,6 +2809,13 @@ fn effect_free_functions_are_known_from_their_bodies() {
         "sq = x => x * x\nsq(2)\nprint(1)",
         "iterate(1, x => x + 1, 3)\nprint(1)",
         "fn half(n) = n / 2\nh = half(_)\nh(4)\nprint(1)",
+        // a parameter called inside a lambda or a `for` body counts as
+        // one called in the body itself (D169)
+        "fn each_of(xs, f) = map(xs, x => f(x))\neach_of([1], x => x)\nprint(1)",
+        "fn total(xs, f) = sum(for x in xs: f(x) ;;)\ntotal([1], x => x)\nprint(1)",
+        "fn deep(xs, f) = map(xs, x => map([x], y => f(y)))\ndeep([1], x => x)\nprint(1)",
+        "fn twice(f, g) = map([1], x => f(g(x)))\ntwice(x => x, x => x)\nprint(1)",
+        "fn via(xs, f):\n  fn step(x) = f(x)\n  map(xs, step)\n;;\nvia([1], x => x)\nprint(1)",
     ] {
         assert_eq!(code(src), ["E0234"], "{src}");
     }
@@ -2834,9 +2829,41 @@ fn effect_free_functions_are_known_from_their_bodies() {
         "fn num(s) = parse_int(s)!\nnum(\"1\")",
         "iterate(1, x => print(x), 3)",
         "fn each_of(xs, f) = map(xs, x => f(x))\neach_of([1], print)",
+        "fn total(xs, f) = sum(for x in xs: f(x) ;;)\ntotal([1], print)",
+        "fn deep(xs, f) = map(xs, x => map([x], y => f(y)))\ndeep([1], print)",
+        "fn twice(f, g) = map([1], x => f(g(x)))\ntwice(x => x, print)",
+        // the lambda's own parameter is called with values not known
+        "fn run(xs) = map(xs, g => g(1))\nrun([print])",
+        // a function made inside leaves with what it caught
+        "fn mk(f) = x => f(x)\ng = mk(print)\ng(1)",
+        "fn mk(f) = x => f(x)\nmk(print)(1)",
     ] {
         assert_eq!(code(src), [] as [&str; 0], "{src}");
     }
+}
+
+/// FE85: a call whose arguments are wrong is that error alone, also
+/// when it is a literal's type that is wrong; and a function literal
+/// called at once is named as what it is.
+#[test]
+fn a_discarded_pure_call_reports_one_thing() {
+    let (_, errs) = resolve_with(
+        "fn twice(n: int) = n * 2\ntwice(\"a\")\nprint(1)",
+        &["print"],
+        &Options::default(),
+    );
+    assert_eq!(codes(&errs), ["E0403"], "{errs:?}");
+    let (_, errs) = resolve_with("(x => x + 1)(2)\nprint(1)", &["print"], &Options::default());
+    assert_eq!(codes(&errs), ["E0234"]);
+    let text = crate::diag::message(&errs[0].code, &errs[0].args);
+    assert_eq!(
+        text,
+        "the result of calling this function is computed and discarded"
+    );
+    assert!(
+        help(&errs[0]).starts_with("this function has no effect"),
+        "{errs:?}"
+    );
 }
 
 /// E0234's help for a function that calls a function it is given points
@@ -2861,15 +2888,101 @@ fn a_higher_order_function_of_the_file_gets_the_each_help() {
     assert!(!help(&errs[0]).contains("`each`"), "{errs:?}");
 }
 
-/// A binding that failed (E0238) leaves the literal of only the binding
-/// it hit unchecked: another name of the same spelling elsewhere is
-/// still checked (D149).
+/// D163: a prelude name a block binds is the prelude function outside
+/// that block: in the arm beside it, after it, before it, in a lambda.
 #[test]
-fn a_failed_binding_hides_only_its_own_literal() {
+fn a_prelude_name_is_hidden_only_inside_the_block_that_binds_it() {
+    let opts = Options::default();
+    let prelude = ["print", "lines", "min", "len", "first", "map"];
+    for src in [
+        "fn smallest(xs, fallback) = match xs:\n  [] => fallback\n  [min] => min\n  _ => min(xs)\n;;",
+        "for len in [1, 2]: print(len) ;;\nprint(len([1, 2, 3]))",
+        "fn f(c, xs):\n  if c:\n    len = 1\n    print(len)\n  else:\n    print(len(xs))\n  ;;\n;;",
+        "fn f(r):\n  match r:\n    Ok(lines) => print(lines)\n    _ =>\n  ;;\n  lines(\"a\")\n;;",
+        "fn f(r):\n  print(lines(\"a\"))\n  match r:\n    Ok(lines) => print(lines)\n    _ =>\n  ;;\n  nil\n;;",
+        "for (first, last) in [(1, 2)]: print(first, last) ;;\n_g = xs => first(xs)",
+        "if true: lines = [1]; print(lines) ;;\nprint(lines)",
+    ] {
+        let (_, errs) = resolve_with(src, &prelude, &opts);
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+    }
+    // inside the block it is the block's name from its first line (D139)
     let (_, errs) = resolve_with(
-        "fn a():\n  c = 1\n  c = 2\n  c\n;;\nfn b():\n  c = 1\n  if c: 1 else: 2 ;;\n;;\nprint(a, b)",
-        &["print"],
-        &Options::default(),
+        "if true:\n  print(len([1]))\n  len = 1\n  print(len)\n;;",
+        &prelude,
+        &opts,
     );
-    assert_eq!(codes(&errs), ["E0238", "E0505"], "{errs:?}");
+    assert_eq!(codes(&errs), ["E0204"]);
+}
+
+/// D168: a parameter's default is inside the body's block, and the
+/// parameters are names of that block: a prelude name a parameter or a
+/// statement of the body binds is that name in every default, so a
+/// default that reads it before it is bound is E0204.
+#[test]
+fn a_default_reads_the_names_of_the_body_block() {
+    let opts = Options::default();
+    let prelude = ["print", "keys", "len", "repeat"];
+    for src in [
+        // the parameter's own name, like `lines = lines(s)`
+        "fn render(rows, keys = keys(rows[0])) = keys",
+        // a later parameter's
+        "fn f(xs, n = len(xs), len = 3) = n + len",
+        // a statement's of the body
+        "fn pad(s, width = len(s)):\n  len = width * 2\n  repeat(s, len)\n;;",
+        // a lambda's parameters are the same
+        "_f = fn(rows, keys = keys(rows)): keys ;;",
+    ] {
+        let (_, errs) = resolve_with(src, &prelude, &opts);
+        assert_eq!(codes(&errs), ["E0204"], "{src:?}: {errs:?}");
+    }
+    for src in [
+        // an earlier parameter is bound already
+        "fn f(len, n = len + 1) = n + len",
+        // a prelude name nothing in the function binds
+        "fn pad(s, width = len(s)) = repeat(s, width)",
+        // another function's parameter hides nothing here
+        "fn a(keys) = keys\nfn b(m, ks = keys(m)) = ks",
+    ] {
+        let (_, errs) = resolve_with(src, &prelude, &opts);
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+    }
+    // a name that is not the prelude's was E0204 already
+    let (_, errs) = resolve_with("fn f(a = b, b = 1) = a + b", &prelude, &opts);
+    assert_eq!(codes(&errs), ["E0204"]);
+}
+
+/// FE83: a negative number or duration is a literal like the positive
+/// one: `-1` is `-` of a literal in the tree, and its type shows.
+#[test]
+fn a_negative_literal_is_a_literal() {
+    for (src, want) in [
+        ("if -1: print(1) ;;", "E0505"),
+        ("print(not -1)", "E0505"),
+        ("print(-1.5 and true)", "E0505"),
+        ("fn f(n: int = -1.5) = n\nprint(f)", "E0403"),
+        ("fn g() -> str = -1\nprint(g)", "E0404"),
+        ("fn h(s: str) = s\nprint(h(-1))", "E0403"),
+        ("print(-1 + \"a\")", "E0501"),
+        ("print(-1s + 1)", "E0501"),
+        ("print(-1 ?? 2)", "E0243"),
+        ("print(-1(2))", "E0401"),
+        // fine
+        (
+            "fn f(n: int = -1) = n\nprint(f, -1 + 2, -1s + 1s, -1.5 < -1)",
+            "",
+        ),
+        (
+            "fn g(d: dur = -1s) -> dur = d\nfn k() -> num = -2.5\nprint(g, k)",
+            "",
+        ),
+    ] {
+        let (_, errs) = resolve_with(src, &["print"], &Options::default());
+        let got = codes(&errs);
+        if want.is_empty() {
+            assert!(got.is_empty(), "{src}: {errs:?}");
+        } else {
+            assert_eq!(got, [want], "{src}: {errs:?}");
+        }
+    }
 }

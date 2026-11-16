@@ -26,15 +26,19 @@ struct Entry {
     fung: bool,
 }
 
-/// A native's signature: `name(a, b = default, ...rest)`.
+/// A native's signature: `name(a: type, b = default, ...rest)`, with the
+/// types its table names (D165).
 fn native_sig(name: &str, n: &Native) -> String {
     let params: Vec<String> = n
         .params
         .iter()
-        .map(|p| match (&p.default, p.rest) {
-            (_, true) => format!("...{}", p.name),
-            (Some(d), _) => format!("{} = {}", p.name, format(&d.to_value())),
-            (None, _) => p.name.to_string(),
+        .map(|p| {
+            let types = p.types.map(|t| format!(": {t}")).unwrap_or_default();
+            match (&p.default, p.rest) {
+                (_, true) => format!("...{}{types}", p.name),
+                (Some(d), _) => format!("{}{types} = {}", p.name, format(&d.to_value())),
+                (None, _) => format!("{}{types}", p.name),
+            }
         })
         .collect();
     format!("{name}({})", params.join(", "))
@@ -105,22 +109,10 @@ fn split_top(s: &str, sep: char) -> Vec<String> {
     out
 }
 
-/// A fung parameter as the manual writes it: the type annotation
-/// dropped (`url: str` → `url`, `headers: map = {}` → `headers = {}`).
+/// A fung parameter as the manual writes it: as the source does, with
+/// its type annotation (`headers: map = {}`).
 fn fung_param(p: &str) -> String {
-    let p = p.trim();
-    if p.starts_with("...") {
-        return p.to_string();
-    }
-    let (head, default) = match p.find(" = ") {
-        Some(i) => (&p[..i], Some(p[i + 3..].trim())),
-        None => (p, None),
-    };
-    let name = head.split(':').next().unwrap().trim();
-    match default {
-        Some(d) => format!("{name} = {d}"),
-        None => name.to_string(),
-    }
+    p.trim().to_string()
 }
 
 /// The public names a fung source defines at its top level: `fn` with
@@ -305,8 +297,14 @@ fn the_function_reference_matches_the_parameter_tables() {
 
 #[test]
 fn signatures_are_read_like_the_manual_writes_them() {
-    assert_eq!(fung_param("headers: map = {}"), "headers = {}".to_string());
-    assert_eq!(fung_param(" body: str | nil = nil"), "body = nil");
+    assert_eq!(
+        fung_param("headers: map = {}"),
+        "headers: map = {}".to_string()
+    );
+    assert_eq!(
+        fung_param(" body: str | nil = nil"),
+        "body: str | nil = nil"
+    );
     assert_eq!(fung_param("...parts"), "...parts");
     assert_eq!(
         split_top("a, b = [1, 2], c = \"x,)\"", ','),
@@ -317,7 +315,7 @@ fn signatures_are_read_like_the_manual_writes_them() {
     assert_eq!(
         e["read"],
         Entry {
-            sig: "read(path)".into(),
+            sig: "read(path: str)".into(),
             fung: false
         }
     );

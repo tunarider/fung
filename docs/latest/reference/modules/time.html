@@ -163,7 +163,7 @@ print(elapsed &gt;= 50ms)</code></pre><pre class="out plain"><code>true</code></
 <section class="entry" id="fn-time-parse">
 <h3>time.parse</h3>
 <p>글자로 적은 시각을 읽어 시각 값으로 바꾼다.</p>
-<div class="sig"><code>time.parse(s, format = nil)</code></div>
+<div class="sig"><code>time.parse(s: str, format: str | nil = nil)</code></div>
 <h4>설명</h4>
 <p><code>format</code>이 없으면 <strong>RFC 3339</strong>(ISO 8601의 인터넷용 꼴)를 엄격하게 읽는다: <code>2026-10-04T09:05:07Z</code>, <code>2026-10-04T09:05:07.5+09:00</code>. 날짜와 시각 사이는 <code>T</code>(공백은 안 됨), 필드는 모두 두 자리, 소수 초는 <code>.</code>과 1~9자리, 끝에는 <code>Z</code>나 오프셋이 꼭 있어야 한다. <code>T</code>와 <code>Z</code>는 소문자도 된다. 초는 0~59다: 윤초 <code>:60</code>은 RFC 3339가 허용하지만 받지 않는다(<code>second out of range</code>).</p>
 <p><code>format</code>이 있으면 <a href="#tokens">형식 토큰</a>대로 읽는다. 시각은 한 순간이므로 형식에는 연(<code>YYYY</code>·<code>YY</code>)·월(<code>MM</code>·<code>MMM</code>)·일(<code>DD</code>)이 모두 있어야 한다. 형식에 없는 시각 필드는 0이다. 형식에 시간대 토큰(<code>Z</code>·<code>ZZ</code>)이 없으면 로컬 시간대의 벽시계로 읽는다. 숫자 오프셋으로 읽은 값은 그 오프셋을 그대로 기억한다.</p>
@@ -178,7 +178,7 @@ print(elapsed &gt;= 50ms)</code></pre><pre class="out plain"><code>true</code></
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'parse, message})</code>: 형식에 맞지 않거나 범위를 넘는다(13월, 2월 30일, 서머타임 빈틈의 로컬 시각). <code>message</code>는 <code>cannot parse `2026-13-04T09:05:07Z` as a time: month out of range</code>처럼 이유를 담는다. <code>ddd</code>가 날짜의 요일과 다르면 <code>weekday Mon does not match 2026-01-02 (Fri)</code>다.</li>
-<li><code>s</code>가 문자열이 아니거나, <code>format</code>에 연·월·일 중 빠진 것이 있거나(<code>&quot;HH:mm&quot;</code>), 같은 필드를 두 번 쓰면(<code>&quot;YYYY-MM-DD MMM&quot;</code>) 런타임 에러 E0403. 시각만 적힌 글은 날짜를 붙여 읽는다: <code>time.parse(&quot;2026-10-04 &quot; + s, &quot;YYYY-MM-DD HH:mm&quot;)</code>.</li>
+<li><code>s</code>가 문자열이 아니면 E0403. <code>format</code>에 연·월·일 중 빠진 것이 있거나(<code>&quot;HH:mm&quot;</code>), 같은 필드를 두 번 쓰면(<code>&quot;YYYY-MM-DD MMM&quot;</code>) 런타임 에러 E0403. 시각만 적힌 글은 날짜를 붙여 읽는다: <code>time.parse(&quot;2026-10-04 &quot; + s, &quot;YYYY-MM-DD HH:mm&quot;)</code>.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>RFC 3339</strong></p>
@@ -219,7 +219,7 @@ print(time.parse(&quot;2026-11-01 01:30&quot;, &quot;YYYY-MM-DD HH:mm&quot;)!)</
 <section class="entry" id="fn-time-format">
 <h3>time.format</h3>
 <p>시각을 문자열로 쓴다.</p>
-<div class="sig"><code>time.format(t, format = nil)</code></div>
+<div class="sig"><code>time.format(t: time, format: str | nil = nil)</code></div>
 <h4>설명</h4>
 <p><code>format</code>이 없으면 ISO 8601 꼴이고, <code>print</code>·<code>str</code>·<code>&quot;${t}&quot;</code>도 같은 꼴을 쓴다. 소수 초는 0이 아닐 때만 붙는다. <code>format</code>이 있으면 <a href="#tokens">형식 토큰</a>대로 쓴다. 값이 기억하는 시간대의 벽시계로 쓰므로, 다른 시간대로 보이려면 먼저 <a href="#fn-time-utc"><code>time.utc</code></a>나 <a href="#fn-time-local"><code>time.local</code></a>로 바꾼다.</p>
 <h4>매개변수</h4>
@@ -256,7 +256,7 @@ backup-20261005-0000.tar.gz</code></pre></div>
 <section class="entry" id="fn-time-utc">
 <h3>time.utc</h3>
 <p>같은 순간을 UTC 시간대로 바꾼다.</p>
-<div class="sig"><code>time.utc(t)</code></div>
+<div class="sig"><code>time.utc(t: time)</code></div>
 <h4>설명</h4>
 <p>순간은 그대로 두고 시간대만 UTC로 바꾼다. 출력과 <a href="#fn-time-format"><code>time.format</code></a>·<a href="#fn-time-parts"><code>time.parts</code></a>의 벽시계가 UTC 기준이 된다. 서버 여러 대의 로그를 합칠 때처럼, 시간대가 섞인 시각을 한 기준으로 맞출 때 쓴다.</p>
 <h4>매개변수</h4>
@@ -277,7 +277,7 @@ print(u, u == seoul, time.parts(u).hour)</code></pre><pre class="out plain"><cod
 <section class="entry" id="fn-time-local">
 <h3>time.local</h3>
 <p>같은 순간을 로컬 시간대로 바꾼다.</p>
-<div class="sig"><code>time.local(t)</code></div>
+<div class="sig"><code>time.local(t: time)</code></div>
 <h4>설명</h4>
 <p>순간은 그대로 두고 시간대를 <a href="#concepts">로컬 시간대</a>로 바꾼다. 외부에서 받은 UTC 시각을 사람에게 보일 때 쓴다.</p>
 <h4>매개변수</h4>
@@ -300,7 +300,7 @@ print(time.local(t), time.format(time.local(t), &quot;HH:mm&quot;))</code></pre>
 <section class="entry" id="fn-time-unix">
 <h3>time.unix</h3>
 <p>시각을 유닉스 시간(초)으로 바꾼다.</p>
-<div class="sig"><code>time.unix(t)</code></div>
+<div class="sig"><code>time.unix(t: time)</code></div>
 <h4>설명</h4>
 <p>1970-01-01T00:00:00Z부터 <code>t</code>까지의 초를 정수로 돌려준다. 초 밑은 과거 쪽으로 내린다(<code>23:59:59.5Z</code>는 <code>…59</code>초). 1970년 전의 시각은 음수다. 시간대와 무관하다.</p>
 <p>범위의 끝에서는 <a href="#fn-time-from_unix"><code>time.from_unix</code></a>로 되돌리지 못할 수 있다. 시각의 범위는 보이는 날짜의 것이라, <code>9999-12-31T23:59:59-05:00</code>처럼 UTC로는 10000년인 시각도 있고 그 유닉스 시간은 9999년 끝(253402300799)보다 크다. <code>time.from_unix</code>는 로컬 시간대의 시각을 만들므로, 로컬 시간대로 본 날짜가 범위를 벗어나는 수는 E0403이다(둘의 차이는 하루 미만이다). 그런 시각은 글로 왕복한다: <code>time.parse(str(t))</code>.</p>
@@ -322,7 +322,7 @@ print(time.unix(time.parse(&quot;1969-12-31T23:59:59Z&quot;)!))</code></pre><pre
 <section class="entry" id="fn-time-from_unix">
 <h3>time.from_unix</h3>
 <p>유닉스 시간(초)을 시각으로 바꾼다.</p>
-<div class="sig"><code>time.from_unix(n)</code></div>
+<div class="sig"><code>time.from_unix(n: int)</code></div>
 <h4>설명</h4>
 <p>정수 <code>n</code>초를 로컬 시간대의 시각으로 돌려준다. 밀리초로 된 값은 <code>n // 1000</code>으로 나눠서 넘긴다.</p>
 <p>받는 수는 로컬 시간대로 본 날짜가 0000~9999년인 것이다. 다른 시간대에서 범위 끝에 있는 시각의 <a href="#fn-time-unix"><code>time.unix</code></a>는 이 범위 밖일 수 있다(하루 미만): 그 시각은 로컬 시간대로 보일 수 없으므로 되돌리지 못한다.</p>
@@ -335,7 +335,7 @@ print(time.unix(time.parse(&quot;1969-12-31T23:59:59Z&quot;)!))</code></pre><pre
 <p>로컬 시간대의 <code>time</code> 값.</p>
 <h4>에러</h4>
 <ul>
-<li>런타임 에러 E0403: <code>n</code>이 정수가 아니거나, 로컬 시간대로 본 날짜가 0000~9999년 범위를 벗어난다.</li>
+<li>E0403: <code>n</code>이 정수가 아니거나, 로컬 시간대로 본 날짜가 0000~9999년 범위를 벗어난다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>로그의 유닉스 시간 읽기</strong></p>
@@ -359,7 +359,7 @@ print(time.from_unix(0))</code></pre><pre class="out plain"><code>1970-01-01T09:
 <section class="entry" id="fn-time-parts">
 <h3>time.parts</h3>
 <p>시각을 연·월·일·시·분·초·요일로 나눈다.</p>
-<div class="sig"><code>time.parts(t)</code></div>
+<div class="sig"><code>time.parts(t: time)</code></div>
 <h4>설명</h4>
 <p><code>{year, month, day, hour, minute, second, weekday}</code> 맵을 돌려준다. 값은 모두 정수이고 <code>weekday</code>만 심볼(<code>'mon</code> <code>'tue</code> <code>'wed</code> <code>'thu</code> <code>'fri</code> <code>'sat</code> <code>'sun</code>)이다. 값이 기억하는 시간대의 벽시계 기준이다. "주말이면 건너뛴다", "매시 정각에만" 같은 조건에 쓴다.</p>
 <h4>매개변수</h4>

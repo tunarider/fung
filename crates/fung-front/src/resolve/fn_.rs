@@ -35,6 +35,7 @@ impl Resolver<'_> {
             for_body: false,
             lambda: false,
             num_locals: 0,
+            held: Vec::new(),
             captures: Vec::new(),
         };
         let mut f = FnScope::new(&decl.name);
@@ -42,6 +43,7 @@ impl Resolver<'_> {
             f.self_sig = Some(self.sig_of_node(n));
         }
         f.nparams = decl.params.len();
+        f.key = super::effect::key(n);
         f.for_body = decl.for_body;
         f.top = top;
         self.fns.push(f);
@@ -70,12 +72,27 @@ impl Resolver<'_> {
         if decl.for_body {
             self.cur_block().made = Made::For;
         }
+        // The parameters are names of the body's block, and the defaults
+        // are inside it: a prelude name a parameter binds is hidden in
+        // every default before it is bound, its own too (D168), as a
+        // statement's is in the lines before it (D139).
+        for prm in &decl.params {
+            if self.prelude.contains(prm.name.as_str())
+                && let Some(h) = self.cur_mut().hiding.last_mut()
+            {
+                h.entry(prm.name.clone()).or_insert(prm.pos);
+            }
+        }
         let mut kids = Vec::new();
         let mut di = 0;
         // The parameters own slots 0..n from the start: a default's names
         // and hidden temporaries come after them, never in a later
         // parameter's slot (VM48).
-        self.cur_mut().next_slot = decl.params.len();
+        // A `_` name takes a slot no name had (`bind_here`), counted from
+        // the highest used: the parameters' are used from the start.
+        let f = self.cur_mut();
+        f.next_slot = decl.params.len();
+        f.max_slot = f.max_slot.max(f.next_slot);
         for (i, prm) in decl.params.iter().enumerate() {
             if prm.has_default {
                 self.cur_mut().in_default = true;
@@ -116,6 +133,7 @@ impl Resolver<'_> {
             }
         }
         info.num_locals = f.max_slot;
+        info.held = f.held;
         info.captures = f.captures;
         Node::with_lit(Head::Fn, n.pos, Lit::Fn(Box::new(info)), kids)
     }

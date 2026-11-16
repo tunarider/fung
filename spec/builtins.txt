@@ -5,186 +5,186 @@
 # ... pure                          a function known to have no effect: a call of it as a statement is E0234
 module _native.arg count(name, n) pure
 module _native.arg dur(name, d) pure
-module _native.arg header_problem(m) pure
+module _native.arg header_problem(m: map) pure
 module _native.arg headers(name, m) pure
-module _native.arg is_token(s) pure
+module _native.arg is_token(s: str) pure
 module _native.arg list_of(name, xs, kind) pure
 module _native.arg options(bools, values) pure
 module _native.arg positive(name, n) pure
 module _native.arg result(name, v) pure
 module _native.arg str_map(name, m) pure
 module _native.arg token(name, s) pure
-module _native.fs append(path, text, perm=?)
-module _native.fs close(file)
-module _native.fs copy(from, to, overwrite=?)
-module _native.fs exists(path)
-module _native.fs glob(pattern)
-module _native.fs list(dir, full=?)
-module _native.fs mkdir(path)
-module _native.fs move(from, to, overwrite=?)
-module _native.fs open(path, mode=?, perm=?)
-module _native.fs read(path)
-module _native.fs remove(path)
-module _native.fs remove_all(path)
-module _native.fs stat(path)
+module _native.fs append(path: str, text: str, perm: int | nil=?)
+module _native.fs close(file: file)
+module _native.fs copy(from: str, to: str, overwrite: bool=?)
+module _native.fs exists(path: str)
+module _native.fs glob(pattern: str)
+module _native.fs list(dir: str, full: bool=?)
+module _native.fs mkdir(path: str)
+module _native.fs move(from: str, to: str, overwrite: bool=?)
+module _native.fs open(path: str, mode: sym=?, perm: int | nil=?)
+module _native.fs read(path: str)
+module _native.fs remove(path: str)
+module _native.fs remove_all(path: str)
+module _native.fs stat(path: str)
 module _native.fs temp_dir()
-module _native.fs walk(dir)
-module _native.fs write(path, text, perm=?)
-module _native.fs write_line(file, line)
-module _native.json parse(s) pure
-module _native.json stringify(x, indent=?) pure
-module _native.net accept(l)
-module _native.net close(x)
-module _native.net close_write(c)
-module _native.net connect(host, port, tls=?, alpn=?)
-module _native.net listen(addr, reuse_port=?)
-module _native.net local_addr(x) pure
-module _native.net read_all(c, limit)
-module _native.net read_bytes(c, n)
-module _native.net read_bytes_into(c, n, cap)
-module _native.net read_fields(c, budget, max)
-module _native.net read_line(c, limit)
-module _native.net read_raw_line(c, limit)
-module _native.net set_deadline(c, d)
-module _native.net start_tls(c, host, alpn=?)
-module _native.net take_body(c)
-module _native.net url_decode(s) pure
-module _native.net url_encode(s) pure
+module _native.fs walk(dir: str)
+module _native.fs write(path: str, text: str, perm: int | nil=?)
+module _native.fs write_line(file: file, line: str)
+module _native.json parse(s: str) pure
+module _native.json stringify(x, indent: int | nil=?) pure
+module _native.net accept(l: listener)
+module _native.net close(x: conn | listener)
+module _native.net close_write(c: conn)
+module _native.net connect(host: str, port: int, tls: bool=?, alpn: list | nil=?)
+module _native.net listen(addr: str, reuse_port: bool=?)
+module _native.net local_addr(x: conn | listener) pure
+module _native.net read_all(c: conn, limit: int)
+module _native.net read_bytes(c: conn, n: int)
+module _native.net read_bytes_into(c: conn, n: int, cap: int)
+module _native.net read_fields(c: conn, budget: int, max: int)
+module _native.net read_line(c: conn, limit: int)
+module _native.net read_raw_line(c: conn, limit: int)
+module _native.net set_deadline(c: conn, d: dur | nil)
+module _native.net start_tls(c: conn, host: str, alpn: list | nil=?)
+module _native.net take_body(c: conn)
+module _native.net url_decode(s: str) pure
+module _native.net url_encode(s: str) pure
 module _native.net user_agent() pure
-module _native.net write(c, s)
-module _native.path abs(p) pure
-module _native.path base(p) pure
-module _native.path dir(p) pure
-module _native.path ext(p) pure
+module _native.net write(c: conn, s: str)
+module _native.path abs(p: str) pure
+module _native.path base(p: str) pure
+module _native.path dir(p: str) pure
+module _native.path ext(p: str) pure
 module _native.path join(...parts) pure
-module _native.path stem(p) pure
-module _native.process env(name) pure
+module _native.path stem(p: str) pure
+module _native.process env(name: str) pure
 module _native.process env_all() pure
-module _native.process exec(cmd, cwd=?, env=?, stdin=?)
-module _native.process sh(cmd, cwd=?, env=?, stdin=?)
-module _native.range items(xs, verb) pure
-module _native.range last(r) pure
-module _native.range pad(pad) pure
-module _native.range slice(r, from, to=?) pure
-module _native.regex escape(s) pure
-module _native.regex find(s, pattern) pure
-module _native.regex find_all(s, pattern) pure
-module _native.regex is_match(s, pattern) pure
-module _native.regex replace(s, pattern, repl) pure
-module _native.regex split(s, pattern) pure
-module _native.time format(t, format=?) pure
-module _native.time from_unix(n) pure
-module _native.time local(t) pure
+module _native.process exec(cmd: list, cwd: str | nil=?, env: map | nil=?, stdin: str | nil=?)
+module _native.process sh(cmd: str, cwd: str | nil=?, env: map | nil=?, stdin: str | nil=?)
+module _native.range items(xs, verb: str) pure
+module _native.range last(r: range) pure
+module _native.range pad(pad: str) pure
+module _native.range slice(r: range, from: int, to: int | nil=?) pure
+module _native.regex escape(s: str) pure
+module _native.regex find(s: str, pattern: str) pure
+module _native.regex find_all(s: str, pattern: str) pure
+module _native.regex is_match(s: str, pattern: str) pure
+module _native.regex replace(s: str, pattern: str, repl: str) pure
+module _native.regex split(s: str, pattern: str) pure
+module _native.time format(t: time, format: str | nil=?) pure
+module _native.time from_unix(n: int) pure
+module _native.time local(t: time) pure
 module _native.time monotonic() pure
 module _native.time now() pure
-module _native.time parse(s, format=?) pure
-module _native.time parts(t) pure
-module _native.time unix(t) pure
-module _native.time utc(t) pure
-module conc fan_in(s, rxs)
-module conc pmap(xs, f, limit=?)
-module conc retry(f, times=?, delay=?)
-module http get(url, headers=?, timeout=?, max_body=?, redirects=?)
-module http post(url, body, headers=?, timeout=?, max_body=?, redirects=?)
-module http request(method, url, body=?, headers=?, timeout=?, max_body=?, redirects=?)
-module http serve(addr, handler, ready=?, drain=?, reuse_port=?)
-module http url_decode(s) pure
-module http url_encode(s) pure
-prelude fung drop(xs, n) pure
-prelude fung env(name) pure
+module _native.time parse(s: str, format: str | nil=?) pure
+module _native.time parts(t: time) pure
+module _native.time unix(t: time) pure
+module _native.time utc(t: time) pure
+module conc fan_in(s: scope, rxs: list)
+module conc pmap(xs, f: fn, limit: int | nil=?)
+module conc retry(f: fn, times: int=?, delay: dur=?)
+module http get(url: str, headers: map=?, timeout: dur | nil=?, max_body: int=?, redirects: int=?)
+module http post(url: str, body: str | nil, headers: map=?, timeout: dur | nil=?, max_body: int=?, redirects: int=?)
+module http request(method: str, url: str, body: str | nil=?, headers: map=?, timeout: dur | nil=?, max_body: int=?, redirects: int=?)
+module http serve(addr: str, handler: fn, ready: fn | nil=?, drain: dur=?, reuse_port: bool=?)
+module http url_decode(s: str) pure
+module http url_encode(s: str) pure
+prelude fung drop(xs: list | range | receiver, n: int) pure
+prelude fung env(name: str) pure
 prelude fung env_all() pure
-prelude fung exec(cmd, cwd=?, env=?, stdin=?)
-prelude fung first(xs) pure
+prelude fung exec(cmd: list, cwd: str | nil=?, env: map | nil=?, stdin: str | nil=?)
+prelude fung first(xs: list | range | receiver) pure
 prelude fung is_err(x) pure
 prelude fung is_ok(x) pure
-prelude fung iterate(x, f, n) pure
-prelude fung last(xs) pure
-prelude fung pad_left(s, n, pad=?) pure
-prelude fung pad_right(s, n, pad=?) pure
-prelude fung sh(cmd, cwd=?, env=?, stdin=?)
-prelude fung take(xs, n) pure
-prelude fung until(x, f, pred) pure
-prelude fung zip(xs, ys) pure
-prelude native all(xs, f) pure
-prelude native any(xs, f) pure
+prelude fung iterate(x, f: fn, n: int) pure
+prelude fung last(xs: list | range | receiver) pure
+prelude fung pad_left(s: str, n: int, pad: str=?) pure
+prelude fung pad_right(s: str, n: int, pad: str=?) pure
+prelude fung sh(cmd: str, cwd: str | nil=?, env: map | nil=?, stdin: str | nil=?)
+prelude fung take(xs: list | range | receiver, n: int) pure
+prelude fung until(x, f: fn, pred: fn) pure
+prelude fung zip(xs: list | range | receiver, ys: list | range | receiver) pure
+prelude native all(xs: list | range | receiver, f: fn) pure
+prelude native any(xs: list | range | receiver, f: fn) pure
 prelude native args
 prelude native atom(x) pure
-prelude native await(t)
-prelude native byte_len(s) pure
-prelude native bytes(s) pure
-prelude native cancel(t)
-prelude native channel(n=?) pure
-prelude native chars(s) pure
-prelude native close(x)
+prelude native await(t: task)
+prelude native byte_len(s: str) pure
+prelude native bytes(s: str) pure
+prelude native cancel(t: task | scope)
+prelude native channel(n: int=?) pure
+prelude native chars(s: str) pure
+prelude native close(x: sender | receiver | file)
 prelude native dbg(x)
-prelude native deref(a) pure
-prelude native each(xs, f)
-prelude native ends_with(s, suffix) pure
+prelude native deref(a: atom) pure
+prelude native each(xs: list | range | receiver, f: fn)
+prelude native ends_with(s: str, suffix: str) pure
 prelude native eprint(...args)
-prelude native ewrite(s)
-prelude native exit(code=?)
+prelude native ewrite(s: str)
+prelude native exit(code: int=?)
 prelude native fail(...args)
-prelude native filter(xs, f) pure
-prelude native find(xs, f) pure
-prelude native flatten(xs) pure
+prelude native filter(xs: list | range | receiver, f: fn) pure
+prelude native find(xs: list | range | receiver, f: fn) pure
+prelude native flatten(xs: list | range | receiver) pure
 prelude native float(x) pure
-prelude native fold(xs, init, f) pure
-prelude native from_bytes(xs) pure
-prelude native get(m, k, default=?) pure
-prelude native group_by(xs, f) pure
-prelude native index_of(s, sub) pure
+prelude native fold(xs: list | range | receiver, init, f: fn) pure
+prelude native from_bytes(xs: list) pure
+prelude native get(m: map, k, default=?) pure
+prelude native group_by(xs: list | range | receiver, f: fn) pure
+prelude native index_of(s: str, sub: str) pure
 prelude native int(x) pure
-prelude native is_utf8(s) pure
-prelude native join(xs, sep=?) pure
-prelude native keys(m) pure
-prelude native len(x) pure
-prelude native lines(s) pure
-prelude native lower(s) pure
-prelude native map(xs, f) pure
-prelude native max(xs) pure
-prelude native merge(a, b) pure
-prelude native min(xs) pure
-prelude native pairs(m) pure
-prelude native parse_dur(s) pure
-prelude native parse_float(s) pure
-prelude native parse_int(s) pure
+prelude native is_utf8(s: str) pure
+prelude native join(xs: list | range | receiver, sep: str=?) pure
+prelude native keys(m: map) pure
+prelude native len(x: str | list | map | range) pure
+prelude native lines(s: str) pure
+prelude native lower(s: str) pure
+prelude native map(xs: list | range | receiver, f: fn) pure
+prelude native max(xs: list | range | receiver) pure
+prelude native merge(a: map, b: map) pure
+prelude native min(xs: list | range | receiver) pure
+prelude native pairs(m: map) pure
+prelude native parse_dur(s: str) pure
+prelude native parse_float(s: str) pure
+prelude native parse_int(s: str) pure
 prelude native print(...args)
-prelude native put(m, k, v) pure
-prelude native read_line(file=?)
-prelude native read_lines(file=?)
-prelude native recv(rx)
-prelude native recv_now(rx)
-prelude native remove(m, k) pure
-prelude native repeat(s, n) pure
-prelude native replace(s, old, new) pure
+prelude native put(m: map, k, v) pure
+prelude native read_line(file: file | nil=?)
+prelude native read_lines(file: file | nil=?)
+prelude native recv(rx: receiver)
+prelude native recv_now(rx: receiver)
+prelude native remove(m: map, k) pure
+prelude native repeat(s: str, n: int) pure
+prelude native replace(s: str, old: str, new: str) pure
 prelude native request_stop()
-prelude native reset(a, x)
-prelude native reverse(xs) pure
-prelude native scope(f)
-prelude native send(tx, x)
-prelude native send_now(tx, x)
-prelude native sleep(d)
-prelude native sort(xs) pure
-prelude native sort_by(xs, f) pure
-prelude native spawn(s, f)
-prelude native split(s, sep) pure
-prelude native starts_with(s, prefix) pure
+prelude native reset(a: atom, x)
+prelude native reverse(xs: list | range | receiver) pure
+prelude native scope(f: fn)
+prelude native send(tx: sender, x)
+prelude native send_now(tx: sender, x)
+prelude native sleep(d: dur)
+prelude native sort(xs: list | range | receiver) pure
+prelude native sort_by(xs: list | range | receiver, f: fn) pure
+prelude native spawn(s: scope, f: fn)
+prelude native split(s: str, sep: str) pure
+prelude native starts_with(s: str, prefix: str) pure
 prelude native stop_signal()
 prelude native str(x) pure
-prelude native sum(xs) pure
-prelude native supervise(f, on_fail)
-prelude native swap(a, f)
+prelude native sum(xs: list | range | receiver) pure
+prelude native supervise(f: fn, on_fail: fn)
+prelude native swap(a: atom, f: fn)
 prelude native sym(x) pure
-prelude native sym_name(s) pure
-prelude native timeout(f, d)
-prelude native trim(s, cut=?) pure
-prelude native trim_left(s, cut=?) pure
-prelude native trim_right(s, cut=?) pure
-prelude native try_map(xs, f) pure
+prelude native sym_name(s: sym) pure
+prelude native timeout(f: fn, d: dur)
+prelude native trim(s: str, cut: str | nil=?) pure
+prelude native trim_left(s: str, cut: str | nil=?) pure
+prelude native trim_right(s: str, cut: str | nil=?) pure
+prelude native try_map(xs: list | range | receiver, f: fn) pure
 prelude native type_of(x) pure
-prelude native unique(xs) pure
-prelude native upper(s) pure
-prelude native values(m) pure
-prelude native wait_closed(rx)
-prelude native with(acquire, use, release)
-prelude native write(s)
+prelude native unique(xs: list | range | receiver) pure
+prelude native upper(s: str) pure
+prelude native values(m: map) pure
+prelude native wait_closed(rx: receiver)
+prelude native with(acquire: fn, use: fn, release: fn)
+prelude native write(s: str)

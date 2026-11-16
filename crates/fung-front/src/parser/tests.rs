@@ -1825,7 +1825,11 @@ fn return_stands_as_a_statement_or_ends_a_branch() {
         ("fn f(): (return) ;;", "E0132"),
         ("fn f(): f(return, 1) ;;", "E0132"),
         ("fn f(a):\n  x = return a\n  x\n;;", "E0132"),
-        ("fn f(a) = a ?? return 1", "E0132"),
+        ("fn f(a) = a ?? (return 1)", "E0132"),
+        ("fn f(a) = (return 1) ?? a", "E0132"),
+        ("fn f(a) = a |> return", "E0132"),
+        ("fn f(a) = a + return 1", "E0132"),
+        ("fn f(a) = a == return 1", "E0132"),
         ("fn f(a) = return return a", "E0132"),
         ("fn f(a) = not return a", "E0132"),
     ]);
@@ -1843,6 +1847,23 @@ fn return_stands_as_a_statement_or_ends_a_branch() {
         (
             "fn f() = return",
             "(program (fn f() (block (return (nil)))))",
+        ),
+        // the right side of `??`, `and` and `or` is a branch (D167)
+        (
+            "fn f(a):\n  x = a ?? return 1\n  x\n;;",
+            "(program (fn f(a) (block (assign x (coalesce a (return 1))) x)))",
+        ),
+        (
+            "fn f(a) = a and return 1",
+            "(program (fn f(a) (block (binary and a (return 1)))))",
+        ),
+        (
+            "fn f(a) = a or return",
+            "(program (fn f(a) (block (binary or a (return (nil))))))",
+        ),
+        (
+            "fn f(a) = g(a ?? return 1 + 2)",
+            "(program (fn f(a) (block (call g (coalesce a (return (binary + 1 2)))))))",
         ),
         (
             "fn f(a) = a then return\n  else 2",
@@ -2003,6 +2024,15 @@ fn habits_from_other_languages_get_their_help() {
         (
             "x = 1\nlet y = 1",
             format!("E0134 2:1 `let` is not a keyword in fung\nhelp: {}", words("let")),
+        ),
+        // a value is not changed in place (FE85)
+        (
+            "m = {a: 1}\nm.a = 2",
+            format!("E0110 2:5 unexpected `=`\nhelp: {}", crate::habits::IN_PLACE),
+        ),
+        (
+            "xs = [1]\nxs[0] = 2",
+            format!("E0110 2:7 unexpected `=`\nhelp: {}", crate::habits::IN_PLACE),
         ),
         (
             "def f(x):\n  x\n;;",

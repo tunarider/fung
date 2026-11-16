@@ -14,7 +14,7 @@ fung의 문자열에 대해 알아 둘 것은 다섯이다.
 - **글자 단위**다. 문자열은 UTF-8로 저장되지만 `len`, 인덱스 `s[0]`, 슬라이스 `s[1..3]`은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 `"참치"[0]`은 `"참"`이고 `len("참치")`는 2다.
 - **어떤 바이트든 담는다**. 문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. 파일, 명령 출력, 환경 변수, 인자는 UTF-8이 아니어도 바이트 그대로 들어오고 그대로 나간다. UTF-8에 속하지 않는 바이트는 그 바이트 하나가 한 글자다. 값으로 보일 때는 `"a\xff"`처럼 `\xHH`로 보이고, 그 모양을 리터럴로 그대로 쓸 수 있다([바이트](#bytes)).
 - **잇기는 `+`, 끼워 넣기는 보간**이다. `"a" + "b"`는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 `"${name}: ${count}"`처럼 쓴다. 보간은 값을 [`str`](convert.html#fn-str)과 같은 규칙으로 바꿔 넣는다. 다만 `nil`, 결과값(`Ok`·`Err`), 핸들(함수·태스크·채널 끝 등)은 글에 말없이 넣지 않는다(E0519): 그대로 보이려면 `str(x)`로 먼저 바꾼다.
-- **문자열은 컬렉션 함수에 넣지 않는다.** `map("abc", f)`도 `take("abc", 2)`·`first("abc")`도 에러다(E0506). 앞뒤를 자르려면 슬라이스(`s[..2]`, `s[1..]`, `s[len(s) - 1]`)를, 글자 하나하나를 다루려면 [`chars`](#fn-chars)로 글자 리스트를 만든다.
+- **문자열은 컬렉션 함수에 넣지 않는다.** `map("abc", f)`도 `take("abc", 2)`·`first("abc")`도 에러다(E0403). 앞뒤를 자르려면 슬라이스(`s[..2]`, `s[1..]`, `s[len(s) - 1]`)를, 글자 하나하나를 다루려면 [`chars`](#fn-chars)로 글자 리스트를 만든다.
 
 ```fung run
 s = "  ERROR disk full  "
@@ -27,7 +27,7 @@ print(s == "  ERROR disk full  ")
 
 ## 나누기와 잇기 {#split-join}
 
-:::fn split(s, sep)
+:::fn split(s: str, sep: str)
 
 `s`를 구분자 `sep`로 나눈 문자열의 리스트를 돌려준다.
 
@@ -85,7 +85,7 @@ print(split(line, " ") |> filter(w => w != ""))
 
 :::
 
-:::fn join(xs, sep = "")
+:::fn join(xs: list | range | receiver, sep: str = "")
 
 리스트의 원소를 `sep`로 이어 문자열 하나로 만든다.
 
@@ -106,7 +106,7 @@ print(split(line, " ") |> filter(w => w != ""))
 
 #### 에러
 
-- `xs`가 리스트 등이 아니면 런타임 에러 E0506(`cannot join str`).
+- `xs`가 리스트 등이 아니면 E0403(``argument `xs` must be list | range | receiver, got str``).
 - `sep`가 문자열이 아니면 E0403.
 - 원소(또는 원소 안)에 `nil`·`Ok`·`Err`·핸들이 있으면 E0519(글에 말없이 넣지 않는다, 보간과 같다). 그대로 보이려면 `map(xs, str)`로 먼저 바꾼다.
 
@@ -138,7 +138,7 @@ print(split(path, "/") |> filter(p => p != "") |> map(upper) |> join("."))
 
 :::
 
-:::fn lines(s)
+:::fn lines(s: str)
 
 글을 줄의 리스트로 나눈다.
 
@@ -184,7 +184,7 @@ for (i, host) in zip(1..100, lines(out)):
 
 :::
 
-:::fn chars(s)
+:::fn chars(s: str)
 
 문자열을 글자 하나짜리 문자열의 리스트로 나눈다.
 
@@ -228,7 +228,7 @@ print(chars("a1b2c3") |> filter(c => c >= "0" and c <= "9") |> join)
 
 ## 다듬기와 바꾸기 {#clean}
 
-:::fn trim(s, cut = nil)
+:::fn trim(s: str, cut: str | nil = nil)
 
 양 끝의 공백을 지운다. `cut`을 주면 그 글자들을 지운다.
 
@@ -278,7 +278,7 @@ print(count + 1)
 
 :::
 
-:::fn trim_left(s, cut = nil)
+:::fn trim_left(s: str, cut: str | nil = nil)
 
 앞(왼쪽) 끝만 [`trim`](#fn-trim)한다.
 
@@ -313,7 +313,7 @@ print("[" + trim_left("   item  ") + "]", trim_left("000420", "0"))
 
 :::
 
-:::fn trim_right(s, cut = nil)
+:::fn trim_right(s: str, cut: str | nil = nil)
 
 뒤(오른쪽) 끝만 [`trim`](#fn-trim)한다.
 
@@ -348,7 +348,7 @@ print("[" + trim_right("  key: value \r\n") + "]", trim_right("path///", "/"))
 
 :::
 
-:::fn upper(s)
+:::fn upper(s: str)
 
 대문자로 바꾼 문자열을 돌려준다.
 
@@ -382,7 +382,7 @@ print(upper("hello"), upper("straße"), upper("참치 v1"))
 
 :::
 
-:::fn lower(s)
+:::fn lower(s: str)
 
 소문자로 바꾼 문자열을 돌려준다.
 
@@ -418,7 +418,7 @@ print(lower(answer) == "yes")
 
 :::
 
-:::fn replace(s, old, new)
+:::fn replace(s: str, old: str, new: str)
 
 `s` 안의 모든 `old`를 `new`로 바꾼 문자열을 돌려준다.
 
@@ -465,7 +465,7 @@ print(fold(pairs(vals), tmpl, (acc, (k, v)) => replace(acc, "{{${k}}}", v)))
 
 ## 검사와 만들기 {#test-build}
 
-:::fn starts_with(s, prefix)
+:::fn starts_with(s: str, prefix: str)
 
 `s`가 `prefix`로 시작하면 `true`.
 
@@ -509,7 +509,7 @@ print(starts_with(tag, "v") then tag[1..] else tag)
 
 :::
 
-:::fn index_of(s, sub)
+:::fn index_of(s: str, sub: str)
 
 `s`에서 `sub`가 처음 나오는 글자 위치. 없으면 `nil`.
 
@@ -547,7 +547,7 @@ print(index_of(line, "error"))
 
 :::
 
-:::fn ends_with(s, suffix)
+:::fn ends_with(s: str, suffix: str)
 
 `s`가 `suffix`로 끝나면 `true`.
 
@@ -583,7 +583,7 @@ print(filter(files, f => ends_with(lower(f), ".log")))
 
 :::
 
-:::fn repeat(s, n)
+:::fn repeat(s: str, n: int)
 
 `s`를 `n`번 이어 붙인 문자열을 돌려준다.
 
@@ -620,7 +620,7 @@ print(repeat("-", 20))
 
 :::
 
-:::fn pad_left(s, n, pad = " ") fung
+:::fn pad_left(s: str, n: int, pad: str = " ") fung
 
 왼쪽을 `pad`로 채워 `n`글자로 만든다. 이미 `n`글자 이상이면 그대로.
 
@@ -669,7 +669,7 @@ for (host, cpu) in rows:
 
 :::
 
-:::fn pad_right(s, n, pad = " ") fung
+:::fn pad_right(s: str, n: int, pad: str = " ") fung
 
 오른쪽을 `pad`로 채워 `n`글자로 만든다. 이미 `n`글자 이상이면 그대로.
 
@@ -719,7 +719,7 @@ s = "a\xffb"
 print([s, s[1], s + "!"], len(s), byte_len(s), is_utf8(s))
 ```
 
-:::fn byte_len(s)
+:::fn byte_len(s: str)
 
 문자열의 바이트 수.
 
@@ -753,7 +753,7 @@ print(len("참치"), byte_len("참치"), byte_len("ab"), byte_len("\xff"))
 
 :::
 
-:::fn bytes(s)
+:::fn bytes(s: str)
 
 문자열의 바이트를 0부터 255까지의 정수 리스트로 돌려준다.
 
@@ -793,7 +793,7 @@ print(bytes("hello") |> sum |> (n => n % 256))
 
 :::
 
-:::fn from_bytes(xs)
+:::fn from_bytes(xs: list)
 
 0부터 255까지의 정수 리스트를 그 바이트로 된 문자열로 만든다.
 
@@ -828,7 +828,7 @@ print(from_bytes(bytes("참치")) == "참치")
 
 :::
 
-:::fn is_utf8(s)
+:::fn is_utf8(s: str)
 
 문자열이 올바른 UTF-8 글인지.
 

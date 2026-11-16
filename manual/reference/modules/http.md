@@ -32,7 +32,7 @@ description: fung 모듈 http — HTTP 요청 보내기(get, post, request), URL
 
 ## 클라이언트 {#client}
 
-:::fn http.get(url, headers = {}, timeout = 30s, max_body = 67108864, redirects = 10) fung
+:::fn http.get(url: str, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10) fung
 
 URL에 `GET` 요청을 보내고 응답을 돌려준다.
 
@@ -149,7 +149,7 @@ theme=dark; Expires=Wed, 21 Oct 2026 07:28:00 GMT
 
 :::
 
-:::fn http.post(url, body, headers = {}, timeout = 30s, max_body = 67108864, redirects = 10) fung
+:::fn http.post(url: str, body: str | nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10) fung
 
 URL에 `POST` 요청으로 본문을 보내고 응답을 돌려준다.
 
@@ -219,7 +219,7 @@ sent
 
 :::
 
-:::fn http.request(method, url, body = nil, headers = {}, timeout = 30s, max_body = 67108864, redirects = 10) fung
+:::fn http.request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864, redirects: int = 10) fung
 
 아무 메서드로나 요청을 보낸다.
 
@@ -288,7 +288,7 @@ print(r.status, r.headers["content-length"], r.body == "")
 
 **서버**는 한 **주소**(호스트와 포트, `127.0.0.1:8080`)에서 연결을 기다리다가, 요청이 오면 답하는 프로그램이다. `127.0.0.1`은 자기 컴퓨터에서만 접속할 수 있고, `:8080`처럼 호스트를 비우면 모든 네트워크에서 받는다. 포트 `0`은 "남는 포트 아무거나"다.
 
-:::fn http.serve(addr, handler, ready = nil, drain = 10s, reuse_port = false) fung
+:::fn http.serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_port: bool = false) fung
 
 주소에서 HTTP 요청을 받아 `handler`로 답한다. 멈출 때까지 돌아오지 않는다.
 
@@ -439,7 +439,7 @@ stopped
 
 ## URL 인코딩 {#url-encoding}
 
-:::fn http.url_encode(s)
+:::fn http.url_encode(s: str)
 
 문자열을 URL의 쿼리 값이나 경로 한 조각으로 쓸 수 있게 바꾼다.
 
@@ -477,7 +477,7 @@ print(http.url_encode("한글/a b"))
 
 :::
 
-:::fn http.url_decode(s)
+:::fn http.url_decode(s: str)
 
 `%XX`로 쓴 글자를 원래 바이트로 되돌린다.
 

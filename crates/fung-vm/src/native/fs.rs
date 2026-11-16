@@ -48,13 +48,20 @@ static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new()
 pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
         vec![
-            ("read", native_step("read", read_fn, vec![param("path")])),
+            (
+                "read",
+                native_step("read", read_fn, vec![param("path").of("str")]),
+            ),
             (
                 "write",
                 native_step(
                     "write",
                     write_fn,
-                    vec![param("path"), param("text"), opt("perm", Lit::Nil)],
+                    vec![
+                        param("path").of("str"),
+                        param("text").of("str"),
+                        opt("perm", Lit::Nil).of("int | nil"),
+                    ],
                 ),
             ),
             (
@@ -62,7 +69,11 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "append",
                     append_fn,
-                    vec![param("path"), param("text"), opt("perm", Lit::Nil)],
+                    vec![
+                        param("path").of("str"),
+                        param("text").of("str"),
+                        opt("perm", Lit::Nil).of("int | nil"),
+                    ],
                 ),
             ),
             (
@@ -70,24 +81,39 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "list",
                     list_fn,
-                    vec![param("dir"), opt("full", Lit::Bool(false))],
+                    vec![
+                        param("dir").of("str"),
+                        opt("full", Lit::Bool(false)).of("bool"),
+                    ],
                 ),
             ),
-            ("glob", native_step("glob", glob_fn, vec![param("pattern")])),
-            ("walk", native_step("walk", walk_fn, vec![param("dir")])),
+            (
+                "glob",
+                native_step("glob", glob_fn, vec![param("pattern").of("str")]),
+            ),
+            (
+                "walk",
+                native_step("walk", walk_fn, vec![param("dir").of("str")]),
+            ),
             (
                 "exists",
-                native_step("exists", exists_fn, vec![param("path")]),
+                native_step("exists", exists_fn, vec![param("path").of("str")]),
             ),
-            ("stat", native_step("stat", stat_fn, vec![param("path")])),
-            ("mkdir", native_step("mkdir", mkdir_fn, vec![param("path")])),
+            (
+                "stat",
+                native_step("stat", stat_fn, vec![param("path").of("str")]),
+            ),
+            (
+                "mkdir",
+                native_step("mkdir", mkdir_fn, vec![param("path").of("str")]),
+            ),
             (
                 "remove",
-                native_step("remove", remove_fn, vec![param("path")]),
+                native_step("remove", remove_fn, vec![param("path").of("str")]),
             ),
             (
                 "remove_all",
-                native_step("remove_all", remove_all_fn, vec![param("path")]),
+                native_step("remove_all", remove_all_fn, vec![param("path").of("str")]),
             ),
             (
                 "move",
@@ -95,9 +121,9 @@ pub fn module() -> Rc<Module> {
                     "move",
                     move_fn,
                     vec![
-                        param("from"),
-                        param("to"),
-                        opt("overwrite", Lit::Bool(false)),
+                        param("from").of("str"),
+                        param("to").of("str"),
+                        opt("overwrite", Lit::Bool(false)).of("bool"),
                     ],
                 ),
             ),
@@ -107,9 +133,9 @@ pub fn module() -> Rc<Module> {
                     "copy",
                     copy_fn,
                     vec![
-                        param("from"),
-                        param("to"),
-                        opt("overwrite", Lit::Bool(false)),
+                        param("from").of("str"),
+                        param("to").of("str"),
+                        opt("overwrite", Lit::Bool(false)).of("bool"),
                     ],
                 ),
             ),
@@ -119,19 +145,22 @@ pub fn module() -> Rc<Module> {
                     "open",
                     open_fn,
                     vec![
-                        param("path"),
-                        opt("mode", Lit::Sym("read")),
-                        opt("perm", Lit::Nil),
+                        param("path").of("str"),
+                        opt("mode", Lit::Sym("read")).of("sym"),
+                        opt("perm", Lit::Nil).of("int | nil"),
                     ],
                 ),
             ),
-            ("close", native_step("close", close_fn, vec![param("file")])),
+            (
+                "close",
+                native_step("close", close_fn, vec![param("file").of("file")]),
+            ),
             (
                 "write_line",
                 native_step(
                     "write_line",
                     write_line_fn,
-                    vec![param("file"), param("line")],
+                    vec![param("file").of("file"), param("line").of("str")],
                 ),
             ),
             ("temp_dir", native_step("temp_dir", temp_dir_fn, vec![])),

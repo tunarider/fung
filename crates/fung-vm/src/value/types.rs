@@ -75,6 +75,37 @@ fn kind_of(v: &Value) -> u32 {
     }
 }
 
+/// The kinds a union of built-in type names takes (`"str | nil"`), for a
+/// native's parameter: `num` is an int or a float. A name that is no
+/// built-in type is a mistake in the table.
+pub fn kinds(types: &str) -> u32 {
+    types
+        .split('|')
+        .map(str::trim)
+        .map(|name| match name {
+            "num" => INT | FLOAT,
+            // the socket values of `_native.net`, which no annotation names
+            "conn" => 1 << 20,
+            "listener" => 1 << 21,
+            _ => kind_of_name(name).unwrap_or_else(|| panic!("no type `{name}`")),
+        })
+        .fold(0, |a, b| a | b)
+}
+
+/// The help for a sending end given where a receiving end is taken (a
+/// parameter of `types` that names `receiver`): the fix is the other
+/// end, whichever function was called (VA39).
+pub fn sender_help(types: &str, v: &Value) -> Option<&'static str> {
+    (matches!(v, Value::Sender(_)) && types.split('|').any(|t| t.trim() == "receiver"))
+        .then_some("a sending end (`tx`) cannot be read; go over the receiving end (`rx`)")
+}
+
+/// Whether `v` is of one of `kinds` (`kinds`).
+#[inline]
+pub fn has_kind(kinds: u32, v: &Value) -> bool {
+    kinds & kind_of(v) != 0
+}
+
 impl TypeSet {
     /// `any` takes everything, `num` an int or a float; a name that starts
     /// with an uppercase letter is a tag (01). Any other name matches

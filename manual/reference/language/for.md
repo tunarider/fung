@@ -34,7 +34,7 @@ print(first_big([1, 3]))
 
 순회 대상은 리스트·범위·받는 끝이다. 맵은 `pairs`, 문자열은 `chars`로 먼저 바꾼다.
 
-```fung run exit=1 error=E0506
+```fung run exit=2 error=E0403
 m = {a: 1}
 for (k, v) in pairs(m): print(k, v) ;;
 for ch in "ab": print(ch) ;;

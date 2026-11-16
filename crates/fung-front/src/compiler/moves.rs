@@ -114,13 +114,14 @@ pub(super) fn fn_lives(defaults: &[(usize, &Node)], typed: &[usize], body: &Node
         back.walk(d);
         let at = back.delta(mark);
         back.undo(mark);
-        let branch = |at| Branch {
+        let branch = |at: Delta| Branch {
             id: 0,
-            start: HashMap::clone(&at),
+            start: at.clone(),
             at,
+            quiet: false,
             read_first: Vec::new(),
         };
-        let mut dead = back.join(vec![branch(at), branch(HashMap::new())], &[]);
+        let mut dead = back.join(vec![branch(at), branch(Delta::default())], &[]);
         let skipped = dead.pop().expect("the skipped path");
         // The default's own parameter is empty as it starts: nothing to
         // let go there.
@@ -192,23 +193,56 @@ fn compiled_arms(n: &Node) -> &[Node] {
 struct Back {
     /// Whether each slot is read from the current point on.
     live: Vec<bool>,
-    /// Each change to `live`: the slot and its value before.
-    log: Vec<(usize, bool)>,
+    /// Each change to `live`, to undo a branch's.
+    log: Vec<Change>,
     moves: HashSet<u32>,
     /// For each branch start, the slots read from its choice on and not
     /// from it: dead as it starts.
     deaths: HashMap<u32, Vec<usize>>,
     /// For each `fn` node, the slots whose last read is its capture.
     captures: HashMap<u32, Vec<usize>>,
+    /// Whether each node's code may call a function (`calls`).
+    calls: HashMap<u32, bool>,
 }
 
-/// How one branch of a choice changed the live set: each slot it changed,
-/// with its value at the branch's start (`at`) and where the branch
-/// begins, before its pattern and guard (`start`).
+/// One change to the live set.
+enum Change {
+    /// A slot, and its value before.
+    Slot(usize, bool),
+    /// Every slot went dead at once (a `return`): the set before. Taking
+    /// the set and putting it back cost nothing, whatever it holds (VM58).
+    Kill(Vec<bool>),
+}
+
+/// How a stretch of code changed the live set: the slots it changed, with
+/// their values now. `killed`: it ends in a `return` on every path, so
+/// nothing after it is read from it; the slots are then all those live
+/// where it starts (the others are dead there).
+#[derive(Clone, Default)]
+struct Delta {
+    killed: bool,
+    slots: HashMap<usize, bool>,
+}
+
+impl Delta {
+    /// Whether slot `s` is live where the stretch starts, `after` being
+    /// whether it is live after it.
+    fn live(&self, s: usize, after: bool) -> bool {
+        self.slots.get(&s).copied().unwrap_or(!self.killed && after)
+    }
+}
+
+/// How one branch of a choice changed the live set: where its own code
+/// starts (`at`) and where the branch begins, before its pattern and
+/// guard (`start`).
 struct Branch {
     id: u32,
-    at: HashMap<usize, bool>,
-    start: HashMap<usize, bool>,
+    at: Delta,
+    start: Delta,
+    /// A branch that returns and calls nothing lets go of nothing as it
+    /// starts (`Fwd::quiet`): what is dead there is not listed, save what
+    /// the choice itself asks about (`join`'s `reads`).
+    quiet: bool,
     /// Slots read on the way into the branch, after the choice (a match
     /// arm's guard) and not in it: dead as it starts too.
     read_first: Vec<usize>,
@@ -222,6 +256,7 @@ impl Back {
             moves: HashSet::new(),
             deaths: HashMap::new(),
             captures: HashMap::new(),
+            calls: HashMap::new(),
         }
     }
 
@@ -237,27 +272,57 @@ impl Back {
             self.live.resize(s + 1, false);
         }
         if self.live[s] != on {
-            self.log.push((s, self.live[s]));
+            self.log.push(Change::Slot(s, self.live[s]));
             self.live[s] = on;
         }
     }
 
-    /// The slots changed since log position `mark`, with their values now.
-    fn delta(&self, mark: usize) -> HashMap<usize, bool> {
-        let mut was: HashMap<usize, bool> = HashMap::new();
-        for &(s, before) in &self.log[mark..] {
-            was.entry(s).or_insert(before);
+    /// Nothing is read from here on (a `return`): every slot is dead.
+    fn kill_all(&mut self) {
+        let before = std::mem::take(&mut self.live);
+        self.log.push(Change::Kill(before));
+    }
+
+    /// How the live set changed since log position `mark`.
+    fn delta(&self, mark: usize) -> Delta {
+        let log = &self.log[mark..];
+        // after the last kill, the slots live now are those set since
+        if let Some(k) = log.iter().rposition(|c| matches!(c, Change::Kill(_))) {
+            let slots = log[k + 1..]
+                .iter()
+                .filter_map(|c| match c {
+                    Change::Slot(s, _) if self.get(*s) => Some((*s, true)),
+                    _ => None,
+                })
+                .collect();
+            return Delta {
+                killed: true,
+                slots,
+            };
         }
-        was.into_iter()
+        let mut was: HashMap<usize, bool> = HashMap::new();
+        for c in log {
+            if let Change::Slot(s, before) = c {
+                was.entry(*s).or_insert(*before);
+            }
+        }
+        let slots = was
+            .into_iter()
             .filter(|&(s, before)| self.get(s) != before)
             .map(|(s, _)| (s, self.get(s)))
-            .collect()
+            .collect();
+        Delta {
+            killed: false,
+            slots,
+        }
     }
 
     fn undo(&mut self, mark: usize) {
         while self.log.len() > mark {
-            let (s, before) = self.log.pop().expect("a logged change");
-            self.live[s] = before;
+            match self.log.pop().expect("a logged change") {
+                Change::Slot(s, before) => self.live[s] = before,
+                Change::Kill(before) => self.live = before,
+            }
         }
     }
 
@@ -323,8 +388,9 @@ impl Back {
                 let mark = self.log.len();
                 branches.push(Branch {
                     id: n.kids[0].id,
-                    at: HashMap::new(),
-                    start: HashMap::new(),
+                    at: Delta::default(),
+                    start: Delta::default(),
+                    quiet: false,
                     read_first: Vec::new(),
                 });
                 self.walk(rhs);
@@ -333,6 +399,7 @@ impl Back {
                     id: rhs.id,
                     at: d.clone(),
                     start: d,
+                    quiet: self.quiet(rhs),
                     read_first: Vec::new(),
                 });
                 self.undo(mark);
@@ -363,6 +430,7 @@ impl Back {
                         id: arm.kids[2].id,
                         at,
                         start,
+                        quiet: self.quiet(&arm.kids[2]),
                         read_first,
                     });
                 }
@@ -379,9 +447,7 @@ impl Back {
             }
             // Nothing follows a return on its path.
             Head::Return => {
-                for s in 0..self.live.len() {
-                    self.set(s, false);
-                }
+                self.kill_all();
                 self.walk(&n.kids[0]);
             }
             _ => {
@@ -390,6 +456,12 @@ impl Back {
                 }
             }
         }
+    }
+
+    /// Whether branch `n` returns and calls nothing: `Fwd::quiet` is true
+    /// of it wherever it stands.
+    fn quiet(&mut self, n: &Node) -> bool {
+        returns(n) && !calls(n, &mut self.calls)
     }
 
     /// The branches of an `if`: each walked back from the same point.
@@ -404,6 +476,7 @@ impl Back {
                 id,
                 at: d.clone(),
                 start: d,
+                quiet: self.quiet(k),
                 read_first: Vec::new(),
             });
         }
@@ -417,43 +490,83 @@ impl Back {
     /// The live set is the one after the choice when called.
     /// Returns what each branch lets go as it starts, in order.
     fn join(&mut self, branches: Vec<Branch>, reads: &[usize]) -> Vec<Vec<usize>> {
-        // Slots whose value before the choice differs from after it.
-        let mut changed: HashMap<usize, bool> = HashMap::new();
+        // The branches after which the code goes on.
+        let open = branches.iter().filter(|b| !b.start.killed).count();
+        // Per slot a branch names: whether one is live there as it
+        // begins, and how many open branches name it. The keys are
+        // gathered once, not asked of every branch per key (VM58).
+        let mut named: HashMap<usize, (bool, usize)> = HashMap::new();
         for b in &branches {
-            for &s in b.start.keys() {
-                let before = branches
-                    .iter()
-                    .any(|o| o.start.get(&s).copied().unwrap_or_else(|| self.get(s)));
-                if before != self.get(s) {
-                    changed.insert(s, before);
-                }
+            for (&s, &on) in &b.start.slots {
+                let e = named.entry(s).or_default();
+                e.0 |= on;
+                e.1 += usize::from(!b.start.killed);
             }
         }
-        // What is read before the choice is live there whatever the
-        // branches do: arms that all return kill every slot, and a subject
-        // read again after the match must not be let go before it (VM37).
-        for &s in reads {
-            if self.get(s) {
-                changed.remove(&s);
-            } else {
-                changed.insert(s, true);
+        // Whether a slot is live before the choice: where a branch reads
+        // it from its start; an open branch that does not name it reads
+        // it if the code after the choice does. What is read before the
+        // choice is live there whatever the branches do: arms that all
+        // return kill every slot, and a subject read again after the
+        // match must not be let go before it (VM37).
+        let live = std::mem::take(&mut self.live);
+        let before = |s: usize| {
+            if reads.contains(&s) {
+                return true;
             }
-        }
-        let before = |s: usize| changed.get(&s).copied().unwrap_or_else(|| self.get(s));
+            let after = live.get(s).copied().unwrap_or(false);
+            match named.get(&s) {
+                Some(&(on, in_open)) => on || (in_open < open && after),
+                None => open > 0 && after,
+            }
+        };
+        let after = |s: usize| live.get(s).copied().unwrap_or(false);
+        // The slots the branches or the choice name, in order.
+        let mut keys: Vec<usize> = named.keys().copied().chain(reads.iter().copied()).collect();
+        keys.sort_unstable();
+        keys.dedup();
         // The slots read from the choice on and not after it.
-        let gained: Vec<usize> = changed.iter().filter(|e| *e.1).map(|e| *e.0).collect();
+        let gained: Vec<usize> = keys
+            .iter()
+            .copied()
+            .filter(|&s| before(s) && !after(s))
+            .collect();
         let mut found = Vec::new();
         for b in &branches {
-            let mut dead: Vec<usize> = gained
-                .iter()
-                .copied()
-                .filter(|s| !b.at.contains_key(s))
-                .collect();
-            dead.extend(
-                b.at.iter()
-                    .filter(|&(&s, &on)| !on && before(s))
-                    .map(|e| *e.0),
-            );
+            let mut dead: Vec<usize> = if !b.at.killed {
+                let mut dead: Vec<usize> = gained
+                    .iter()
+                    .copied()
+                    .filter(|s| !b.at.slots.contains_key(s))
+                    .collect();
+                dead.extend(
+                    b.at.slots
+                        .iter()
+                        .filter(|&(&s, &on)| !on && before(s))
+                        .map(|e| *e.0),
+                );
+                dead
+            } else if b.quiet {
+                // it lets go of nothing: only what the choice asks about
+                reads
+                    .iter()
+                    .copied()
+                    .filter(|&s| !b.at.live(s, false))
+                    .collect()
+            } else if open == 0 {
+                // only a named slot is live before the choice
+                keys.iter()
+                    .copied()
+                    .filter(|&s| before(s) && !b.at.live(s, false))
+                    .collect()
+            } else {
+                // everything live before the choice that it does not read
+                (0..live.len())
+                    .filter(|&s| after(s))
+                    .chain(gained.iter().copied())
+                    .filter(|&s| before(s) && !b.at.live(s, false))
+                    .collect()
+            };
             dead.extend(&b.read_first);
             dead.sort_unstable();
             dead.dedup();
@@ -464,13 +577,44 @@ impl Back {
                 self.deaths.insert(b.id, dead.clone());
             }
         }
-        let mut changed: Vec<(usize, bool)> = changed.into_iter().collect();
-        changed.sort_unstable();
-        for (s, on) in changed {
+        let now: Vec<(usize, bool)> = keys.iter().map(|&s| (s, before(s))).collect();
+        self.live = live;
+        if open == 0 {
+            // every path returned: nothing but the named slots is live
+            self.kill_all();
+        }
+        for (s, on) in now {
             self.set(s, on);
         }
         found
     }
+}
+
+/// Whether `n` ends in a `return`, as it is written.
+fn returns(n: &Node) -> bool {
+    match n.head {
+        Head::Return => true,
+        Head::Do => n.kids.last().is_some_and(returns),
+        _ => false,
+    }
+}
+
+/// Whether running `n` may call a function: only a call can see a value
+/// let go early (a callee changing it in place, a wait on a channel it
+/// holds). A function value's body runs elsewhere.
+fn calls(n: &Node, memo: &mut HashMap<u32, bool>) -> bool {
+    if let Some(&c) = memo.get(&n.id) {
+        return c;
+    }
+    let c = match n.head {
+        Head::Call | Head::Import => true,
+        Head::Fn => false,
+        _ => n.kids.iter().any(|k| calls(k, memo)),
+    };
+    if n.id != 0 {
+        memo.insert(n.id, c);
+    }
+    c
 }
 
 /// The forward walk, in the order the compiler emits code: the slots
@@ -503,36 +647,11 @@ impl<'a> Fwd<'a> {
         self.deaths.get(&id).map_or(&[], Vec::as_slice)
     }
 
-    /// Whether running `n` may call a function: only a call can see a
-    /// value let go early (a callee changing it in place, a wait on a
-    /// channel it holds). A function value's body runs elsewhere.
-    fn calls(&mut self, n: &Node) -> bool {
-        if let Some(&c) = self.calls.get(&n.id) {
-            return c;
-        }
-        let c = match n.head {
-            Head::Call | Head::Import => true,
-            Head::Fn => false,
-            _ => n.kids.iter().any(|k| self.calls(k)),
-        };
-        if n.id != 0 {
-            self.calls.insert(n.id, c);
-        }
-        c
-    }
-
     /// Whether branch `n` lets go of nothing as it starts: nothing in it
     /// calls a function, and the frame ends with it (in tail position, or
     /// a `return`), so no one could see the values go any sooner.
     fn quiet(&mut self, n: &Node, tail: bool) -> bool {
-        fn returns(n: &Node) -> bool {
-            match n.head {
-                Head::Return => true,
-                Head::Do => n.kids.last().is_some_and(returns),
-                _ => false,
-            }
-        }
-        (tail || returns(n)) && !self.calls(n)
+        (tail || returns(n)) && !calls(n, &mut self.calls)
     }
 
     /// A branch with code of its own starts: it lets go of what is dead

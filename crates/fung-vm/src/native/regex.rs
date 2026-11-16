@@ -25,31 +25,51 @@ pub fn module() -> Rc<Module> {
         vec![
             (
                 "is_match",
-                native_step("is_match", is_match_fn, vec![param("s"), param("pattern")]),
+                native_step(
+                    "is_match",
+                    is_match_fn,
+                    vec![param("s").of("str"), param("pattern").of("str")],
+                ),
             ),
             (
                 "find",
-                native_step("find", find_fn, vec![param("s"), param("pattern")]),
+                native_step(
+                    "find",
+                    find_fn,
+                    vec![param("s").of("str"), param("pattern").of("str")],
+                ),
             ),
             (
                 "find_all",
-                native_step("find_all", find_all_fn, vec![param("s"), param("pattern")]),
+                native_step(
+                    "find_all",
+                    find_all_fn,
+                    vec![param("s").of("str"), param("pattern").of("str")],
+                ),
             ),
             (
                 "replace",
                 native_step(
                     "replace",
                     replace_fn,
-                    vec![param("s"), param("pattern"), param("repl")],
+                    vec![
+                        param("s").of("str"),
+                        param("pattern").of("str"),
+                        param("repl").of("str"),
+                    ],
                 ),
             ),
             (
                 "split",
-                native_step("split", split_fn, vec![param("s"), param("pattern")]),
+                native_step(
+                    "split",
+                    split_fn,
+                    vec![param("s").of("str"), param("pattern").of("str")],
+                ),
             ),
             (
                 "escape",
-                super::nat::native("escape", escape_fn, vec![param("s")]),
+                super::nat::native("escape", escape_fn, vec![param("s").of("str")]),
             ),
         ]
     });

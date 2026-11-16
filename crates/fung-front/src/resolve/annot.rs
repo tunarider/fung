@@ -49,14 +49,8 @@ pub(super) fn default_error(p: &Param, default: &Node) -> Option<Diag> {
 
 /// The first literal argument of a call that its parameter's annotation
 /// refuses, in the order of the parameters (as the run checks them).
-/// Positional arguments before a spread, and named ones. `view` gives
-/// the literal an argument stands for: itself, or what a name holds
-/// (D149).
-pub(super) fn argument_error<'a>(
-    sig: &Sig,
-    args: &'a [Node],
-    view: &dyn Fn(&'a Node) -> &'a Node,
-) -> Option<Diag> {
+/// Positional arguments before a spread, and named ones.
+pub(super) fn argument_error(sig: &Sig, args: &[Node]) -> Option<Diag> {
     let n = sig.params.len();
     let fixed = if n > 0 && sig.params[n - 1].rest {
         n - 1
@@ -88,7 +82,7 @@ pub(super) fn argument_error<'a>(
     }
     sig.params[..fixed].iter().zip(bound).find_map(|(p, lit)| {
         let lit = lit?;
-        argument(&p.name, p.types.as_ref()?, view(lit), lit.pos)
+        argument(&p.name, p.types.as_ref()?, lit, lit.pos)
     })
 }
 

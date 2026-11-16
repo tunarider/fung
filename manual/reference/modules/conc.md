@@ -14,7 +14,7 @@ fung에서 동시에 도는 일 하나하나는 **태스크**(task)다. 태스�
 
 fung의 태스크는 실행 스레드 하나 위에서 번갈아 돈다. 그래서 CPU 계산 자체가 빨라지지는 않고, 기다리는 일(외부 명령, 네트워크, `sleep`)을 겹치는 데 쓴다. 자세한 원리는 VM 책의 [태스크와 스케줄러](../../vm/12-scheduler.html)에 있다.
 
-:::fn conc.pmap(xs, f, limit = nil) fung
+:::fn conc.pmap(xs, f: fn, limit: int | nil = nil) fung
 
 리스트의 원소마다 `f`를 동시에 돌리고, 결과를 입력 순서대로 모은다.
 
@@ -44,7 +44,7 @@ fung의 태스크는 실행 스레드 하나 위에서 번갈아 돈다. 그래�
 #### 에러
 
 - `f`의 런타임 에러가 그대로 `pmap`의 에러가 된다.
-- `xs`가 `map`할 수 없는 값이면 런타임 에러 E0506.
+- `xs`가 `map`할 수 없는 값이면 `map`의 E0403.
 - `f`가 함수가 아니거나, `limit`이 `nil`도 1 이상의 정수도 아니면(`0`, 음수, 실수) 태스크를 띄우기 전에 런타임 에러 E0403.
 
 #### 예제
@@ -116,7 +116,7 @@ db-1 FAILED: timeout
 
 :::
 
-:::fn conc.fan_in(s, rxs) fung
+:::fn conc.fan_in(s: scope, rxs: list) fung
 
 여러 받는 끝(receiver)을 하나로 합친 받는 끝을 돌려준다.
 
@@ -172,7 +172,7 @@ print(sort(got))
 
 :::
 
-:::fn conc.retry(f, times = 3, delay = 0ms) fung
+:::fn conc.retry(f: fn, times: int = 3, delay: dur = 0ms) fung
 
 `f()`가 `Ok`를 돌려줄 때까지 몇 번 다시 부른다.
 

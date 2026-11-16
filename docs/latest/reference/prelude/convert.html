@@ -277,7 +277,7 @@ print(handle(&quot;start&quot;), handle(&quot;stop&quot;))</code></pre><pre clas
 <section class="entry" id="fn-sym_name">
 <h3>sym_name</h3>
 <p>심볼의 이름을 문자열로 돌려준다(<code>sym_name('ok) == &quot;ok&quot;</code>). <a href="#fn-sym"><code>sym</code></a>의 반대다.</p>
-<div class="sig"><code>sym_name(s)</code></div>
+<div class="sig"><code>sym_name(s: sym)</code></div>
 <h4>설명</h4>
 <p><code>str('ok)</code>는 값을 보이는 모양 그대로 <code>&quot;'ok&quot;</code>를 준다. 사람이 읽는 글, 명령의 출력, 파일 이름, HTTP 헤더처럼 이름만 필요한 곳에는 <code>sym_name</code>을 쓴다. 값 없는 태그(<code>Red</code>)도 심볼이므로 <code>sym_name(Red)</code>는 <code>&quot;Red&quot;</code>다.</p>
 <h4>매개변수</h4>
@@ -293,21 +293,19 @@ print(handle(&quot;start&quot;), handle(&quot;stop&quot;))</code></pre><pre clas
 <div class="run"><pre><code>status = 'not_found
 print(&quot;status: ${sym_name(status)}&quot;, str(status), sym_name(Red))</code></pre><pre class="out plain"><code>status: not_found 'not_found Red</code></pre></div>
 <p><strong>문자열은 받지 않는다</strong></p>
-<div class="run"><pre><code>print(sym_name(&quot;ok&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `s` must be sym, got str
-  --&gt; example.fung:1:15
+<div class="run"><pre><code>print(sym_name(&quot;ok&quot;))</code></pre><pre class="out err plain" data-code="2"><code>error[E0403]: argument `s` must be sym, got str
+  --&gt; example.fung:1:16
   |
 1 | print(sym_name(&quot;ok&quot;))
-  |               ^
-  |
- call path (innermost first):
-   example.fung:1 &lt;entry&gt;</code></pre></div>
+  |                ^
+  |</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-sym"><code>sym</code></a>, <a href="#fn-str"><code>str</code></a></p>
 </section>
 <section class="entry" id="fn-parse_int">
 <h3>parse_int</h3>
 <p>문자열을 정수로 읽어 <code>Ok(정수)</code> 또는 <code>Err({kind: 'parse, message})</code>를 돌려준다.</p>
-<div class="sig"><code>parse_int(s)</code></div>
+<div class="sig"><code>parse_int(s: str)</code></div>
 <h4>설명</h4>
 <p>소스의 <a href="../language/lexical.html">정수 리터럴</a> 문법에 앞의 부호 <code>-</code>·<code>+</code> 하나를 더한 것을 받는다. 자리 구분 <code>_</code>(<code>&quot;1_000&quot;</code>), 진법 접두사(<code>&quot;0x1f&quot;</code>, <code>&quot;0o755&quot;</code>, <code>&quot;0b101&quot;</code>)가 된다. 앞뒤 공백, 소수점(<code>&quot;1.5&quot;</code>), 앞의 0(<code>&quot;007&quot;</code>: 8진수는 <code>&quot;0o7&quot;</code>, 리터럴과 같은 이유로 거절), 대문자 접두사(<code>&quot;0X1F&quot;</code>)는 받지 않는다. 이 규칙은 <code>parse_float</code>·<code>parse_dur</code>가 모두 같다. 앞뒤 공백이 있을 수 있으면 먼저 <a href="strings.html#fn-trim"><code>trim</code></a>한다.</p>
 <p>읽지 못하면 런타임 에러 대신 <code>Err</code> 값을 돌려준다. 사용자 입력, 설정 값, 외부 명령 출력처럼 틀릴 수 있는 글은 그 <code>Err</code>를 다루고, 틀렸다면 코드가 틀린 글(이미 검사한 글, 프로그램 안의 상수)은 <code>parse_int(s)!</code>로 곧바로 꺼낸다.</p>
@@ -342,7 +340,7 @@ Err({kind: 'parse, message: &quot;not an integer: \&quot;two\&quot;&quot;})</cod
 <section class="entry" id="fn-parse_float">
 <h3>parse_float</h3>
 <p>문자열을 실수로 읽어 <code>Ok(실수)</code> 또는 <code>Err({kind: 'parse, message})</code>를 돌려준다.</p>
-<div class="sig"><code>parse_float(s)</code></div>
+<div class="sig"><code>parse_float(s: str)</code></div>
 <h4>설명</h4>
 <p>실수 리터럴 문법(정수 리터럴도 된다)에 앞의 부호 하나를 더한 것을 받는다(<a href="#fn-parse_int"><code>parse_int</code></a>와 같은 규칙). 정수 꼴, 지수, <code>_</code>가 된다: <code>&quot;2.5&quot;</code>, <code>&quot;-1e3&quot;</code>, <code>&quot;42&quot;</code>, <code>&quot;1_000.5&quot;</code>. 정수 꼴은 뒤에 <code>.0</code>을 붙인 실수 리터럴로 읽으므로 범위는 정수가 아니라 실수의 것이다: <code>parse_float(&quot;18446744073709551615&quot;)</code>는 <code>Ok(18446744073709552000.0)</code>이고, 2^53을 넘어 정확히 담기지 않는 수는 리터럴처럼 가장 가까운 실수가 된다. <code>&quot;-0&quot;</code>은 <code>-0.0</code>이다. 점 앞이나 뒤가 빈 꼴(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>), 대문자 지수(<code>&quot;1E5&quot;</code>), 앞의 0(<code>&quot;01.5&quot;</code>), 16진 실수, 앞뒤 공백, <code>&quot;NaN&quot;</code>·<code>&quot;inf&quot;</code>, 실수 범위를 넘는 수(<code>&quot;1e400&quot;</code>), 0이 아닌데 0으로 반올림되는 수(<code>&quot;1e-400&quot;</code>)는 거부한다. fung의 실수는 <code>NaN</code>·<code>Inf</code>가 될 수 없고, 리터럴처럼 값을 말없이 잃지 않기 때문이다.</p>
 <h4>매개변수</h4>
@@ -373,7 +371,7 @@ skip: not a number: &quot;high&quot;</code></pre></div>
 <section class="entry" id="fn-parse_dur">
 <h3>parse_dur</h3>
 <p>기간 리터럴 문법의 문자열(<code>&quot;1h30m&quot;</code>, <code>&quot;500ms&quot;</code>)을 <code>Ok(dur)</code> 또는 <code>Err({kind: 'parse, message})</code>로 읽는다.</p>
-<div class="sig"><code>parse_dur(s)</code></div>
+<div class="sig"><code>parse_dur(s: str)</code></div>
 <h4>설명</h4>
 <p><code>--timeout 30s</code> 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 <a href="../language/lexical.html">기간 리터럴</a>과 같다: 단위는 <code>h</code> <code>m</code> <code>s</code> <code>ms</code> 넷이고 큰 것부터 붙여 쓰며(<code>&quot;1h30m&quot;</code>), 앞에 부호 <code>-</code>·<code>+</code> 하나를 바로 붙일 수 있고, 마지막 성분은 소수도 된다(<code>&quot;1.5s&quot;</code>는 <code>1s500ms</code>). <a href="#fn-parse_int"><code>parse_int</code></a>와 같은 규칙이라 앞뒤 공백(<code>&quot; 5s&quot;</code>, 명령 출력 끝의 <code>&quot;5s\n&quot;</code>)은 받지 않는다: 먼저 <a href="strings.html#fn-trim"><code>trim</code></a>한다. 앞의 0(<code>&quot;01s&quot;</code>), 사이의 공백(<code>&quot;1h 30m&quot;</code>, <code>&quot;- 5s&quot;</code>), 뒤의 주석(<code>&quot;5s # x&quot;</code>), 작은 단위를 먼저 쓴 것(<code>&quot;1m1h&quot;</code>), 모르는 단위(<code>&quot;2d&quot;</code>, <code>&quot;2us&quot;</code>)는 거부한다.</p>
 <p>얻은 기간은 <a href="concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, 시각 계산에 그대로 쓴다. 기간끼리는 비교할 수 있다.</p>

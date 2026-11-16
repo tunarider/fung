@@ -49,27 +49,49 @@ fn build() -> Vec<(&'static str, &'static Native)> {
     };
     add(def_step("print", print_fn, vec![rest("args")]));
     add(def_step("eprint", io::eprint_fn, vec![rest("args")]));
-    add(def_step("write", io::write_fn, vec![param("s")]));
-    add(def_step("ewrite", io::ewrite_fn, vec![param("s")]));
+    add(def_step("write", io::write_fn, vec![param("s").of("str")]));
+    add(def_step(
+        "ewrite",
+        io::ewrite_fn,
+        vec![param("s").of("str")],
+    ));
     add(def("fail", fail_fn, vec![rest("args")]));
-    add(def("len", len_fn, vec![param("x")]));
-    add(def_step("map", map_fn, vec![param("xs"), param("f")]));
+    add(def(
+        "len",
+        len_fn,
+        vec![param("x").of("str | list | map | range")],
+    ));
+    add(def_step(
+        "map",
+        map_fn,
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
+    ));
     add(def_step(
         "try_map",
         try_map_fn,
-        vec![param("xs"), param("f")],
+        vec![
+            param("xs").of("list | range | receiver"),
+            param("f").of("fn"),
+        ],
     ));
     add(def("type_of", type_of_fn, vec![param("x")]));
-    add(def("exit", io::exit_fn, vec![opt("code", Lit::Int(0))]));
+    add(def(
+        "exit",
+        io::exit_fn,
+        vec![opt("code", Lit::Int(0)).of("int")],
+    ));
     add(def_step(
         "read_line",
         io::read_line_fn,
-        vec![opt("file", Lit::Nil)],
+        vec![opt("file", Lit::Nil).of("file | nil")],
     ));
     add(def_step(
         "read_lines",
         io::read_lines_fn,
-        vec![opt("file", Lit::Nil)],
+        vec![opt("file", Lit::Nil).of("file | nil")],
     ));
     add(Value::Native(dbg()));
     collections::add(&mut add);

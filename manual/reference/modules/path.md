@@ -45,7 +45,7 @@ print(path.dir(p), path.base(p), path.stem(p), path.ext(p))
 
 #### 에러
 
-- 문자열이 아닌 인자는 런타임 에러 E0403.
+- 문자열이 아닌 인자는 E0403.
 
 #### 예제
 
@@ -76,7 +76,7 @@ print(fold(parts, "/", path.join))
 
 :::
 
-:::fn path.base(p)
+:::fn path.base(p: str)
 
 경로의 마지막 요소(파일 이름)를 돌려준다.
 
@@ -106,7 +106,7 @@ print(path.base("/var/log/app.log"), path.base("backup/2026/"), path.base("/"), 
 
 :::
 
-:::fn path.dir(p)
+:::fn path.dir(p: str)
 
 마지막 요소를 뺀 나머지(들어 있는 디렉터리)를 돌려준다.
 
@@ -147,7 +147,7 @@ print(path.join(path.dir(conf), "secrets.yaml"))
 
 :::
 
-:::fn path.ext(p)
+:::fn path.ext(p: str)
 
 확장자를 점까지 포함해 돌려준다.
 
@@ -188,7 +188,7 @@ print(path.ext("backup.tar.gz"), path.ext(".hidden"), path.ext("dir.d/file"))
 
 :::
 
-:::fn path.stem(p)
+:::fn path.stem(p: str)
 
 마지막 요소에서 확장자를 뺀 이름을 돌려준다.
 
@@ -222,7 +222,7 @@ print(path.stem("a.tar.gz"), path.stem(".bashrc"))
 
 :::
 
-:::fn path.abs(p)
+:::fn path.abs(p: str)
 
 현재 디렉터리를 기준으로 한 절대 경로를 돌려준다.
 

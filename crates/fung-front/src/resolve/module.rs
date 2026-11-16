@@ -173,7 +173,13 @@ impl Resolver<'_> {
     /// it, and like every name it is bound once (E0238).
     fn bind_const(&mut self, name: &str, pos: Pos) -> Option<Binding> {
         if self.root_scope().names.contains_key(name) {
-            let e = self.bound_again(name, pos, true, false);
+            let mut e = self.bound_again(name, pos, true, false);
+            if self.import_bound.contains_key(name) {
+                // two imports of one name (FE85)
+                e = e.with_help(
+                    "a name is listed once in the imports of a file: remove one, or reach the other through its module (`m.name`)",
+                );
+            }
             self.errs.push(e);
             return None;
         }

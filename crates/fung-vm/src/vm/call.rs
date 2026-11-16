@@ -200,7 +200,17 @@ impl Task<'_> {
                 0
             };
             if tail {
-                let base = self.fiber.frames.last().expect("a frame").base();
+                let f = self.fiber.frames.last_mut().expect("a frame");
+                let base = f.base();
+                // What the function only holds goes on with the frame.
+                if !f.proto().held.is_empty() {
+                    let proto = f.closure.proto.clone();
+                    for &s in proto.held.iter() {
+                        if let Some(v) = self.fiber.stack[base + s as usize].take() {
+                            f.hold(v);
+                        }
+                    }
+                }
                 // Drop the frame's slots, temporaries and the callee slot;
                 // the arguments slide down to the frame base.
                 self.fiber.stack.drain(base..=callee_at);
@@ -273,11 +283,13 @@ impl Task<'_> {
     /// `types[ty]` of the function it runs along into the tail call that
     /// follows (D44). A check the frame carries already is not taken
     /// again (VM44): two functions that call each other in a loop make
-    /// no new one each time round.
+    /// no new one each time round. It becomes the latest, though: the
+    /// checks run in the order the functions would have returned in
+    /// (VM57).
     #[inline(never)]
     pub(super) fn tail_check(&mut self, fi: usize, ty: usize) {
         let f = &self.fiber.frames[fi];
-        if f.has_check(f.proto(), ty) {
+        if f.last_check_is_of(f.proto(), ty) {
             return;
         }
         let check = Check {
@@ -285,7 +297,7 @@ impl Task<'_> {
             ty: Some(ty),
             pos: self.here(fi),
         };
-        self.fiber.frames[fi].add_check(check);
+        self.fiber.frames[fi].take_check(check);
     }
 
     /// TAILCHECKBOOL of frame `fi`: the frame takes along the check that
@@ -476,6 +488,11 @@ impl Task<'_> {
             Stop::Error(d) => at(*d, pos),
             other => other,
         })?;
+        // The types the table gives its parameters, checked as a fung
+        // function's annotations are (D173).
+        if !nat.checks.is_empty() {
+            nat.check_args(|i| &args[i]).map_err(|d| at(d, pos))?;
+        }
         let outer = self.fiber.native.replace(nat);
         match nat.body {
             NativeBody::Plain(func) => {
@@ -820,6 +837,14 @@ impl Task<'_> {
         if let Err(e) = self.tick(no_pos()).and_then(|()| self.check_effect(nat)) {
             self.fiber.stack.truncate(at);
             return Some(Err(e));
+        }
+        if !nat.checks.is_empty() {
+            let stack = &self.fiber.stack;
+            let checked = nat.check_args(|i| stack[at + i].as_ref().expect("an argument"));
+            if let Err(d) = checked {
+                self.fiber.stack.truncate(at);
+                return Some(Err(Stop::Error(Box::new(d))));
+            }
         }
         let args = self.take_args(at);
         let outer = self.fiber.native.replace(nat);

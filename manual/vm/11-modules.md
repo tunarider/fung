@@ -199,7 +199,7 @@ print(1)
 
 `take`는 fung으로 쓴 prelude 함수다. 잘못된 인자를 주면 에러는 그 안쪽 깊은 곳에서 난다. 그런데 사용자는 `extras/prelude.fung`를 열어 볼 수 없다. 그래서 내장 파일에서 컴파일된 원형에는 `builtin` 표시가 붙고(`loader.rs`의 `mark_builtin`), VM은 에러의 위치를 사용자 코드의 가장 가까운 호출 자리로 옮긴다. 호출 경로에서도 같은 규칙으로 `builtin` 표시가 붙은 프레임을 뺀다(`vm.rs`의 `call_path`). 그래서 Rust로 쓴 내장 함수(`sort`)와 fung으로 쓴 내장 함수(`take`)의 에러가 같은 모양이고, 함수를 한 언어에서 다른 언어로 옮겨도 사용자가 보는 진단은 바뀌지 않는다. 내장 함수가 부른 사용자의 콜백 프레임은 그대로 보인다.
 
-```fung run exit=1 error=E0506
+```fung run exit=2 error=E0403
 print(take(5, 2))
 ```
 

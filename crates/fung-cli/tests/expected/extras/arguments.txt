@@ -329,39 +329,33 @@
 ==== prelude.zip "print(zip(1, [1]))"
 -- stdout
 -- stderr
-| error[E0506]: cannot zip the elements of int
-|   --> -e:1:10
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:11
 |   |
 | 1 | print(zip(1, [1]))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== prelude.first "print(first(1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot take the first of int
-|   --> -e:1:12
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:13
 |   |
 | 1 | print(first(1))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== prelude.last "print(last(1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot take the last of int
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:12
 |   |
 | 1 | print(last(1))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== prelude.take "print(take([1], -1))"
 -- stdout
 -- stderr
@@ -378,14 +372,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:1:11
+|   --> -e:1:17
 |   |
 | 1 | print(drop([1], "1"))
-|   |           ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== prelude.pad_left "print(pad_left(\"a\", -3))"
 -- stdout
 -- stderr
@@ -434,14 +426,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:12
+|   --> -e:1:16
 |   |
 | 1 | print(until(1, 2, _x => true))
-|   |            ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== prelude.iterate "print(iterate(1, x => x, -3))"
 -- stdout
 -- stderr

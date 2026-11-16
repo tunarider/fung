@@ -52,6 +52,9 @@ pub struct RtProto {
     pub pos: Vec<Pos>,
     pub consts: Vec<Value>,
     pub num_locals: usize,
+    /// The slots that only hold a value: a tail call takes what they
+    /// have along (D162).
+    pub held: Box<[u32]>,
     pub global_names: Vec<String>,
     pub params: Vec<Param>,
     /// The parameters' names as symbols: a named argument finds its
@@ -96,6 +99,7 @@ pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
         pos: p.pos.clone(),
         consts: p.consts.iter().map(|c| constant(c, prelude)).collect(),
         num_locals: p.num_locals,
+        held: p.held.iter().map(|&s| s as u32).collect(),
         global_names: p.global_names.clone(),
         params: p.params.clone(),
         param_syms: p.params.iter().map(|q| intern(&q.name)).collect(),
@@ -176,6 +180,7 @@ fn missing(name: &str) -> Value {
         name: "args",
         default: None,
         rest: true,
+        types: None,
     };
     Value::Native(Native::leak(name, vec![any], missing_fn))
 }

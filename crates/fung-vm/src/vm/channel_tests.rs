@@ -104,11 +104,11 @@ fn the_argument_errors_name_the_argument() {
             "error[E0403]: argument `n` must be a non-negative int, got -1",
         ),
         (
-            "channel(1.5)",
+            "x = 1.5\nchannel(x)",
             "error[E0403]: argument `n` must be int, got float",
         ),
         (
-            "send(1, 2)",
+            "x = 1\nsend(x, 2)",
             "error[E0403]: argument `tx` must be sender, got int",
         ),
     ];
@@ -137,7 +137,7 @@ fn a_channel_prints_compares_and_types() {
             "E0501",
         ),
         ("(a, _ra) = channel()\n(b, _rb) = channel()\na < b", "E0501"),
-        ("(_tx, rx) = channel()\nlen(rx)", "E0506"),
+        ("(_tx, rx) = channel()\nlen(rx)", "E0403"),
         ("(_tx, rx) = channel()\n1 in rx", "E0512"),
         ("(_tx, rx) = channel(1)\nrx[0]", "E0509"),
     ];
@@ -496,10 +496,10 @@ fn the_wrong_end_is_a_type_error() {
             "argument `rx` must be receiver",
         ),
         (
-            "(_tx, _rx) = channel(1)\nclose(1)",
+            "(_tx, _rx) = channel(1)\nx = 1\nclose(x)",
             "argument `x` must be sender | receiver | file",
         ),
-        ("(tx, _rx) = channel(1)\nfor x in tx:\n  x\n;;", "E0506"),
+        ("(tx, _rx) = channel(1)\nfor x in tx:\n  x\n;;", "E0403"),
     ] {
         let (_, err, code) = run(src);
         assert!(err.contains(want), "{src}: {err}");
@@ -714,12 +714,12 @@ fn shared_values_without_ends_are_sent_and_held_at_once() {
     }
 }
 
-/// Iterating a sending end (a `for` over `tx`) is E0506 with a help line
+/// Iterating a sending end (a `for` over `tx`) is E0403 with a help line
 /// pointing at the receiving end (`for` is `map` underneath).
 #[test]
 fn iterating_a_sender_says_to_use_the_receiving_end() {
     let (_, err, _) = crate::testutil::run("(tx, _rx) = channel()\nfor x in tx: print(x) ;;");
-    assert!(err.contains("error[E0506]"), "{err}");
+    assert!(err.contains("error[E0403]"), "{err}");
     assert!(
         err.contains("a sending end (`tx`) cannot be read; go over the receiving end (`rx`)"),
         "{err}"

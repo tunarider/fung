@@ -53,7 +53,7 @@ match fs.read("config.txt"):
 
 작은 파일(설정, 로그 한 개, 목록)은 한 번에 읽고 한 번에 쓰는 것이 가장 쉽다. 수백 MB 이상의 큰 파일을 한 줄씩 다룰 때는 [파일 핸들](#handles)을 쓴다.
 
-:::fn fs.read(path)
+:::fn fs.read(path: str)
 
 파일 전체를 문자열 하나로 읽는다.
 
@@ -74,7 +74,7 @@ match fs.read("config.txt"):
 - `Err({kind: 'not_found})`: 파일이 없다. 빈 경로 `""`도 같다.
 - `Err({kind: 'io})`: 디렉터리를 읽으려 했다(``is a directory``) 등. 내용이 문자열 한도(1억 글자)를 넘어도 그렇다(``file is longer than the string limit (100000000 characters)``): 파일의 크기는 프로그램이 정하지 못하는 바깥 사정이라 런타임 에러가 아니다. 4억 바이트(한 글자는 4바이트 이하)보다 큰 파일은 읽지 않고 바로 거절한다.
 - `Err({kind: 'permission})`: 읽을 권한이 없다.
-- `path`가 문자열이 아니면 런타임 에러 E0403.
+- `path`가 문자열이 아니면 E0403.
 
 #### 예제
 
@@ -105,7 +105,7 @@ print(fs.read("missing.txt"))
 
 :::
 
-:::fn fs.read_lines(path) fung
+:::fn fs.read_lines(path: str) fung
 
 파일을 줄 리스트로 읽는다.
 
@@ -161,7 +161,7 @@ print(fs.read_lines("crlf.txt")!)
 
 :::
 
-:::fn fs.write(path, text, perm = nil)
+:::fn fs.write(path: str, text: str, perm: int | nil = nil)
 
 파일에 문자열을 쓴다. 있던 내용은 지운다.
 
@@ -230,7 +230,7 @@ fs.write("token.txt", token, perm: 0o600)!
 
 :::
 
-:::fn fs.append(path, text, perm = nil)
+:::fn fs.append(path: str, text: str, perm: int | nil = nil)
 
 파일 끝에 문자열을 덧붙인다.
 
@@ -271,7 +271,7 @@ print(fs.read_lines("audit.log")!)
 
 ## 디렉터리 살펴보기 {#browse}
 
-:::fn fs.list(dir, full = false)
+:::fn fs.list(dir: str, full: bool = false)
 
 디렉터리 바로 안의 이름들을 돌려준다.
 
@@ -326,7 +326,7 @@ print(dirs)
 
 :::
 
-:::fn fs.glob(pattern)
+:::fn fs.glob(pattern: str)
 
 와일드카드 패턴에 맞는 경로들을 돌려준다.
 
@@ -388,7 +388,7 @@ print(fs.glob("logs/[a"))
 
 :::
 
-:::fn fs.walk(dir)
+:::fn fs.walk(dir: str)
 
 디렉터리 아래의 모든 파일 경로를 하위 디렉터리까지 돌려준다.
 
@@ -442,7 +442,7 @@ print(n, "fung files")
 
 :::
 
-:::fn fs.exists(path)
+:::fn fs.exists(path: str)
 
 경로에 무엇이 있는지 `Ok(true)`/`Ok(false)`로 알려 준다.
 
@@ -476,7 +476,7 @@ print(fs.exists("lock")!, fs.exists(".")!, fs.exists("nope")!, fs.exists("lock/x
 
 :::
 
-:::fn fs.stat(path)
+:::fn fs.stat(path: str)
 
 경로의 이름, 크기, 디렉터리 여부, 고친 시각을 알려 준다.
 
@@ -529,7 +529,7 @@ print(big)
 
 이 절의 함수는 디스크를 바꾼다. 특히 지우는 함수는 되돌릴 수 없으니(휴지통을 거치지 않는다) 경로를 계산해서 넘길 때 조심한다.
 
-:::fn fs.mkdir(path)
+:::fn fs.mkdir(path: str)
 
 디렉터리를 만든다. 위의 디렉터리도 없으면 함께 만든다.
 
@@ -579,7 +579,7 @@ print(fs.mkdir("data/cache"))
 
 :::
 
-:::fn fs.remove(path)
+:::fn fs.remove(path: str)
 
 파일 하나나 빈 디렉터리 하나를 지운다.
 
@@ -620,7 +620,7 @@ print(fs.exists("tmp")!)
 
 :::
 
-:::fn fs.remove_all(path)
+:::fn fs.remove_all(path: str)
 
 디렉터리를 안의 것까지 통째로 지운다.
 
@@ -670,7 +670,7 @@ print(fs.remove_all("/"))
 
 :::
 
-:::fn fs.move(from, to, overwrite = false)
+:::fn fs.move(from: str, to: str, overwrite: bool = false)
 
 파일이나 디렉터리의 이름을 바꾸거나 다른 곳으로 옮긴다.
 
@@ -735,7 +735,7 @@ print(fs.move("a.log", path.join("archive", "a.log")), fs.list("archive")!)
 
 :::
 
-:::fn fs.copy(from, to, overwrite = false)
+:::fn fs.copy(from: str, to: str, overwrite: bool = false)
 
 파일 하나를 복사한다.
 
@@ -799,7 +799,7 @@ print(fs.copy("dir", "dir2"))
 
 핸들은 태스크 사이에 나눠 써도 된다. `read_line`·`write_line`·`close` 같은 연산 하나하나가 차례로 처리되어 줄이 찢어지거나 섞이지 않는다. 다만 어느 태스크가 어느 줄을 받는지는 정해지지 않는다.
 
-:::fn fs.open(path, mode = 'read, perm = nil)
+:::fn fs.open(path: str, mode: sym = 'read, perm: int | nil = nil)
 
 파일을 열어 핸들을 돌려준다.
 
@@ -833,7 +833,7 @@ print(fs.copy("dir", "dir2"))
 - `Err({kind: 'not_found})`: `'read`로 여는데 파일이 없다, 또는 위의 디렉터리가 없다.
 - `Err({kind: 'permission})`: 권한이 없다.
 - `Err({kind: 'io})`: `path`가 디렉터리다(``cannot open `logs`: is a directory``). 어느 모드든 열 때 알린다.
-- `mode`가 셋 중 하나가 아니거나 `perm`이 맞지 않으면 런타임 에러 E0403.
+- `mode`가 심볼이 아니거나 셋 중 하나가 아니면, `perm`이 맞지 않으면 E0403.
 
 #### 예제
 
@@ -872,7 +872,7 @@ fs.open("servers.txt", 'readwrite)
 
 :::
 
-:::fn fs.write_line(file, line)
+:::fn fs.write_line(file: file, line: str)
 
 핸들에 한 줄을 쓴다.
 
@@ -893,7 +893,7 @@ fs.open("servers.txt", 'readwrite)
 
 - `Err({kind: 'closed})`: 닫힌 핸들이다.
 - `'read`로 연 핸들이면 런타임 에러 E0520(``file `a.txt` is not open for writing``). 모드는 코드가 정하는 것이라 코드 오류다.
-- `line`이 문자열이 아니거나 `\n`이 들어 있으면 런타임 에러 E0403(한 줄을 쓰는 함수다).
+- `line`이 문자열이 아니거나 `\n`이 들어 있으면 E0403(한 줄을 쓰는 함수다).
 
 #### 예제
 
@@ -914,7 +914,7 @@ print(fs.read_lines("squares.txt")!)
 
 :::
 
-:::fn fs.with_open(path, f, mode = 'read, perm = nil) fung
+:::fn fs.with_open(path: str, f: fn, mode: sym = 'read, perm: int | nil = nil) fung
 
 파일을 열어 함수에 넘기고, 끝나면 무슨 일이 있어도 닫는다.
 
@@ -986,7 +986,7 @@ print(read_line(h))
 
 :::
 
-:::fn fs.with_temp_dir(f) fung
+:::fn fs.with_temp_dir(f: fn) fung
 
 임시 디렉터리를 만들어 함수에 넘기고, 끝나면 통째로 지운다.
 

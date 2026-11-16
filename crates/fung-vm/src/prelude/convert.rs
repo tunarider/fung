@@ -17,10 +17,14 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def("float", float_fn, vec![param("x")]));
     add(def("str", str_fn, vec![param("x")]));
     add(def("sym", sym_fn, vec![param("x")]));
-    add(def("sym_name", sym_name_fn, vec![param("s")]));
-    add(def("parse_int", parse_int_fn, vec![param("s")]));
-    add(def("parse_float", parse_float_fn, vec![param("s")]));
-    add(def("parse_dur", parse_dur_fn, vec![param("s")]));
+    add(def("sym_name", sym_name_fn, vec![param("s").of("sym")]));
+    add(def("parse_int", parse_int_fn, vec![param("s").of("str")]));
+    add(def(
+        "parse_float",
+        parse_float_fn,
+        vec![param("s").of("str")],
+    ));
+    add(def("parse_dur", parse_dur_fn, vec![param("s").of("str")]));
 }
 
 fn cannot_convert(v: &Value, to: &str) -> Stop {

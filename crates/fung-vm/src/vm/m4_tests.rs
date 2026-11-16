@@ -263,7 +263,7 @@ fn runtime_errors_m4() {
         ("match 1: 0 => 1 ;;", "E0601"),
         ("(_a, _b) = (1, 2, 3)", "E0602"),
         ("Ok(_x) = Err(1)", "E0602"),
-        ("map(1, x => x)", "E0506"),
+        ("map(1, x => x)", "E0403"),
     ]);
 }
 
@@ -271,18 +271,21 @@ fn runtime_errors_m4() {
 #[test]
 fn m4_error_reports() {
     let cases = [
-        ("1 in \"a\"", "error[E0501]: cannot search str and int"),
+        (
+            "fn id(v) = v\n1 in id(\"a\")",
+            "error[E0501]: cannot search str and int",
+        ),
         (
             "Ok(_x) = Err(1)",
             "error[E0602]: value Err(1) does not match the pattern",
         ),
         (
-            "(1,)[0..1]",
+            "fn id(v) = v\nid((1,))[0..1]",
             "error[E0511]: cannot slice a value of type tuple",
         ),
-        ("nil!", "error[E0604]: `!` on nil"),
+        ("fn id(v) = v\nid(nil)!", "error[E0604]: `!` on nil"),
         (
-            "5!",
+            "fn id(v) = v\nid(5)!",
             "error[E0605]: `!` on a value of type int, which is not a result (Ok(x) or Err(e))",
         ),
         (
@@ -294,7 +297,7 @@ fn m4_error_reports() {
             "error[E0507]: slice end 3 is out of range (length 3)",
         ),
         (
-            "1 in (1, 2)",
+            "fn id(v) = v\n1 in id((1, 2))",
             "error[E0512]: cannot test membership in a value of type tuple",
         ),
     ];
@@ -307,10 +310,17 @@ fn m4_error_reports() {
         "error[E0603]: unhandled Err: boom\n  --> -e:1:32\n  |\n1 | Err({kind: 1, message: \"boom\"})!\n  |                                ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
     assert_eq!(code, 1);
+    // a literal's error is the compiler's (D166): the same report
+    // without the call path
     let (_, err, _) = run("print((1,2).x)");
     assert_eq!(
         err,
-        "error[E0509]: cannot index tuple with str\n  --> -e:1:12\n  |\n1 | print((1,2).x)\n  |            ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n help: a tuple has no fields: only maps and modules do\n"
+        "error[E0509]: cannot index tuple with str\n  --> -e:1:12\n  |\n1 | print((1,2).x)\n  |            ^\n  |\n help: a tuple has no fields: only maps and modules do\n"
+    );
+    let (_, err, _) = run("p = (1, 2)\nprint(p.x)");
+    assert_eq!(
+        err,
+        "error[E0509]: cannot index tuple with str\n  --> -e:2:8\n  |\n2 | print(p.x)\n  |        ^\n  |\n call path (innermost first):\n   -e:2       <entry>\n help: a tuple has no fields: only maps and modules do\n"
     );
 }
 

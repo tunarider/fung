@@ -333,39 +333,29 @@
 ==== tests/lang/err_arg_type.fung
 -- stdout
 -- stderr
-| error[E0234]: the result of `f(…)` is computed and discarded
-|   --> tests/lang/err_arg_type.fung:3:1
-|   |
-| 3 | f(a)
-|   | ^
-|   |
-|  help: `f` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
 | error[E0403]: argument `n` must be int, got str
-|   --> tests/lang/err_arg_type.fung:3:3
+|   --> tests/lang/err_arg_type.fung:1:6
 |   |
-| 3 | f(a)
-|   |   ^
+| 1 | fn f(n: int) = n
+|   |      ^
 |   |
-|   note: `a` is bound to a literal on line 2
--- exit: 2
+|  call path (innermost first):
+|    tests/lang/err_arg_type.fung:1 f
+|    tests/lang/err_arg_type.fung:3 <entry>
+-- exit: 1
 ==== tests/lang/err_arg_type_tag.fung
 -- stdout
 -- stderr
-| error[E0234]: the result of `f(…)` is computed and discarded
-|   --> tests/lang/err_arg_type_tag.fung:3:1
-|   |
-| 3 | f(n)
-|   | ^
-|   |
-|  help: `f` has no effect: it only computes its result (a changed copy, a converted value); use the result, or write `_ = …` to discard it on purpose
 | error[E0403]: argument `s` must be Circle, got int
-|   --> tests/lang/err_arg_type_tag.fung:3:3
+|   --> tests/lang/err_arg_type_tag.fung:1:6
 |   |
-| 3 | f(n)
-|   |   ^
+| 1 | fn f(s: Circle) = s
+|   |      ^
 |   |
-|   note: `n` is bound to a literal on line 2
--- exit: 2
+|  call path (innermost first):
+|    tests/lang/err_arg_type_tag.fung:1 f
+|    tests/lang/err_arg_type_tag.fung:3 <entry>
+-- exit: 1
 ==== tests/lang/err_assert.fung
 -- stdout
 -- stderr
@@ -473,9 +463,7 @@
 | 1 | nil!
 |   |    ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_bang_nil.fung:1 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_bang_value.fung
 -- stdout
 -- stderr
@@ -485,9 +473,7 @@
 | 1 | 5!
 |   |  ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_bang_value.fung:1 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_block_assign_const.fung
 -- stdout
 -- stderr
@@ -1860,9 +1846,7 @@
 | 1 | print(1 in 1)
 |   |         ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_in.fung:1 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_index_negative.fung
 -- stdout
 | 30 30
@@ -1909,9 +1893,7 @@
 | 1 | print((1, 2)[0])
 |   |             ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_index_tuple.fung:1 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_int_out_of_range.fung
 -- stdout
 -- stderr
@@ -2325,15 +2307,17 @@
 -- exit: 1
 ==== tests/lang/err_named_literal.fung
 -- stdout
+| ran
 -- stderr
 | error[E0505]: expected bool, got int
-|   --> tests/lang/err_named_literal.fung:5:4
+|   --> tests/lang/err_named_literal.fung:6:4
 |   |
-| 5 | if c: print("yes") ;;
+| 6 | if c: print("yes") ;;
 |   |    ^
 |   |
-|   note: `c` is bound to a literal on line 3
--- exit: 2
+|  call path (innermost first):
+|    tests/lang/err_named_literal.fung:6 <entry>
+-- exit: 1
 ==== tests/lang/err_native_import.fung
 -- stdout
 -- stderr
@@ -2940,7 +2924,7 @@
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 -- exit: 2
 ==== tests/lang/err_return_type.fung
 -- stdout
@@ -3060,9 +3044,7 @@
 | 1 | print((1,)[0..1])
 |   |           ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_slice_tuple.fung:1 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/err_sort_mixed_rows.fung
 -- stdout
 | [[1, "a"], [2, "b"]]
@@ -3126,13 +3108,13 @@
 | 3
 -- stderr
 | error[E0506]: cannot spread str
-|   --> tests/lang/err_spread_value.fung:5:10
+|   --> tests/lang/err_spread_value.fung:6:10
 |   |
-| 5 | print(add(..."ab"))
+| 6 | print(add(...s))
 |   |          ^
 |   |
 |  call path (innermost first):
-|    tests/lang/err_spread_value.fung:5 <entry>
+|    tests/lang/err_spread_value.fung:6 <entry>
 -- exit: 1
 ==== tests/lang/err_stack_overflow.fung
 -- stdout
@@ -3313,7 +3295,7 @@
 | error[E0403]: argument `n` must be int, got str
 |   --> tests/lang/err_tail_library.fung:4:7
 |   |
-| 4 |   take(xs, "two")
+| 4 |   take(xs, n)
 |   |       ^
 |   |
 |  call path (innermost first):
@@ -3584,13 +3566,15 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `c` must be Red | Green, got sym
-|   --> tests/lang/err_types_enum.fung:4:11
+|   --> tests/lang/err_types_enum.fung:2:8
 |   |
-| 4 | print(hex(v))
-|   |           ^
+| 2 | fn hex(c: color) = c
+|   |        ^
 |   |
-|   note: `v` is bound to a literal on line 3
--- exit: 2
+|  call path (innermost first):
+|    tests/lang/err_types_enum.fung:2 hex
+|    tests/lang/err_types_enum.fung:4 <entry>
+-- exit: 1
 ==== tests/lang/err_unclosed_block.fung
 -- stdout
 -- stderr
@@ -3829,14 +3813,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> tests/lang/err_write_str.fung:2:6
+|   --> tests/lang/err_write_str.fung:2:7
 |   |
 | 2 | write(1)
-|   |      ^
+|   |       ^
 |   |
-|  call path (innermost first):
-|    tests/lang/err_write_str.fung:2 <entry>
--- exit: 1
+-- exit: 2
 ==== tests/lang/exit_from_task.fung
 -- stdout
 | bye
@@ -4317,6 +4299,14 @@
 -- stdout
 | pos neg zero
 | nil
+-- stderr
+-- exit: 0
+==== tests/lang/return_branch.fung
+-- stdout
+| Err("PORT is not set") Ok("80")
+| true 'negative 'big false
+| 'no_a 'no_b 3
+| true 200000
 -- stderr
 -- exit: 0
 ==== tests/lang/rules_w4a.fung

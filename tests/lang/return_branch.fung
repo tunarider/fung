@@ -1,0 +1,22 @@
+# The right side of `??`, `and` and `or` is evaluated only when needed:
+# a branch, whose end may be a `return` (D167).
+fn port(m):
+  p = get(m, "PORT") ?? return Err("PORT is not set")
+  Ok(p)
+;;
+fn sign(n) = n >= 0 or return 'negative
+fn first_big(n) = n > 10 and return 'big
+fn both(a, b) = (a ?? return 'no_a) + (b ?? return 'no_b)
+
+# a `return` there is a tail call, as a call there is
+fn count(n) = n == 0 or return count(n - 1)
+fn walk(n, acc) = (n == 0 then acc else nil) ?? return walk(n - 1, acc + 1)
+
+print(port({}), port({PORT: "80"}))
+print(sign(1), sign(-1), first_big(11), first_big(1))
+print(both(nil, 1), both(1, nil), both(1, 2))
+print(count(200000), walk(200000, 0))
+# expect: Err("PORT is not set") Ok("80")
+# expect: true 'negative 'big false
+# expect: 'no_a 'no_b 3
+# expect: true 200000

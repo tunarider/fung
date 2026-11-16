@@ -32,17 +32,24 @@ pub(super) fn key(n: &Node) -> FnKey {
     (n.pos.line, n.pos.col)
 }
 
+/// A parameter: the function it is a parameter of (its body's key; none
+/// for a function without a body here, one of the spec or of another
+/// file) and its index.
+pub(super) type Dep = (Option<FnKey>, usize);
+
 /// A summary: `None` has an effect; `Some(ps)` has none when the
-/// functions given at the parameters `ps` (indices) have none.
-pub(super) type Purity = Option<BTreeSet<usize>>;
+/// functions given at the parameters `ps` have none. They are the
+/// function's own parameters and, for a function written inside another,
+/// those of the functions around it that it caught (D169).
+pub(super) type Purity = Option<BTreeSet<Dep>>;
 
 /// What a call calls.
 #[derive(Clone, Debug)]
 pub(super) enum Callee {
     /// A function the call is sure to be: its parameters and summary.
     Known(Sig),
-    /// A parameter of the function the call is in.
-    Param(usize),
+    /// A parameter of the function the call is in, or of one around it.
+    Param(Dep),
     /// Anything else.
     Unknown,
 }
@@ -52,8 +59,8 @@ pub(super) enum Callee {
 pub(super) enum ArgVal {
     /// A function value the code shows.
     Fn(Callee),
-    /// A parameter of the function the call is in.
-    Param(usize),
+    /// A parameter of the function the call is in, or of one around it.
+    Param(Dep),
     /// A literal that is no function.
     Data,
     /// Anything else.
@@ -109,17 +116,23 @@ fn by_param(r: &mut Resolver<'_>, sig: &Sig, args: &[Node], got: &[Node]) -> Vec
 }
 
 impl Resolver<'_> {
-    /// The parameter index `got` (a resolved read) is, in the function
-    /// being resolved: a local slot below its parameter count.
-    fn param_of(&self, got: &Node) -> Option<usize> {
+    /// The parameter `got` (a resolved read) is: a local slot below the
+    /// parameter count of the function being resolved, or a value it
+    /// caught that is a parameter of a function around it (D169).
+    fn param_of(&self, got: &Node) -> Option<Dep> {
         let f = self.cur();
-        if self.fns.len() < 2 || got.head != Head::Local {
+        if self.fns.len() < 2 {
             return None;
         }
         let Lit::Int(i) = got.lit else {
             return None;
         };
-        (usize::try_from(i).ok()? < f.nparams).then_some(i as usize)
+        let i = usize::try_from(i).ok()?;
+        match got.head {
+            Head::Local => (i < f.nparams).then_some((Some(f.key), i)),
+            Head::Captured => f.cap_params.get(i).copied().flatten(),
+            _ => None,
+        }
     }
 
     /// What the argument `a` (as written; `got` resolved) is.
@@ -130,7 +143,7 @@ impl Resolver<'_> {
         if let Some(i) = self.param_of(got) {
             return ArgVal::Param(i);
         }
-        match known_type(self.literal_view(a)) {
+        match known_type(a) {
             Some("fn") | None => ArgVal::Unknown,
             Some(_) => ArgVal::Data,
         }
@@ -258,11 +271,13 @@ impl Resolver<'_> {
         let mut out = sig.clone();
         if let Some(k) = sig.body {
             match self.purity.get(&k).cloned().flatten() {
-                Some(ps) => {
+                // a function another file sees is at the top level: it
+                // has caught no parameter
+                Some(ps) if ps.iter().all(|(owner, _)| *owner == Some(k)) => {
                     out.pure = true;
-                    out.calls = ps.into_iter().collect();
+                    out.calls = ps.into_iter().map(|(_, i)| i).collect();
                 }
-                None => {
+                _ => {
                     out.pure = false;
                     out.calls = Vec::new();
                 }
@@ -307,7 +322,8 @@ fn summary(sig: &Sig, table: &HashMap<FnKey, Purity>) -> Purity {
     {
         return p.clone();
     }
-    sig.pure.then(|| sig.calls.iter().copied().collect())
+    sig.pure
+        .then(|| sig.calls.iter().map(|i| (sig.body, *i)).collect())
 }
 
 /// What one effect needs of the parameters of the function it is in.
@@ -320,7 +336,12 @@ fn eval(e: &Effect, table: &HashMap<FnKey, Purity>) -> Purity {
         Callee::Param(i) => Some(BTreeSet::from([*i])),
         Callee::Known(sig) => {
             let mut ps = BTreeSet::new();
-            for j in summary(sig, table)? {
+            for (owner, j) in summary(sig, table)? {
+                if owner != sig.body {
+                    // a parameter the callee caught from around it
+                    ps.insert((owner, j));
+                    continue;
+                }
                 let (_, a) = args.iter().find(|(k, _)| *k == j)?;
                 match a {
                     ArgVal::Data => {}
@@ -329,9 +350,13 @@ fn eval(e: &Effect, table: &HashMap<FnKey, Purity>) -> Purity {
                     }
                     ArgVal::Fn(Callee::Known(s)) => {
                         // called with values it does not know: it must be
-                        // pure whatever it is given
-                        if !summary(s, table)?.is_empty() {
-                            return None;
+                        // pure whatever it is given; what it caught from
+                        // around it is still to be known
+                        for (owner, k) in summary(s, table)? {
+                            if owner == s.body {
+                                return None;
+                            }
+                            ps.insert((owner, k));
                         }
                     }
                     ArgVal::Fn(Callee::Param(i)) => {

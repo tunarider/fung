@@ -82,7 +82,7 @@
 <p class="lede">대입, 블록 스코프, 바깥 변수, 최상위 이름.</p>
 <p>대입 <code>x = 식</code>은 이름을 값에 붙인다. 붙인 이름은 바뀌지 않는다. 규칙은 여섯이다.</p>
 <ol>
-  <li><strong>이름은 위에서 아래로 묶인다.</strong> 대입보다 앞에서 읽으면 컴파일 에러(E0204). prelude 함수의 이름을 묶은 블록에서는 그 블록 전체와 안쪽 블록에서 그 이름이 묶은 것을 뜻하므로, 대입보다 앞에서 읽어도 prelude 함수가 아니라 E0204다(<code>lines = lines(s)</code>도).</li>
+  <li><strong>이름은 위에서 아래로 묶인다.</strong> 대입보다 앞에서 읽으면 컴파일 에러(E0204). prelude 함수의 이름을 묶은 블록에서는 그 블록 전체와 안쪽 블록에서 그 이름이 묶은 것을 뜻하므로, 대입보다 앞에서 읽어도 prelude 함수가 아니라 E0204다(<code>lines = lines(s)</code>도). 가려지는 것은 그 블록 안에서만이다: 블록 밖(옆 가지, 블록의 앞과 뒤)에서는 그 이름이 prelude 함수다. 매개변수는 함수 본문 블록의 이름이고 기본값도 그 블록 안이라, 매개변수나 본문의 문장이 묶는 prelude 이름을 기본값에서 읽으면 같은 E0204다(<code>fn render(rows, keys = keys(rows[0]))</code>).</li>
   <li><strong>보이는 이름은 다시 묶을 수 없다.</strong> 이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름이든, 바깥 블록이나 바깥 함수의 이름, 최상위 이름(상수·<code>fn</code>), import한 이름과 모듈 이름이든, 보이는 이름을 다시 묶으면 묶는 방법(대입, 구조 분해, <code>fn</code>·람다의 매개변수, <code>for</code>의 변수, <code>match</code> 절의 패턴, 지역 <code>fn</code>, 최상위 <code>fn</code>, import)과 상관없이 컴파일 에러 E0238이다. 파일의 맨 바깥에서도 함수 본문에서도 같다. 그래서 이름은 모두 상수이고, 한 자리에서 이름 하나는 한 가지만 뜻한다. 노트가 그 이름이 어디서 왔는지(같은 블록의 몇째 줄, 블록 바깥, 최상위 이름, <code>fn</code>, import, 모듈) 알려 주고, 도움말이 무엇을 쓸지 알려 준다(반복문 안의 <code>total = total + 1</code>이면 식이나 <code>fold</code>, 모듈 이름이면 <code>import … as</code>). 다음 값에는 새 이름을 붙이거나, 단계들을 식 하나(파이프, <code>if</code>, <code>fold</code>)로 쓴다. REPL의 최상위만 입력마다 다시 정의할 수 있다. prelude 함수는 바깥에서 묶은 이름이 아니라 어느 블록에도 묶이지 않은 이름이라, 그 이름은 어느 자리에서나(지역 변수, 매개변수, 패턴, <code>for</code> 변수, 지역·최상위 <code>fn</code>, import 목록) 묶을 수 있고 묶은 블록에서 prelude 함수를 가린다(1번). 같은 모듈을 두 번 import하는 것은 이름이 아니라 모듈의 규칙이라 따로 E0309다.</li>
   <li><strong>최상위 <code>fn</code>은 프로그램 시작 전에 모두 만들어진다.</strong> 그래서 순서와 상관없이 서로 부를 수 있다.</li>
   <li><strong>함수 값은 만들어질 때 보이는 변수의 값을 가진다.</strong> 이름이 한 번만 묶이므로 그 값은 함수를 언제 불러도 같다.</li>
@@ -103,6 +103,7 @@ total = len(files)              # 값을 식으로 만든다
 
 fn count(dir) = len(fs.list(dir)!)  # E0238: 매개변수 dir이 상수 dir을 가린다
 for len in [1, 2]: print(len) ;; # 된다: prelude 함수 len을 이 본문에서 가린다
+print(len(files))                # 된다: 본문 밖에서는 prelude 함수 len이다
 lines = lines(text)             # E0204: 이 블록의 lines는 이 대입이 묶는 이름이다</code></pre>
 <p><strong>함수 이름.</strong> 최상위 <code>fn</code>의 이름은 상수다: 같은 파일에 같은 이름의 <code>fn</code>을 둘 두거나 그 이름에 대입하면 E0238이다(REPL만 다시 정의할 수 있다. fung에는 인자 개수로 함수를 고르는 오버로딩이 없다). 블록 안의 지역 <code>fn</code> 이름도 같다. 블록 안의 지역 <code>fn</code>은 그 자리에서 만들어지는 함수 값이라 4번 규칙대로 바깥 인자와 지역 변수를 복사하고, 자기 자신과 앞에서 정의한 이름만 부를 수 있다. 같은 블록의 뒤에서 정의하는 지역 <code>fn</code>을 부르면 E0208이다. 서로 부르는 함수들은 최상위에 둔다.</p>
 <p><strong>값의 수명.</strong> 변수가 값을 언제 놓는지는 프로그램의 결과를 바꾸지 않는다. 홀로 쥔 맵·리스트를 제자리에서 고치는 빠르기와, 읽지 않은 태스크의 <code>Err</code>(E0607)가 보고되는 때, 닫지 않은 파일이 닫히는 때에만 보인다. 규칙은 VM 책의 <a href="../../vm/10-values-and-memory.html#lifetime">지역 변수의 수명</a>에 있다. 채널은 <code>close</code>로만 닫히므로(<a href="../prelude/concurrency.html">동시성</a>) 놓는 시점과 상관없다.</p>
@@ -185,6 +186,22 @@ print(first_word(&quot;a b&quot;))</code></pre><pre class="out err plain" data-c
   sum + len(xs)
 ;;
 print(total([1]))</code></pre><pre class="out plain"><code>1</code></pre></div>
+<p>가려지는 것은 묶은 블록 안에서만이다. 한 절이 <code>min</code>을 변수로 써도 옆 절에서는 prelude 함수 <code>min</code>이다. 그래서 블록 안에서 묶은 prelude 이름을 블록 밖에서 읽으면 E0206이 아니라 그 prelude 함수를 읽는다.</p>
+<div class="run"><pre><code>fn smallest(xs, fallback) = match xs:
+  []    =&gt; fallback
+  [min] =&gt; min
+  _     =&gt; min(xs)
+;;
+print(smallest([3, 1], 0), smallest([7], 0), smallest([], 0))</code></pre><pre class="out plain"><code>1 7 0</code></pre></div>
+<p>기본값은 함수 본문 블록 안이다. 매개변수가 묶는 prelude 이름은 기본값에서도 그 매개변수다.</p>
+<div class="run"><pre><code>fn render(rows, keys = keys(rows[0])) = keys
+print(render([{a: 1}]))</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `keys`
+  --&gt; example.fung:1:24
+  |
+1 | fn render(rows, keys = keys(rows[0])) = keys
+  |                        ^^^^ not found in this scope
+  |
+ help: `keys` is bound in this function (line 1), so in a parameter's default it is that name, not the prelude function; give the new name another name</code></pre></div>
 <div class="run"><pre><code>fn words(text):
   lines = lines(text)
   len(lines)
@@ -196,7 +213,7 @@ print(words(&quot;a\nb&quot;))</code></pre><pre class="out err plain" data-code=
   |           ^^^^^ not found in this scope
   |
  help: `lines` is bound on line 2 of this block, so here it is that name, not the prelude function; read it after that line, or give the new name another name</code></pre></div>
-<p>한 번도 읽지 않는 이름은 에러다. 일부러 쥐기만 하는 이름은 <code>_</code>로 시작한다.</p>
+<p>한 번도 읽지 않는 이름은 에러다. 일부러 쥐기만 하는 이름은 <code>_</code>로 시작한다. 그런 이름은 함수가 돌아올 때까지 값을 쥔다(꼬리 호출을 넘어서도, <a href="functions.html">함수</a>). 버리려는 값은 <code>_</code>로 받는다.</p>
 <div class="run"><pre><code>fn area(w, h) = w * w
 print(area(2, 3))</code></pre><pre class="out err plain" data-code="2"><code>error[E0239]: unused parameter `h`
   --&gt; example.fung:1:12

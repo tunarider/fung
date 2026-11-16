@@ -6,7 +6,7 @@ lede: 대입, 블록 스코프, 바깥 변수, 최상위 이름.
 
 <p>대입 <code>x = 식</code>은 이름을 값에 붙인다. 붙인 이름은 바뀌지 않는다. 규칙은 여섯이다.</p>
 <ol>
-  <li><strong>이름은 위에서 아래로 묶인다.</strong> 대입보다 앞에서 읽으면 컴파일 에러(E0204). prelude 함수의 이름을 묶은 블록에서는 그 블록 전체와 안쪽 블록에서 그 이름이 묶은 것을 뜻하므로, 대입보다 앞에서 읽어도 prelude 함수가 아니라 E0204다(<code>lines = lines(s)</code>도).</li>
+  <li><strong>이름은 위에서 아래로 묶인다.</strong> 대입보다 앞에서 읽으면 컴파일 에러(E0204). prelude 함수의 이름을 묶은 블록에서는 그 블록 전체와 안쪽 블록에서 그 이름이 묶은 것을 뜻하므로, 대입보다 앞에서 읽어도 prelude 함수가 아니라 E0204다(<code>lines = lines(s)</code>도). 가려지는 것은 그 블록 안에서만이다: 블록 밖(옆 가지, 블록의 앞과 뒤)에서는 그 이름이 prelude 함수다. 매개변수는 함수 본문 블록의 이름이고 기본값도 그 블록 안이라, 매개변수나 본문의 문장이 묶는 prelude 이름을 기본값에서 읽으면 같은 E0204다(<code>fn render(rows, keys = keys(rows[0]))</code>).</li>
   <li><strong>보이는 이름은 다시 묶을 수 없다.</strong> 이름은 한 번만 묶인다. 같은 블록에서 이미 묶은 이름이든, 바깥 블록이나 바깥 함수의 이름, 최상위 이름(상수·<code>fn</code>), import한 이름과 모듈 이름이든, 보이는 이름을 다시 묶으면 묶는 방법(대입, 구조 분해, <code>fn</code>·람다의 매개변수, <code>for</code>의 변수, <code>match</code> 절의 패턴, 지역 <code>fn</code>, 최상위 <code>fn</code>, import)과 상관없이 컴파일 에러 E0238이다. 파일의 맨 바깥에서도 함수 본문에서도 같다. 그래서 이름은 모두 상수이고, 한 자리에서 이름 하나는 한 가지만 뜻한다. 노트가 그 이름이 어디서 왔는지(같은 블록의 몇째 줄, 블록 바깥, 최상위 이름, <code>fn</code>, import, 모듈) 알려 주고, 도움말이 무엇을 쓸지 알려 준다(반복문 안의 <code>total = total + 1</code>이면 식이나 <code>fold</code>, 모듈 이름이면 <code>import … as</code>). 다음 값에는 새 이름을 붙이거나, 단계들을 식 하나(파이프, <code>if</code>, <code>fold</code>)로 쓴다. REPL의 최상위만 입력마다 다시 정의할 수 있다. prelude 함수는 바깥에서 묶은 이름이 아니라 어느 블록에도 묶이지 않은 이름이라, 그 이름은 어느 자리에서나(지역 변수, 매개변수, 패턴, <code>for</code> 변수, 지역·최상위 <code>fn</code>, import 목록) 묶을 수 있고 묶은 블록에서 prelude 함수를 가린다(1번). 같은 모듈을 두 번 import하는 것은 이름이 아니라 모듈의 규칙이라 따로 E0309다.</li>
   <li><strong>최상위 <code>fn</code>은 프로그램 시작 전에 모두 만들어진다.</strong> 그래서 순서와 상관없이 서로 부를 수 있다.</li>
   <li><strong>함수 값은 만들어질 때 보이는 변수의 값을 가진다.</strong> 이름이 한 번만 묶이므로 그 값은 함수를 언제 불러도 같다.</li>
@@ -29,6 +29,7 @@ total = len(files)              # 값을 식으로 만든다
 
 fn count(dir) = len(fs.list(dir)!)  # E0238: 매개변수 dir이 상수 dir을 가린다
 for len in [1, 2]: print(len) ;; # 된다: prelude 함수 len을 이 본문에서 가린다
+print(len(files))                # 된다: 본문 밖에서는 prelude 함수 len이다
 lines = lines(text)             # E0204: 이 블록의 lines는 이 대입이 묶는 이름이다
 ```
 
@@ -103,6 +104,24 @@ fn total(xs):
 print(total([1]))
 ```
 
+가려지는 것은 묶은 블록 안에서만이다. 한 절이 `min`을 변수로 써도 옆 절에서는 prelude 함수 `min`이다. 그래서 블록 안에서 묶은 prelude 이름을 블록 밖에서 읽으면 E0206이 아니라 그 prelude 함수를 읽는다.
+
+```fung run
+fn smallest(xs, fallback) = match xs:
+  []    => fallback
+  [min] => min
+  _     => min(xs)
+;;
+print(smallest([3, 1], 0), smallest([7], 0), smallest([], 0))
+```
+
+기본값은 함수 본문 블록 안이다. 매개변수가 묶는 prelude 이름은 기본값에서도 그 매개변수다.
+
+```fung run exit=2 error=E0204
+fn render(rows, keys = keys(rows[0])) = keys
+print(render([{a: 1}]))
+```
+
 ```fung run exit=2 error=E0204
 fn words(text):
   lines = lines(text)
@@ -111,7 +130,7 @@ fn words(text):
 print(words("a\nb"))
 ```
 
-한 번도 읽지 않는 이름은 에러다. 일부러 쥐기만 하는 이름은 `_`로 시작한다.
+한 번도 읽지 않는 이름은 에러다. 일부러 쥐기만 하는 이름은 `_`로 시작한다. 그런 이름은 함수가 돌아올 때까지 값을 쥔다(꼬리 호출을 넘어서도, [함수](functions.html)). 버리려는 값은 `_`로 받는다.
 
 ```fung run exit=2 error=E0239
 fn area(w, h) = w * w

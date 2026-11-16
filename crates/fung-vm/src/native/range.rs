@@ -20,18 +20,29 @@ static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new()
 pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
         vec![
-            ("last", native("last", last_fn, vec![param("r")])),
+            (
+                "last",
+                native("last", last_fn, vec![param("r").of("range")]),
+            ),
             (
                 "items",
-                native("items", items_fn, vec![param("xs"), param("verb")]),
+                native(
+                    "items",
+                    items_fn,
+                    vec![param("xs"), param("verb").of("str")],
+                ),
             ),
-            ("pad", native("pad", pad_fn, vec![param("pad")])),
+            ("pad", native("pad", pad_fn, vec![param("pad").of("str")])),
             (
                 "slice",
                 native(
                     "slice",
                     slice_fn,
-                    vec![param("r"), param("from"), opt("to", Lit::Nil)],
+                    vec![
+                        param("r").of("range"),
+                        param("from").of("int"),
+                        opt("to", Lit::Nil).of("int | nil"),
+                    ],
                 ),
             ),
         ]

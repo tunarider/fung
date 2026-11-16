@@ -593,24 +593,24 @@ true</code></pre></div>
 <section class="entry error" id="E0132">
 <h3>E0132</h3>
 <p class="catalog"><code>`return` used as a value</code></p>
-<p><code>return</code>을 값 자리에 썼다: 연산자의 피연산자, 호출 인자, 리스트·맵·튜플의 원소, 대입의 오른쪽, 괄호 안. <code>return</code>은 문장이거나 가지의 끝(<code>if</code>·<code>match</code> 절의 본문, <code>then … else</code>의 가지, <code>fn f() = …</code>의 본문)에만 온다. 값 자리의 <code>return</code>은 그 식의 나머지가 계산되지 않는다는 것을 숨긴다.</p>
+<p><code>return</code>을 값 자리에 썼다: 연산자의 피연산자, 호출 인자, 리스트·맵·튜플의 원소, 대입의 오른쪽, 괄호 바로 안. <code>return</code>은 문장이거나 가지의 끝(<code>if</code>·<code>match</code> 절의 본문, <code>then … else</code>의 가지, <code>??</code>·<code>and</code>·<code>or</code>의 오른쪽, <code>fn f() = …</code>의 본문)에만 온다. 가지는 필요할 때만 평가하는 자리다. 늘 평가하는 자리의 <code>return</code>은 그 식의 나머지가 계산되지 않는다는 것을 숨긴다.</p>
+<div class="run"><pre><code>fn port(cfg):
+  p = 1 + return 80
+  p
+;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0132]: `return` used as a value
+  --&gt; example.fung:2:11
+  |
+2 |   p = 1 + return 80
+  |           ^^^^^^
+  |
+ help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it</code></pre></div>
+<p>고치는 법: 값을 먼저 계산하고 돌려주거나, 가지로 쓴다.</p>
 <div class="run"><pre><code>fn port(cfg):
   p = cfg.port ?? return 80
   p + 1
-;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0132]: `return` used as a value
-  --&gt; example.fung:2:19
-  |
-2 |   p = cfg.port ?? return 80
-  |                   ^^^^^^
-  |
- help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it</code></pre></div>
-<p>고치는 법: 조건을 문장으로 드러내거나 <code>then … else</code>의 가지로 쓴다.</p>
-<div class="run"><pre><code>fn port(cfg):
-  if cfg.port == nil: return 80 ;;
-  cfg.port + 1
 ;;
 print(port({port: nil}), port({port: 8000}))</code></pre><pre class="out plain"><code>80 8001</code></pre></div>
-<p class="help">기본 도움말: <code>`return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it</code></p>
+<p class="help">기본 도움말: <code>`return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it</code></p>
 </section>
 <section class="entry error" id="E0133">
 <h3>E0133</h3>
@@ -646,7 +646,7 @@ args: -v -q</code></pre></div>
 <li><code>from</code> → <code>import m (a, b)</code></li>
 <li><code>end</code>·<code>endif</code>·<code>fi</code>·<code>done</code> → 블록은 <code>;;</code>로 닫는다(줄에 홀로 선 <code>end</code>는 이름으로 읽히므로 닫지 않은 블록의 <a href="#E0112">E0112</a>에 도움말로 붙는다)</li>
 </ul>
-<p><code>null</code>·<code>undefined</code>·<code>nullptr</code>를 값으로 쓰면 없는 이름(<a href="#E0204">E0204</a>)이고, 도움말이 <code>nil</code>을 알려 준다. 기호도 같은 표에서 도움말을 얻는다: <code>&amp;&amp;</code>(<a href="#E0101">E0101</a>)는 <code>and</code>, <code>||</code>·앞에 붙은 <code>!</code>·<code>x += 1</code>·<code>x++</code>·<code>&quot;a&quot; ++ &quot;b&quot;</code>·<code>-&gt;</code> 람다·<code>{</code> 블록·<code>match = 1</code>(<a href="#E0110">E0110</a>)은 각각 <code>or</code>·<code>not</code>·새 이름 묶기·<code>+</code>·<code>=&gt;</code>·<code>:</code> … <code>;;</code>·예약어 안내, 조건 자리의 <code>=</code>(<a href="#E0112">E0112</a>)는 <code>==</code>.</p>
+<p><code>null</code>·<code>undefined</code>·<code>nullptr</code>를 값으로 쓰면 없는 이름(<a href="#E0204">E0204</a>)이고, 도움말이 <code>nil</code>을 알려 준다. 기호도 같은 표에서 도움말을 얻는다: <code>&amp;&amp;</code>(<a href="#E0101">E0101</a>)는 <code>and</code>, <code>||</code>·앞에 붙은 <code>!</code>·<code>x += 1</code>·<code>x++</code>·<code>&quot;a&quot; ++ &quot;b&quot;</code>·<code>-&gt;</code> 람다·<code>{</code> 블록·<code>match = 1</code>(<a href="#E0110">E0110</a>)은 각각 <code>or</code>·<code>not</code>·새 이름 묶기·<code>+</code>·<code>=&gt;</code>·<code>:</code> … <code>;;</code>·예약어 안내, 값의 한 부분에 대입하는 <code>m.a = 2</code>·<code>xs[0] = 2</code>(E0110)는 값이 제자리에서 바뀌지 않는다는 안내(<code>put</code>, 슬라이스와 <code>+</code>), 조건 자리의 <code>=</code>(<a href="#E0112">E0112</a>)는 <code>==</code>.</p>
 <p>이 낱말을 이름으로 쓰는 것은 그대로 된다(<code>let = 1</code>, <code>while(x)</code> 같은 호출). 낱말 바로 뒤(또는 바로 뒤 괄호 다음)에서 문법 에러가 날 때만 이 에러다.</p>
 <div class="run"><pre><code>x = 2
 if x == 1:
@@ -1936,8 +1936,8 @@ if len(xs) &gt; 0: print(&quot;not empty&quot;) ;;</code></pre><pre class="out p
 <section class="entry error" id="E0506">
 <h3>E0506</h3>
 <p class="catalog"><code>cannot %s %s</code></p>
-<p>연산이나 내장 함수가 그 타입의 값에는 할 수 없는 일이다. 메시지가 하려던 일과 타입을 적는다(<code>cannot negate str</code>, <code>cannot take the length of int</code>, <code>cannot iterate over str</code>(<code>map</code>과 값 자리의 <code>for</code>), <code>cannot zip the elements of int</code>, <code>cannot get a key from list</code>, 리스트·범위가 아닌 값을 펼친 <code>cannot spread str</code> 등).</p>
-<p>흔한 원인: 문자열에 단항 <code>-</code>, 숫자에 <code>len</code>, 문자열에 리스트 함수(<code>first(&quot;abc&quot;)</code>; 문자열은 <code>chars</code>로 리스트로 바꾼다).</p>
+<p>연산이 그 타입의 값에는 할 수 없는 일이다. 메시지가 하려던 일과 타입을 적는다(<code>cannot negate str</code>, 리스트·범위가 아닌 값을 펼친 <code>cannot spread str</code>, 수·기간이 아닌 원소를 더한 <code>cannot sum str</code>, 리스트·범위가 아닌 원소를 편 <code>cannot flatten an element of type int</code>). 내장 함수에 받지 않는 타입의 인자를 넘긴 것은 E0403이다(<code>len(5)</code>, <code>map(&quot;ab&quot;, f)</code>, <code>for ch in &quot;ab&quot;</code>).</p>
+<p>흔한 원인: 문자열에 단항 <code>-</code>.</p>
 <div class="run"><pre><code>fn neg(x) = -x
 print(neg(&quot;5&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot negate str
   --&gt; example.fung:1:13
@@ -1949,9 +1949,7 @@ print(neg(&quot;5&quot;))</code></pre><pre class="out err plain" data-code="1"><
    example.fung:1 neg
    example.fung:2 &lt;entry&gt;</code></pre></div>
 <p>수가 아닌 리터럴에 바로 쓴 <code>-</code>(<code>-&quot;5&quot;</code>)는 타입이 이미 드러나 있어 컴파일할 때 같은 번호로 멈춘다.</p>
-<div class="run"><pre><code>print(-parse_int(&quot;5&quot;)!)
-print(first(chars(&quot;abc&quot;)))</code></pre><pre class="out plain"><code>-5
-a</code></pre></div>
+<div class="run"><pre><code>print(-parse_int(&quot;5&quot;)!)</code></pre><pre class="out plain"><code>-5</code></pre></div>
 </section>
 <section class="entry error" id="E0507">
 <h3>E0507</h3>
@@ -2012,14 +2010,12 @@ print(host, port)</code></pre><pre class="out plain"><code>db1 5432</code></pre>
 <h3>E0511</h3>
 <p class="catalog"><code>cannot slice a value of type %s</code></p>
 <p>슬라이스 <code>x[a..b]</code>를 쓸 수 없는 값에 썼다. 슬라이스는 리스트와 문자열에만 된다.</p>
-<div class="run"><pre><code>print((1, 2, 3)[0..2])</code></pre><pre class="out err plain" data-code="1"><code>error[E0511]: cannot slice a value of type tuple
+<div class="run"><pre><code>print((1, 2, 3)[0..2])</code></pre><pre class="out err plain" data-code="2"><code>error[E0511]: cannot slice a value of type tuple
   --&gt; example.fung:1:16
   |
 1 | print((1, 2, 3)[0..2])
   |                ^
-  |
- call path (innermost first):
-   example.fung:1 &lt;entry&gt;</code></pre></div>
+  |</code></pre></div>
 <p>고치는 법: 튜플이라면 패턴으로 꺼내거나 처음부터 리스트로 만든다.</p>
 <div class="run"><pre><code>print([1, 2, 3][0..2])</code></pre><pre class="out plain"><code>[1, 2]</code></pre></div>
 </section>
@@ -2027,14 +2023,12 @@ print(host, port)</code></pre><pre class="out plain"><code>db1 5432</code></pre>
 <h3>E0512</h3>
 <p class="catalog"><code>cannot test membership in a value of type %s</code></p>
 <p><code>in</code>의 오른쪽이 포함 여부를 검사할 수 없는 값이다. 리스트(원소), 맵(키), 문자열(부분 문자열), 범위(정수)만 된다.</p>
-<div class="run"><pre><code>print(3 in 10)</code></pre><pre class="out err plain" data-code="1"><code>error[E0512]: cannot test membership in a value of type int
+<div class="run"><pre><code>print(3 in 10)</code></pre><pre class="out err plain" data-code="2"><code>error[E0512]: cannot test membership in a value of type int
   --&gt; example.fung:1:9
   |
 1 | print(3 in 10)
   |         ^
-  |
- call path (innermost first):
-   example.fung:1 &lt;entry&gt;</code></pre></div>
+  |</code></pre></div>
 <div class="run"><pre><code>print(3 in 0..10, 3 in [1, 2, 3])</code></pre><pre class="out plain"><code>true true</code></pre></div>
 </section>
 <section class="entry error" id="E0513">

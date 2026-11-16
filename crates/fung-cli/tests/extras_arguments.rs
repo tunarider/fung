@@ -271,9 +271,9 @@ print(http.serve("127.0.0.1:0", 1))"#,
         "handler",
     ),
     // prelude
-    ("prelude", "zip", "print(zip(1, [1]))", "E0506", ""),
-    ("prelude", "first", "print(first(1))", "E0506", ""),
-    ("prelude", "last", "print(last(1))", "E0506", ""),
+    ("prelude", "zip", "print(zip(1, [1]))", "E0403", ""),
+    ("prelude", "first", "print(first(1))", "E0403", ""),
+    ("prelude", "last", "print(last(1))", "E0403", ""),
     ("prelude", "take", "print(take([1], -1))", "E0403", "n"),
     ("prelude", "drop", "print(drop([1], \"1\"))", "E0403", "n"),
     (

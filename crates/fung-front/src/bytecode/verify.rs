@@ -226,6 +226,12 @@ fn one(p: &Proto, globals: usize) -> Result<(), Violation> {
     if p.params.len() > p.num_locals {
         return Err(fail(0, "more parameters than local slots".into()));
     }
+    if let Some(s) = p.held.iter().find(|&&s| s >= p.num_locals) {
+        return Err(fail(
+            0,
+            format!("held slot {s}: local slots has {}", p.num_locals),
+        ));
+    }
     // The patterns MATCH and MATCHORFAIL read: the matcher writes the
     // slots they name without looking.
     for (i, pattern) in p.patterns.iter().enumerate() {

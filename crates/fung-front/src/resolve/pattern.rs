@@ -217,8 +217,10 @@ impl Resolver<'_> {
         if self.guarded {
             return;
         }
-        for (i, a) in alt.kids.iter().enumerate() {
-            let Some(by) = alt.kids[..i].iter().find(|b| covers(b, a)) else {
+        let mut seen = Seen::default();
+        for a in &alt.kids {
+            let Some(by) = seen.first_cover(a) else {
+                seen.add(a);
                 continue;
             };
             let what = if matches_all(by) {
@@ -241,15 +243,28 @@ impl Resolver<'_> {
     /// of alternatives only some of which are covered keeps the others:
     /// E0241 at the first covered one.
     fn covered_arms(&mut self, arms: &[Node]) {
-        for (j, arm) in arms.iter().enumerate() {
+        // the patterns of the earlier arms without a guard
+        let mut earlier = Seen::default();
+        for arm in arms {
             let pat = &arm.kids[0];
-            let earlier = arms[..j].iter().filter(|a| a.kids[1].head == Head::Nil);
-            if let Some(by) = earlier.clone().find(|a| covers(&a.kids[0], pat)) {
-                if matches_all(&by.kids[0]) {
+            let found = earlier.first_cover(pat);
+            let dead = match found {
+                Some(_) => None,
+                None if pat.head == Head::Palt => pat
+                    .kids
+                    .iter()
+                    .find_map(|a| Some((a, earlier.first_cover(a)?.pos.line))),
+                None => None,
+            };
+            if arm.kids[1].head == Head::Nil {
+                earlier.add(pat);
+            }
+            if let Some(by) = found {
+                if matches_all(by) {
                     continue; // reported at the arm that matches everything
                 }
-                let line = by.kids[0].pos.line;
-                let what = if is_literal(pat) && is_literal(&by.kids[0]) {
+                let line = by.pos.line;
+                let what = if is_literal(pat) && is_literal(by) {
                     format!("never runs: the arm on line {line} matches the same literal first")
                 } else {
                     format!("never runs: the arm on line {line} matches all it matches first")
@@ -260,18 +275,63 @@ impl Resolver<'_> {
                 );
                 continue;
             }
-            if pat.head != Head::Palt {
-                continue;
-            }
-            let dead = pat.kids.iter().find_map(|a| {
-                let by = earlier.clone().find(|b| covers(&b.kids[0], a))?;
-                Some((a, by.kids[0].pos.line))
-            });
             if let Some((a, line)) = dead {
                 let what = format!("the arm on line {line} matches all it matches first");
                 self.errs.push(error("E0241", a.pos, vec![Arg::Str(what)]));
             }
         }
+    }
+}
+
+/// The patterns that came before, to find the first that covers a later
+/// one without asking each (FE84): a literal pattern covers only that
+/// literal, so those are found by what they match (`literal_key`), and
+/// only the others are asked one by one.
+#[derive(Default)]
+struct Seen<'a> {
+    pats: Vec<&'a Node>,
+    /// The first literal pattern of each key, by its index in `pats`.
+    lits: std::collections::HashMap<String, usize>,
+    /// The indices of the patterns that are no literal.
+    others: Vec<usize>,
+}
+
+impl<'a> Seen<'a> {
+    fn add(&mut self, p: &'a Node) {
+        let i = self.pats.len();
+        self.pats.push(p);
+        if is_literal(p) {
+            self.lits.entry(literal_key(p)).or_insert(i);
+        } else {
+            self.others.push(i);
+        }
+    }
+
+    /// The first pattern added that covers `b` (`covers`).
+    fn first_cover(&self, b: &Node) -> Option<&'a Node> {
+        let lit = one_literal(b).and_then(|k| self.lits.get(&k).copied());
+        let other = self
+            .others
+            .iter()
+            .copied()
+            .take_while(|i| lit.is_none_or(|l| *i < l))
+            .find(|i| covers(self.pats[*i], b));
+        other.or(lit).map(|i| self.pats[i])
+    }
+}
+
+/// The key of the one literal `b` matches: a literal pattern, or
+/// alternatives that are all that literal. A literal pattern covers `b`
+/// exactly when it has this key.
+fn one_literal(b: &Node) -> Option<String> {
+    match b.head {
+        Head::Palt => {
+            let mut keys = b.kids.iter().map(one_literal);
+            let first = keys.next()??;
+            keys.all(|k| k.as_ref() == Some(&first)).then_some(first)
+        }
+        _ if is_literal(b) => Some(literal_key(b)),
+        _ => None,
     }
 }
 

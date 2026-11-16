@@ -295,7 +295,7 @@ for (p, size) in found:
 :::
 
 :::box mistake 명령을 문자열 하나로 주기
-`exec("ls -l")`은 런타임 에러 E0403(`argument `cmd` must be a list of strings`)이다. `exec`는 쉘처럼 문자열을 쪼개 주지 않는다. `exec(["ls", "-l"])`로 나눠 쓰거나, 쉘 문법이 필요하면 `sh("ls -l | head")`를 쓴다. 바깥에서 온 값(파일 이름, 사용자 입력)을 `sh`의 문자열에 끼워 넣으면 쉘이 그것을 명령으로 해석할 수 있으니, 그런 값은 `exec`의 리스트 원소로 넘긴다.
+`exec("ls -l")`은 컴파일 에러 E0403(`argument `cmd` must be list, got str`)이다. `exec`는 쉘처럼 문자열을 쪼개 주지 않는다. `exec(["ls", "-l"])`로 나눠 쓰거나, 쉘 문법이 필요하면 `sh("ls -l | head")`를 쓴다. 바깥에서 온 값(파일 이름, 사용자 입력)을 `sh`의 문자열에 끼워 넣으면 쉘이 그것을 명령으로 해석할 수 있으니, 그런 값은 `exec`의 리스트 원소로 넘긴다.
 :::
 
 :::box other 쉘과 비교하면

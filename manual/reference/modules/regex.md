@@ -65,7 +65,7 @@ print(regex.find_all(s, `(?-u:[^a])`) |> map(m => m.text))
 
 ## 함수 {#functions}
 
-:::fn regex.is_match(s, pattern)
+:::fn regex.is_match(s: str, pattern: str)
 
 `s`의 어딘가에 패턴이 맞는지 알려 준다.
 
@@ -85,7 +85,7 @@ print(regex.find_all(s, `(?-u:[^a])`) |> map(m => m.text))
 #### 에러
 
 - 런타임 에러 E0515: 패턴이 잘못되었다.
-- 런타임 에러 E0403: `s`나 `pattern`이 문자열이 아니다.
+- E0403: `s`나 `pattern`이 문자열이 아니다.
 
 #### 예제
 
@@ -122,7 +122,7 @@ print(regex.is_match("a", `a(`))
 
 :::
 
-:::fn regex.find(s, pattern)
+:::fn regex.find(s: str, pattern: str)
 
 처음 맞는 곳을 찾아 [매치 맵](#match-map)으로 돌려준다.
 
@@ -185,7 +185,7 @@ print("참치 42개"[m.start..m.end])
 
 :::
 
-:::fn regex.find_all(s, pattern)
+:::fn regex.find_all(s: str, pattern: str)
 
 겹치지 않는 모든 매치를 리스트로 돌려준다.
 
@@ -243,7 +243,7 @@ print(rows |> map(m => m.groups) |> filter(g => g[2] != "200"))
 
 :::
 
-:::fn regex.replace(s, pattern, repl)
+:::fn regex.replace(s: str, pattern: str, repl: str)
 
 맞는 곳을 모두 바꾼 문자열을 돌려준다.
 
@@ -325,7 +325,7 @@ print(regex.replace("ab", `(a)`, `$1x`))
 
 :::
 
-:::fn regex.split(s, pattern)
+:::fn regex.split(s: str, pattern: str)
 
 맞는 곳을 경계로 문자열을 나눈다.
 
@@ -374,7 +374,7 @@ print(regex.split("abc", ""))
 
 :::
 
-:::fn regex.escape(s)
+:::fn regex.escape(s: str)
 
 문자열을 그 글자 그대로만 맞는 패턴으로 바꾼다.
 
@@ -392,7 +392,7 @@ print(regex.split("abc", ""))
 
 #### 에러
 
-`s`가 문자열이 아니면 런타임 에러 E0403.
+`s`가 문자열이 아니면 E0403.
 
 #### 예제
 

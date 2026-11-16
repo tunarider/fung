@@ -7,7 +7,7 @@ fn fails(m):
 test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
 test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
 test "plain false": assert false ;;
-test "not a bool": assert 3 ;;
+test "not a bool": assert len("abc") ;;
 test "an error":
   _x = 1
   fail("bad")

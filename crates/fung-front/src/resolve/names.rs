@@ -144,7 +144,6 @@ impl Resolver<'_> {
         let Some(outer) = self.outer_name(name) else {
             return true;
         };
-        self.forget_literal(name);
         let e = match &outer {
             Outer::Module(_) => self.module_again(name, pos),
             o => {
@@ -187,7 +186,6 @@ impl Resolver<'_> {
             _ if sc.fns.contains(name) => Here::Fn,
             _ => Here::Name,
         };
-        self.forget_literal(name);
         if matches!(here, Here::Module) {
             return self.module_again(name, pos);
         }

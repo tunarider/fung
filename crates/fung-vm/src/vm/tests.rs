@@ -87,7 +87,7 @@ fn a_discarded_long_list_finds_its_err() {
 #[test]
 fn a_tail_call_into_the_library_keeps_the_callers_place() {
     let (_, err, code) = run_src(
-        "fn firsts(xs):\n  take(xs, \"two\")\n;;\nfn main():\n  r = firsts([1, 2, 3])\n  print(r)\n;;\nmain()",
+        "fn firsts(xs, n):\n  take(xs, n)\n;;\nfn main():\n  r = firsts([1, 2, 3], \"two\")\n  print(r)\n;;\nmain()",
     );
     assert!(
         err.starts_with("error[E0403]: argument `n` must be int, got str\n  --> -e:2:7\n"),
@@ -102,7 +102,7 @@ fn a_tail_call_into_the_library_keeps_the_callers_place() {
     assert_eq!(code, 1);
     // A tail-recursive caller: its own tail calls are shown on its line.
     let (_, err, _) =
-        run_src("fn go(n) = n == 0 then take([1], \"x\") else go(n - 1)\nprint(go(3))");
+        run_src("fn go(n, c) = n == 0 then take([1], c) else go(n - 1, c)\nprint(go(3, \"x\"))");
     assert!(err.contains("\n  --> -e:1:"), "{err}");
     assert!(
         err.contains("   -e:1       go (3 tail calls elided)\n"),
@@ -311,7 +311,7 @@ fn native_arguments_bind_in_place() {
         ),
         (
             "trim(\" a \", cut: 1)",
-            "error[E0403]: argument `cut` must be str, got int",
+            "error[E0403]: argument `cut` must be str | nil, got int",
         ),
         (
             "print(1, sep: 2)",
@@ -1024,6 +1024,7 @@ fn natives_call_closures_through_the_task() {
                 name: "f",
                 default: None,
                 rest: false,
+                types: None,
             }],
             twice,
         );
@@ -1376,7 +1377,7 @@ fn runtime_wording_of_the_third_review() {
         ),
         (
             "print(for x in 5: x ;;)",
-            "error[E0506]: cannot iterate over int",
+            "error[E0403]: argument `xs` must be list | range | receiver, got int",
             "",
         ),
         // a field of a value that has none is the index's E0509, as
@@ -1446,6 +1447,7 @@ fn closures_that_capture_nothing_are_made_once() {
         name,
         default: None,
         rest: false,
+        types: None,
     };
     let n = Native::leak("same", vec![two("f"), two("g")], same);
     for (src, want) in [
@@ -1955,4 +1957,299 @@ fn a_dead_statement_is_the_one_error() {
         err.starts_with("error[E0239]: unused variable `x`"),
         "{err}"
     );
+}
+
+/// The return checks a frame took along run the latest first, however
+/// many times its tail calls went round: the function that made the
+/// last tail call is the one whose check fails (VM57).
+#[test]
+fn an_inherited_return_check_is_the_latest_callers_first() {
+    let prog = |n: u32| {
+        format!(
+            "fn c(_n) = nil\nfn a(n) -> int = n == 0 then c(n) else b(n - 1)\nfn b(n) -> str = n == 0 then c(n) else a(n - 1)\nprint(a({n}))"
+        )
+    };
+    for (n, want) in [
+        (0, "must be int"),
+        (1, "must be str"),
+        (2, "must be int"),
+        (3, "must be str"),
+        (4, "must be int"),
+        (7, "must be str"),
+    ] {
+        let (_, err, _) = run_src(&prog(n));
+        assert!(
+            err.starts_with("error[E0404]") && err.contains(want),
+            "{n}: {err}"
+        );
+    }
+}
+
+/// D166: an error that the operands' types alone settle is the
+/// compiler's when the operands are literals written there, with the
+/// run's code, message and help. Every literal type meets every such
+/// operation twice: written as it is, and through `id(…)`, which hides
+/// the type from the compiler so the run reports it.
+#[test]
+fn a_type_error_of_literals_is_the_runs_error_found_early() {
+    const LITS: [&str; 16] = [
+        "(1)", "(-1)", "(1.5)", "\"ab\"", "true", "nil", "'a", "Red", "(1s)", "[1]", "{a: 1}",
+        "(1, 2)", "(1..3)", "(x => x)", "Ok(1)", "Red(1)",
+    ];
+    // {a} and {b} are operands; one-operand shapes use {a} only.
+    const TWO: [&str; 6] = [
+        "print({a}..{b})",
+        "print({a} in {b})",
+        "print({a} not in {b})",
+        "print({a}[{b}])",
+        "print({a}[{b}..])",
+        "print({a}[0..={b}])",
+    ];
+    const ONE: [&str; 9] = [
+        "print({a}.len)",
+        "print({a}.zz)",
+        "print({a}!)",
+        "fn f() = {a}?\nprint(f())",
+        "print(...{a})",
+        "assert {a}",
+        "print({a}[0..])",
+        "print({a}[..1])",
+        "print({a}[0])",
+    ];
+    // The codes whose errors the types settle (the values settle E0507,
+    // E0508, E0403 for an empty needle, E0516, E0606 …).
+    const SETTLED: [&str; 8] = [
+        "E0501", "E0505", "E0506", "E0509", "E0511", "E0512", "E0514", "E0604",
+    ];
+    let head = "fn id(v) = v\nprint(\"ran\")\n";
+    // (compile-time?, code, message line, help line)
+    let report = |src: &str| {
+        let (out, err, _) = run_src(&format!("{head}{src}"));
+        let line = |start: &str| {
+            err.lines()
+                .find(|l| l.trim_start().starts_with(start))
+                .map(|l| l.trim().to_string())
+                .unwrap_or_default()
+        };
+        let msg = line("error[");
+        let code = msg.get(6..11).unwrap_or("").to_string();
+        (!out.contains("ran"), code, msg, line("help:"))
+    };
+    let mut cases = 0;
+    let mut check = |shape: &str, a: &str, b: &str| {
+        let direct = shape.replace("{a}", a).replace("{b}", b);
+        let hidden = shape
+            .replace("{a}", &format!("id({a})"))
+            .replace("{b}", &format!("id({b})"));
+        let (early, code, msg, help) = report(&direct);
+        let (hidden_early, rcode, rmsg, rhelp) = report(&hidden);
+        assert!(!hidden_early, "{hidden}: {rmsg}");
+        cases += 1;
+        if early {
+            assert_eq!(
+                (&code, &msg, &help),
+                (&rcode, &rmsg, &rhelp),
+                "{direct}: the compiler's error is not the run's"
+            );
+        } else {
+            assert_eq!((&code, &msg), (&rcode, &rmsg), "{direct}");
+            let settled = SETTLED.contains(&rcode.as_str()) || rcode == "E0605";
+            assert!(
+                !settled,
+                "{direct}: the types settle {rcode}, yet the run found it"
+            );
+        }
+    };
+    for shape in TWO {
+        for a in LITS {
+            for b in LITS {
+                check(shape, a, b);
+            }
+        }
+    }
+    for shape in ONE {
+        for a in LITS {
+            check(shape, a, "");
+        }
+    }
+    assert_eq!(cases, 6 * 16 * 16 + 9 * 16);
+}
+
+/// A spread that cannot be spread is the error before the callee that
+/// cannot be called, as in the run.
+#[test]
+fn a_bad_spread_comes_before_a_bad_callee() {
+    let (_, direct, _) = run_src("print(5(...\"a\"))");
+    let (_, hidden, _) = run_src("fn id(v) = v\nprint(id(5)(...id(\"a\")))");
+    let first = |s: &str| s.lines().next().unwrap_or("").to_string();
+    assert_eq!(first(&direct), "error[E0506]: cannot spread str");
+    assert_eq!(first(&direct), first(&hidden));
+}
+
+/// A `_` name bound in a parameter's default takes a slot after the
+/// parameters', not one of theirs (the slot a held name takes is one no
+/// name had: D162).
+#[test]
+fn a_held_name_in_a_default_keeps_off_the_parameters() {
+    for (src, want) in [
+        (
+            "fn w(a, b = (match a: [_x, ...] => 1; _ => 2 ;;), c = 3) = (a, b, c)\nprint(w([3]), w([]))",
+            "([3], 1, 3) ([], 2, 3)\n",
+        ),
+        (
+            "fn d(a, b = (if a > 0: _i = a; _i + 1 else: 7 ;;)) = (a, b)\nprint(d(1), d(0))",
+            "(1, 2) (0, 7)\n",
+        ),
+        (
+            "fn f(a = (if true: _i = [1]; 5 else: 2 ;;)) = a\nprint(f(), f(9))",
+            "5 9\n",
+        ),
+    ] {
+        let (out, err, _) = run_src(src);
+        assert_eq!((out.as_str(), err.as_str()), (want, ""), "{src}");
+    }
+}
+
+/// D165, D173: the types the table gives a built-in function's
+/// parameters are what the VM checks before the function runs, and what
+/// the compiler checks a literal argument against: one error (E0403, a
+/// fung function's wording) found early for a literal and at the call
+/// otherwise. Every typed parameter of the prelude meets every literal
+/// type, written as it is (in a function never called, so nothing runs)
+/// and through `id(…)`.
+#[test]
+fn a_builtins_parameter_types_are_checked_as_a_fung_functions_are() {
+    use fung_front::resolve::Sig;
+    // literal type → its text
+    const LITS: [(&str, &str); 13] = [
+        ("int", "1"),
+        ("float", "1.5"),
+        ("str", "\"ab\""),
+        ("bool", "true"),
+        ("nil", "nil"),
+        ("sym", "'a"),
+        ("dur", "1s"),
+        ("list", "[1]"),
+        ("map", "{a: 1}"),
+        ("tuple", "(1, 2)"),
+        ("range", "(1..3)"),
+        ("fn", "(x => x)"),
+        ("Ok", "Ok(1)"),
+    ];
+    let takes = |types: &[String], t: &str| {
+        types
+            .iter()
+            .any(|a| a == t || a == "any" || (a == "num" && matches!(t, "int" | "float")))
+    };
+    // a value of the parameter's first type, when a literal makes one
+    let sample = |types: Option<&Vec<String>>| -> Option<&str> {
+        let Some(types) = types else {
+            return Some("1");
+        };
+        LITS.iter()
+            .find(|(t, _)| takes(types, t))
+            .map(|(_, text)| *text)
+    };
+    // every typed parameter of `list`, the function called as `callee`
+    let check = |header: &str, callee: &str, list: &str| -> usize {
+        let mut params = 0;
+        let sig = Sig::parse(list);
+        for (i, p) in sig.params.iter().enumerate() {
+            let Some(types) = &p.types else {
+                continue;
+            };
+            if p.rest {
+                continue;
+            }
+            params += 1;
+            // the arguments up to this parameter, the others as samples
+            let before: Option<Vec<&str>> = sig.params[..i]
+                .iter()
+                .map(|q| sample(q.types.as_ref()))
+                .collect();
+            let after: Vec<&str> = sig.params[i + 1..]
+                .iter()
+                .take_while(|q| !q.default && !q.rest)
+                .map(|q| sample(q.types.as_ref()).unwrap_or("1"))
+                .collect();
+            let call = |arg: &str, hide: bool| {
+                let wrap = |a: &str| {
+                    if hide {
+                        format!("id({a})")
+                    } else {
+                        a.to_string()
+                    }
+                };
+                let mut args: Vec<String> = before
+                    .clone()
+                    .unwrap_or_else(|| vec!["1"; i])
+                    .iter()
+                    .map(|a| format!("id({a})"))
+                    .collect();
+                args.push(wrap(arg));
+                args.extend(after.iter().map(|a| format!("id({a})")));
+                format!("{callee}({})", args.join(", "))
+            };
+            for (t, text) in LITS {
+                let want = format!(
+                    "error[E0403]: argument `{}` must be {}, got {t}",
+                    p.name,
+                    types.join(" | ")
+                );
+                let direct = format!(
+                    "{header}fn id(v) = v\nprint(\"ran\")\nfn never() = {}\nprint(never)",
+                    call(text, false)
+                );
+                let (out, err, _) = run_src(&direct);
+                if takes(types, t) {
+                    assert!(out.contains("ran"), "{direct}: {err}");
+                    continue;
+                }
+                assert!(
+                    !out.contains("ran") && err.contains(&want),
+                    "{direct}: {err}"
+                );
+                // at the call when the type does not show; an earlier
+                // parameter that no literal fills would stop it first
+                if before.is_some() {
+                    let hidden = format!(
+                        "{header}fn id(v) = v\nprint(\"ran\")\n_ = {}",
+                        call(text, true)
+                    );
+                    let (out, err, _) = run_src(&hidden);
+                    assert!(
+                        out.contains("ran") && err.contains(&want),
+                        "{hidden}: {err}"
+                    );
+                }
+            }
+        }
+        params
+    };
+    let spec = fung_front::builtins::builtins();
+    let mut params = 0;
+    for name in spec.prelude_names() {
+        if let Some(list) = spec.prelude_signature(&name) {
+            params += check("", &name, list);
+        }
+    }
+    assert!(params > 100, "{params} typed parameters");
+    // the modules that hand their bridge's functions on as they are
+    let mut params = 0;
+    for module in ["fs", "path", "json", "time", "regex"] {
+        let bridge = format!("_native.{module}");
+        for name in &spec.modules[&bridge] {
+            // what the module wraps in a function of its own
+            if matches!((module, name.as_str()), ("fs", "close" | "temp_dir")) {
+                continue;
+            }
+            let list = spec.module_signature(&bridge, name).expect("a function");
+            params += check(
+                &format!("import {module}\n"),
+                &format!("{module}.{name}"),
+                list,
+            );
+        }
+    }
+    assert!(params > 40, "{params} typed parameters of modules");
 }

@@ -38,7 +38,7 @@ print(hosts)
 
 ## 세기와 고르기 {#basics}
 
-:::fn len(x)
+:::fn len(x: str | list | map | range)
 
 문자열의 글자 수, 리스트·맵·범위의 원소 수를 돌려준다.
 
@@ -46,7 +46,7 @@ print(hosts)
 
 문자열은 바이트가 아니라 **글자**(유니코드 코드 포인트)를 센다. 그래서 `len("참치")`는 2다. 결합 문자로 쓴 `"e\u{301}"`(é)는 코드 포인트 둘이라 2다. UTF-8에 속하지 않는 바이트는 하나가 한 글자다. 바이트 수는 [`byte_len`](strings.html#fn-byte_len)이 센다. 범위는 원소를 만들지 않고 계산하므로 `len(0..1_000_000_000_000)`도 바로 답한다. 빈 범위(`5..5`, `5..=4`)는 0이다. 시작이 끝보다 뒤인 범위는 만들 수 없다(E0522).
 
-튜플은 개수가 정해진 묶음이라 패턴으로 꺼내고 세지 않는다: `len((1, 2))`는 E0506이다. 채널의 받는 끝은 몇 개가 올지 미리 알 수 없으므로 길이가 없다(E0506). 다 받아 세려면 `len(map(rx, x => x))`처럼 리스트로 만든다.
+튜플은 개수가 정해진 묶음이라 패턴으로 꺼내고 세지 않는다: `len((1, 2))`는 E0403이다. 채널의 받는 끝은 몇 개가 올지 미리 알 수 없으므로 길이가 없다(E0403). 다 받아 세려면 `len(map(rx, x => x))`처럼 리스트로 만든다.
 
 #### 매개변수
 
@@ -58,7 +58,7 @@ print(hosts)
 
 #### 에러
 
-그 밖의 타입이면 런타임 에러 E0506(`cannot take the length of int`).
+그 밖의 타입이면 E0403(``argument `x` must be str | list | map | range, got int``).
 
 #### 예제
 
@@ -71,7 +71,7 @@ print(len(0..10), len(0..=10), len(5..5), len(0..1_000_000_000_000))
 
 **길이가 없는 값**
 
-```fung run exit=1 error=E0506
+```fung run exit=2 error=E0403
 print(len(42))
 ```
 
@@ -81,7 +81,7 @@ print(len(42))
 
 :::
 
-:::fn first(xs) fung
+:::fn first(xs: list | range | receiver) fung
 
 첫 원소를, 비었으면 `nil`을 돌려준다.
 
@@ -101,7 +101,7 @@ print(len(42))
 
 #### 에러
 
-다른 타입이면 런타임 에러 E0506(`cannot take the first of int`).
+다른 타입이면 E0403(``argument `xs` must be list | range | receiver, got int``).
 
 #### 예제
 
@@ -124,7 +124,7 @@ print(first(mirrors) ?? "https://default.example")
 
 :::
 
-:::fn last(xs) fung
+:::fn last(xs: list | range | receiver) fung
 
 마지막 원소를, 비었으면 `nil`을 돌려준다.
 
@@ -142,7 +142,7 @@ print(first(mirrors) ?? "https://default.example")
 
 #### 에러
 
-다른 타입이면 런타임 에러 E0506(`cannot take the last of int`).
+다른 타입이면 E0403(``argument `xs` must be list | range | receiver, got int``).
 
 #### 예제
 
@@ -165,7 +165,7 @@ print("latest:", last(releases) ?? "none")
 
 :::
 
-:::fn take(xs, n) fung
+:::fn take(xs: list | range | receiver, n: int) fung
 
 앞에서 최대 `n`개를 리스트로 돌려준다.
 
@@ -184,7 +184,7 @@ print("latest:", last(releases) ?? "none")
 
 #### 에러
 
-`xs`를 받지 않는 타입이면 런타임 에러 E0506(`cannot take from str`), `n`이 정수가 아니면 E0403(``argument `n` must be int, got float``).
+`xs`를 받지 않는 타입이면 E0403(``argument `xs` must be list | range | receiver, got str``), `n`이 정수가 아니면 E0403(``argument `n` must be int, got float``).
 
 #### 예제
 
@@ -196,7 +196,7 @@ print(take([1, 2, 3], 2), take([1], 5), take([1, 2], 0), take(0..1_000_000_000, 
 
 **문자열의 앞부분은 슬라이스로**
 
-문자열은 컬렉션이 아니라 `take`가 받지 않는다(E0506). 앞의 `n`글자는 슬라이스 `s[..n]`로 자른다. 슬라이스는 `n`이 길이보다 크면 에러이므로, 짧을 수도 있는 문자열은 글자 리스트로 바꿔 `take`한다.
+문자열은 컬렉션이 아니라 `take`가 받지 않는다(E0403). 앞의 `n`글자는 슬라이스 `s[..n]`로 자른다. 슬라이스는 `n`이 길이보다 크면 에러이므로, 짧을 수도 있는 문자열은 글자 리스트로 바꿔 `take`한다.
 
 ```fung run
 commit = "3f99a5c0d1e2"
@@ -228,7 +228,7 @@ print(take(rx, 2))
 
 :::
 
-:::fn drop(xs, n) fung
+:::fn drop(xs: list | range | receiver, n: int) fung
 
 앞의 `n`개를 뺀 나머지를 리스트로 돌려준다.
 
@@ -247,7 +247,7 @@ print(take(rx, 2))
 
 #### 에러
 
-`xs`를 받지 않는 타입이면 런타임 에러 E0506(`cannot drop from int`), `n`이 정수가 아니면 E0403.
+`xs`를 받지 않는 타입이면 E0403(``argument `xs` must be list | range | receiver, got int``), `n`이 정수가 아니면 E0403.
 
 #### 예제
 
@@ -273,7 +273,7 @@ print(drop(rows, 1))
 
 ## 바꾸기와 고르기 {#transform}
 
-:::fn map(xs, f)
+:::fn map(xs: list | range | receiver, f: fn)
 
 각 원소에 `f`를 부른 결과를 모아 새 리스트로 돌려준다.
 
@@ -300,7 +300,7 @@ print(drop(rows, 1))
 
 #### 에러
 
-- `xs`가 문자열·맵·튜플 등이면 런타임 에러 E0506(`cannot iterate over str`).
+- `xs`가 문자열·맵·튜플 등이면 E0403(``argument `xs` must be list | range | receiver, got str``).
 - `f`가 함수가 아니면 E0403. `f`가 받는 인자 수가 맞지 않으면 여느 호출처럼 E0407(모자람: `(a, b) => …`)이나 E0402(넘침: `() => …`).
 - 결과가 1억 개를 넘으면 E0806.
 
@@ -336,7 +336,7 @@ print(pairs(ports) |> map(((k, v)) => "${k}=${v}"))
 
 **문자열은 바로 받지 않는다**
 
-```fung run exit=1 error=E0506
+```fung run exit=2 error=E0403
 print(map("abc", upper))
 ```
 
@@ -348,7 +348,7 @@ print(map("abc", upper))
 
 :::
 
-:::fn try_map(xs, f)
+:::fn try_map(xs: list | range | receiver, f: fn)
 
 `f`가 돌려준 결과값을 모아, 모두 `Ok`면 `Ok(리스트)`, 아니면 처음 나온 `Err`를 돌려준다.
 
@@ -411,7 +411,7 @@ print(try_map(rs, r => r))
 
 :::
 
-:::fn filter(xs, f)
+:::fn filter(xs: list | range | receiver, f: fn)
 
 `f(x)`가 `true`인 원소만 모은 새 리스트를 돌려준다.
 
@@ -431,7 +431,7 @@ print(try_map(rs, r => r))
 #### 에러
 
 - `f`가 `bool`이 아닌 값을 돌려주면 런타임 에러 E0505(`expected bool, got int`).
-- `xs`가 받지 않는 타입이면 E0506.
+- `xs`가 받지 않는 타입이면 E0403.
 
 #### 예제
 
@@ -467,7 +467,7 @@ print(filter([0, 1, 2], x => x))
 
 :::
 
-:::fn fold(xs, init, f)
+:::fn fold(xs: list | range | receiver, init, f: fn)
 
 `init`에서 시작해 원소를 하나씩 `f`로 합쳐 값 하나로 접는다: `f(f(init, x1), x2)`….
 
@@ -495,7 +495,7 @@ print(filter([0, 1, 2], x => x))
 
 #### 에러
 
-`xs`가 받지 않는 타입이면 런타임 에러 E0506(`cannot fold str`). `f` 안의 에러는 그대로 난다.
+`xs`가 받지 않는 타입이면 E0403(``argument `xs` must be list | range | receiver, got str``). `f` 안의 에러는 그대로 난다.
 
 #### 예제
 
@@ -538,7 +538,7 @@ print(evens)
 
 :::
 
-:::fn each(xs, f)
+:::fn each(xs: list | range | receiver, f: fn)
 
 각 원소에 `f`를 부르고 결과는 버린다. 출력이나 전송처럼 부수효과만 필요할 때 쓴다.
 
@@ -592,7 +592,7 @@ each(["8080", "http"], s => parse_int(s))
 
 :::
 
-:::fn find(xs, f)
+:::fn find(xs: list | range | receiver, f: fn)
 
 `f(x)`가 `true`인 첫 원소를, 없으면 `nil`을 돌려준다.
 
@@ -638,7 +638,7 @@ print(db == nil then "not found" else db.ip)
 
 :::
 
-:::fn any(xs, f)
+:::fn any(xs: list | range | receiver, f: fn)
 
 `f(x)`가 `true`인 원소가 하나라도 있으면 `true`.
 
@@ -683,7 +683,7 @@ print(r)
 
 :::
 
-:::fn all(xs, f)
+:::fn all(xs: list | range | receiver, f: fn)
 
 모든 원소에서 `f(x)`가 `true`면 `true`. 빈 컬렉션은 `true`.
 
@@ -728,7 +728,7 @@ print(checks |> filter(c => not c.ok) |> map(c => c.name))
 
 ## 정렬과 모양 바꾸기 {#order}
 
-:::fn sort(xs)
+:::fn sort(xs: list | range | receiver)
 
 작은 것부터 정렬한 새 리스트를 돌려준다.
 
@@ -749,7 +749,7 @@ print(checks |> filter(c => not c.ok) |> map(c => c.name))
 #### 에러
 
 - 비교할 수 없는 값이 섞이면 런타임 에러 E0501(`cannot compare str and int`).
-- `xs`가 맵 등이면 E0506.
+- `xs`가 맵 등이면 E0403.
 
 #### 예제
 
@@ -780,7 +780,7 @@ print(sort([{cpu: 3}, {cpu: 1}]))
 
 :::
 
-:::fn sort_by(xs, f)
+:::fn sort_by(xs: list | range | receiver, f: fn)
 
 `f(x)`를 키로 삼아 안정 정렬한 새 리스트를 돌려준다.
 
@@ -843,7 +843,7 @@ print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) => v))
 
 :::
 
-:::fn reverse(xs)
+:::fn reverse(xs: list | range | receiver)
 
 순서를 거꾸로 뒤집은 새 리스트를 돌려준다.
 
@@ -861,7 +861,7 @@ print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) => v))
 
 #### 에러
 
-다른 타입이면 런타임 에러 E0506(`cannot reverse int`).
+다른 타입이면 E0403(``argument `xs` must be list | range | receiver, got int``).
 
 #### 예제
 
@@ -883,7 +883,7 @@ print(chars("fung") |> reverse |> join)
 
 :::
 
-:::fn unique(xs)
+:::fn unique(xs: list | range | receiver)
 
 처음 나온 순서를 지키며 중복을 뺀 새 리스트를 돌려준다.
 
@@ -901,7 +901,7 @@ print(chars("fung") |> reverse |> join)
 
 #### 에러
 
-`xs`가 받지 않는 타입이면 런타임 에러 E0506. 함수가 있으면 E0501. 타입이 다른 원소는 서로 다른 값이다(`unique([1, "1"])`은 둘 다 남긴다).
+`xs`가 받지 않는 타입이면 E0403. 함수가 있으면 E0501. 타입이 다른 원소는 서로 다른 값이다(`unique([1, "1"])`은 둘 다 남긴다).
 
 #### 예제
 
@@ -924,7 +924,7 @@ print(unique(hits), unique(hits) |> sort)
 
 :::
 
-:::fn flatten(xs)
+:::fn flatten(xs: list | range | receiver)
 
 리스트의 리스트를 한 단계만 펼친다: `[[1, [2]], [3]]` → `[1, [2], 3]`.
 
@@ -942,7 +942,7 @@ print(unique(hits), unique(hits) |> sort)
 
 #### 에러
 
-`xs`가 받지 않는 타입이거나 리스트·범위가 아닌 원소가 있으면 런타임 에러 E0506(`cannot flatten an element of type int`). 결과가 1억 원소를 넘으면 E0806.
+`xs`가 받지 않는 타입이면 E0403, 리스트·범위가 아닌 원소가 있으면 런타임 에러 E0506(`cannot flatten an element of type int`). 결과가 1억 원소를 넘으면 E0806.
 
 #### 예제
 
@@ -966,7 +966,7 @@ print(flatten(map([1, 2], x => [x, x * 10])))
 
 :::
 
-:::fn group_by(xs, f)
+:::fn group_by(xs: list | range | receiver, f: fn)
 
 `f(x)`를 키로 원소를 묶은 맵을 돌려준다.
 
@@ -1027,7 +1027,7 @@ print(group_by([1, 2, 3], x => x % 2))
 
 :::
 
-:::fn zip(xs, ys) fung
+:::fn zip(xs: list | range | receiver, ys: list | range | receiver) fung
 
 두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.
 
@@ -1045,7 +1045,7 @@ print(group_by([1, 2, 3], x => x % 2))
 
 #### 에러
 
-받지 않는 타입이면 런타임 에러 E0506(`cannot zip the elements of int`).
+받지 않는 타입이면 E0403(``argument `xs` must be list | range | receiver, got int``).
 
 #### 예제
 
@@ -1081,7 +1081,7 @@ for (i, step) in zip(1..100, ["build", "test", "deploy"]):
 
 ## 수 모으기 {#numbers}
 
-:::fn sum(xs)
+:::fn sum(xs: list | range | receiver)
 
 원소의 합을 돌려준다. 빈 리스트는 정수 0.
 
@@ -1101,7 +1101,7 @@ for (i, step) in zip(1..100, ["build", "test", "deploy"]):
 
 #### 에러
 
-수·기간이 아닌 원소가 있으면 런타임 에러 E0506(`cannot sum str`), 수와 기간이 섞이면 E0501(`cannot add dur and int`). 합이 정수 범위를 넘으면 E0503. 리스트·범위·받는 끝이 아니면 E0506(`cannot sum int`).
+수·기간이 아닌 원소가 있으면 런타임 에러 E0506(`cannot sum str`), 수와 기간이 섞이면 E0501(`cannot add dur and int`). 합이 정수 범위를 넘으면 E0503. 리스트·범위·받는 끝이 아니면 E0403.
 
 #### 예제
 
@@ -1124,7 +1124,7 @@ print(files |> map(f => f.size) |> sum)
 
 :::
 
-:::fn min(xs)
+:::fn min(xs: list | range | receiver)
 
 가장 작은 원소를, 비었으면 `nil`을 돌려준다.
 
@@ -1142,7 +1142,7 @@ print(files |> map(f => f.size) |> sum)
 
 #### 에러
 
-비교할 수 없는 값이 섞이면 런타임 에러 E0501. 리스트·범위·받는 끝이 아니면 E0506(`cannot take the min of int`).
+비교할 수 없는 값이 섞이면 런타임 에러 E0501. 리스트·범위·받는 끝이 아니면 E0403(``argument `xs` must be list | range | receiver, got int``).
 
 #### 예제
 
@@ -1165,7 +1165,7 @@ print(min(map(servers, s => s.cpu)), first(sort_by(servers, s => s.cpu)).n)
 
 :::
 
-:::fn max(xs)
+:::fn max(xs: list | range | receiver)
 
 가장 큰 원소를, 비었으면 `nil`을 돌려준다.
 
@@ -1183,7 +1183,7 @@ print(min(map(servers, s => s.cpu)), first(sort_by(servers, s => s.cpu)).n)
 
 #### 에러
 
-비교할 수 없는 값이 섞이면 런타임 에러 E0501. 리스트·범위·받는 끝이 아니면 E0506(`cannot take the max of int`).
+비교할 수 없는 값이 섞이면 런타임 에러 E0501. 리스트·범위·받는 끝이 아니면 E0403(``argument `xs` must be list | range | receiver, got int``).
 
 #### 예제
 

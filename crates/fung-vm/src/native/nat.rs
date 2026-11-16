@@ -18,6 +18,7 @@ pub fn param(name: &'static str) -> NativeParam {
         name,
         default: None,
         rest: false,
+        types: None,
     }
 }
 
@@ -27,6 +28,7 @@ pub fn opt(name: &'static str, default: Lit) -> NativeParam {
         name,
         default: Some(default),
         rest: false,
+        types: None,
     }
 }
 
@@ -36,6 +38,7 @@ pub fn rest(name: &'static str) -> NativeParam {
         name,
         default: None,
         rest: true,
+        types: None,
     }
 }
 

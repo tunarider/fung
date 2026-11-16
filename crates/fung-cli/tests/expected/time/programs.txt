@@ -67,14 +67,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00-05:00 1772953140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -05:00 2026-03-08T06:59:00Z
@@ -182,38 +180,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -274,62 +266,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="America/New_York" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true
@@ -402,14 +384,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00-05:00 1772953140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -05:00 2026-03-08T06:59:00Z
@@ -517,38 +497,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -609,62 +583,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ=":America/New_York" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true
@@ -737,14 +701,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00+01:00 1772931540 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +01:00 2026-03-08T00:59:00Z
@@ -852,38 +814,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -944,62 +900,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true
@@ -1072,14 +1018,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00+01:00 1772931540 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +01:00 2026-03-08T00:59:00Z
@@ -1187,38 +1131,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -1279,62 +1217,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Europe/Berlin" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true
@@ -1407,14 +1335,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00+09:00 1772902740 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 +09:00 2026-03-07T16:59:00Z
@@ -1522,38 +1448,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -1614,62 +1534,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="Asia/Seoul" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true
@@ -1742,14 +1652,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-08T01:59:00Z
@@ -1857,38 +1765,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -1949,62 +1851,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="UTC" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true
@@ -2077,14 +1969,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-08T01:59:00Z
@@ -2192,38 +2082,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -2284,62 +2168,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true
@@ -2416,14 +2290,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:21
+|   --> -e:2:22
 |   |
 | 2 | print(time.from_unix("1"))
-|   |                     ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (399 bytes, c825d06ba55ec9d4)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00Z 1772935140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 Z 2026-03-08T01:59:00Z
@@ -2537,39 +2409,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:18
+|   --> -e:2:19
 |   |
 | 2 | print(time.format(1))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "print(time.format(time.from_unix(0), 1))"
 -- stdout
 -- stderr
-| warning: TZ `No/Such_Zone` names no time zone; times are in UTC
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:18
+|   --> -e:2:38
 |   |
 | 2 | print(time.format(time.from_unix(0), 1))
-|   |                  ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "print(time.parse(\"x\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `format` must be str | nil, got int
-|   --> -e:2:17
+|   --> -e:2:23
 |   |
 | 2 | print(time.parse("x", 1))
-|   |                 ^
+|   |                       ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "print(time.parse(\"12:30\", \"HH:mm\"))"
 -- stdout
 -- stderr
@@ -2633,62 +2498,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parse(1))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "print(time.utc(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(time.utc(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "print(time.local(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got str
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.local("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "print(time.unix(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(time.unix(nil))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "print(time.parts([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be time, got list
-|   --> -e:2:17
+|   --> -e:2:18
 |   |
 | 2 | print(time.parts([]))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== TZ="No/Such_Zone" "n = time.now()\nprint(type_of(n), time.unix(n) > 1790000000… (139 bytes, 8ba7ea2e0c0338a8)
 -- stdout
 | 'time true true true

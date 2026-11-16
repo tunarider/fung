@@ -145,6 +145,10 @@ pub struct FnInfo {
     /// it means what an anonymous `fn` does, D142).
     pub lambda: bool,
     pub num_locals: usize,
+    /// The slots of the names the function binds and never reads, its
+    /// parameters too: a tail call takes their values along (D162, D172).
+    /// No other name has such a slot.
+    pub held: Vec<usize>,
     pub captures: Vec<Capture>,
 }
 

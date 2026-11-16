@@ -77,6 +77,7 @@ pub fn compile(
         proto: Proto {
             name: "<main>".into(),
             num_locals: res.num_locals,
+            held: res.held.clone(),
             global_names: res.globals.clone(),
             exports: res.exports.clone(),
             ..Proto::default()

@@ -99,7 +99,7 @@ liftoff</code></pre></div>
 <section class="entry" id="fn-until">
 <h3>until<span class="by">fung으로 작성</span></h3>
 <p><code>pred(x)</code>가 참이 될 때까지 <code>x = f(x)</code>를 되풀이하고, 그때의 <code>x</code>를 돌려준다.</p>
-<div class="sig"><code>until(x, f, pred)</code></div>
+<div class="sig"><code>until(x, f: fn, pred: fn)</code></div>
 <h4>설명</h4>
 <p>먼저 <code>pred(x)</code>를 본다. 참이면 <code>x</code>를 그대로 돌려주고(<code>f</code>를 한 번도 부르지 않는다), 거짓이면 <code>f(x)</code>로 바꿔 다시 본다. 다른 언어의 <code>while not pred(x): x = f(x)</code>와 같다. 꼬리 재귀로 쓰여 있어 몇 번을 돌아도 스택이 넘치지 않는다.</p>
 <p>여러 값을 함께 바꿔야 하면 <code>x</code>를 튜플이나 맵으로 묶는다: <code>until((0, 1), ((a, b)) =&gt; (b, a + b), ((a, _)) =&gt; a &gt; 100)</code>. <code>pred</code>가 끝내 참이 되지 않으면 끝나지 않으므로 상한을 조건에 넣어 둔다.</p>
@@ -131,7 +131,7 @@ print(delays)</code></pre><pre class="out plain"><code>[100ms, 200ms, 400ms, 800
 <section class="entry" id="fn-iterate">
 <h3>iterate<span class="by">fung으로 작성</span></h3>
 <p><code>f</code>를 <code>x</code>에 <code>n</code>번 거듭 적용한 값을 돌려준다.</p>
-<div class="sig"><code>iterate(x, f, n)</code></div>
+<div class="sig"><code>iterate(x, f: fn, n: int)</code></div>
 <h4>설명</h4>
 <p><code>iterate(x, f, 3)</code>은 <code>f(f(f(x)))</code>다. <code>n</code>이 0이면 <code>x</code>를 그대로 돌려주고, 음수면 E0403이다. 중간 값이 모두 필요하면 <a href="collections.html#fn-fold"><code>fold</code></a>로 리스트에 모으거나 <code>for</code>를 쓴다.</p>
 <h4>매개변수</h4>

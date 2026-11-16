@@ -28,7 +28,7 @@ E0128	a symbol is not written with an uppercase letter: `'%s`		an uppercase symb
 E0129	`$` in a string must start `${…}` or be written `\$`		write `\$` for the character, or `${…}` to put a value in
 E0130	a type annotation has no element type		write `list` or `map` alone: the elements are not checked, so they are not written
 E0131	this statement comes after `return`, so it never runs	never runs	remove it, or move the `return` after it
-E0132	`return` used as a value		`return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+E0132	`return` used as a value		`return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 E0133	a spread `...` cannot stand %s		`...xs` spreads a list or a range into a call's last positional argument: `f(a, ...xs, k: v)`; to join lists, use `+`
 E0134	`%s` is not a keyword in fung		
 E0135	number %q is out of range		

@@ -16,7 +16,7 @@ description: fung prelude 프로세스와 환경: exec, sh, env, env_all.
 
 ## 함수 {#functions}
 
-:::fn exec(cmd, cwd = nil, env = nil, stdin = nil)
+:::fn exec(cmd: list, cwd: str | nil = nil, env: map | nil = nil, stdin: str | nil = nil)
 
 명령을 쉘 없이 실행하고 끝나기를 기다려 `Ok({out, err, code, signal})`를 돌려준다. 0이 아닌 종료와 신호로 끝난 것은 `Err`.
 
@@ -51,7 +51,7 @@ description: fung prelude 프로세스와 환경: exec, sh, env, env_all.
 
 #### 에러
 
-인자의 타입이 틀리면 런타임 에러 E0403: `cmd`가 문자열이거나(`exec("ls -l")`은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(`exec([""])`), 문자열이 아닌 원소가 있을 때, `cwd`가 빈 문자열일 때, `env`의 값이 문자열이 아니거나 이름이 비었거나 `=`·NUL이 있을 때 등.
+인자가 틀리면 E0403: `cmd`가 리스트가 아니거나(`exec("ls -l")`은 안 된다), 비었거나, 명령 이름이 빈 문자열이거나(`exec([""])`), 문자열이 아닌 원소가 있을 때, `cwd`가 빈 문자열일 때, `env`의 값이 문자열이 아니거나 이름이 비었거나 `=`·NUL이 있을 때 등.
 
 #### 예제
 
@@ -125,7 +125,7 @@ print(timeout(() => exec(["sleep", "5"]), 100ms))
 
 :::
 
-:::fn sh(cmd, cwd = nil, env = nil, stdin = nil)
+:::fn sh(cmd: str, cwd: str | nil = nil, env: map | nil = nil, stdin: str | nil = nil)
 
 문자열 `cmd`를 `/bin/sh -c cmd`로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다. 문자열은 쉘에 그대로 넘기고 그 뜻은 쉘이 정한다(`sh("")`는 쉘이 아무 일도 하지 않고 끝나 `code: 0`이다).
 
@@ -190,7 +190,7 @@ print(sh("exit 2"))
 
 :::
 
-:::fn env(name)
+:::fn env(name: str)
 
 환경 변수 `name`의 값(문자열)을, 없으면 `nil`을 돌려준다.
 
@@ -210,7 +210,7 @@ print(sh("exit 2"))
 
 #### 에러
 
-`name`이 문자열이 아니거나 변수 이름이 될 수 없으면(빈 이름, `=`나 NUL이 든 이름) 런타임 에러 E0403. 그런 변수는 있을 수 없으므로 `nil`이 아니라 코드의 실수다. [`exec`](#fn-exec)·[`sh`](#fn-sh)의 `env` 맵의 이름도 같은 검사다.
+`name`이 문자열이 아니거나 변수 이름이 될 수 없으면(빈 이름, `=`나 NUL이 든 이름) E0403. 그런 변수는 있을 수 없으므로 `nil`이 아니라 코드의 실수다. [`exec`](#fn-exec)·[`sh`](#fn-sh)의 `env` 맵의 이름도 같은 검사다.
 
 #### 예제
 

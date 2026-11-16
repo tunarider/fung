@@ -1,6 +1,8 @@
-# A name whose one binding is a literal is checked as the literal is,
-# before the program runs (D149): nothing is printed.
+# A name bound to a literal is not followed to it: the check is the
+# run's, where the name is used (D164). A literal written in the place
+# is the compiler's (`if 1:`).
 c = 1
 print("ran")
 if c: print("yes") ;;
+# expect: ran
 # expect-error: E0505

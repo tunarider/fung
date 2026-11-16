@@ -49,7 +49,7 @@ pub fn key(s: &str) -> Rc<Text> {
 }
 pub use time::Time;
 pub(crate) use time::{Loc, MAX_UNIX, MIN_UNIX, civil_from_days, days_from_civil, offset_text};
-pub use types::{TypeSet, matches_type};
+pub use types::{TypeSet, matches_type, sender_help};
 
 /// What a persistent collection can be asked of its items. Its nodes
 /// remember each answer (`pvec.rs`), so a look after a change costs the
@@ -567,6 +567,20 @@ pub struct NativeParam {
     pub name: &'static str,
     pub default: Option<Lit>,
     pub rest: bool,
+    /// The union of type names the parameter takes, as an annotation
+    /// writes it (`str | nil`): the VM checks the argument against it
+    /// before the native runs, as it checks a fung function's annotated
+    /// parameter (E0403, D165, D173). `None` takes any value.
+    pub types: Option<&'static str>,
+}
+
+impl NativeParam {
+    /// The parameter, taking only values of the types `types` names
+    /// (`"list | range"`).
+    pub fn of(mut self, types: &'static str) -> NativeParam {
+        self.types = Some(types);
+        self
+    }
 }
 
 /// A literal default of a native parameter. Natives are shared by every
@@ -625,6 +639,9 @@ pub struct Native {
     /// Each parameter's name as a symbol: a named argument finds its
     /// parameter by number (VM6).
     pub param_syms: Vec<Sym>,
+    /// The parameters that take only some types: the parameter's number
+    /// and the kinds it takes (`types::kinds`).
+    pub checks: Vec<(usize, u32)>,
     pub body: NativeBody,
 }
 
@@ -650,12 +667,54 @@ impl Native {
         body: NativeBody,
     ) -> &'static Native {
         let param_syms = params.iter().map(|p| sym::intern(p.name)).collect();
+        let checks = params
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| Some((i, types::kinds(p.types?))))
+            .collect();
         Box::leak(Box::new(Native {
             name,
             params,
             param_syms,
+            checks,
             body,
         }))
+    }
+
+    /// The first argument that is not of its parameter's types, as E0403
+    /// with the wording a fung function's parameter has (D173).
+    #[inline]
+    pub fn check_args<'a>(
+        &self,
+        arg: impl Fn(usize) -> &'a Value,
+    ) -> Result<(), fung_front::diag::Diag> {
+        for &(i, kinds) in &self.checks {
+            let v = arg(i);
+            if !types::has_kind(kinds, v) {
+                return Err(self.wrong_type(i, v));
+            }
+        }
+        Ok(())
+    }
+
+    #[cold]
+    fn wrong_type(&self, i: usize, v: &Value) -> fung_front::diag::Diag {
+        use fung_front::diag::Arg;
+        let p = &self.params[i];
+        let types = p.types.unwrap_or("any");
+        let d = fung_front::diag::error(
+            "E0403",
+            crate::vm::no_pos(),
+            vec![
+                Arg::Str(p.name.into()),
+                Arg::Str(types.into()),
+                Arg::Str(type_name(v)),
+            ],
+        );
+        match types::sender_help(types, v) {
+            Some(h) => d.with_help(h),
+            None => d,
+        }
     }
 
     /// The Rust function of a plain native, for tests that call one

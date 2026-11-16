@@ -29,7 +29,7 @@ JSON 텍스트는 그냥 문자열이다. 문자열인 채로는 `"port"` 값을
 
 외부에서 오는 JSON은 깨져 있을 수 있으므로 `json.parse`는 결과값(`Ok`/`Err`)을 돌려준다. 반대로 `json.stringify`가 실패하는 것은 JSON에 없는 값(함수, 기간 등)을 넘긴 프로그램의 잘못이라 런타임 에러로 멈춘다([에러 규칙](../language/results.html)).
 
-:::fn json.parse(s)
+:::fn json.parse(s: str)
 
 JSON 텍스트를 fung 값으로 읽는다.
 
@@ -50,7 +50,7 @@ JSON 텍스트를 fung 값으로 읽는다.
 #### 에러
 
 - `Err({kind: 'parse, line, col, message})`: 형식이 틀렸다. `line`·`col`은 1부터 세는 문제 글자의 위치(열은 글자 단위)이고, `message`는 ``invalid JSON at line 1, column 9: expected a string for an object key``처럼 위치와 이유를 담는다. 이유의 예: `unexpected end of input`, `unexpected text after the value`, ``duplicate key "a"``, `number out of range`, `invalid UTF-8`, `nesting too deep (limit 10000)`.
-- `s`가 문자열이 아니면 런타임 에러 E0403.
+- `s`가 문자열이 아니면 E0403.
 
 #### 예제
 
@@ -112,7 +112,7 @@ print(events |> filter(e => e.level == "error") |> map(e => e.msg))
 
 :::
 
-:::fn json.stringify(x, indent = nil)
+:::fn json.stringify(x, indent: int | nil = nil)
 
 fung 값을 JSON 텍스트로 쓴다.
 

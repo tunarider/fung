@@ -385,6 +385,17 @@ fn pure_call(n: &Node, pure: &Pure) -> Option<Diag> {
         at,
         takes_fn,
     } = pure.get(&(n.pos.line, n.pos.col))?;
+    // a function written where it is called has no name to show (FE85)
+    if shown == super::call::NAMELESS {
+        return Some(
+            error(
+                "E0234",
+                *at,
+                vec![Arg::Str("the result of calling this function".into())],
+            )
+            .with_help("this function has no effect: it only computes its result; use the result, or write `_ = …` to discard it on purpose"),
+        );
+    }
     let help = if *takes_fn {
         format!(
             "`{own}` computes a value with its function; use the value, or run the function for its effects with `each` or a `for` statement"
@@ -447,8 +458,9 @@ fn fn_name(n: &Node) -> &str {
 /// the run names it (`type_name` in fung-vm): a literal of any kind (a
 /// number, a string with or without `${…}`, a bool, `nil`, a symbol or
 /// bare tag, a duration), a list, map or tuple literal, a tag value (its
-/// tag's name), a range, and a function the code writes (a lambda, an
-/// anonymous `fn`, a partial application). `None` when the syntax does
+/// tag's name), a range, a function the code writes (a lambda, an
+/// anonymous `fn`, a partial application), and the negative of a number
+/// or duration literal. `None` when the syntax does
 /// not say. Every check of what literals settle reads the type here; a
 /// type annotation's check (D113) can compare it with the annotation's
 /// type names, which are the same names.
@@ -469,6 +481,14 @@ pub(crate) fn known_type(n: &Node) -> Option<&str> {
         Head::Tag => lit_str(n),
         Head::Fn if fn_name(n).is_empty() => "fn",
         Head::Do if partial_shape(n) => "fn",
+        // `-1`, `-1.5`, `-1s`: `-` of a number or duration literal (FE83)
+        Head::Op
+            if n.kids.len() == 1
+                && lit_str(n) == "-"
+                && matches!(n.kids[0].head, Head::Int | Head::Float | Head::Duration) =>
+        {
+            return known_type(&n.kids[0]);
+        }
         _ => return None,
     })
 }
@@ -488,13 +508,7 @@ fn operator_types<'t>(op: &str, a: &'t str, b: &'t str) -> Option<Result<(), (&'
     let fine = match op {
         "+" => (num(a) && num(b)) || both("str") || both("dur") || both("list"),
         "-" => (num(a) && num(b)) || both("dur"),
-        // `n * d` scales the duration: its error names the duration first
-        "*" => {
-            if b == "dur" && a != "dur" && !num(a) {
-                return Some(Err(("dur", a)));
-            }
-            (num(a) && num(b)) || (a == "dur" && num(b)) || (num(a) && b == "dur")
-        }
+        "*" => (num(a) && num(b)) || (a == "dur" && num(b)) || (num(a) && b == "dur"),
         "/" => (num(a) && num(b)) || both("dur") || (a == "dur" && num(b)),
         "//" | "%" => (num(a) && num(b)) || both("dur"),
         "**" => num(a) && num(b),
@@ -516,18 +530,8 @@ fn operator_types<'t>(op: &str, a: &'t str, b: &'t str) -> Option<Result<(), (&'
 /// run's to find. The type comes from `known_type`, one place for every
 /// check.
 pub(super) fn literal_type_error(n: &Node) -> Option<Diag> {
-    literal_type_error_with(n, &|k| k)
-}
-
-/// `literal_type_error` with `view` giving the literal each operand
-/// stands for: itself, or what a name holds (D149). Errors stand where
-/// the operand is written.
-pub(super) fn literal_type_error_with<'a>(
-    n: &'a Node,
-    view: &dyn Fn(&'a Node) -> &'a Node,
-) -> Option<Diag> {
-    let ty = |c: &'a Node| known_type(view(c));
-    let not_bool = |c: &'a Node| {
+    let ty = known_type;
+    let not_bool = |c: &Node| {
         ty(c)
             .filter(|t| *t != "bool")
             .map(|t| error("E0505", c.pos, vec![Arg::Str(t.into())]))
@@ -535,11 +539,25 @@ pub(super) fn literal_type_error_with<'a>(
     match n.head {
         // a value that is no function called
         Head::Call => {
-            let t = ty(&n.kids[0]).filter(|t| *t != "fn")?;
+            // `...x` spreads a list or a range
+            let spread = n.kids[1..]
+                .iter()
+                .filter(|k| k.head == Head::Spread)
+                .find_map(|k| ty(&k.kids[0]).filter(|t| !matches!(*t, "list" | "range")));
+            let callee = ty(&n.kids[0]).filter(|t| *t != "fn");
+            // the run spreads before it looks at what it calls
+            if let Some(t) = spread {
+                return Some(error(
+                    "E0506",
+                    n.pos,
+                    vec![Arg::Str("spread".into()), Arg::Str(t.into())],
+                ));
+            }
+            let t = callee?;
             let e = error("E0401", n.kids[0].pos, vec![Arg::Str(t.into())]);
             // a bare tag is its symbol: a pipe wraps with the tag's call
             // (D144)
-            let callee = view(&n.kids[0]);
+            let callee = &n.kids[0];
             if callee.head == Head::Symbol
                 && lit_str(callee).starts_with(|c: char| crate::unicode::is_upper(c))
             {
@@ -570,6 +588,19 @@ pub(super) fn literal_type_error_with<'a>(
                 vec![Arg::Str("negate".into()), Arg::Str(t.into())],
             );
             Some(run_help(e, &[t]))
+        }
+        // `x in c`: what holds things, and what it can hold
+        Head::Op if n.kids.len() == 2 && lit_str(n) == "in" => {
+            let (x, c) = (&n.kids[0], &n.kids[1]);
+            match ty(c)? {
+                "list" | "range" => None,
+                "str" => {
+                    let t = ty(x).filter(|t| *t != "str")?;
+                    Some(type_pair("search", n.pos, "str", t))
+                }
+                "map" => not_a_key(x, n.pos),
+                t => Some(error("E0512", n.pos, vec![Arg::Str(t.into())])),
+            }
         }
         Head::Op if n.kids.len() == 2 => {
             let (a, b) = (ty(&n.kids[0])?, ty(&n.kids[1])?);
@@ -603,6 +634,59 @@ pub(super) fn literal_type_error_with<'a>(
             }
             Some(run_help(e, &[a, b]))
         }
+        // the ends of a range are ints
+        Head::Range => {
+            let (a, b) = (ty(&n.kids[0])?, ty(&n.kids[1])?);
+            if a == "int" && b == "int" {
+                return None;
+            }
+            Some(type_pair("make a range from", n.pos, a, b))
+        }
+        // `x[i]`: lists and strings by position or range, maps by key
+        Head::Index => {
+            let (x, i) = (&n.kids[0], &n.kids[1]);
+            match (ty(x)?, ty(i)) {
+                ("list" | "str", Some("int" | "range") | None) => None,
+                ("map", _) => not_a_key(i, n.pos),
+                (t, Some(it)) => Some(index_error(n.pos, t, it)),
+                (_, None) => None,
+            }
+        }
+        // `x.name` is `x["name"]`
+        Head::Field => {
+            let t = ty(&n.kids[0]).filter(|t| *t != "map")?;
+            Some(field_error(index_error(n.pos, t, "str"), t, lit_str(n)))
+        }
+        // `x[a..b]`: of a list or a string, and the ends are ints
+        Head::Slice => {
+            let t = ty(&n.kids[0])?;
+            if !matches!(t, "list" | "str") {
+                return Some(error("E0511", n.pos, vec![Arg::Str(t.into())]));
+            }
+            n.kids[1..]
+                .iter()
+                .filter(|end| end.head != Head::Missing)
+                .find_map(|end| ty(end).filter(|et| *et != "int"))
+                .map(|et| index_error(n.pos, t, et))
+        }
+        // `!` and `?` take a result
+        Head::Unwrap => {
+            let op = Arg::Str(lit_str(n).into());
+            match ty(&n.kids[0])? {
+                "Ok" | "Err" => None,
+                "nil" => Some(error("E0604", n.pos, vec![op])),
+                t => Some(error(
+                    "E0605",
+                    n.pos,
+                    vec![op, Arg::Str(format!("a value of type {t}"))],
+                )),
+            }
+        }
+        // `assert` takes a bool
+        Head::Assert => {
+            let t = ty(&n.kids[0]).filter(|t| *t != "bool")?;
+            Some(error("E0505", n.pos, vec![Arg::Str(t.into())]))
+        }
         // `??` after a value that is never nil or a result
         Head::Coalesce => {
             let what = match ty(&n.kids[0])? {
@@ -622,6 +706,58 @@ pub(super) fn literal_type_error_with<'a>(
             Some(error("E0243", n.pos, vec![Arg::Str(what.into())]).span(2))
         }
         _ => None,
+    }
+}
+
+/// E0501 for an operation on two types, as the run words it.
+fn type_pair(verb: &str, at: Pos, a: &str, b: &str) -> Diag {
+    error(
+        "E0501",
+        at,
+        vec![
+            Arg::Str(verb.into()),
+            Arg::Str(a.into()),
+            Arg::Str(b.into()),
+        ],
+    )
+}
+
+/// E0509 for `x[i]` that has no meaning (`fung-vm`'s `index_error`).
+fn index_error(at: Pos, x: &str, i: &str) -> Diag {
+    error("E0509", at, vec![Arg::Str(x.into()), Arg::Str(i.into())])
+}
+
+/// E0514 for a literal map key `k` that is not a string, with the run's
+/// help for a symbol (`fung-vm`'s `not_a_key`).
+fn not_a_key(k: &Node, at: Pos) -> Option<Diag> {
+    let t = known_type(k).filter(|t| *t != "str")?;
+    let e = error("E0514", at, vec![Arg::Str(t.into())]);
+    if k.head == Head::Symbol {
+        let name = lit_str(k);
+        return Some(e.with_help(&format!(
+            "map keys are strings: write `\"{name}\"` for `'{name}`, or convert the key with `sym_name(k)`"
+        )));
+    }
+    Some(e)
+}
+
+/// The run's help for `x.name` on a value of type `t` that has no
+/// fields (`fung-vm`'s `field_error`).
+fn field_error(e: Diag, t: &str, name: &str) -> Diag {
+    let a = if t.starts_with(|c: char| "aeiouAEIOU".contains(c)) {
+        "an"
+    } else {
+        "a"
+    };
+    if crate::builtins::builtins()
+        .prelude_signature(name)
+        .is_some()
+    {
+        e.with_help(&format!(
+            "{a} {t} has no fields; to call `{name}` on it, write `{name}(…)`"
+        ))
+    } else {
+        e.with_help(&format!("{a} {t} has no fields: only maps and modules do"))
     }
 }
 

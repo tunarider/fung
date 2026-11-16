@@ -1,11 +1,11 @@
 # A library call in tail position: the error points at it, not at the
 # line that called this function (08, L8).
-fn firsts(xs):
-  take(xs, "two")
+fn firsts(xs, n):
+  take(xs, n)
 ;;
 
 fn main():
-  r = firsts([1, 2, 3])
+  r = firsts([1, 2, 3], "two")
   print(r)
 ;;
 

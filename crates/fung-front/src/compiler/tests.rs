@@ -80,6 +80,7 @@ fn bare(mut core: Node) -> Resolved {
     Resolved {
         core,
         num_locals: 0,
+        held: Vec::new(),
         globals: vec![],
         imports: vec![],
         exports: vec![],

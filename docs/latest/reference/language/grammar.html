@@ -104,7 +104,9 @@ param_pat   = destructure .                         (* 첫 토큰이 _ ( [ { TAG
 import      = &quot;import&quot; ( NAME { &quot;.&quot; NAME } | PLAIN_STRING ) [ &quot;as&quot; NAME ]
               [ &quot;(&quot; NAME { &quot;,&quot; NAME } [ &quot;,&quot; ] &quot;)&quot; ] .
                                                     (* 파일 맨 앞에만(블록 안은 E0311), 쓴 순서대로.
-                                                       목록만 쓰면 모듈 이름은 묶이지 않고, as와 목록은 둘 다 묶는다 *)
+                                                       목록만 쓰면 모듈 이름은 묶이지 않고, as와 목록은 둘 다 묶는다.
+                                                       점으로 이은 이름은 내장 파일이 쓰는 _native.*뿐이다:
+                                                       사용자 파일에서는 E0310, 그 밖의 점 이름은 E0301 *)
 type_alias  = &quot;type&quot; NAME &quot;=&quot; type .               (* 최상위에만: E0219 *)
 test_block  = &quot;test&quot; PLAIN_STRING block .           (* 최상위에만: E0114 *)
 assert      = &quot;assert&quot; expr .
@@ -115,16 +117,16 @@ lambda      = ( NAME | &quot;_&quot; | &quot;(&quot; [ lparam { &quot;,&quot; lp
                                                     (* 본문의 return·?는 그 람다에서 돌아온다 *)
 lparam      = destructure .                         (* fn의 매개변수와 같은 패턴, 기본값·타입·...rest 없음 *)
 then_expr   = or_expr [ &quot;then&quot; branch &quot;else&quot; branch ] .  (* else는 필수, 오른쪽 결합 *)
-branch      = return | expr .
+branch      = return | expr .                       (* 필요할 때만 평가하는 자리: 절, then … else의 가지, ??·and·or의 오른쪽 *)
 return      = &quot;return&quot; [ expr ] .                   (* 문장과 가지의 끝에만, 다른 자리는 E0132 *)
-or_expr     = and_expr { &quot;or&quot; and_expr } .
-and_expr    = not_expr { &quot;and&quot; not_expr } .
+or_expr     = and_expr { &quot;or&quot; ( return | and_expr ) } .
+and_expr    = not_expr { &quot;and&quot; ( return | not_expr ) } .
 not_expr    = &quot;not&quot; not_expr | cmp_expr .
 cmp_expr    = pipe_expr [ cmp_op pipe_expr ] .      (* 연쇄 없음 *)
 cmp_op      = &quot;==&quot; | &quot;!=&quot; | &quot;&lt;&quot; | &quot;&gt;&quot; | &quot;&lt;=&quot; | &quot;&gt;=&quot; | &quot;in&quot; | &quot;not&quot; &quot;in&quot; .
 pipe_expr   = coalesce { &quot;|&gt;&quot; coalesce } .          (* 괄호 없는 호출 모양(f(…), Tag(…))만 값을 맨 앞 인자로 받는다.
                                                        괄호 없는 ??가 |&gt;의 피연산자면 E0127 *)
-coalesce    = range { &quot;??&quot; range } .
+coalesce    = range { &quot;??&quot; ( return | range ) } .
 range       = add [ ( &quot;..&quot; | &quot;..=&quot; ) add ] .        (* 범위는 범위의 피연산자가 아니다: E0118 *)
 add         = mul { ( &quot;+&quot; | &quot;-&quot; ) mul } .
 mul         = unary { ( &quot;*&quot; | &quot;/&quot; | &quot;//&quot; | &quot;%&quot; ) unary } .
@@ -159,7 +161,7 @@ if_expr     = &quot;if&quot; expr &quot;:&quot; body { &quot;else&quot; &quot;if
 match_expr  = &quot;match&quot; expr &quot;:&quot; { sep } arm { arm } &quot;;;&quot; .
 arm         = pattern [ &quot;when&quot; expr ] &quot;=&gt;&quot; { sep } { stmt { sep } } .
                                                     (* 절은 하나 이상, 절의 본문은 비어도 된다(값으로 쓰면 E0224).
-                                                       앞 절의 가드 없는 리터럴과 같은 리터럴 절은 E0235 *)
+                                                       앞의 가드 없는 절이 덮는 절은 E0235 *)
 for_expr    = &quot;for&quot; destructure &quot;in&quot; expr &quot;:&quot; body &quot;;;&quot; .
 
 pattern     = pat_term { &quot;|&quot; pat_term } .

@@ -33,7 +33,7 @@ description: fung 모듈 cli — 명령줄 인자를 옵션과 나머지로 나�
 
 :::
 
-:::fn cli.parse(argv, bools = [], values = []) fung
+:::fn cli.parse(argv: list, bools: list = [], values: list = []) fung
 
 명령줄 인자를 옵션 맵과 나머지 리스트로 나눈다.
 

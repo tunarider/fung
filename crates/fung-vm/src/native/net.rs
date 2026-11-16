@@ -91,10 +91,10 @@ pub fn module() -> Rc<Module> {
                     "connect",
                     connect_fn,
                     vec![
-                        param("host"),
-                        param("port"),
-                        opt("tls", Lit::Bool(false)),
-                        opt("alpn", Lit::Nil),
+                        param("host").of("str"),
+                        param("port").of("int"),
+                        opt("tls", Lit::Bool(false)).of("bool"),
+                        opt("alpn", Lit::Nil).of("list | nil"),
                     ],
                 ),
             ),
@@ -103,49 +103,78 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "listen",
                     listen_fn,
-                    vec![param("addr"), opt("reuse_port", Lit::Bool(false))],
+                    vec![
+                        param("addr").of("str"),
+                        opt("reuse_port", Lit::Bool(false)).of("bool"),
+                    ],
                 ),
             ),
             (
                 "local_addr",
-                native("local_addr", local_addr_fn, vec![param("x")]),
+                native(
+                    "local_addr",
+                    local_addr_fn,
+                    vec![param("x").of("conn | listener")],
+                ),
             ),
-            ("accept", native_step("accept", accept_fn, vec![param("l")])),
+            (
+                "accept",
+                native_step("accept", accept_fn, vec![param("l").of("listener")]),
+            ),
             (
                 "read_line",
-                native_step("read_line", read_line_fn, vec![param("c"), param("limit")]),
+                native_step(
+                    "read_line",
+                    read_line_fn,
+                    vec![param("c").of("conn"), param("limit").of("int")],
+                ),
             ),
             (
                 "read_raw_line",
                 native_step(
                     "read_raw_line",
                     read_raw_line_fn,
-                    vec![param("c"), param("limit")],
+                    vec![param("c").of("conn"), param("limit").of("int")],
                 ),
             ),
             (
                 "read_bytes",
-                native_step("read_bytes", read_bytes_fn, vec![param("c"), param("n")]),
+                native_step(
+                    "read_bytes",
+                    read_bytes_fn,
+                    vec![param("c").of("conn"), param("n").of("int")],
+                ),
             ),
             (
                 "read_all",
-                native_step("read_all", read_all_fn, vec![param("c"), param("limit")]),
+                native_step(
+                    "read_all",
+                    read_all_fn,
+                    vec![param("c").of("conn"), param("limit").of("int")],
+                ),
             ),
             (
                 "write",
-                native_step("write", write_fn, vec![param("c"), param("s")]),
+                native_step(
+                    "write",
+                    write_fn,
+                    vec![param("c").of("conn"), param("s").of("str")],
+                ),
             ),
-            ("close", native_step("close", close_fn, vec![param("x")])),
+            (
+                "close",
+                native_step("close", close_fn, vec![param("x").of("conn | listener")]),
+            ),
             (
                 "close_write",
-                native("close_write", close_write_fn, vec![param("c")]),
+                native("close_write", close_write_fn, vec![param("c").of("conn")]),
             ),
             (
                 "set_deadline",
                 native(
                     "set_deadline",
                     set_deadline_fn,
-                    vec![param("c"), param("d")],
+                    vec![param("c").of("conn"), param("d").of("dur | nil")],
                 ),
             ),
             (
@@ -153,19 +182,27 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "read_bytes_into",
                     read_bytes_into_fn,
-                    vec![param("c"), param("n"), param("cap")],
+                    vec![
+                        param("c").of("conn"),
+                        param("n").of("int"),
+                        param("cap").of("int"),
+                    ],
                 ),
             ),
             (
                 "take_body",
-                native_step("take_body", take_body_fn, vec![param("c")]),
+                native_step("take_body", take_body_fn, vec![param("c").of("conn")]),
             ),
             (
                 "start_tls",
                 native_step(
                     "start_tls",
                     start_tls_fn,
-                    vec![param("c"), param("host"), opt("alpn", Lit::Nil)],
+                    vec![
+                        param("c").of("conn"),
+                        param("host").of("str"),
+                        opt("alpn", Lit::Nil).of("list | nil"),
+                    ],
                 ),
             ),
             (
@@ -173,17 +210,21 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "read_fields",
                     read_fields_fn,
-                    vec![param("c"), param("budget"), param("max")],
+                    vec![
+                        param("c").of("conn"),
+                        param("budget").of("int"),
+                        param("max").of("int"),
+                    ],
                 ),
             ),
             ("user_agent", native("user_agent", user_agent_fn, vec![])),
             (
                 "url_encode",
-                native("url_encode", url_encode_fn, vec![param("s")]),
+                native("url_encode", url_encode_fn, vec![param("s").of("str")]),
             ),
             (
                 "url_decode",
-                native("url_decode", url_decode_fn, vec![param("s")]),
+                native("url_decode", url_decode_fn, vec![param("s").of("str")]),
             ),
         ]
     });

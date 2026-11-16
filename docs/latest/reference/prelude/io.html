@@ -156,7 +156,7 @@ match parse_int(port):
 <section class="entry" id="fn-write">
 <h3>write</h3>
 <p>문자열을 줄바꿈 없이 그대로 표준 출력에 쓴다.</p>
-<div class="sig"><code>write(s)</code></div>
+<div class="sig"><code>write(s: str)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-print"><code>print</code></a>는 값을 보여 주는 함수라 인자를 공백으로 잇고 끝에 줄바꿈을 붙인다. <code>write</code>는 문자열 하나를 <strong>글자 그대로</strong> 쓴다. 진행 표시(<code>.</code>을 하나씩), 같은 줄에 이어 쓰기, 다른 프로그램이 읽을 정확한 바이트를 낼 때 쓴다. 줄바꿈이 필요하면 직접 넣는다(<code>write(&quot;done\n&quot;)</code>). <code>print</code>와 같은 쓰기 통로를 지나므로 둘을 섞어 써도 쓴 순서대로 나간다. 값을 찍으려면 <code>print</code>나 보간(<code>&quot;${x}&quot;</code>)으로 먼저 문자열을 만든다.</p>
 <h4>매개변수</h4>
@@ -180,7 +180,7 @@ done</code></pre></div>
 <section class="entry" id="fn-ewrite">
 <h3>ewrite</h3>
 <p><code>write</code>와 같이 줄바꿈 없이 표준 에러에 쓴다.</p>
-<div class="sig"><code>ewrite(s)</code></div>
+<div class="sig"><code>ewrite(s: str)</code></div>
 <h4>설명</h4>
 <p>나가는 곳만 표준 에러인 <a href="#fn-write"><code>write</code></a>다. <a href="#fn-eprint"><code>eprint</code></a>와 같은 쓰기 통로를 지나므로 둘의 순서가 지켜진다.</p>
 <h4>매개변수</h4>
@@ -203,7 +203,7 @@ result 42</code></pre></div>
 <section class="entry" id="fn-read_line">
 <h3>read_line</h3>
 <p>한 줄을 읽어 <code>Ok(줄)</code>을, 더 읽을 것이 없으면 <code>Ok(nil)</code>을 돌려준다.</p>
-<div class="sig"><code>read_line(file = nil)</code></div>
+<div class="sig"><code>read_line(file: file | nil = nil)</code></div>
 <h4>설명</h4>
 <p><code>file</code>이 <code>nil</code>(기본값)이면 표준 입력에서, <a href="../modules/fs.html#fn-fs-open"><code>fs.open</code></a>으로 연 파일 핸들이면 그 파일에서 읽는다. 읽은 줄의 끝에 붙은 <code>\n</code>과 그 앞의 <code>\r</code>(Windows식 줄 끝)은 떼고 돌려준다. 줄바꿈 없이 끝난 마지막 줄의 끝에 있는 <code>\r</code>도 뗀다(<code>&quot;y\r&quot;</code>로 끝난 입력의 마지막 줄은 <code>&quot;y&quot;</code>; <a href="strings.html#fn-lines"><code>lines</code></a>도 같다). 줄 가운데의 <code>\r</code>은 그대로 둔다. 그래서 빈 줄은 <code>Ok(&quot;&quot;)</code>이고 끝은 <code>Ok(nil)</code>이라 둘이 구별된다.</p>
 <p>마지막 줄에 줄바꿈이 없어도 그 줄을 돌려준다. UTF-8이 아닌 바이트도 바꾸지 않고 그대로 담는다(<a href="strings.html#bytes">바이트</a>).</p>
@@ -270,7 +270,7 @@ Err({kind: 'closed, message: &quot;file `app.log` is closed&quot;})</code></pre>
 <section class="entry" id="fn-read_lines">
 <h3>read_lines</h3>
 <p>남은 줄을 모두 읽어 <code>Ok(리스트)</code>로 돌려준다.</p>
-<div class="sig"><code>read_lines(file = nil)</code></div>
+<div class="sig"><code>read_lines(file: file | nil = nil)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-read_line"><code>read_line</code></a>을 끝까지 부른 것과 같다. 줄 끝의 <code>\n</code>·<code>\r</code>을 떼는 규칙, 마지막 줄바꿈이 빈 줄을 만들지 않는 규칙, 바이트를 바꾸지 않는 규칙이 모두 같다. 입력이 비어 있으면 <code>Ok([])</code>다. 이미 몇 줄을 <code>read_line</code>으로 읽었다면 그 뒤의 줄만 돌려준다.</p>
 <p>경로로 파일 전체를 줄 리스트로 읽을 때는 <a href="../modules/fs.html#fn-fs-read_lines"><code>fs.read_lines(path)</code></a>가 열고 닫는 일까지 해 준다. 이미 문자열로 가진 글을 줄로 나눌 때는 <a href="strings.html#fn-lines"><code>lines</code></a>다.</p>

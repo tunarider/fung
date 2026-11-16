@@ -137,13 +137,14 @@ print(1h30m // 1m, 2m &gt; 90s)</code></pre><pre class="out plain"><code>30s 2m 
 <h2 id="convert">타입 바꾸기</h2>
 <p>fung은 타입을 <strong>저절로 바꾸지 않는다</strong>. <code>&quot;5&quot; + 3</code>은 <code>8</code>도 <code>&quot;53&quot;</code>도 아니고 에러다. 파일이나 명령 출력, 명령줄 인자에서 온 값은 늘 문자열이라서, 숫자로 계산하려면 직접 바꿔야 한다.</p>
 <div class="run"><pre><code>used = &quot;91&quot;
-print(used + 1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0501]: cannot add str and int
+print(used + 1)</code></pre><pre class="out err plain" data-code="1"><code>error[E0501]: cannot add str and int
   --&gt; example.fung:2:12
   |
 2 | print(used + 1)
   |            ^
   |
-  note: `used` is bound to a literal on line 1
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;
  help: put the value into the text with `&quot;${…}&quot;`, or convert it with `str(…)`</code></pre></div>
 <p>글에서 수를 읽는 함수는 <code>parse_int</code>와 <code>parse_float</code>다. 글이 수 모양이 아닐 수 있으므로 이 함수들은 결과를 상자에 담아 돌려준다. 뒤에 붙인 <code>!</code>가 상자에서 수를 꺼내고, 수 모양이 아니면 에러로 멈춘다.</p>
 <div class="run"><pre><code>print(parse_int(&quot;91&quot;)! + 1, parse_float(&quot;2.5&quot;)! * 2)

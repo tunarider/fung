@@ -94,6 +94,7 @@ impl Compiler<'_> {
         let mut child = Proto {
             name: info.name.clone(),
             num_locals: info.num_locals,
+            held: info.held.clone(),
             captures: info.captures.clone(),
             ..Proto::default()
         };

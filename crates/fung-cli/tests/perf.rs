@@ -123,6 +123,18 @@ const CASES: &[(&str, &str, &str)] = &[
         "200000 100000\n",
     ),
     (
+        // VA72: one byte outside UTF-8 at the far end, or at the near one
+        "eat a string that is not UTF-8 by slices",
+        "fn eat(s, n) = s == \"\" then n else eat(s[index_of(s, \"\\n\") + 1..], n + 1)\nline = \"2026-11-15 GET /index.html 200 ok\\n\"\nprint(eat(repeat(line, 40000) + \"caf\\xe9\\n\", 0), eat(\"caf\\xe9\\n\" + repeat(line, 40000), 0))",
+        "40001 40001\n",
+    ),
+    (
+        // VA73: what a trim keeps is a piece of the string, not a copy
+        "split words with trim_left",
+        "fn words(s, n):\n  t = trim_left(s)\n  if t == \"\": return n ;;\n  words(t[(index_of(t, \" \") ?? len(t))..], n + 1)\n;;\nprint(words(repeat(\"GET  \", 100000), 0), words(repeat(\"\u{d55c}\u{ae00}  \", 100000), 0), words(repeat(\"GET  \", 100000) + \"\\xe9\", 0))",
+        "100000 100000 100001\n",
+    ),
+    (
         "eat a string from its end",
         "fn eat(s, acc) = s == \"\" then acc else eat(s[..len(s) - 1], acc + 1)\nprint(eat(repeat(\"\u{d55c}\", 100000), 0))",
         "100000\n",
@@ -240,6 +252,56 @@ fn many_constants_compile_in_linear_time() {
     assert!(
         took < Duration::from_millis(500),
         "32,768 constants took {took:?}"
+    );
+}
+
+/// A `match` of 8,000 literal arms, and one arm of 8,000 alternatives,
+/// compile in linear time (FE84): whether an earlier arm covers an arm
+/// is looked up by the literal, not asked of every earlier arm (4,000
+/// string arms took 2.1 s here).
+#[test]
+fn many_literal_arms_compile_in_linear_time() {
+    let _serial = serial();
+    let arms: Vec<String> = (0..8000).map(|i| format!("  \"k{i}\" => {i}")).collect();
+    let alts: Vec<String> = (0..8000).map(|i| format!("{i}")).collect();
+    let src = format!(
+        "fn code(s) = match s:\n{}\n  _ => -1\n;;\nfn known(n) = match n:\n  {} => true\n  _ => false\n;;\nprint(code(\"k7999\"), code(\"x\"), known(7999), known(-1))",
+        arms.join("\n"),
+        alts.join(" | ")
+    );
+    run_file("arms", &src);
+    let (out, took) = run_file("arms", &src);
+    eprintln!("many literal arms {took:?}");
+    assert_eq!(out, "7999 -1 true false\n");
+    assert!(
+        took < Duration::from_millis(500),
+        "8,000 literal arms took {took:?}"
+    );
+}
+
+/// A function of 4,000 locals and 4,000 early returns compiles in linear
+/// time (VM58): a `return` marks every local dead at once, not one by
+/// one (1.8 s here).
+#[test]
+fn many_locals_and_returns_compile_in_linear_time() {
+    let _serial = serial();
+    let n = 4000;
+    let locals: Vec<String> = (0..n).map(|i| format!("  x{i} = a + {i}")).collect();
+    let returns: Vec<String> = (0..n)
+        .map(|i| format!("  if a == {i}: return x{i} ;;"))
+        .collect();
+    let src = format!(
+        "fn pick(a):\n{}\n{}\n  nil\n;;\nprint(pick(0), pick(3999), pick(5000))",
+        locals.join("\n"),
+        returns.join("\n")
+    );
+    run_file("returns", &src);
+    let (out, took) = run_file("returns", &src);
+    eprintln!("many locals and returns {took:?}");
+    assert_eq!(out, "0 7998 nil\n");
+    assert!(
+        took < Duration::from_millis(500),
+        "4,000 locals and returns took {took:?}"
     );
 }
 

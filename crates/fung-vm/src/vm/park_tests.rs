@@ -238,10 +238,10 @@ fn offload_errors_point_at_the_call() {
         o.err,
         "error[E0515]: invalid pattern `(`: unclosed group\n  --> -e:2:21\n  |\n2 | print(regex.is_match(\"a\", \"(\"))\n  |                     ^\n  |\n call path (innermost first):\n   -e:2       <entry>\n"
     );
-    let o = with_stdin("print(read_line(1))", "");
+    let o = with_stdin("x = 1\nprint(read_line(x))", "");
     assert_eq!(
         o.err,
-        "error[E0403]: argument `file` must be file | nil, got int\n  --> -e:1:16\n  |\n1 | print(read_line(1))\n  |                ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
+        "error[E0403]: argument `file` must be file | nil, got int\n  --> -e:2:16\n  |\n2 | print(read_line(x))\n  |                ^\n  |\n call path (innermost first):\n   -e:2       <entry>\n"
     );
 }
 

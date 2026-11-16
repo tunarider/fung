@@ -561,21 +561,21 @@ print(check(1))
 
 :::error E0132
 
-`return`을 값 자리에 썼다: 연산자의 피연산자, 호출 인자, 리스트·맵·튜플의 원소, 대입의 오른쪽, 괄호 안. `return`은 문장이거나 가지의 끝(`if`·`match` 절의 본문, `then … else`의 가지, `fn f() = …`의 본문)에만 온다. 값 자리의 `return`은 그 식의 나머지가 계산되지 않는다는 것을 숨긴다.
+`return`을 값 자리에 썼다: 연산자의 피연산자, 호출 인자, 리스트·맵·튜플의 원소, 대입의 오른쪽, 괄호 바로 안. `return`은 문장이거나 가지의 끝(`if`·`match` 절의 본문, `then … else`의 가지, `??`·`and`·`or`의 오른쪽, `fn f() = …`의 본문)에만 온다. 가지는 필요할 때만 평가하는 자리다. 늘 평가하는 자리의 `return`은 그 식의 나머지가 계산되지 않는다는 것을 숨긴다.
 
 ```fung run exit=2 error=E0132
 fn port(cfg):
-  p = cfg.port ?? return 80
-  p + 1
+  p = 1 + return 80
+  p
 ;;
 ```
 
-고치는 법: 조건을 문장으로 드러내거나 `then … else`의 가지로 쓴다.
+고치는 법: 값을 먼저 계산하고 돌려주거나, 가지로 쓴다.
 
 ```fung run
 fn port(cfg):
-  if cfg.port == nil: return 80 ;;
-  cfg.port + 1
+  p = cfg.port ?? return 80
+  p + 1
 ;;
 print(port({port: nil}), port({port: 8000}))
 ```
@@ -615,7 +615,7 @@ print("args:", ...base + ["-q"])
 - `from` → `import m (a, b)`
 - `end`·`endif`·`fi`·`done` → 블록은 `;;`로 닫는다(줄에 홀로 선 `end`는 이름으로 읽히므로 닫지 않은 블록의 [E0112](#E0112)에 도움말로 붙는다)
 
-`null`·`undefined`·`nullptr`를 값으로 쓰면 없는 이름([E0204](#E0204))이고, 도움말이 `nil`을 알려 준다. 기호도 같은 표에서 도움말을 얻는다: `&&`([E0101](#E0101))는 `and`, `||`·앞에 붙은 `!`·`x += 1`·`x++`·`"a" ++ "b"`·`->` 람다·`{` 블록·`match = 1`([E0110](#E0110))은 각각 `or`·`not`·새 이름 묶기·`+`·`=>`·`:` … `;;`·예약어 안내, 조건 자리의 `=`([E0112](#E0112))는 `==`.
+`null`·`undefined`·`nullptr`를 값으로 쓰면 없는 이름([E0204](#E0204))이고, 도움말이 `nil`을 알려 준다. 기호도 같은 표에서 도움말을 얻는다: `&&`([E0101](#E0101))는 `and`, `||`·앞에 붙은 `!`·`x += 1`·`x++`·`"a" ++ "b"`·`->` 람다·`{` 블록·`match = 1`([E0110](#E0110))은 각각 `or`·`not`·새 이름 묶기·`+`·`=>`·`:` … `;;`·예약어 안내, 값의 한 부분에 대입하는 `m.a = 2`·`xs[0] = 2`(E0110)는 값이 제자리에서 바뀌지 않는다는 안내(`put`, 슬라이스와 `+`), 조건 자리의 `=`([E0112](#E0112))는 `==`.
 
 이 낱말을 이름으로 쓰는 것은 그대로 된다(`let = 1`, `while(x)` 같은 호출). 낱말 바로 뒤(또는 바로 뒤 괄호 다음)에서 문법 에러가 날 때만 이 에러다.
 
@@ -1990,9 +1990,9 @@ if len(xs) > 0: print("not empty") ;;
 
 :::error E0506
 
-연산이나 내장 함수가 그 타입의 값에는 할 수 없는 일이다. 메시지가 하려던 일과 타입을 적는다(`cannot negate str`, `cannot take the length of int`, `cannot iterate over str`(`map`과 값 자리의 `for`), `cannot zip the elements of int`, `cannot get a key from list`, 리스트·범위가 아닌 값을 펼친 `cannot spread str` 등).
+연산이 그 타입의 값에는 할 수 없는 일이다. 메시지가 하려던 일과 타입을 적는다(`cannot negate str`, 리스트·범위가 아닌 값을 펼친 `cannot spread str`, 수·기간이 아닌 원소를 더한 `cannot sum str`, 리스트·범위가 아닌 원소를 편 `cannot flatten an element of type int`). 내장 함수에 받지 않는 타입의 인자를 넘긴 것은 E0403이다(`len(5)`, `map("ab", f)`, `for ch in "ab"`).
 
-흔한 원인: 문자열에 단항 `-`, 숫자에 `len`, 문자열에 리스트 함수(`first("abc")`; 문자열은 `chars`로 리스트로 바꾼다).
+흔한 원인: 문자열에 단항 `-`.
 
 ```fung run exit=1 error=E0506
 fn neg(x) = -x
@@ -2003,7 +2003,6 @@ print(neg("5"))
 
 ```fung run
 print(-parse_int("5")!)
-print(first(chars("abc")))
 ```
 
 :::
@@ -2069,7 +2068,7 @@ print(host, port)
 
 슬라이스 `x[a..b]`를 쓸 수 없는 값에 썼다. 슬라이스는 리스트와 문자열에만 된다.
 
-```fung run exit=1 error=E0511
+```fung run exit=2 error=E0511
 print((1, 2, 3)[0..2])
 ```
 
@@ -2085,7 +2084,7 @@ print([1, 2, 3][0..2])
 
 `in`의 오른쪽이 포함 여부를 검사할 수 없는 값이다. 리스트(원소), 맵(키), 문자열(부분 문자열), 범위(정수)만 된다.
 
-```fung run exit=1 error=E0512
+```fung run exit=2 error=E0512
 print(3 in 10)
 ```
 

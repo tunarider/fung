@@ -1114,7 +1114,7 @@ impl<'rt> Task<'rt> {
                         .expect("CHECKTYPE on an unassigned slot");
                     let p = &self.fiber.frames[fi].proto();
                     if !p.types[ti].matches(v) {
-                        return Err(err(
+                        let d = error(
                             "E0403",
                             self.here(fi),
                             vec![
@@ -1122,7 +1122,12 @@ impl<'rt> Task<'rt> {
                                 Arg::Str(p.types[ti].text().to_string()),
                                 Arg::Str(value::type_name(v)),
                             ],
-                        ));
+                        );
+                        let d = match value::sender_help(p.types[ti].text(), v) {
+                            Some(h) => d.with_help(h),
+                            None => d,
+                        };
+                        return Err(Stop::Error(Box::new(d)));
                     }
                 }
                 Op::TailCheck => self.tail_check(fi, arg),

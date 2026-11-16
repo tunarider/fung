@@ -4958,18 +4958,18 @@
 -- stdout
 -- stderr
 | error[E0132]: `return` used as a value
-|   --> <stdin>:2:19
+|   --> <stdin>:2:11
 |   |
-| 2 |   p = cfg.port ?? return 80
-|   |                   ^^^^^^
+| 2 |   p = 1 + return 80
+|   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 -- exit: 2
 ==== manual reference/errors.md:59
 -- stdout
 | fn port(cfg):
-|   if cfg.port == nil: return 80 ;;
-|   cfg.port + 1
+|   p = cfg.port ?? return 80
+|   p + 1
 | ;;
 | print(port({port: nil}), port({port: 8000}))
 -- stderr
@@ -5861,7 +5861,6 @@
 ==== manual reference/errors.md:181
 -- stdout
 | print(-parse_int("5")!)
-| print(first(chars("abc")))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:182
@@ -7245,6 +7244,22 @@
 -- exit: 0
 ==== manual reference/language/scope.md:8
 -- stdout
+| fn smallest(xs, fallback) = match xs:
+|   []    => fallback
+|   [min] => min
+|   _     => min(xs)
+| ;;
+| print(smallest([3, 1], 0), smallest([7], 0), smallest([], 0))
+-- stderr
+-- exit: 0
+==== manual reference/language/scope.md:9
+-- stdout
+| fn render(rows, keys = keys(rows[0])) = keys
+| print(render([{a: 1}]))
+-- stderr
+-- exit: 0
+==== manual reference/language/scope.md:10
+-- stdout
 | fn words(text):
 |   lines = lines(text)
 |   len(lines)
@@ -7252,20 +7267,20 @@
 | print(words("a\nb"))
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:9
+==== manual reference/language/scope.md:11
 -- stdout
 | fn area(w, h) = w * w
 | print(area(2, 3))
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:10
+==== manual reference/language/scope.md:12
 -- stdout
 | fn area(w, _h) = w * w
 | (name, _size) = ("a.txt", 3)
 | print(area(2, 3), name)
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:11
+==== manual reference/language/scope.md:13
 -- stdout
 | if true:
 |   inner = 1
@@ -7274,7 +7289,7 @@
 | print(inner)
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:12
+==== manual reference/language/scope.md:14
 -- stdout
 | for line in ["a", "b"]:
 |   print(line)
@@ -7282,7 +7297,7 @@
 | print(line)
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:13
+==== manual reference/language/scope.md:15
 -- stdout
 -- stderr
 | error[E0225]: `Count` starts with an uppercase letter, so it is a tag and cannot name a variable
@@ -7293,7 +7308,7 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
-==== manual reference/language/scope.md:14
+==== manual reference/language/scope.md:16
 -- stdout
 | fn times(s, n):
 |   fn go(i) = i == 0 then "" else s + go(i - 1)
@@ -7302,7 +7317,7 @@
 | print(times("ab", 3))
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:15
+==== manual reference/language/scope.md:17
 -- stdout
 | fn outer():
 |   fn a() = b()
@@ -7312,21 +7327,21 @@
 | print(outer())
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:16
+==== manual reference/language/scope.md:18
 -- stdout
 | fn f() = 1
 | fn f() = 2
 | print(f())
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:17
+==== manual reference/language/scope.md:19
 -- stdout
 | fn f() = 1
 | f = 2
 | print(f)
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:18
+==== manual reference/language/scope.md:20
 -- stdout
 | fn total(xs):
 |   n = len(xs)
@@ -7336,7 +7351,7 @@
 | print(total([1, 2]))
 -- stderr
 -- exit: 0
-==== manual reference/language/scope.md:19
+==== manual reference/language/scope.md:21
 -- stdout
 | fn total(xs):
 |   n = len(xs)
@@ -10625,12 +10640,12 @@
 -- exit: 0
 ==== manual vm/07-diagnostics.md:6
 -- stdout
-| fn firsts(xs):
-|   take(xs, "two")
+| fn firsts(xs, n):
+|   take(xs, n)
 | ;;
 |
 | fn main():
-|   r = firsts([1, 2, 3])
+|   r = firsts([1, 2, 3], "two")
 |   print(r)
 | ;;
 |
@@ -11586,7 +11601,7 @@
 | test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
 | test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
 | test "plain false": assert false ;;
-| test "not a bool": assert 3 ;;
+| test "not a bool": assert len("abc") ;;
 | test "an error":
 |   _x = 1
 |   fail("bad")
@@ -12266,7 +12281,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (5592 bytes, fnv1a64 2950efa9a05130bc)
+-- stdout (5752 bytes, fnv1a64 34c0b156c5b3d144)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -12584,7 +12599,8 @@
 | # Argument errors come before any value is received.
 | (d_tx, d) = channel(2)
 | send(d_tx, 1); send(d_tx, 2); close(d_tx)
-| t = supervise(s => spawn(s, () => map(d, 3)), _ => nil)!
+| three = 3
+| t = supervise(s => spawn(s, () => map(d, three)), _ => nil)!
 | print(type_of(await(t)), recv(d))
 | # expect: Err Ok(1)
 -- stderr
@@ -13053,7 +13069,7 @@
 -- stdout
 | fn f(n: int) = n
 | a = "a"
-| f(a)
+| print(f(a))
 | # expect-error: E0403
 -- stderr
 -- exit: 0
@@ -13061,7 +13077,7 @@
 -- stdout
 | fn f(s: Circle) = s
 | n = 1
-| f(n)
+| print(f(n))
 | # expect-error: E0403
 -- stderr
 -- exit: 0
@@ -14614,11 +14630,13 @@
 -- exit: 0
 ==== tests/lang/err_named_literal.fung
 -- stdout
-| # A name whose one binding is a literal is checked as the literal is,
-| # before the program runs (D149): nothing is printed.
+| # A name bound to a literal is not followed to it: the check is the
+| # run's, where the name is used (D164). A literal written in the place
+| # is the compiler's (`if 1:`).
 | c = 1
 | print("ran")
 | if c: print("yes") ;;
+| # expect: ran
 | # expect-error: E0505
 -- stderr
 -- exit: 0
@@ -15114,7 +15132,7 @@
 | 5 |   x = 1 + return a
 |   |           ^^^^^^
 |   |
-|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`); compute the value first, then return it
+|  help: `return` stands as a statement or ends a branch (`if`, `match`, `then … else`, the right side of `??`, `and`, `or`); compute the value first, then return it
 -- exit: 2
 ==== tests/lang/err_return_type.fung
 -- stdout
@@ -15264,7 +15282,8 @@
 | fn add(a, b) = a + b
 | print(add(...[1, 2]))
 | # expect: 3
-| print(add(..."ab"))
+| s = "ab"
+| print(add(...s))
 | # expect-error: E0506
 -- stderr
 -- exit: 0
@@ -15404,12 +15423,12 @@
 -- stdout
 | # A library call in tail position: the error points at it, not at the
 | # line that called this function (08, L8).
-| fn firsts(xs):
-|   take(xs, "two")
+| fn firsts(xs, n):
+|   take(xs, n)
 | ;;
 |
 | fn main():
-|   r = firsts([1, 2, 3])
+|   r = firsts([1, 2, 3], "two")
 |   print(r)
 | ;;
 |
@@ -16977,6 +16996,32 @@
 | fn nothing() = return
 | print(nothing())
 | # expect: nil
+-- stderr
+-- exit: 0
+==== tests/lang/return_branch.fung
+-- stdout
+| # The right side of `??`, `and` and `or` is evaluated only when needed:
+| # a branch, whose end may be a `return` (D167).
+| fn port(m):
+|   p = get(m, "PORT") ?? return Err("PORT is not set")
+|   Ok(p)
+| ;;
+| fn sign(n) = n >= 0 or return 'negative
+| fn first_big(n) = n > 10 and return 'big
+| fn both(a, b) = (a ?? return 'no_a) + (b ?? return 'no_b)
+|
+| # a `return` there is a tail call, as a call there is
+| fn count(n) = n == 0 or return count(n - 1)
+| fn walk(n, acc) = (n == 0 then acc else nil) ?? return walk(n - 1, acc + 1)
+|
+| print(port({}), port({PORT: "80"}))
+| print(sign(1), sign(-1), first_big(11), first_big(1))
+| print(both(nil, 1), both(1, nil), both(1, 2))
+| print(count(200000), walk(200000, 0))
+| # expect: Err("PORT is not set") Ok("80")
+| # expect: true 'negative 'big false
+| # expect: 'no_a 'no_b 3
+| # expect: true 200000
 -- stderr
 -- exit: 0
 ==== tests/lang/rules_w4a.fung

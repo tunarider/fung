@@ -1040,6 +1040,21 @@ mod tests {
         }
     }
 
+    /// FE85: a name listed twice in an import says so, not how to
+    /// compute a value in one expression.
+    #[test]
+    fn a_name_listed_twice_in_an_import_gets_the_imports_help() {
+        set_files(&[("/p/util.fung", "fn slug(s) = s")]);
+        let (_, errs) = mem_loader().compile(
+            "/p/main.fung",
+            "import \"./util\" (slug, slug)\nprint(slug)",
+            Stage::All,
+        );
+        assert_eq!(codes(&errs), ["E0238"]);
+        let help = errs[0].help.as_deref().unwrap_or("");
+        assert!(help.contains("once in the import"), "{help}");
+    }
+
     #[test]
     fn load_errors() {
         set_files(&[

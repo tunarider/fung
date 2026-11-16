@@ -441,6 +441,16 @@ impl<'a> Parser<'a> {
                 e.help = Some(habits::reserved(&p.text));
                 return Box::new(e);
             }
+            // `m.a = 2`, `xs[0] = 2`
+            (Some(p), Kind::Assign)
+                if expected.is_none()
+                    && toks[w].kind == Kind::Name
+                    && (p.kind == Kind::RBracket
+                        || (p.kind == Kind::Name && i >= 2 && toks[i - 2].kind == Kind::Dot)) =>
+            {
+                d.help = Some(habits::IN_PLACE.to_string());
+                return d;
+            }
             // `x += 1`
             (Some(p), Kind::Assign) if is_arith(p.kind) && touching(p) && expected.is_none() => {
                 let mut e =

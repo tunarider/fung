@@ -19,11 +19,11 @@ pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
         vec![
             ("join", native("join", join_fn, vec![rest("parts")])),
-            ("base", native("base", base_fn, vec![param("p")])),
-            ("dir", native("dir", dir_fn, vec![param("p")])),
-            ("ext", native("ext", ext_fn, vec![param("p")])),
-            ("stem", native("stem", stem_fn, vec![param("p")])),
-            ("abs", native("abs", abs_fn, vec![param("p")])),
+            ("base", native("base", base_fn, vec![param("p").of("str")])),
+            ("dir", native("dir", dir_fn, vec![param("p").of("str")])),
+            ("ext", native("ext", ext_fn, vec![param("p").of("str")])),
+            ("stem", native("stem", stem_fn, vec![param("p").of("str")])),
+            ("abs", native("abs", abs_fn, vec![param("p").of("str")])),
         ]
     });
     let mut m = Module::new("path", "_native.path");

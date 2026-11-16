@@ -58,7 +58,7 @@ match r:
 
 ## 태스크 범위와 태스크 {#tasks}
 
-:::fn scope(f)
+:::fn scope(f: fn)
 
 태스크 범위를 열고 `f(s)`를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 `Ok`로 감싸 돌려준다.
 
@@ -143,7 +143,7 @@ print(scope(fn(s):
 
 :::
 
-:::fn supervise(f, on_fail)
+:::fn supervise(f: fn, on_fail: fn)
 
 `scope`와 같지만 태스크의 런타임 에러가 다른 태스크나 본문에 번지지 않고 `on_fail(e)`로 간다.
 
@@ -211,7 +211,7 @@ print(r |> filter(is_err) |> len, "failed")
 
 :::
 
-:::fn spawn(s, f)
+:::fn spawn(s: scope, f: fn)
 
 태스크 범위 `s` 안에서 `f()`를 새 태스크로 띄우고 태스크 핸들을 돌려준다.
 
@@ -261,7 +261,7 @@ spawn(leaked, () => 1)
 
 :::
 
-:::fn await(t)
+:::fn await(t: task)
 
 태스크가 끝나기를 기다려 그 결과를 돌려준다: `Ok(함수의 값)`, 또는 런타임의 `Err`.
 
@@ -340,7 +340,7 @@ print(scope(fn(s):
 
 :::
 
-:::fn timeout(f, d)
+:::fn timeout(f: fn, d: dur)
 
 `f()`를 불러 `Ok(f()의 값)`을 돌려주되, `d`가 지나면 `f` 안의 모든 것을 취소하고 `Err({kind: 'timeout})`을 돌려준다.
 
@@ -414,7 +414,7 @@ print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(
 
 :::
 
-:::fn cancel(t)
+:::fn cancel(t: task | scope)
 
 태스크나 태스크 범위를 취소한다. 그 아래의 태스크에도 전파된다.
 
@@ -481,7 +481,7 @@ print(r)
 
 ## 채널 {#channels}
 
-:::fn channel(n = 0)
+:::fn channel(n: int = 0)
 
 채널을 만들고 두 끝 `(tx, rx)`, 곧 보내는 끝과 받는 끝을 돌려준다.
 
@@ -573,7 +573,7 @@ for x in rx:
 
 :::
 
-:::fn send(tx, x)
+:::fn send(tx: sender, x)
 
 보내는 끝 `tx`로 값 `x`를 보낸다. `Ok(nil)`, 닫혔으면 `Err({kind: 'closed})`.
 
@@ -655,7 +655,7 @@ scope(fn(s):
 
 :::
 
-:::fn recv(rx)
+:::fn recv(rx: receiver)
 
 받는 끝 `rx`에서 값 하나를 받는다. `Ok(v)`, 닫혔고 남은 값이 없으면 `Err({kind: 'closed})`.
 
@@ -712,7 +712,7 @@ close(tx)
 
 :::
 
-:::fn recv_now(rx)
+:::fn recv_now(rx: receiver)
 
 기다리지 않고 받는 끝 `rx`를 한 번 본다. 받을 값이 있으면 `Ok(v)`, 없으면 `Err({kind: 'empty})`, 닫혔고 남은 값이 없으면 `Err({kind: 'closed})`.
 
@@ -765,7 +765,7 @@ print(recv_now(stop))
 
 :::
 
-:::fn send_now(tx, x)
+:::fn send_now(tx: sender, x)
 
 기다리지 않고 보내는 끝 `tx`로 `x`를 보낸다. 넘겼으면 `Ok(nil)`, 기다려야 하면 `Err({kind: 'full})`, 닫혔으면 `Err({kind: 'closed})`.
 
@@ -806,7 +806,7 @@ print(map(rx, x => x), "dropped:", dropped)
 
 :::
 
-:::fn wait_closed(rx)
+:::fn wait_closed(rx: receiver)
 
 받는 끝 `rx`의 채널이 닫힐 때까지 기다린다. 값은 꺼내지 않는다.
 
@@ -866,7 +866,7 @@ scope(fn(s):
 
 :::
 
-:::fn close(x)
+:::fn close(x: sender | receiver | file)
 
 채널(어느 끝으로든)이나 파일 핸들을 지금 닫는다.
 
@@ -1101,7 +1101,7 @@ _registry = atom({main: tx})
 
 :::
 
-:::fn swap(a, f)
+:::fn swap(a: atom, f: fn)
 
 `f(지금 값)`으로 atom의 값을 바꾸고 새 값을 돌려준다. 여러 태스크가 동시에 바꿔도 갱신이 사라지지 않는다.
 
@@ -1162,7 +1162,7 @@ swap(a, fn(n):
 
 :::
 
-:::fn reset(a, x)
+:::fn reset(a: atom, x)
 
 atom의 값을 `x`로 바꾸고 `x`를 돌려준다.
 
@@ -1214,7 +1214,7 @@ scope(fn(s):
 
 :::
 
-:::fn deref(a)
+:::fn deref(a: atom)
 
 atom의 지금 값을 돌려준다. 기다리지 않는다.
 
@@ -1253,7 +1253,7 @@ print(before, deref(a))
 
 ## 기다리기 {#sleep}
 
-:::fn sleep(d)
+:::fn sleep(d: dur)
 
 기간 `d`만큼 기다린다. 그동안 다른 태스크가 돈다.
 
@@ -1297,7 +1297,7 @@ print(poll(3))
 
 **수가 아니라 기간**
 
-```fung run exit=1 error=E0403
+```fung run exit=2 error=E0403
 sleep(1)
 ```
 

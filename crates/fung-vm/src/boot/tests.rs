@@ -16,12 +16,32 @@ use crate::vm::Runtime;
 fn render_params(ps: &[NativeParam]) -> String {
     ps.iter()
         .map(|p| {
+            let types = p.types.map(|t| format!(": {t}")).unwrap_or_default();
+            if p.rest {
+                format!("...{}{types}", p.name)
+            } else if p.default.is_some() {
+                format!("{}{types}=?", p.name)
+            } else {
+                format!("{}{types}", p.name)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A spec parameter list without the types (`s: scope, n: int=?` →
+/// `s, n=?`), to compare with a compiled function's parameter names.
+fn untyped(list: &str) -> String {
+    fung_front::resolve::Sig::parse(list)
+        .params
+        .iter()
+        .map(|p| {
             if p.rest {
                 format!("...{}", p.name)
-            } else if p.default.is_some() {
+            } else if p.default {
                 format!("{}=?", p.name)
             } else {
-                p.name.to_string()
+                p.name.clone()
             }
         })
         .collect::<Vec<_>>()
@@ -34,12 +54,12 @@ fn concurrency_builtin_errors_have_a_position() {
     // error (`spawn(1, …)` → E0403 at 2:6), `deref` among them.
     for (src, want) in [
         (
-            "print(1)\nspawn(1, () => 2)",
-            "error[E0403]: argument `s` must be scope, got int\n  --> -e:2:6\n",
+            "print(1)\nx = 1\nspawn(x, () => 2)",
+            "error[E0403]: argument `s` must be scope, got int\n  --> -e:3:6\n",
         ),
         (
-            "print(1)\nderef(1)",
-            "error[E0403]: argument `a` must be atom, got int\n  --> -e:2:6\n",
+            "print(1)\nx = 1\nderef(x)",
+            "error[E0403]: argument `a` must be atom, got int\n  --> -e:3:6\n",
         ),
     ] {
         let (out, err, code) = run_booted(src);
@@ -219,7 +239,7 @@ fn conc_module_matches_the_spec_and_the_prelude_lacks_it() {
                 .join(", ");
             assert_eq!(
                 got,
-                spec.module_signature("conc", name).expect(name),
+                untyped(spec.module_signature("conc", name).expect(name)),
                 "conc.{name}"
             );
         }
@@ -267,7 +287,10 @@ fn http_module_matches_the_spec() {
                         .map(|p| p.name)
                         .collect::<Vec<_>>()
                         .join(", ");
-                    assert_eq!(got, spec.module_signature("http", name).expect(name));
+                    assert_eq!(
+                        got,
+                        untyped(spec.module_signature("http", name).expect(name))
+                    );
                     continue;
                 }
                 _ => panic!("http.{name} is not a fung function"),
@@ -289,7 +312,7 @@ fn http_module_matches_the_spec() {
                 .join(", ");
             assert_eq!(
                 got,
-                spec.module_signature("http", name).expect(name),
+                untyped(spec.module_signature("http", name).expect(name)),
                 "http.{name}"
             );
         }
@@ -457,10 +480,10 @@ fn fung_prelude_functions() {
         ("pad_left(\"a\", 3, \"\")", "E0403"),
         ("pad_left(\"a\", 200000000, \" \")", "E0806"),
         ("lines(1)", "E0403"),
-        ("take(1, 2)", "E0506"),
-        ("first(\"abc\")", "E0506"),
-        ("take(\"abc\", 1)", "E0506"),
-        ("drop(\"abc\", 1)", "E0506"),
+        ("take(1, 2)", "E0403"),
+        ("first(\"abc\")", "E0403"),
+        ("take(\"abc\", 1)", "E0403"),
+        ("drop(\"abc\", 1)", "E0403"),
         ("get({}, 1)", "E0514"),
         ("split(\"ab\", \"\")", "E0403"),
     ] {
@@ -506,10 +529,22 @@ fn wide_ranges_need_no_length() {
 #[test]
 fn take_drop_check_their_count() {
     for (src, want) in [
-        ("take([1], \"x\")", "argument `n` must be int, got str"),
-        ("drop([1], \"x\")", "argument `n` must be int, got str"),
-        ("take([1], 1.5)", "argument `n` must be int, got float"),
-        ("drop(0..3, nil)", "argument `n` must be int, got nil"),
+        (
+            "n = \"x\"\ntake([1], n)",
+            "argument `n` must be int, got str",
+        ),
+        (
+            "n = \"x\"\ndrop([1], n)",
+            "argument `n` must be int, got str",
+        ),
+        (
+            "n = 1.5\ntake([1], n)",
+            "argument `n` must be int, got float",
+        ),
+        (
+            "n = nil\ndrop(0..3, n)",
+            "argument `n` must be int, got nil",
+        ),
     ] {
         let e = exec(src, Opts::default()).error.expect(src);
         assert_eq!(e.code, "E0403", "{src}");
@@ -517,24 +552,39 @@ fn take_drop_check_their_count() {
     }
 }
 
-/// The prelude functions written in fung name themselves when given
-/// something they cannot go over (F-4): not the `map` they use inside.
+/// A collection function given something it cannot go over says so as
+/// any function with a typed parameter does (D173): E0403 naming the
+/// parameter, found at compile time for a literal and at the call for a
+/// value. A function written in fung and a native say the same.
 #[test]
-fn prelude_collection_errors_name_the_function() {
-    for (src, want) in [
-        ("take(5, 2)", "cannot take from int"),
-        ("drop(nil, 1)", "cannot drop from nil"),
-        ("first({})", "cannot take the first of map"),
-        ("last(5)", "cannot take the last of int"),
-        ("min(5)", "cannot take the min of int"),
-        ("max((1, 2))", "cannot take the max of tuple"),
-        ("reverse(5)", "cannot reverse int"),
-        ("zip(5, [1])", "cannot zip the elements of int"),
-        ("zip([1], true)", "cannot zip the elements of bool"),
+fn prelude_collection_errors_name_the_parameter() {
+    for (call, param, got) in [
+        ("take(VAL, 2)", "xs", "5"),
+        ("drop(VAL, 1)", "xs", "nil"),
+        ("first(VAL)", "xs", "{}"),
+        ("last(VAL)", "xs", "5"),
+        ("min(VAL)", "xs", "5"),
+        ("max(VAL)", "xs", "(1, 2)"),
+        ("reverse(VAL)", "xs", "5"),
+        ("zip(VAL, [1])", "xs", "5"),
+        ("zip([1], VAL)", "ys", "true"),
     ] {
-        let e = exec(src, Opts::default()).error.expect(src);
-        assert_eq!(e.code, "E0506", "{src}");
-        assert!(e.headline.ends_with(want), "{src}: {}", e.headline);
+        let want = format!("argument `{param}` must be list | range | receiver, got ");
+        // the value in a name: the call finds it
+        let e = exec(
+            &format!("x = {got}\n_ = {}", call.replace("VAL", "x")),
+            Opts::default(),
+        )
+        .error
+        .expect(call);
+        assert_eq!(e.code, "E0403", "{call}");
+        assert!(e.headline.contains(&want), "{call}: {}", e.headline);
+        // the literal: the compiler does
+        let o = exec(
+            &format!("print(1)\n_ = {}", call.replace("VAL", got)),
+            Opts::default(),
+        );
+        assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0403"), "{call}");
     }
 }
 
@@ -544,18 +594,18 @@ fn prelude_collection_errors_name_the_function() {
 /// the call path shows only user frames, a callback's among them (VA19).
 #[test]
 fn errors_inside_the_fung_prelude_show_only_user_frames() {
-    let (out, err, code) = run_booted("print(1)\ntake([1], \"x\")");
+    let (out, err, code) = run_booted("print(1)\nn = \"x\"\ntake([1], n)");
     assert_eq!(out, "1\n");
     assert_eq!(
         err,
         "error[E0403]: argument `n` must be int, got str
-  --> -e:2:5
+  --> -e:3:5
   |
-2 | take([1], \"x\")
+3 | take([1], n)
   |     ^
   |
  call path (innermost first):
-   -e:2       <entry>
+   -e:3       <entry>
 "
     );
     assert_eq!(code, 1);
@@ -583,10 +633,10 @@ fn errors_inside_the_fung_prelude_show_only_user_frames() {
 #[test]
 fn imported_files_keep_their_names_past_the_prelude() {
     let dir = temp_dir();
-    std::fs::write(dir.join("lib.fung"), "fn cut(xs) = take(xs, \"x\") + []\n").unwrap();
+    std::fs::write(dir.join("lib.fung"), "fn cut(xs, n) = take(xs, n) + []\n").unwrap();
     std::fs::write(
         dir.join("main.fung"),
-        "import \"./lib\"\nprint(1)\nlib.cut([1])\n",
+        "import \"./lib\"\nprint(1)\nlib.cut([1], \"x\")\n",
     )
     .unwrap();
     let d = dir.display();
@@ -596,10 +646,10 @@ fn imported_files_keep_their_names_past_the_prelude() {
         err,
         format!(
             "error[E0403]: argument `n` must be int, got str
-  --> {d}/lib.fung:1:18
+  --> {d}/lib.fung:1:21
   |
-1 | fn cut(xs) = take(xs, \"x\") + []
-  |                  ^
+1 | fn cut(xs, n) = take(xs, n) + []
+  |                     ^
   |
  call path (innermost first):
    {d}/lib.fung:1 cut

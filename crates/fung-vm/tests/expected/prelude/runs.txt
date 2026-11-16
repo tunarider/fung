@@ -8,39 +8,33 @@
 ==== "print(map(1, x => x))"
 -- stdout
 -- stderr
-| error[E0506]: cannot iterate over int
-|   --> -e:1:10
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:11
 |   |
 | 1 | print(map(1, x => x))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(map([1], 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:10
+|   --> -e:1:16
 |   |
 | 1 | print(map([1], 1))
-|   |          ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(map(1, 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot iterate over int
-|   --> -e:1:10
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:11
 |   |
 | 1 | print(map(1, 1))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(map([1, 2], x => x / 0))"
 -- stdout
 -- stderr
@@ -87,27 +81,23 @@
 ==== "print(fold(1, 0, 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot fold int
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:12
 |   |
 | 1 | print(fold(1, 0, 1))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(fold([1], 0, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:20
 |   |
 | 1 | print(fold([1], 0, 1))
-|   |           ^
+|   |                    ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "fn g(acc, x) = x == 3 then fail(\"three\") else acc + x\nprint(fold([1, 2, 3], 0, g))"
 -- stdout
 -- stderr
@@ -155,39 +145,33 @@
 ==== "print(filter(\"ab\", _x => true))"
 -- stdout
 -- stderr
-| error[E0506]: cannot filter str
-|   --> -e:1:13
+| error[E0403]: argument `xs` must be list | range | receiver, got str
+|   --> -e:1:14
 |   |
 | 1 | print(filter("ab", _x => true))
-|   |             ^
+|   |              ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(filter(\"ab\", 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot filter str
-|   --> -e:1:13
+| error[E0403]: argument `xs` must be list | range | receiver, got str
+|   --> -e:1:14
 |   |
 | 1 | print(filter("ab", 1))
-|   |             ^
+|   |              ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(filter([1], 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:13
+|   --> -e:1:19
 |   |
 | 1 | print(filter([1], 1))
-|   |             ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(each([1, 2], x => print(x)), each(0..0, _x => fail(\"no\")))"
 -- stdout
 | 1
@@ -198,27 +182,23 @@
 ==== "print(each({a: 1}, x => x))"
 -- stdout
 -- stderr
-| error[E0506]: cannot iterate over map
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got map
+|   --> -e:1:12
 |   |
 | 1 | print(each({a: 1}, x => x))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(each([1], nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got nil
-|   --> -e:1:11
+|   --> -e:1:17
 |   |
 | 1 | print(each([1], nil))
-|   |           ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sort([3, 1, 2]), sort([\"b\", \"a\", \"c\"]), sort([]), sort(3..3), sort([2.5, 1, 3]), sort([[2], [1, 2], [1]]))"
 -- stdout
 | [1, 2, 3] ["a", "b", "c"] [] [] [1, 2.5, 3] [[1], [1, 2], [2]]
@@ -263,15 +243,13 @@
 ==== "print(sort(1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot sort int
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:12
 |   |
 | 1 | print(sort(1))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sort_by([\"ccc\", \"a\", \"bb\"], len), sort_by([3, 1… (134 bytes, 76eb61a34121a322)
 -- stdout
 | ["a", "bb", "ccc"] [3, 2, 1] [[0, "c"], [1, "b"], [1, "a"]]
@@ -280,27 +258,23 @@
 ==== "print(sort_by(1, 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot sort int
-|   --> -e:1:14
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:15
 |   |
 | 1 | print(sort_by(1, 1))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sort_by([1], 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:14
+|   --> -e:1:20
 |   |
 | 1 | print(sort_by([1], 1))
-|   |              ^
+|   |                    ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sort_by([1, 2], x => x == 1 then \"a\" else 1))"
 -- stdout
 -- stderr
@@ -346,27 +320,23 @@
 ==== "print(find(1, 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot search int
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:12
 |   |
 | 1 | print(find(1, 1))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(find([1], 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:17
 |   |
 | 1 | print(find([1], 1))
-|   |           ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(any([1, 2], x => x > 1), any([], _x => true), all([],… (125 bytes, 92907da77d1ebffc)
 -- stdout
 | true false true true false
@@ -375,15 +345,13 @@
 ==== "print(any(1, x => x))"
 -- stdout
 -- stderr
-| error[E0506]: cannot test int
-|   --> -e:1:10
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:11
 |   |
 | 1 | print(any(1, x => x))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(all([1], _x => nil))"
 -- stdout
 -- stderr
@@ -400,14 +368,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got str
-|   --> -e:1:10
+|   --> -e:1:16
 |   |
 | 1 | print(any([1], "f"))
-|   |          ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(flatten([[1], 0..2, [], [[3]]]), flatten([]))"
 -- stdout
 | [1, 0, 1, [3]] []
@@ -442,15 +408,13 @@
 ==== "print(flatten(1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot flatten int
-|   --> -e:1:14
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:15
 |   |
 | 1 | print(flatten(1))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(group_by([\"ab\", \"c\", \"ad\", \"ce\"], s => s[..1]))"
 -- stdout
 | {a: ["ab", "ad"], c: ["c", "ce"]}
@@ -485,27 +449,23 @@
 ==== "print(group_by(1, 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot group int
-|   --> -e:1:15
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:16
 |   |
 | 1 | print(group_by(1, 1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(group_by([1], 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:15
+|   --> -e:1:21
 |   |
 | 1 | print(group_by([1], 1))
-|   |               ^
+|   |                     ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(pairs({b: 1, a: 2}), pairs({}))"
 -- stdout
 | [("b", 1), ("a", 2)] []
@@ -514,15 +474,13 @@
 ==== "print(pairs([1]))"
 -- stdout
 -- stderr
-| error[E0506]: cannot list the pairs of list
-|   --> -e:1:12
+| error[E0403]: argument `m` must be map, got list
+|   --> -e:1:13
 |   |
 | 1 | print(pairs([1]))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "m = {a: 1}\nprint(put(m, \"b\", 2), put(m, \"a\", 3), m)"
 -- stdout
 | {a: 1, b: 2} {a: 3} {a: 1}
@@ -531,15 +489,13 @@
 ==== "print(put(1, \"a\", 2))"
 -- stdout
 -- stderr
-| error[E0506]: cannot put into int
-|   --> -e:1:10
+| error[E0403]: argument `m` must be map, got int
+|   --> -e:1:11
 |   |
 | 1 | print(put(1, "a", 2))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(put({}, 1, 2))"
 -- stdout
 -- stderr
@@ -574,27 +530,23 @@
 ==== "print(merge({}, 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot merge int
-|   --> -e:1:12
+| error[E0403]: argument `b` must be map, got int
+|   --> -e:1:17
 |   |
 | 1 | print(merge({}, 1))
-|   |            ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(merge(1, {}))"
 -- stdout
 -- stderr
-| error[E0506]: cannot merge int
-|   --> -e:1:12
+| error[E0403]: argument `a` must be map, got int
+|   --> -e:1:13
 |   |
 | 1 | print(merge(1, {}))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(remove({a: 1, b: 2}, \"a\"), remove({}, \"x\"))"
 -- stdout
 | {b: 2} {}
@@ -616,15 +568,13 @@
 ==== "print(remove([], \"a\"))"
 -- stdout
 -- stderr
-| error[E0506]: cannot remove from list
-|   --> -e:1:13
+| error[E0403]: argument `m` must be map, got list
+|   --> -e:1:14
 |   |
 | 1 | print(remove([], "a"))
-|   |             ^
+|   |              ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(chars(\"참치\"), chars(\"\"), chars(\"a\u{301}b\"))"
 -- stdout
 | ["참", "치"] [] ["a", "́", "b"]
@@ -634,14 +584,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:12
+|   --> -e:1:13
 |   |
 | 1 | print(chars(1))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(split(\"a,b,,c\", \",\"), chars(\"참치\"), split(\"\", \",\"), split(\"abc\", \"abc\"))"
 -- stdout
 | ["a", "b", "", "c"] ["참", "치"] [""] ["", ""]
@@ -651,26 +599,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:12
+|   --> -e:1:13
 |   |
 | 1 | print(split(1, ","))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(split(\"a\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `sep` must be str, got int
-|   --> -e:1:12
+|   --> -e:1:18
 |   |
 | 1 | print(split("a", 1))
-|   |            ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(join([\"a\", 1, 2.0, 'x, [1, \"b\"]], \"-\"), join([]), join(0..3), join([\"a\", \"b\"]))"
 -- stdout
 | a-1-2.0-'x-[1, "b"]  012 ab
@@ -706,27 +650,23 @@
 ==== "print(join(1, 2))"
 -- stdout
 -- stderr
-| error[E0506]: cannot join int
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got int
+|   --> -e:1:12
 |   |
 | 1 | print(join(1, 2))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(join([\"a\"], 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `sep` must be str, got int
-|   --> -e:1:11
+|   --> -e:1:19
 |   |
 | 1 | print(join(["a"], 1))
-|   |           ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(join([\"a\"], sep: \"+\"))"
 -- stdout
 | a
@@ -753,26 +693,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:11
+|   --> -e:1:12
 |   |
 | 1 | print(trim(1))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(trim(\"a\", 1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `cut` must be str, got int
-|   --> -e:1:11
+| error[E0403]: argument `cut` must be str | nil, got int
+|   --> -e:1:17
 |   |
 | 1 | print(trim("a", 1))
-|   |           ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(upper(\"aéß ﬃ ǅ\"), lower(\"AÉ İ Σ ǅ\"), upper(\"ᾳ ᾀ\"), lower(\"ẞ\"))"
 -- stdout
 | AÉSS FFI Ǆ aé i̇ σ ǆ ΑΙ ἈΙ ß
@@ -782,26 +718,28 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:12
+|   --> -e:1:13
 |   |
 | 1 | print(upper(1), lower(1))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:23
+|   |
+| 1 | print(upper(1), lower(1))
+|   |                       ^
+|   |
+-- exit: 2
 ==== "print(lower(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got nil
-|   --> -e:1:12
+|   --> -e:1:13
 |   |
 | 1 | print(lower(nil))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(replace(\"a-b-c\", \"-\", \"+\"), replace(\"\", \"a\", \"x\"), replace(\"aaa\", \"aa\", \"b\"))"
 -- stdout
 | a+b+c  ba
@@ -823,26 +761,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `new` must be str, got int
-|   --> -e:1:14
+|   --> -e:1:25
 |   |
 | 1 | print(replace("a", "b", 1))
-|   |              ^
+|   |                         ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(replace(1, 2, 3))"
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:14
+|   --> -e:1:15
 |   |
 | 1 | print(replace(1, 2, 3))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(starts_with(\"abc\", \"ab\"), starts_with(\"참치\", \"참… (150 bytes, 642258345f096520)
 -- stdout
 | true true true true false
@@ -888,26 +822,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:18
+|   --> -e:1:19
 |   |
 | 1 | print(starts_with(1, "a"))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(ends_with(\"a\", 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `suffix` must be str, got int
-|   --> -e:1:16
+|   --> -e:1:22
 |   |
 | 1 | print(ends_with("a", 1))
-|   |                ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(repeat(\"ab\", 3), repeat(\"참\", 2), repeat(\"x\", 0), repeat(\"\", 1000000000000))"
 -- stdout
 | ababab 참참  
@@ -946,38 +876,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:13
+|   --> -e:1:14
 |   |
 | 1 | print(repeat(1, 2))
-|   |             ^
+|   |              ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(repeat(\"a\", \"2\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:1:13
+|   --> -e:1:19
 |   |
 | 1 | print(repeat("a", "2"))
-|   |             ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(repeat(\"a\", 2.0))"
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got float
-|   --> -e:1:13
+|   --> -e:1:19
 |   |
 | 1 | print(repeat("a", 2.0))
-|   |             ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(int(3), int(3.9), int(-3.9), parse_int(\"42\")!, parse_int(\"-1_000\")!, parse_int(\"+7\")!)"
 -- stdout
 | 3 3 -3 42 -1000 7
@@ -1206,14 +1130,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:16
+|   --> -e:1:17
 |   |
 | 1 | print(parse_int(1))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(parse_float(\"1.5\"), parse_float(\"x\"), parse_float(\"1e400\"), parse_float(\"nan\"))"
 -- stdout
 | Ok(1.5) Err({kind: 'parse, message: "not a number: \"x\""}) Err({kind: 'parse, message: "not a number: \"1e400\" (a float holds up to about 1.8e308)"}) Err({kind: 'parse, message: "not a number: \"nan\""})
@@ -1223,14 +1145,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got nil
-|   --> -e:1:18
+|   --> -e:1:19
 |   |
 | 1 | print(parse_float(nil))
-|   |                  ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(parse_dur(\"1h30m\"), parse_dur(\" 500ms \"), parse_d… (194 bytes, f890c6d8ca52bd73)
 -- stdout
 | Ok(1h30m) Err({kind: 'parse, message: "not a duration: \" 500ms \""}) Ok(-5s) Err({kind: 'parse, message: "not a duration: \"30\""}) Err({kind: 'parse, message: "not a duration: \"1h x\""}) Err({kind: 'parse, message: "not a duration: \"30m1h\""}) Err({kind: 'parse, message: "not a duration: \"\""}) Ok(1s500ms) Err({kind: 'parse, message: "not a duration: \"- 5s\""})
@@ -1240,14 +1160,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:16
+|   --> -e:1:17
 |   |
 | 1 | print(parse_dur(5))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(len(\"참치\"), len([1, 2]), len({a: 1}), len(0..10), len(5..5), len(\"\"))"
 -- stdout
 | 2 2 1 10 0 0
@@ -1256,27 +1174,23 @@
 ==== "print(len(1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot take the length of int
-|   --> -e:1:10
+| error[E0403]: argument `x` must be str | list | map | range, got int
+|   --> -e:1:11
 |   |
 | 1 | print(len(1))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(len(nil))"
 -- stdout
 -- stderr
-| error[E0506]: cannot take the length of nil
-|   --> -e:1:10
+| error[E0403]: argument `x` must be str | list | map | range, got nil
+|   --> -e:1:11
 |   |
 | 1 | print(len(nil))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(type_of(1), type_of(\"a\"), type_of(nil), type_of(Ok(… (209 bytes, e91e012969de3e10)
 -- stdout
 | 'int 'str 'nil Ok 'fn 'fn 'dur 'range 'tuple 'sym 'map 'list 'float 'bool
@@ -1338,14 +1252,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `use` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:21
 |   |
 | 1 | print(with(() => 1, 2, r => r))
-|   |           ^
+|   |                     ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "with(() => nil, _ => print(\"hi\"), _ => print(\"bye\"))"
 -- stdout
 | hi
@@ -1364,14 +1276,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `code` must be int, got str
-|   --> -e:1:5
+|   --> -e:1:6
 |   |
 | 1 | exit("a")
-|   |     ^
+|   |      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "exit(code: 4)"
 -- stdout
 -- stderr
@@ -1385,26 +1295,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `file` must be file | nil, got int
-|   --> -e:1:16
+|   --> -e:1:17
 |   |
 | 1 | print(read_line(1))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(read_lines(\"x\"))" stdin "line1\r\nline2\nlast"
 -- stdout
 -- stderr
 | error[E0403]: argument `file` must be file | nil, got str
-|   --> -e:1:17
+|   --> -e:1:18
 |   |
 | 1 | print(read_lines("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(dbg(1 + 2))"
 -- stdout
 | 3
@@ -1768,7 +1674,7 @@
 ==== "print(fold([\"a\"], \"\", join))"
 -- stdout
 -- stderr
-| error[E0506]: cannot join str
+| error[E0403]: argument `xs` must be list | range | receiver, got str
 |   --> -e:1:11
 |   |
 | 1 | print(fold(["a"], "", join))
@@ -1898,30 +1804,24 @@
 -- exit: 0
 ==== "print(1)\ntake([1], \"x\")"
 -- stdout
-| 1
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:5
+|   --> -e:2:11
 |   |
 | 2 | take([1], "x")
-|   |     ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "fn f(x) = take(x, \"a\")\nf([1])"
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:1:15
+|   --> -e:1:19
 |   |
 | 1 | fn f(x) = take(x, "a")
-|   |               ^
+|   |                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       f
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "sum([1, \"a\"])"
 -- stdout
 -- stderr
@@ -2003,39 +1903,33 @@
 ==== "print(get([1], 0))"
 -- stdout
 -- stderr
-| error[E0506]: cannot get a key from list
-|   --> -e:1:10
+| error[E0403]: argument `m` must be map, got list
+|   --> -e:1:11
 |   |
 | 1 | print(get([1], 0))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(lines(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be str, got int
-|   --> -e:1:12
+|   --> -e:1:13
 |   |
 | 1 | print(lines(1))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(keys([]))"
 -- stdout
 -- stderr
-| error[E0506]: cannot list the keys of list
-|   --> -e:1:11
+| error[E0403]: argument `m` must be map, got list
+|   --> -e:1:12
 |   |
 | 1 | print(keys([]))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sum([nil]))"
 -- stdout
 -- stderr
@@ -2241,7 +2135,7 @@
 ==== "fn top(xs) = reverse(xs)\nprint(top(\"abc\"))"
 -- stdout
 -- stderr
-| error[E0506]: cannot reverse str
+| error[E0403]: argument `xs` must be list | range | receiver, got str
 |   --> -e:1:21
 |   |
 | 1 | fn top(xs) = reverse(xs)
@@ -2266,63 +2160,53 @@
 ==== "print(keys([1]))"
 -- stdout
 -- stderr
-| error[E0506]: cannot list the keys of list
-|   --> -e:1:11
+| error[E0403]: argument `m` must be map, got list
+|   --> -e:1:12
 |   |
 | 1 | print(keys([1]))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(values(1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot list the values of int
-|   --> -e:1:13
+| error[E0403]: argument `m` must be map, got int
+|   --> -e:1:14
 |   |
 | 1 | print(values(1))
-|   |             ^
+|   |              ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(unique(\"aab\"))"
 -- stdout
 -- stderr
-| error[E0506]: cannot take the unique elements of str
-|   --> -e:1:13
+| error[E0403]: argument `xs` must be list | range | receiver, got str
+|   --> -e:1:14
 |   |
 | 1 | print(unique("aab"))
-|   |             ^
+|   |              ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(take(\"abc\", 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot take from str
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got str
+|   --> -e:1:12
 |   |
 | 1 | print(take("abc", 1))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(drop(\"abc\", 1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot drop from str
-|   --> -e:1:11
+| error[E0403]: argument `xs` must be list | range | receiver, got str
+|   --> -e:1:12
 |   |
 | 1 | print(drop("abc", 1))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print([sym_name('ok), sym_name(Red), sym_name(sym(\"a\"))])"
 -- stdout
 | ["ok", "Red", "a"]
@@ -2332,14 +2216,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be sym, got str
-|   --> -e:1:15
+|   --> -e:1:16
 |   |
 | 1 | print(sym_name("ok"))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(is_utf8(\"é\"), is_utf8(\"\\xff\"))"
 -- stdout
 | true false
@@ -2441,14 +2323,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `s` must be scope, got int
-|   --> -e:1:6
+|   --> -e:1:7
 |   |
 | 1 | spawn(1, 2)
-|   |      ^
+|   |       ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "channel(1, 2)"
 -- stdout
 -- stderr
@@ -2508,39 +2388,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:17
+|   --> -e:1:21
 |   |
 | 1 | scope(s => spawn(s, 1))
-|   |                 ^
+|   |                     ^
 |   |
-|  call path (innermost first):
-|    -e:1       <lambda>
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "await(1)"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be task, got int
-|   --> -e:1:6
+|   --> -e:1:7
 |   |
 | 1 | await(1)
-|   |      ^
+|   |       ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "cancel(1)"
 -- stdout
 -- stderr
 | error[E0403]: argument `t` must be task | scope, got int
-|   --> -e:1:7
+|   --> -e:1:8
 |   |
 | 1 | cancel(1)
-|   |       ^
+|   |        ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "t = scope(s => spawn(s, () => 1))!\nprint(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"
 -- stdout
 | <task> [<task>] true 'task Ok(1) Ok(1) nil
@@ -2582,26 +2455,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `d` must be dur, got int
-|   --> -e:1:6
+|   --> -e:1:7
 |   |
 | 1 | sleep(1)
-|   |      ^
+|   |       ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "sleep(\"1s\")"
 -- stdout
 -- stderr
 | error[E0403]: argument `d` must be dur, got str
-|   --> -e:1:6
+|   --> -e:1:7
 |   |
 | 1 | sleep("1s")
-|   |      ^
+|   |       ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms))"
 -- stdout
 | Err(1)
@@ -2637,7 +2506,7 @@
 ==== "(_tx, rx) = channel()\nlen(rx)"
 -- stdout
 -- stderr
-| error[E0506]: cannot take the length of receiver
+| error[E0403]: argument `x` must be str | list | map | range, got receiver
 |   --> -e:2:4
 |   |
 | 2 | len(rx)
@@ -2686,26 +2555,22 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got float
-|   --> -e:1:8
+|   --> -e:1:9
 |   |
 | 1 | channel(1.5)
-|   |        ^
+|   |         ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "channel(\"a\")"
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:1:8
+|   --> -e:1:9
 |   |
 | 1 | channel("a")
-|   |        ^
+|   |         ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "(tx, rx) = channel(17592186044410)\nprint(send(tx, 1), recv(rx))"
 -- stdout
 | Ok(nil) Ok(1)
@@ -2715,38 +2580,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `tx` must be sender, got int
-|   --> -e:1:5
+|   --> -e:1:6
 |   |
 | 1 | send(1, 2)
-|   |     ^
+|   |      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "recv(1)"
 -- stdout
 -- stderr
 | error[E0403]: argument `rx` must be receiver, got int
-|   --> -e:1:5
+|   --> -e:1:6
 |   |
 | 1 | recv(1)
-|   |     ^
+|   |      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "close(1)"
 -- stdout
 -- stderr
 | error[E0403]: argument `x` must be sender | receiver | file, got int
-|   --> -e:1:6
+|   --> -e:1:7
 |   |
 | 1 | close(1)
-|   |      ^
+|   |       ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (226 bytes, f89af6beb2cc101f)
 -- stdout
 | Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Err({kind: 'timeout, message: "timed out after 1ms"}) Err({kind: 'timeout, message: "timed out after 0s"})
@@ -2776,14 +2635,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:4:4
+|   --> -e:4:8
 |   |
 | 4 | map(c, 3)
-|   |    ^
+|   |        ^
 |   |
-|  call path (innermost first):
-|    -e:4       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(exec([\"echo\", \"hi there\"]))"
 -- stdout
 | Ok({out: "hi there\n", err: "", code: 0, signal: nil})
@@ -2926,74 +2783,62 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `env` must be map | nil, got int
-|   --> -e:1:11
+|   --> -e:1:25
 |   |
 | 1 | print(exec(["sh"], env: 1))
-|   |           ^
+|   |                         ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(exec([\"cat\"], stdin: 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `stdin` must be str | nil, got int
-|   --> -e:1:11
+|   --> -e:1:28
 |   |
 | 1 | print(exec(["cat"], stdin: 1))
-|   |           ^
+|   |                            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(exec([\"cat\"], cwd: 1, env: 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `cwd` must be str | nil, got int
-|   --> -e:1:11
+|   --> -e:1:26
 |   |
 | 1 | print(exec(["cat"], cwd: 1, env: 1))
-|   |           ^
+|   |                          ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(exec([1], cwd: 1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `cmd` must be a list of strings, got a list holding int
-|   --> -e:1:11
+| error[E0403]: argument `cwd` must be str | nil, got int
+|   --> -e:1:22
 |   |
 | 1 | print(exec([1], cwd: 1))
-|   |           ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sh(1), 2)"
 -- stdout
 -- stderr
 | error[E0403]: argument `cmd` must be str, got int
-|   --> -e:1:9
+|   --> -e:1:10
 |   |
 | 1 | print(sh(1), 2)
-|   |         ^
+|   |          ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(exec(\"ls\"))"
 -- stdout
 -- stderr
-| error[E0403]: argument `cmd` must be a list of strings, got str
-|   --> -e:1:11
+| error[E0403]: argument `cmd` must be list, got str
+|   --> -e:1:12
 |   |
 | 1 | print(exec("ls"))
-|   |           ^
+|   |            ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(exec([1]))"
 -- stdout
 -- stderr
@@ -3042,14 +2887,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `name` must be str, got int
-|   --> -e:1:10
+|   --> -e:1:11
 |   |
 | 1 | print(env(1))
-|   |          ^
+|   |           ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(env(\"FUNG_TEST_UNSET_VAR\"), type_of(env_all()), env(\"HOME\") == env_all()[\"HOME\"])"
 -- stdout
 | nil 'map true
@@ -3200,50 +3043,48 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `p` must be str, got int
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(path.base(1))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import path\nprint(path.stem(nil), path.dir([]))"
 -- stdout
 -- stderr
 | error[E0403]: argument `p` must be str, got nil
-|   --> -e:2:16
+|   --> -e:2:17
 |   |
 | 2 | print(path.stem(nil), path.dir([]))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+| error[E0403]: argument `p` must be str, got list
+|   --> -e:2:32
+|   |
+| 2 | print(path.stem(nil), path.dir([]))
+|   |                                ^
+|   |
+-- exit: 2
 ==== "import path\nprint(path.abs(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `p` must be str, got int
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(path.abs(1))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import path\nprint(path.ext(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `p` must be str, got nil
-|   --> -e:2:15
+|   --> -e:2:16
 |   |
 | 2 | print(path.ext(nil))
-|   |               ^
+|   |                ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs, fs.open, fs.with_open, fs.read_lines(\"Cargo.toml\")! |> take(1))"
 -- stdout
 | <module fs> <fn open> <fn with_open> ["[package]"]
@@ -3270,38 +3111,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `path` must be str, got int
-|   --> -e:2:14
+|   --> -e:2:15
 |   |
 | 2 | print(fs.read(1))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.write(\"x\", nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `text` must be str, got nil
-|   --> -e:2:15
+|   --> -e:2:21
 |   |
 | 2 | print(fs.write("x", nil))
-|   |               ^
+|   |                     ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.copy(nil, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `from` must be str, got nil
-|   --> -e:2:14
+|   --> -e:2:15
 |   |
 | 2 | print(fs.copy(nil, 1))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.stat())"
 -- stdout
 -- stderr
@@ -3326,38 +3161,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `path` must be str, got int
-|   --> -e:2:15
+|   --> -e:2:22
 |   |
 | 2 | print(fs.mkdir(path: 1))
-|   |               ^
+|   |                      ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.list(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `dir` must be str, got int
-|   --> -e:2:14
+|   --> -e:2:15
 |   |
 | 2 | print(fs.list(1))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.glob(nil))"
 -- stdout
 -- stderr
 | error[E0403]: argument `pattern` must be str, got nil
-|   --> -e:2:14
+|   --> -e:2:15
 |   |
 | 2 | print(fs.glob(nil))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.walk())"
 -- stdout
 -- stderr
@@ -3372,50 +3201,42 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `dir` must be str, got int
-|   --> -e:2:14
+|   --> -e:2:20
 |   |
 | 2 | print(fs.walk(dir: 1))
-|   |              ^
+|   |                    ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.open(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `path` must be str, got int
-|   --> -e:2:14
+|   --> -e:2:15
 |   |
 | 2 | print(fs.open(1))
-|   |              ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.open(\"/dev/null\", \"read\"))"
 -- stdout
 -- stderr
-| error[E0403]: argument `mode` must be 'read | 'write | 'append, got str
-|   --> -e:2:14
+| error[E0403]: argument `mode` must be sym, got str
+|   --> -e:2:28
 |   |
 | 2 | print(fs.open("/dev/null", "read"))
-|   |              ^
+|   |                            ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.open(\"/dev/null\", mode: 1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `mode` must be 'read | 'write | 'append, got int
-|   --> -e:2:14
+| error[E0403]: argument `mode` must be sym, got int
+|   --> -e:2:34
 |   |
 | 2 | print(fs.open("/dev/null", mode: 1))
-|   |              ^
+|   |                                  ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.open(\"/dev/null\", 'rw))"
 -- stdout
 -- stderr
@@ -3454,14 +3275,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `x` must be sender | receiver | file, got int
-|   --> -e:1:12
+|   --> -e:1:13
 |   |
 | 1 | print(close(1))
-|   |            ^
+|   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(close())"
 -- stdout
 -- stderr
@@ -3476,62 +3295,52 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `file` must be file, got str
-|   --> -e:2:20
+|   --> -e:2:21
 |   |
 | 2 | print(fs.write_line("x", "y"))
-|   |                    ^
+|   |                     ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.write_line(fs.open(\"/dev/null\", 'write)!, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `line` must be str, got int
-|   --> -e:2:20
+|   --> -e:2:52
 |   |
 | 2 | print(fs.write_line(fs.open("/dev/null", 'write)!, 1))
-|   |                    ^
+|   |                                                    ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.write_line(fs.open(\"/dev/null\")!, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `line` must be str, got int
-|   --> -e:2:20
+|   --> -e:2:44
 |   |
 | 2 | print(fs.write_line(fs.open("/dev/null")!, 1))
-|   |                    ^
+|   |                                            ^
 |   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(read_line(1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `file` must be file | nil, got int
-|   --> -e:1:16
+|   --> -e:1:17
 |   |
 | 1 | print(read_line(1))
-|   |                ^
+|   |                 ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(read_lines(\"x\"))"
 -- stdout
 -- stderr
 | error[E0403]: argument `file` must be file | nil, got str
-|   --> -e:1:17
+|   --> -e:1:18
 |   |
 | 1 | print(read_lines("x"))
-|   |                 ^
+|   |                  ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "import fs\nprint(fs.with_open(\"/dev/null\", 1))"
 -- stdout
 -- stderr
@@ -3784,10 +3593,8 @@
 | 1 | print({a: 1}[1])
 |   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
 |  help: map keys are strings: convert the key with `str(k)`
--- exit: 1
+-- exit: 2
 ==== "print({a: 1}['a])"
 -- stdout
 -- stderr
@@ -3797,10 +3604,8 @@
 | 1 | print({a: 1}['a])
 |   |             ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
 |  help: map keys are strings: write `"a"` for `'a`, or convert the key with `sym_name(k)`
--- exit: 1
+-- exit: 2
 ==== "print(get({}, 1))"
 -- stdout
 -- stderr
@@ -3836,10 +3641,8 @@
 | 1 | print('a in {a: 1})
 |   |          ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
 |  help: map keys are strings: write `"a"` for `'a`, or convert the key with `sym_name(k)`
--- exit: 1
+-- exit: 2
 ==== "print(1 in {a: 1})"
 -- stdout
 -- stderr
@@ -3849,10 +3652,8 @@
 | 1 | print(1 in {a: 1})
 |   |         ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
 |  help: map keys are strings: convert the key with `str(k)`
--- exit: 1
+-- exit: 2
 ==== "print(group_by([1], _x => 'odd))"
 -- stdout
 -- stderr
@@ -3907,14 +3708,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:14
+|   --> -e:1:38
 |   |
 | 1 | print(sort_by(0..100000000000000000, 1))
-|   |              ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(join(0..100000000000000000, \"\"))"
 -- stdout
 -- stderr
@@ -3931,14 +3730,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `sep` must be str, got int
-|   --> -e:1:11
+|   --> -e:1:35
 |   |
 | 1 | print(join(0..100000000000000000, 1))
-|   |           ^
+|   |                                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(flatten(0..100000000000000000))"
 -- stdout
 -- stderr
@@ -3960,14 +3757,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:35
 |   |
 | 1 | print(find(0..100000000000000000, 1))
-|   |           ^
+|   |                                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(any(0..100000000000000000, _x => true))"
 -- stdout
 | true
@@ -3994,14 +3789,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:10
+|   --> -e:1:34
 |   |
 | 1 | print(map(0..100000000000000000, 1))
-|   |          ^
+|   |                                  ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(map(0..100000000000000000, x => x))"
 -- stdout
 -- stderr
@@ -4018,38 +3811,32 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:13
+|   --> -e:1:37
 |   |
 | 1 | print(filter(0..100000000000000000, 1))
-|   |             ^
+|   |                                     ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(fold(0..100000000000000000, 0, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:38
 |   |
 | 1 | print(fold(0..100000000000000000, 0, 1))
-|   |           ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(each(0..100000000000000000, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:35
 |   |
 | 1 | print(each(0..100000000000000000, 1))
-|   |           ^
+|   |                                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sort(0..1000000000000000000))"
 -- stdout
 -- stderr
@@ -4078,14 +3865,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:14
+|   --> -e:1:39
 |   |
 | 1 | print(sort_by(0..1000000000000000000, 1))
-|   |              ^
+|   |                                       ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(join(0..1000000000000000000, \"\"))"
 -- stdout
 -- stderr
@@ -4102,14 +3887,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `sep` must be str, got int
-|   --> -e:1:11
+|   --> -e:1:36
 |   |
 | 1 | print(join(0..1000000000000000000, 1))
-|   |           ^
+|   |                                    ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(flatten(0..1000000000000000000))"
 -- stdout
 -- stderr
@@ -4131,14 +3914,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:36
 |   |
 | 1 | print(find(0..1000000000000000000, 1))
-|   |           ^
+|   |                                    ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(any(0..1000000000000000000, _x => true))"
 -- stdout
 | true
@@ -4165,14 +3946,12 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:10
+|   --> -e:1:35
 |   |
 | 1 | print(map(0..1000000000000000000, 1))
-|   |          ^
+|   |                                   ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(map(0..1000000000000000000, x => x))"
 -- stdout
 -- stderr
@@ -4189,35 +3968,29 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:13
+|   --> -e:1:38
 |   |
 | 1 | print(filter(0..1000000000000000000, 1))
-|   |             ^
+|   |                                      ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(fold(0..1000000000000000000, 0, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:39
 |   |
 | 1 | print(fold(0..1000000000000000000, 0, 1))
-|   |           ^
+|   |                                       ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(each(0..1000000000000000000, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:11
+|   --> -e:1:36
 |   |
 | 1 | print(each(0..1000000000000000000, 1))
-|   |           ^
+|   |                                    ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2

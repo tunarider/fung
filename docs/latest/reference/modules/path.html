@@ -109,7 +109,7 @@ print(path.dir(p), path.base(p), path.stem(p), path.ext(p))</code></pre><pre cla
 <p>정리된 경로 문자열.</p>
 <h4>에러</h4>
 <ul>
-<li>문자열이 아닌 인자는 런타임 에러 E0403.</li>
+<li>문자열이 아닌 인자는 E0403.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>이어 붙이기와 정리</strong></p>
@@ -135,7 +135,7 @@ print(fold(parts, &quot;/&quot;, path.join))</code></pre><pre class="out plain">
 <section class="entry" id="fn-path-base">
 <h3>path.base</h3>
 <p>경로의 마지막 요소(파일 이름)를 돌려준다.</p>
-<div class="sig"><code>path.base(p)</code></div>
+<div class="sig"><code>path.base(p: str)</code></div>
 <h4>설명</h4>
 <p>셸의 <code>basename</code>과 같다. 끝의 <code>/</code>는 무시한다(<code>&quot;a/b/&quot;</code> → <code>&quot;b&quot;</code>). <code>&quot;/&quot;</code>는 <code>&quot;/&quot;</code>, 빈 경로는 <code>&quot;.&quot;</code>이다.</p>
 <h4>매개변수</h4>
@@ -154,7 +154,7 @@ print(path.base(&quot;/var/log/app.log&quot;), path.base(&quot;backup/2026/&quot
 <section class="entry" id="fn-path-dir">
 <h3>path.dir</h3>
 <p>마지막 요소를 뺀 나머지(들어 있는 디렉터리)를 돌려준다.</p>
-<div class="sig"><code>path.dir(p)</code></div>
+<div class="sig"><code>path.dir(p: str)</code></div>
 <h4>설명</h4>
 <p>셸의 <code>dirname</code>과 같다. 결과는 정리된 꼴이다. 디렉터리가 없는 이름(<code>&quot;app.log&quot;</code>)은 현재 디렉터리 <code>&quot;.&quot;</code>, <code>&quot;/x&quot;</code>는 <code>&quot;/&quot;</code>이다. <a href="#fn-path-base"><code>path.base</code></a>처럼 끝의 <code>/</code>는 무시한다(<code>&quot;a/b/&quot;</code> → <code>&quot;a&quot;</code>). 그래서 <code>path.join(path.dir(p), path.base(p))</code>는 늘 <code>p</code>를 정리한 꼴이다.</p>
 <h4>매개변수</h4>
@@ -179,7 +179,7 @@ print(path.join(path.dir(conf), &quot;secrets.yaml&quot;))</code></pre><pre clas
 <section class="entry" id="fn-path-ext">
 <h3>path.ext</h3>
 <p>확장자를 점까지 포함해 돌려준다.</p>
-<div class="sig"><code>path.ext(p)</code></div>
+<div class="sig"><code>path.ext(p: str)</code></div>
 <h4>설명</h4>
 <p>마지막 요소에서 마지막 <code>.</code>부터 끝까지다: <code>&quot;a.tar.gz&quot;</code> → <code>&quot;.gz&quot;</code>. 확장자가 없으면 <code>&quot;&quot;</code>. 이름 맨 앞의 점은 확장자의 시작으로 보지 않으므로 숨은 파일 이름(<code>&quot;.bashrc&quot;</code>)은 확장자가 없다(<code>&quot;.a.b&quot;</code> → <code>&quot;.b&quot;</code>). 디렉터리 이름의 점은 보지 않는다(<code>&quot;a/b.c/d&quot;</code> → <code>&quot;&quot;</code>). 끝의 <code>/</code>는 무시하므로 <a href="#fn-path-base"><code>path.base</code></a>가 주는 요소의 확장자다(<code>&quot;dir.d/&quot;</code> → <code>&quot;.d&quot;</code>).</p>
 <h4>매개변수</h4>
@@ -204,7 +204,7 @@ print(path.ext(&quot;backup.tar.gz&quot;), path.ext(&quot;.hidden&quot;), path.e
 <section class="entry" id="fn-path-stem">
 <h3>path.stem</h3>
 <p>마지막 요소에서 확장자를 뺀 이름을 돌려준다.</p>
-<div class="sig"><code>path.stem(p)</code></div>
+<div class="sig"><code>path.stem(p: str)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-path-base"><code>path.base</code></a>에서 <a href="#fn-path-ext"><code>path.ext</code></a>를 뗀 것이다. 늘 <code>path.stem(p) + path.ext(p) == path.base(p)</code>다. 디렉터리 부분은 남지 않는다(<code>&quot;dir/report.csv&quot;</code> → <code>&quot;report&quot;</code>). 확장자는 마지막 하나만 떼므로 <code>&quot;a.tar.gz&quot;</code>는 <code>&quot;a.tar&quot;</code>다. 숨은 파일 이름은 그대로다.</p>
 <h4>매개변수</h4>
@@ -227,7 +227,7 @@ a.tar .bashrc</code></pre></div>
 <section class="entry" id="fn-path-abs">
 <h3>path.abs</h3>
 <p>현재 디렉터리를 기준으로 한 절대 경로를 돌려준다.</p>
-<div class="sig"><code>path.abs(p)</code></div>
+<div class="sig"><code>path.abs(p: str)</code></div>
 <h4>설명</h4>
 <p><code>p</code>가 상대 경로면 현재 디렉터리 앞에 붙이고 정리한다. 이미 절대 경로면 정리만 한다. 파일이 있는지는 보지 않고, 심볼릭 링크도 풀지 않는다. 로그나 에러 메시지에 "어느 파일인지" 분명히 적을 때 쓴다.</p>
 <h4>매개변수</h4>

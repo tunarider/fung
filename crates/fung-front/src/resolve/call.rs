@@ -45,34 +45,35 @@ pub const NAMELESS: &str = "the function";
 
 impl Sig {
     /// A parameter list as `spec/builtins.txt` writes it: `xs, sep=?`,
-    /// `...args`, or nothing.
+    /// `...args`, `d: dur`, `cut: str | nil=?`, or nothing.
     pub fn parse(list: &str) -> Sig {
         let params = list
             .split(',')
             .map(str::trim)
             .filter(|p| !p.is_empty())
             .map(|p| {
-                if let Some(name) = p.strip_prefix("...") {
-                    SigParam {
-                        name: name.to_string(),
-                        default: false,
-                        rest: true,
-                        types: None,
-                    }
-                } else if let Some(name) = p.strip_suffix("=?") {
-                    SigParam {
-                        name: name.to_string(),
-                        default: true,
-                        rest: false,
-                        types: None,
-                    }
-                } else {
-                    SigParam {
-                        name: p.to_string(),
-                        default: false,
-                        rest: false,
-                        types: None,
-                    }
+                // `name`, `name=?`, `...name`, each with `: a | b` after
+                // the name when the parameter takes only those types
+                let (p, default) = match p.strip_suffix("=?") {
+                    Some(p) => (p, true),
+                    None => (p, false),
+                };
+                let (p, rest) = match p.strip_prefix("...") {
+                    Some(p) => (p, true),
+                    None => (p, false),
+                };
+                let (name, types) = match p.split_once(':') {
+                    Some((name, t)) => (
+                        name.trim(),
+                        Some(t.split('|').map(|a| a.trim().to_string()).collect()),
+                    ),
+                    None => (p, None),
+                };
+                SigParam {
+                    name: name.to_string(),
+                    default,
+                    rest,
+                    types,
                 }
             })
             .collect();
@@ -126,12 +127,16 @@ impl Sig {
         self.params
             .iter()
             .map(|p| {
+                let types = match &p.types {
+                    Some(t) => format!(": {}", t.join(" | ")),
+                    None => String::new(),
+                };
                 if p.rest {
-                    format!("...{}", p.name)
+                    format!("...{}{types}", p.name)
                 } else if p.default {
-                    format!("{}=?", p.name)
+                    format!("{}{types}=?", p.name)
                 } else {
-                    p.name.clone()
+                    format!("{}{types}", p.name)
                 }
             })
             .collect::<Vec<_>>()
@@ -277,11 +282,6 @@ impl Resolver<'_> {
                 if let Some(known) = self.function_value(value, None) {
                     self.global_sigs.insert(slot, known);
                 }
-                if let Some(lit) = self.file_literal(value) {
-                    let at = k.kids[0].pos;
-                    let at = super::lits::name_pos(&k.kids[0], name).unwrap_or(at);
-                    self.global_lits.insert(slot, (lit, at));
-                }
             }
         }
     }
@@ -376,20 +376,14 @@ impl Resolver<'_> {
         let wrong = known
             .as_ref()
             .and_then(|(name, sig)| sig.check(name, &n.kids[1..], n.pos));
-        self.note_call(n, &kids, known.clone(), wrong.is_some());
-        if let Some((_, sig)) = known {
-            if let Some(e) = wrong {
-                self.errs.push(e);
-            } else {
-                // what the call binds is checked as the run does (D113),
-                // a name bound to a literal as the literal (D149)
-                let found = self.annotated_argument_error(&sig, &n.kids[1..]);
-                if let Some(mut e) = found {
-                    e.notes.extend(self.literal_note(&n.kids[1..], e.pos));
-                    self.errs.push(e);
-                }
-            }
-        }
+        // what the call binds is checked as the run does (D113): the
+        // literals written as arguments, not what a name holds (D164)
+        let wrong = wrong.or_else(|| {
+            let (_, sig) = known.as_ref()?;
+            super::annot::argument_error(sig, &n.kids[1..])
+        });
+        self.note_call(n, &kids, known, wrong.is_some());
+        self.errs.extend(wrong);
         Node::with_lit(n.head, n.pos, n.lit.clone(), kids)
     }
 

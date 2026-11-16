@@ -12,7 +12,6 @@ mod annot;
 mod call;
 mod effect;
 mod fn_;
-mod lits;
 mod module;
 mod names;
 mod pattern;
@@ -75,6 +74,8 @@ pub struct Resolved {
     pub core: Node,
     /// Block-local slots the main frame needs.
     pub num_locals: usize,
+    /// The main frame's slots whose names are never read (`FnInfo::held`).
+    pub held: Vec<usize>,
     /// The file's globals, in index order.
     pub globals: Vec<String>,
     /// Module keys this file imports, in order.
@@ -111,7 +112,6 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         pattern_bound: HashSet::new(),
         guarded: false,
         global_sigs: HashMap::new(),
-        global_lits: HashMap::new(),
         bodies: HashMap::new(),
         sites: Vec::new(),
         purity: HashMap::new(),
@@ -174,6 +174,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
     Ok(Resolved {
         core: out,
         num_locals: r.fns[0].max_slot,
+        held: std::mem::take(&mut r.fns[0].held),
         globals: r.globals,
         imports: r.imports,
         exports,
@@ -239,9 +240,6 @@ struct Resolver<'a> {
     /// parameters. Empty in the REPL, where a later input may define the
     /// name again.
     global_sigs: HashMap<usize, (String, Sig)>,
-    /// The global slots whose one binding is a literal, with it and where
-    /// the name was bound (D149): top-level fns read them as constants.
-    global_lits: HashMap<usize, (std::rc::Rc<Node>, Pos)>,
     /// What each fung function's body does that may have an effect, by
     /// where it is written (D141).
     bodies: HashMap<effect::FnKey, Vec<effect::Effect>>,
@@ -520,14 +518,33 @@ impl Resolver<'_> {
     }
 
     /// Closes a block: its names become "closed" for E0206 and its slots
-    /// are released for reuse (03).
+    /// are released for reuse (03), unless one of them is only held.
     fn pop_block(&mut self, file: bool) {
         let f = self.cur_mut();
         let sc = f.pop_scope();
         f.later.pop();
         f.hiding.pop();
         if !file {
-            f.next_slot = sc.base;
+            // A name never read holds its value until the function
+            // returns (03): its slot is not handed to a later block,
+            // whose names and failed patterns would write over it
+            // (VM55). The slots below it in the block stay with it.
+            let mut held: Vec<usize> = sc
+                .names
+                .iter()
+                .filter(|(n, b)| !b.global && !sc.used.contains(*n) && !crate::tree::is_hidden(n))
+                .map(|(_, b)| b.index)
+                .collect();
+            held.sort_unstable();
+            let holds = sc.held || !held.is_empty();
+            f.held.extend(held);
+            if holds {
+                if let Some(outer) = f.blocks.last_mut() {
+                    outer.held = true;
+                }
+            } else {
+                f.next_slot = sc.base;
+            }
             for name in sc.names.keys() {
                 self.unopen(name);
             }
@@ -551,8 +568,6 @@ impl Resolver<'_> {
     }
 
     fn walk_node(&mut self, n: &Node) -> Node {
-        // A name bound to a literal is checked as the literal is (D149).
-        self.check_named_literals(n);
         match n.head {
             Head::Do => return self.block(n),
             Head::Let => return self.let_(n),
@@ -703,8 +718,15 @@ impl Resolver<'_> {
                 ..Binding::default()
             }
         } else {
+            // A `_` name may be one that is only held: it takes a slot no
+            // name had before it, so the slot holds its value or nothing
+            // (D162: a tail call takes what the held slots have along).
+            let f = self.cur_mut();
+            if name.starts_with('_') && !crate::tree::is_hidden(name) {
+                f.next_slot = f.max_slot;
+            }
             Binding {
-                index: self.cur_mut().alloc_slot(),
+                index: f.alloc_slot(),
                 ..Binding::default()
             }
         };
@@ -739,7 +761,6 @@ impl Resolver<'_> {
             };
             let pat = self.bind_pattern(target, mode);
             self.note_bound_functions(target, &n.kids[1], &rhs);
-            self.note_bound_literals(target, &n.kids[1]);
             return Node::new(Head::Let, n.pos, vec![pat, rhs]);
         }
         let lhs = match self.bind_new(lit_str(target), target.pos, true) {
@@ -750,7 +771,6 @@ impl Resolver<'_> {
         // function (D110), the callee a partial application keeps in a
         // hidden variable too (FE65).
         self.note_bound_functions(target, &n.kids[1], &rhs);
-        self.note_bound_literals(target, &n.kids[1]);
         Node::new(Head::Let, n.pos, vec![lhs, rhs])
     }
 
@@ -769,7 +789,15 @@ impl Resolver<'_> {
         // would hide the mistake (03, rule 4).
         // Closed in this function or one around it: a lambda or an inner
         // fn reads the same name the enclosing code would (FE3).
-        if let Some(made) = self.fns.iter().rev().find_map(|f| f.closed.get(name)) {
+        // A prelude name is another matter: a block hides the prelude
+        // function inside itself only, so after the block (and beside
+        // it, and before it) the name is the prelude's again (D163).
+        let closed = if self.prelude.contains(name) {
+            None
+        } else {
+            self.fns.iter().rev().find_map(|f| f.closed.get(name))
+        };
+        if let Some(made) = closed {
             let help = match made {
                 Made::Block => format!("assign the block's value instead: `{name} = if … ;;`"),
                 Made::Arm => format!(
@@ -800,10 +828,20 @@ impl Resolver<'_> {
             .flat_map(|f| f.hiding.iter())
             .find_map(|h| h.get(name).copied());
         if let Some(at) = hidden_at {
-            self.errs.push(name_error("E0204", n.pos, name).with_help(&format!(
-                "`{name}` is bound on line {} of this block, so here it is that name, not the prelude function; read it after that line, or give the new name another name",
-                at.line
-            )));
+            // A default is inside the function's body block (D168).
+            let help = if self.cur().in_default {
+                format!(
+                    "`{name}` is bound in this function (line {}), so in a parameter's default it is that name, not the prelude function; give the new name another name",
+                    at.line
+                )
+            } else {
+                format!(
+                    "`{name}` is bound on line {} of this block, so here it is that name, not the prelude function; read it after that line, or give the new name another name",
+                    at.line
+                )
+            };
+            self.errs
+                .push(name_error("E0204", n.pos, name).with_help(&help));
             return n.clone();
         }
         if self.prelude.contains(name) {
@@ -867,6 +905,8 @@ impl Resolver<'_> {
         let repl_top = self.opts.redefine && pi == 0 && self.in_top_fn();
         let p = &mut self.fns[pi];
         let mut src = None;
+        // the parameter of a function around `fi` that the name is
+        let mut param = None;
         let found = p.innermost(name).map(|i| {
             let sc = &mut p.blocks[i];
             sc.used.insert(name.to_string());
@@ -884,6 +924,9 @@ impl Resolver<'_> {
             } else {
                 CaptureKind::Local
             };
+            if !b.global && pi > 0 && b.index < p.nparams {
+                param = Some((Some(p.key), b.index));
+            }
             src = Some(Capture {
                 kind,
                 index: b.index,
@@ -908,6 +951,7 @@ impl Resolver<'_> {
             match self.capture_from(name, pi)? {
                 Found::Global(i) => return Some(Found::Global(i)),
                 Found::Captured(i) => {
+                    param = self.fns[pi].cap_params[i];
                     src = Some(Capture {
                         kind: CaptureKind::Captured,
                         index: i,
@@ -918,6 +962,7 @@ impl Resolver<'_> {
         let src = src?;
         let f = &mut self.fns[fi];
         f.captures.push(src);
+        f.cap_params.push(param);
         let idx = f.captures.len() - 1;
         f.cap_index.insert(name.to_string(), idx);
         Some(Found::Captured(idx))

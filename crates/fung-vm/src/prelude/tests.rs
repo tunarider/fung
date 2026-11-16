@@ -41,12 +41,13 @@ const CONCURRENCY: &[&str] = &[
 fn render_params(ps: &[NativeParam]) -> String {
     ps.iter()
         .map(|p| {
+            let types = p.types.map(|t| format!(": {t}")).unwrap_or_default();
             if p.rest {
-                format!("...{}", p.name)
+                format!("...{}{types}", p.name)
             } else if p.default.is_some() {
-                format!("{}=?", p.name)
+                format!("{}{types}=?", p.name)
             } else {
-                p.name.to_string()
+                format!("{}{types}", p.name)
             }
         })
         .collect::<Vec<_>>()
@@ -445,7 +446,7 @@ fn string_functions() {
     assert_eq!(code(&call("from_bytes", vec![Value::Int(1)])), "E0403");
     let bad = list(vec![Value::Int(1), Value::Int(256)]);
     assert_eq!(code(&call("from_bytes", vec![bad])), "E0403");
-    assert_eq!(code(&call("join", vec![Value::Int(1), st("")])), "E0506");
+    assert_eq!(code(&call("join", vec![Value::Int(1), st("")])), "E0403");
 }
 
 /// A text to search for is never empty (D118): an empty one matches
@@ -495,6 +496,49 @@ fn an_empty_search_text_is_refused_everywhere() {
         Opts::default(),
     );
     assert_eq!((o.code.as_str(), o.out.as_str()), ("", "true true true\n"));
+}
+
+/// VA73: what a trim keeps is a piece of the string (`Text::cut`): the
+/// string itself when nothing is cut, a view of its bytes when the piece
+/// is big, with its characters counted when the string's were.
+#[test]
+fn a_trim_keeps_a_piece_of_the_string() {
+    let text = |v: &Value| match v {
+        Value::Str(t) => t.clone(),
+        other => panic!("{other:?}"),
+    };
+    let whole = st(&format!("  {}\t", "ab ".repeat(100)));
+    for (name, want) in [
+        ("trim", format!("{}ab", "ab ".repeat(99))),
+        ("trim_left", format!("{}\t", "ab ".repeat(100))),
+        ("trim_right", format!("  {}ab", "ab ".repeat(99))),
+    ] {
+        let got = call(name, vec![whole.clone()]).unwrap();
+        let t = text(&got);
+        assert_eq!(t.as_str(), Some(want.as_str()), "{name}");
+        assert!(t.views(&text(&whole)), "{name} copies");
+    }
+    // counted once the string is: no second count
+    let n = text(&whole).char_len();
+    let got = text(&call("trim", vec![whole.clone()]).unwrap());
+    assert_eq!(got.counted(), Some(n - 4));
+    // nothing to cut: the string itself
+    let clean = st(&"ab".repeat(100));
+    for name in ["trim", "trim_left", "trim_right"] {
+        let got = text(&call(name, vec![clean.clone()]).unwrap());
+        assert!(std::rc::Rc::ptr_eq(&got, &text(&clean)), "{name}");
+    }
+    // non-ASCII and bytes outside UTF-8
+    let wide = st(&format!(" {} ", "\u{d55c}".repeat(100)));
+    let got = text(&call("trim", vec![wide.clone()]).unwrap());
+    assert_eq!(got.char_len(), 100);
+    assert!(got.views(&text(&wide)));
+    let mut bytes = vec![b' '; 2];
+    bytes.extend(std::iter::repeat_n(0xe9, 100));
+    let raw = Value::bytes(bytes);
+    let got = text(&call("trim_left", vec![raw.clone()]).unwrap());
+    assert_eq!(got.as_bytes(), &[0xe9; 100]);
+    assert!(got.views(&text(&raw)) && !got.is_utf8());
 }
 
 #[test]
@@ -564,13 +608,13 @@ fn collection_functions() {
         assert_eq!((o.code.as_str(), o.out.as_str()), ("", *want), "{src}");
     }
     let errs: &[(&str, &str)] = &[
-        ("filter(1, x => x)", "E0506"),
+        ("filter(1, x => x)", "E0403"),
         ("filter([1], _x => 1)", "E0505"),
         ("sort([1, \"a\"])", "E0501"),
-        ("fold(\"ab\", 0, (a, _x) => a)", "E0506"),
+        ("fold(\"ab\", 0, (a, _x) => a)", "E0403"),
         ("group_by([1], x => x)", "E0514"),
-        ("put(1, \"a\", 2)", "E0506"),
-        ("get([1], 0)", "E0506"),
+        ("put(1, \"a\", 2)", "E0403"),
+        ("get([1], 0)", "E0403"),
         ("get({a: 1}, 1)", "E0514"),
         ("chars(1)", "E0403"),
         ("each([1], 1)", "E0403"),
@@ -619,10 +663,10 @@ fn collection_functions_with_the_fung_prelude() {
     }
     let errs: &[(&str, &str)] = &[
         ("min([1, \"a\"])", "E0501"),
-        ("keys([])", "E0506"),
+        ("keys([])", "E0403"),
         ("get({}, 1)", "E0514"),
-        ("get([1], 0)", "E0506"),
-        ("get([10, 20], 20)", "E0506"),
+        ("get([1], 0)", "E0403"),
+        ("get([10, 20], 20)", "E0403"),
         ("min([nil, 1])", "E0501"),
         ("max([nil, 1])", "E0501"),
         ("sum([1, \"a\"])", "E0506"),
@@ -719,11 +763,7 @@ fn prelude_in_fung_checks_like_a_native() {
     let errs: &[(&str, &str, &str)] = &[
         // A side zip cannot take fails before a receiving end is read
         // (an open, empty channel would wait forever).
-        (
-            "(_tx, rx) = channel(1)\nprint(zip(rx, 5))",
-            "E0506",
-            "zip the elements of int",
-        ),
+        ("(_tx, rx) = channel(1)\nprint(zip(rx, 5))", "E0403", "`ys`"),
         ("pad_right(\"ab\", 5, [\"x\"])", "E0403", "`pad`"),
         ("pad_left(\"ab\", 5, 1)", "E0403", "`pad`"),
         ("pad_left(\"a\", 3.5)", "E0403", "`n`"),
@@ -734,29 +774,38 @@ fn prelude_in_fung_checks_like_a_native() {
         ("iterate(1, x => x, \"n\")", "E0403", "`n`"),
         ("iterate(1, 2, 3)", "E0403", "`f`"),
         ("until(1, x => x + 1, 3)", "E0403", "`pred`"),
-        ("sum(5)", "E0506", "sum"),
+        ("sum(5)", "E0403", "`xs`"),
         ("sum([1, 2s])", "E0501", "add"),
         ("max([nil])", "E0501", "nil"),
         ("min([{}])", "E0501", "map"),
         ("max([true])", "E0501", "bool"),
         ("max([[nil]])", "E0501", "nil"),
         ("sum([nil])", "E0506", "nil"),
-        // Each E0506 reads as a sentence (SP24).
-        ("zip(1, [1])", "E0506", "cannot zip the elements of int"),
-        ("zip([1], 1)", "E0506", "cannot zip the elements of int"),
-        ("get([1], 0)", "E0506", "cannot get a key from list"),
+        // A wrong collection is a wrong argument (D173).
+        (
+            "zip(1, [1])",
+            "E0403",
+            "argument `xs` must be list | range | receiver, got int",
+        ),
+        (
+            "zip([1], 1)",
+            "E0403",
+            "argument `ys` must be list | range | receiver, got int",
+        ),
+        ("get([1], 0)", "E0403", "argument `m` must be map, got list"),
         (
             "unique(1)",
-            "E0506",
-            "cannot take the unique elements of int",
+            "E0403",
+            "argument `xs` must be list | range | receiver, got int",
         ),
     ];
     for (src, want, says) in errs {
         let o = exec(src, Opts::default());
+        // the run's headline, or the compiler's report for a literal
         let said = o
             .error
             .as_ref()
-            .map_or(String::new(), |e| e.headline.clone());
+            .map_or(o.err.clone(), |e| e.headline.clone());
         assert_eq!(o.code, *want, "{src}: {said}");
         assert!(said.contains(says), "{src}: {said}");
     }
@@ -1040,8 +1089,12 @@ fn get_reads_a_key_or_the_default() {
     );
     assert_eq!((o.code.as_str(), o.out.as_str()), ("", "1 nil 0\n"));
     let o = exec("fn f(x) = get(x, 0)\nprint(f([1]))", Opts::default());
-    assert_eq!(o.code, "E0506");
-    assert!(o.err.contains("cannot get a key from list"), "{}", o.err);
+    assert_eq!(o.code, "E0403");
+    assert!(
+        o.err.contains("argument `m` must be map, got list"),
+        "{}",
+        o.err
+    );
     assert!(!o.err.contains("extras/prelude.fung"), "{}", o.err);
 }
 
