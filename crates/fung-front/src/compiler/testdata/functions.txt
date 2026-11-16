@@ -55,11 +55,12 @@
 0053  1:1   RETURN
 
 == outer ==
+params:   y
 0000  2:3   CLOSURE      0    ; loop
-0001  2:3   STORELOCAL   1
+0001  2:3   STORELOCAL   1    ; loop
 0002  3:8   CLOSURE      1    ; <lambda>
-0003  3:8   CLEARLOCAL   0
-0004  3:3   STORELOCAL   2
+0003  3:8   CLEARLOCAL   0    ; y
+0004  3:3   STORELOCAL   2    ; _g
 0005  4:3   CONST        0    ; <fn each>
 0006  4:12  CONST        1    ; [1]
 0007  4:3   CLOSURE      2    ; <lambda>
@@ -67,36 +68,43 @@
 0009  4:3   POP
 0010  5:21  CONST        2    ; (1, [2])
 0011  5:3   MATCHORFAIL  0    ; ($3, [$4, ...])
-0012  6:10  MOVELOCAL    1
+0012  6:10  MOVELOCAL    1    ; loop
 0013  6:15  CONST        3    ; 2
 0014  6:14  TAILCALL     1 0    ; 1 positional, 0 named
 
 == loop ==
-0000  2:16  LOADLOCAL    0
+params:   k
+captures: y
+0000  2:16  LOADLOCAL    0    ; k
 0001  2:21  CONST        0    ; 0
 0002  2:18  EQ
 0003  2:18  JUMPIFFALSE  6
-0004  2:28  LOADCAPTURED 0
+0004  2:28  LOADCAPTURED 0    ; y
 0005  2:14  RETURN
 0006  2:35  LOADSELF
-0007  2:40  MOVELOCAL    0
+0007  2:40  MOVELOCAL    0    ; k
 0008  2:44  CONST        1    ; 1
 0009  2:42  SUB
 0010  2:39  TAILCALL     1 0    ; 1 positional, 0 named
 
 == <lambda> ==
-0000  3:13  MOVELOCAL    0
-0001  3:17  LOADCAPTURED 0
+params:   x
+captures: y
+0000  3:13  MOVELOCAL    0    ; x
+0001  3:17  LOADCAPTURED 0    ; y
 0002  3:15  ADD
 0003  3:10  RETURN
 
 == <lambda> ==
+params:   i
 0000  4:17  CONST        0    ; <fn print>
-0001  4:23  MOVELOCAL    0
+0001  4:23  MOVELOCAL    0    ; i
 0002  4:22  TAILCALL     1 0    ; 1 positional, 0 named
 
 == h ==
-0000  8:18  MOVELOCAL    0
+params:   r
+returns:  int
+0000  8:18  MOVELOCAL    0    ; r
 0001  8:19  UNWRAPTEST   6
 0002  8:23  CONST        0    ; 1
 0003  8:21  ADD

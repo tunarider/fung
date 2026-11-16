@@ -55,6 +55,7 @@
 <li><a href="../vm/17-test-runner.html" aria-current="page">17. 테스트 러너</a><ol class="toc2"><li><a href="#where">테스트를 어디에 두나</a></li><li><a href="#compile">test 블록이 함수가 되기까지</a></li><li><a href="#assert">assert</a></li><li><a href="#runner">실행기</a></li><li><a href="#golden">언어 자체의 테스트</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
 <li class="sub">부록</li>
 <li><a href="../vm/internals.html">18. 내부 구조</a></li>
+<li><a href="../vm/instructions.html">19. 명령 레퍼런스</a></li>
 </ol>
 </li>
 </ol></nav>
@@ -149,7 +150,8 @@ print(&quot;ok&quot;)</code></pre><pre class="out dump plain"><code>$ fung dump 
 0012  1:1   RETURN
 
 == double ==
-0000  1:16  MOVELOCAL    0
+params:   x
+0000  1:16  MOVELOCAL    0    ; x
 0001  1:20  CONST        0    ; 2
 0002  1:18  MUL
 0003  1:14  RETURN</code></pre></div>

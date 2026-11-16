@@ -4451,7 +4451,7 @@
 | print(args, len(args))
 -- stderr
 -- exit: 0
-==== manual reference/cli.md:3
+==== manual reference/cli.md:4
 -- stdout
 | fn ratio(done, total) = done * 100 // total
 |
@@ -4460,13 +4460,13 @@
 | print(report(["a", "b"]))
 -- stderr
 -- exit: 0
-==== manual reference/cli.md:4
+==== manual reference/cli.md:5
 -- stdout
 | m = {host: "web-1"}
 | print(m.port)
 -- stderr
 -- exit: 0
-==== manual reference/cli.md:5
+==== manual reference/cli.md:6
 -- stdout
 | import fs
 |
@@ -10670,13 +10670,13 @@
 | print(report("db", []))
 -- stderr
 -- exit: 0
-==== manual vm/08-bytecode.md:3
+==== manual vm/08-bytecode.md:4
 -- stdout
 | fn double(x) = x * 2
 | print(double(9223372036854775807))
 -- stderr
 -- exit: 0
-==== manual vm/08-bytecode.md:7
+==== manual vm/08-bytecode.md:8
 -- stdout
 | fn grade(score) = score >= 90 then "A" else score >= 80 then "B" else "C"
 | print(grade(95), grade(85), grade(10))

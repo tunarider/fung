@@ -61,6 +61,11 @@ struct Compiler<'a> {
     /// place, or a `return`'s. A branch that returns by itself (VM10 f)
     /// checks the return type there, as the function's end would.
     ret_pos: Pos,
+    /// The names this frame's slots are given (`FnInfo::locals`), and
+    /// per slot which of them it has in the code written so far, from 1
+    /// (`name_slot`): what `fung dump` shows after a slot number.
+    decls: &'a [(usize, String)],
+    named: Vec<u32>,
 }
 
 /// Produces the `<main>` proto for a resolved program. Prelude names
@@ -89,6 +94,8 @@ pub fn compile(
         lives: moves::lives(&res.core, false),
         stubs: Vec::new(),
         ret_pos: res.core.pos,
+        decls: &res.locals,
+        named: Vec::new(),
     };
     c.block(&res.core, false)?;
     if !opts.keep_value
@@ -398,10 +405,45 @@ impl Compiler<'_> {
         }
     }
 
+    /// Notes the name the `(local n)` node `n` was written with, when
+    /// the slot did not have it yet: from the next instruction on the
+    /// slot is called that (`Proto::locals`). A slot's name changes only
+    /// where a later block binds the slot again, and the code of a block
+    /// is written in one piece, so the latest name is the one in force.
+    pub(super) fn name_slot(&mut self, n: &Node) {
+        let Some((_, name)) = (n.decl as usize)
+            .checked_sub(1)
+            .and_then(|d| self.decls.get(d))
+        else {
+            return;
+        };
+        let slot = lit_index(n);
+        if self.named.len() <= slot {
+            self.named.resize(slot + 1, 0);
+        }
+        if self.named[slot] == n.decl {
+            return;
+        }
+        let had = self.named[slot] as usize;
+        self.named[slot] = n.decl;
+        // what desugar names itself it may bind twice under one name
+        if had > 0 && self.decls[had - 1].1 == *name {
+            return;
+        }
+        self.proto.locals.push(crate::bytecode::Local {
+            slot,
+            name: name.clone(),
+            from: self.proto.code.len(),
+        });
+    }
+
     /// Emits the store into a resolved `(local n)` or `(global n)`.
     fn store_ref(&mut self, target: &Node) -> Result<(), Diag> {
         let op = match target.head {
-            Head::Local => Op::StoreLocal,
+            Head::Local => {
+                self.name_slot(target);
+                Op::StoreLocal
+            }
             Head::Global => Op::StoreGlobal,
             h => {
                 return Err(internal(
@@ -454,6 +496,7 @@ impl Compiler<'_> {
                 self.emit_const(Const::Dur(ns), pos);
             }
             Head::Local => {
+                self.name_slot(n);
                 let slot = lit_index(n);
                 // The last read moves the value out of the slot.
                 let op = if self.lives.moves.contains(&n.id) {

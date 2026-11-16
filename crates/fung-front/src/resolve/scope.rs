@@ -15,6 +15,9 @@ pub(super) struct Binding {
     pub(super) constant: bool,
     /// An imported module name: cannot be shadowed either (04).
     pub(super) module: bool,
+    /// A slot: which of its function's `FnScope::decls` gave it this
+    /// name, from 1; 0 for a global (`fung dump` names slots by it).
+    pub(super) decl: u32,
 }
 
 /// What made a block, for the help of E0206 when one of its names is
@@ -83,6 +86,10 @@ pub(super) struct FnScope {
     /// parameters too (D172): each holds its value until the function returns
     /// (03, VM55, D162).
     pub(super) held: Vec<usize>,
+    /// Every name the function gave a slot, with the slot, in the order
+    /// they were bound: a slot a later block uses again is here once per
+    /// name (`fung dump` shows the names).
+    pub(super) decls: Vec<(usize, String)>,
     pub(super) captures: Vec<Capture>,
     pub(super) cap_index: HashMap<String, usize>,
     /// Per capture: the parameter it is, of the function around this one

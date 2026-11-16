@@ -1,4 +1,4 @@
-//! `fung dump ast|core|bytecode` of every `.fung` file of the repository
+//! `fung dump ast|core|bytecode` (and a few `proto`) of every `.fung` file of the repository
 //! and of inputs the corpus does not have (odd bytes, deep and long
 //! shapes, argument errors), against `expected/dump/dumps.txt`.
 
@@ -119,7 +119,7 @@ fn long_chains() -> Vec<String> {
 
 /// How many dump cases there are (Review: a case must not go missing
 /// unnoticed; change it together with the cases).
-const DUMP_CASES: usize = 1604;
+const DUMP_CASES: usize = 1607;
 
 /// A dump longer than this is kept as a hash (the deep and long shapes).
 const LIMIT: usize = 64 * 1024;
@@ -193,6 +193,20 @@ fn dumps_match_the_expected_output() {
         vec!["dump", "ast", "-e", "x = \"a\u{378}b\u{E000}\""],
         vec!["dump", "bytecode", "-e", "x = \"a\u{378}b\"\nprint(x)"],
         vec!["dump", "core", "-e", "fn f(x: Ⓐ) = x"],
+        // Every table of each function (`dump proto`).
+        vec![
+            "dump",
+            "proto",
+            "-e",
+            "fn scale(x, by: int = 2, ...rest):\n  k = x * by\n  f = fn(y): y + k ;;\n  _hold = rest\n  f(1)\n;;\nprint(scale(3))",
+        ],
+        vec![
+            "dump",
+            "proto",
+            "-e",
+            "fn f(p) -> int:\n  match p:\n    (a, b) => a + b\n    _ => 0\n  ;;\n;;\nassert f((1, 2)) == 3",
+        ],
+        vec!["dump", "proto", "-e", "x = )"],
     ] {
         cases.push(extra.into_iter().map(OsString::from).collect());
     }

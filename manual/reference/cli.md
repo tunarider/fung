@@ -17,7 +17,7 @@ lede: 실행 파일 <code>fung</code> 하나가 실행, 검사, 테스트, 포�
     <tr><td><a href="#check"><code>fung check script.fung</code></a></td><td>실행하지 않고 컴파일 에러(문법, 이름, import, 소스에 드러난 호출·타입 실수) 검사.</td></tr>
     <tr><td><a href="#test"><code>fung test [path]</code></a></td><td><code>test</code> 블록 실행.</td></tr>
     <tr><td><a href="#fmt"><code>fung fmt [--check] path…|-</code></a></td><td>코드 모양을 한 가지 스타일로 고치기.</td></tr>
-    <tr><td><a href="#dump"><code>fung dump ast|core|bytecode file</code></a></td><td>컴파일의 중간 단계 보기.</td></tr>
+    <tr><td><a href="#dump"><code>fung dump ast|core|bytecode|proto file</code></a></td><td>컴파일의 중간 단계 보기.</td></tr>
     <tr><td><a href="#version"><code>fung version</code></a></td><td>버전 보이기.</td></tr>
     <tr><td><a href="#version"><code>fung help</code></a></td><td>사용법 보이기(<code>-h</code>, <code>--help</code>도 같다).</td></tr>
   </tbody>
@@ -33,8 +33,8 @@ usage:
   fung check -e '<code>'                  the same for one line of code
   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
   fung test [path]                        run tests
-  fung dump ast|core|bytecode <script>    print an internal stage
-  fung dump ast|core|bytecode -e '<code>' the same for one line of code
+  fung dump <stage> <script>              print an internal stage: ast, core, bytecode, proto
+  fung dump <stage> -e '<code>'           the same for one line of code
   fung version                            print the version
   fung help                               print this text
 ```
@@ -244,18 +244,24 @@ $ fung fmt - < ugly.fung > fixed.fung
 
 ## 내부 단계 보기: `dump` {#dump}
 
-`fung dump 단계 file`은 fung이 소스를 실행하기 전에 거치는 중간 결과를 보인다. 언어가 어떻게 만들어지는지 공부하거나 버그를 좁힐 때 쓴다. 단계는 셋이다.
+`fung dump 단계 file`은 fung이 소스를 실행하기 전에 거치는 중간 결과를 보인다. 언어가 어떻게 만들어지는지 공부하거나 버그를 좁힐 때 쓴다. 단계는 넷이다.
 
 - `ast`: 파서가 만든 구문 트리(쓴 그대로의 모양).
 - `core`: 문법 설탕을 걷어 낸 코어 트리(이름이 `global`·`local`·`prelude` 칸으로 풀린다).
-- `bytecode`: VM이 실행하는 명령의 목록. 함수마다 `== 이름 ==` 아래에 `번호 줄:열 명령 인자 ; 설명`이 나온다.
+- `bytecode`: VM이 실행하는 명령의 목록. 함수마다 `== 이름 ==` 아래에 매개변수(`params`), 반환 타입(`returns`), 붙잡은 값(`captures`)이 있으면 한 줄씩 나오고, 이어서 `번호 줄:열 명령 인자 ; 설명`이 나온다. `;` 뒤는 명령의 일부가 아니라 그 번호가 가리키는 것(상수의 값, 변수의 이름)을 적어 준 설명이다.
+- `proto`: `bytecode`와 같은 명령 목록 앞에, 함수마다 가진 표(상수 풀, 칸의 이름, 패턴 등)를 모두 적는다.
 
 ```dump bytecode
 fn double(x) = x * 2
 print(double(21))
 ```
 
-`fung dump core -e 'x = 1'`처럼 `-e`도 받는다. 컴파일 에러가 있으면 에러를 보이고 2로 끝난다. 각 단계의 뜻은 [fung VM](../vm/01-how-programs-run.html) 책에서 다룬다.
+```dump proto
+fn double(x) = x * 2
+print(double(21))
+```
+
+`fung dump core -e 'x = 1'`처럼 `-e`도 받는다. 컴파일 에러가 있으면 에러를 보이고 2로 끝난다. 각 단계의 뜻은 [fung VM](../vm/01-how-programs-run.html) 책에서 다루고, 명령마다 하는 일과 `proto`의 줄마다의 뜻은 [명령 레퍼런스](../vm/instructions.html)에 있다.
 
 ## 버전과 도움말 {#version}
 

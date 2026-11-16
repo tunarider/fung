@@ -225,6 +225,7 @@ fn disassemble_functions() {
          0003  1:1   TAILCALL     0 2    ; 0 positional, 2 named\n\
          0004  1:1   LOADSELF\n\
          \n== add ==\n\
+         params:   a: int | nil, b\n\
          0000  1:1   CHECKTYPE    0 0    ; a: int | nil\n\
          0001  1:1   LOADLOCAL    0\n\
          0002  1:1   RETURN\n";

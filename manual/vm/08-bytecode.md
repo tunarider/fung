@@ -24,7 +24,7 @@ lede: 트리를 평평한 명령 목록으로 바꾸고, 값을 쌓았다 꺼내
 
 **스택**(stack)은 접시 더미 같은 자료구조다. 맨 위에 올리고(push), 맨 위에서 꺼낸다(pop). 스택 머신의 명령은 대부분 이 스택만 다룬다.
 
-- 값을 만드는 명령은 값을 스택 **위에 올린다**. `CONST 2`는 2를 올린다.
+- 값을 만드는 명령은 값을 스택 **위에 올린다**. `CONST`는 상수(소스에 적힌 수나 문자열 같은 값) 하나를 올린다.
 - 계산하는 명령은 필요한 값을 스택 **위에서 꺼내** 계산하고, 결과를 **다시 올린다**. `MUL`은 둘을 꺼내 곱한 값을 올린다.
 
 명령에 "어느 값을"이 적혀 있지 않다. 늘 스택의 맨 위다. 그래서 명령이 짧고, 컴파일러는 트리를 **자식 먼저, 부모 나중**의 순서(후위 순회, post-order)로 걸으며 명령을 내기만 하면 된다. `1 + a * 3`을 보자(`a`는 2).
@@ -33,6 +33,8 @@ lede: 트리를 평평한 명령 목록으로 바꾸고, 값을 쌓았다 꺼내
 a = 2
 print(1 + a * 3)
 ```
+
+명령 뒤의 수는 값이 아니라 **번호**다. 컴파일러는 프로그램에 나온 상수를 표 하나(상수 풀)에 모아 두고, 명령에는 그 표의 칸 번호만 적는다. `CONST 2`는 "2를 올려라"가 아니라 "상수 2번을 올려라"이고, 이 프로그램의 상수 2번은 1이다. `;` 뒤는 명령의 일부가 아니다. `fung dump`가 그 번호의 칸에 든 값을 읽어 옆에 적어 준 설명이다. `STOREGLOBAL 0`과 `LOADGLOBAL 0`의 0도 번호인데, 이쪽은 전역 변수 표의 칸이고 `;` 뒤가 그 칸의 이름 `a`다. 이 출력에 상수 풀이 따로 나오지는 않는다. `;` 뒤의 값을 번호 순으로 모으면 그것이 상수 풀이다(0번 2, 1번 `print`, 2번 1, 3번 3, 4번 `nil`). 상수 풀이 어디에 들어 있는지, 표를 통째로 보려면 어떻게 하는지는 아래 "함수 원형"에서 본다.
 
 `a`에 2를 둔 뒤, `print`와 세 값을 올린 뒤의 스택 변화는 이렇다(오른쪽이 맨 위).
 
@@ -91,7 +93,7 @@ fung의 명령 하나는 **고정 폭 단어 하나**다. 8비트가 명령의 �
   </tbody>
 </table>
 
-이 장에서는 값·연산·변수·흐름·호출의 기본 명령을 본다. 클로저와 기본값, 꼬리 호출은 9장, 모듈은 11장에서 다시 만난다. 패턴(`MATCH`)과 결과값 축약(`!`·`?`·`??`)의 명령은 부록 [내부 구조](internals.html)에 있다.
+이 장에서는 값·연산·변수·흐름·호출의 기본 명령을 본다. 클로저와 기본값, 꼬리 호출은 9장, 모듈은 11장에서 다시 만난다. 패턴(`MATCH`)과 결과값 축약(`!`·`?`·`??`)의 명령은 부록 [내부 구조](internals.html)에 있다. 명령 하나하나가 피연산자로 무엇을 받고 스택에서 무엇을 꺼내 무엇을 올리는지는 부록 [명령 레퍼런스](instructions.html)에 표로 모았다. `fung dump`에서 처음 보는 명령을 만나면 거기서 찾는다.
 
 ## 함수 원형: Proto {#proto}
 
@@ -105,6 +107,15 @@ fung의 명령 하나는 **고정 폭 단어 하나**다. 8비트가 명령의 �
 - `protos`: 안쪽 함수들의 원형. `CLOSURE n`이 n번 자식을 가리킨다.
 - 그 밖에 붙잡을 값 목록(9장), 타입 표기, 패턴 트리 등.
 
+`fung dump proto`가 이 표들을 함수마다 그대로 보인다. 앞의 두 줄짜리 프로그램이면 이렇다.
+
+```dump proto
+a = 2
+print(1 + a * 3)
+```
+
+`constants` 아래가 상수 풀이다. `CONST 2 ; 1`의 2가 이 표의 2번 칸이고, `;` 뒤의 1이 그 칸에 든 값이다. `globals`는 전역 변수 표, `slots`는 이 함수의 프레임이 쓰는 칸의 수(`num_locals`)다. `code:` 아래는 `fung dump bytecode`가 보이는 것과 같다. 줄마다의 뜻은 [명령 레퍼런스](instructions.html#proto)에 있다.
+
 **원형**이라고 부르는 이유는 이것이 아직 실행할 수 있는 함수 값이 아니라 함수의 "틀"이기 때문이다. 실행 중에 `CLOSURE` 명령이 이 틀과 붙잡은 값을 묶어 진짜 함수 값(클로저)을 만든다(9장).
 
 ## dump bytecode 읽기 {#reading}
@@ -117,10 +128,11 @@ print(double(21))
 ```
 
 - `== <main> ==`, `== double ==`: 원형 하나에 절 하나. 파일 본문 다음에 안쪽 함수들이 차례로 나온다.
+- `params:`: 그 함수의 매개변수. 차례가 곧 칸 번호다(`x`가 0번 칸). 기본값이 있으면 `= ?`, 타입 표기가 있으면 `x: int`로 적힌다. 반환 타입이 있으면 `returns:`, 바깥 값을 붙잡는 함수면 `captures:` 줄이 더 나온다(9장).
 - 첫 열 `0000`: 명령 번호. 점프는 이 번호로 간다.
 - 둘째 열 `1:16`: 그 명령의 소스 위치(줄:칸). 호출(`CALL`)은 여는 괄호 `(`의 자리, 연산은 연산자의 자리를 갖는다. 그래서 `double(21)`의 호출은 2:13, `print(…)`의 호출은 2:6이다.
 - 셋째, 넷째 열: 명령 이름과 피연산자.
-- `;` 뒤: 피연산자를 풀어 쓴 설명. 상수 번호면 그 상수의 값(`; 21`, `; <fn print>`), 전역 번호면 그 이름(`; double`), `CALL`이면 위치 인자 수와 이름 인자 수.
+- `;` 뒤: 피연산자를 풀어 쓴 설명. 명령의 일부가 아니라 `fung dump`가 번호가 가리키는 것을 찾아 적어 준 것이다. 상수 번호면 그 상수의 값(`; 21`, `; <fn print>`), 전역 번호나 칸 번호면 그 변수의 이름(`; double`, `; x`), `CALL`이면 위치 인자 수와 이름 인자 수.
 
 `print`가 `CONST 0 ; <fn print>`인 것을 눈여겨보자. 6장에서 `print`는 `(prelude print)`로 해석되었고, 컴파일러는 그 내장 함수 자체를 상수 풀에 넣었다. 실행 중에 "print라는 이름의 함수"를 찾는 일이 없다.
 
@@ -300,7 +312,7 @@ VM은 컴파일러가 만든 바이트코드를 믿고 돈다. 명령마다 "피
 
 - `crates/fung-front/src/bytecode/op.rs`: 명령 표 `instructions!`가 만드는 명령 종류 `Op`(번호는 표의 자리), 명령마다의 사실 `Info`(피연산자의 뜻 `Operand`, 스택 효과 `Effect`, 흐름 `Flow`), 명령 단어 `Instr`(`Instr::new`, `Instr::with`, `Instr::op`, `Instr::arg`, 둘째 피연산자 `Instr::b`와 그 뜻 `Op::second`), 이름 `Op::name`. VM은 링크 때 `Instr`를 `vm/link.rs`의 `Code`(`op`·`arg` 필드와 `Code::b`, 8바이트)로 한 번 푼다.
 - `crates/fung-front/src/bytecode.rs`: 함수 원형 `Proto`와 `Proto::emit`(명령과 위치를 함께 넣는다), `Proto::patch`(점프를 나중에 채운다), `Proto::thread_jumps`(점프로 가는 점프 고치기), `Proto::add_const`(같은 상수 다시 쓰기).
-- `crates/fung-front/src/bytecode/disasm.rs`: `disassemble`, 곧 `fung dump bytecode`의 출력.
+- `crates/fung-front/src/bytecode/disasm.rs`: `disassemble`, 곧 `fung dump bytecode`의 출력과, 표를 모두 적는 `describe`(`fung dump proto`). 칸의 이름은 실행에 쓰이지 않는다. 이름 해석이 "어느 이름이 어느 칸을 얻었는가"를 함수마다 적어 두고(`FnInfo::locals`), 컴파일러가 명령을 내며 "이 명령부터 이 칸은 이 이름"을 원형의 `locals`에 남긴 것을 역어셈블러가 읽을 뿐이다. 디버거가 변수 이름을 보이려고 쓰는 디버그 정보와 같은 생각이다.
 - `crates/fung-front/src/bytecode/verify.rs`: 바이트코드 검증기 `verify`(위 일곱 검사, 최대 스택 높이 `Verified::max_stack`).
 - `crates/fung-front/src/compiler.rs`: `compile`과 `Compiler::block`(문장, `POP`, `CLEARLOCAL`), `Compiler::expr`(코어 형태마다 명령 내기), `Compiler::op`, `Compiler::if_expr`(점프 둘), `Compiler::let_stmt`. 함수와 호출은 `crates/fung-front/src/compiler/fn_.rs`의 `Compiler::function`과 `Compiler::call`.
 - `crates/fung-vm/src/vm/link.rs`: 원형을 실행용 `RtProto`로 바꾸며 상수를 실제 값으로 채우는 `link`.

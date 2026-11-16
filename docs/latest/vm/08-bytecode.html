@@ -55,6 +55,7 @@
 <li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
 <li class="sub">부록</li>
 <li><a href="../vm/internals.html">18. 내부 구조</a></li>
+<li><a href="../vm/instructions.html">19. 명령 레퍼런스</a></li>
 </ol>
 </li>
 </ol></nav>
@@ -79,7 +80,7 @@
 <h2 id="stack-machine">스택 머신</h2>
 <p><strong>스택</strong>(stack)은 접시 더미 같은 자료구조다. 맨 위에 올리고(push), 맨 위에서 꺼낸다(pop). 스택 머신의 명령은 대부분 이 스택만 다룬다.</p>
 <ul>
-<li>값을 만드는 명령은 값을 스택 <strong>위에 올린다</strong>. <code>CONST 2</code>는 2를 올린다.</li>
+<li>값을 만드는 명령은 값을 스택 <strong>위에 올린다</strong>. <code>CONST</code>는 상수(소스에 적힌 수나 문자열 같은 값) 하나를 올린다.</li>
 <li>계산하는 명령은 필요한 값을 스택 <strong>위에서 꺼내</strong> 계산하고, 결과를 <strong>다시 올린다</strong>. <code>MUL</code>은 둘을 꺼내 곱한 값을 올린다.</li>
 </ul>
 <p>명령에 "어느 값을"이 적혀 있지 않다. 늘 스택의 맨 위다. 그래서 명령이 짧고, 컴파일러는 트리를 <strong>자식 먼저, 부모 나중</strong>의 순서(후위 순회, post-order)로 걸으며 명령을 내기만 하면 된다. <code>1 + a * 3</code>을 보자(<code>a</code>는 2).</p>
@@ -98,6 +99,7 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
 0009  2:1   POP
 0010  2:1   CONST        4    ; nil
 0011  1:1   RETURN</code></pre></div>
+<p>명령 뒤의 수는 값이 아니라 <strong>번호</strong>다. 컴파일러는 프로그램에 나온 상수를 표 하나(상수 풀)에 모아 두고, 명령에는 그 표의 칸 번호만 적는다. <code>CONST 2</code>는 "2를 올려라"가 아니라 "상수 2번을 올려라"이고, 이 프로그램의 상수 2번은 1이다. <code>;</code> 뒤는 명령의 일부가 아니다. <code>fung dump</code>가 그 번호의 칸에 든 값을 읽어 옆에 적어 준 설명이다. <code>STOREGLOBAL 0</code>과 <code>LOADGLOBAL 0</code>의 0도 번호인데, 이쪽은 전역 변수 표의 칸이고 <code>;</code> 뒤가 그 칸의 이름 <code>a</code>다. 이 출력에 상수 풀이 따로 나오지는 않는다. <code>;</code> 뒤의 값을 번호 순으로 모으면 그것이 상수 풀이다(0번 2, 1번 <code>print</code>, 2번 1, 3번 3, 4번 <code>nil</code>). 상수 풀이 어디에 들어 있는지, 표를 통째로 보려면 어떻게 하는지는 아래 "함수 원형"에서 본다.</p>
 <p><code>a</code>에 2를 둔 뒤, <code>print</code>와 세 값을 올린 뒤의 스택 변화는 이렇다(오른쪽이 맨 위).</p>
 <table>
   <thead><tr><th>명령</th><th>하는 일</th><th>스택</th></tr></thead>
@@ -140,7 +142,7 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
     <tr><td>기타</td><td><code>IMPORT</code> <code>ASSERT</code> <code>TEST</code></td></tr>
   </tbody>
 </table>
-<p>이 장에서는 값·연산·변수·흐름·호출의 기본 명령을 본다. 클로저와 기본값, 꼬리 호출은 9장, 모듈은 11장에서 다시 만난다. 패턴(<code>MATCH</code>)과 결과값 축약(<code>!</code>·<code>?</code>·<code>??</code>)의 명령은 부록 <a href="internals.html">내부 구조</a>에 있다.</p>
+<p>이 장에서는 값·연산·변수·흐름·호출의 기본 명령을 본다. 클로저와 기본값, 꼬리 호출은 9장, 모듈은 11장에서 다시 만난다. 패턴(<code>MATCH</code>)과 결과값 축약(<code>!</code>·<code>?</code>·<code>??</code>)의 명령은 부록 <a href="internals.html">내부 구조</a>에 있다. 명령 하나하나가 피연산자로 무엇을 받고 스택에서 무엇을 꺼내 무엇을 올리는지는 부록 <a href="instructions.html">명령 레퍼런스</a>에 표로 모았다. <code>fung dump</code>에서 처음 보는 명령을 만나면 거기서 찾는다.</p>
 <h2 id="proto">함수 원형: Proto</h2>
 <p>컴파일러는 <strong>함수마다</strong> 명령 목록을 하나씩 만든다. 파일 본문도 <code>&lt;main&gt;</code>이라는 이름의 함수다. 그 결과물을 <strong>함수 원형</strong>(prototype, 코드에서 <code>Proto</code>)이라고 한다. 원형에는 명령만 있는 게 아니다.</p>
 <ul>
@@ -152,6 +154,34 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
 <li><code>protos</code>: 안쪽 함수들의 원형. <code>CLOSURE n</code>이 n번 자식을 가리킨다.</li>
 <li>그 밖에 붙잡을 값 목록(9장), 타입 표기, 패턴 트리 등.</li>
 </ul>
+<p><code>fung dump proto</code>가 이 표들을 함수마다 그대로 보인다. 앞의 두 줄짜리 프로그램이면 이렇다.</p>
+<div class="run"><pre><code>a = 2
+print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump proto example.fung
+== &lt;main&gt; ==
+slots: 0
+constants:
+   0  2
+   1  &lt;fn print&gt;
+   2  1
+   3  3
+   4  nil
+globals:
+   0  a
+exports: a
+code:
+0000  1:5   CONST        0    ; 2
+0001  1:1   STOREGLOBAL  0    ; a
+0002  2:1   CONST        1    ; &lt;fn print&gt;
+0003  2:7   CONST        2    ; 1
+0004  2:11  LOADGLOBAL   0    ; a
+0005  2:15  CONST        3    ; 3
+0006  2:13  MUL
+0007  2:9   ADD
+0008  2:6   CALL         1 0    ; 1 positional, 0 named
+0009  2:1   POP
+0010  2:1   CONST        4    ; nil
+0011  1:1   RETURN</code></pre></div>
+<p><code>constants</code> 아래가 상수 풀이다. <code>CONST 2 ; 1</code>의 2가 이 표의 2번 칸이고, <code>;</code> 뒤의 1이 그 칸에 든 값이다. <code>globals</code>는 전역 변수 표, <code>slots</code>는 이 함수의 프레임이 쓰는 칸의 수(<code>num_locals</code>)다. <code>code:</code> 아래는 <code>fung dump bytecode</code>가 보이는 것과 같다. 줄마다의 뜻은 <a href="instructions.html#proto">명령 레퍼런스</a>에 있다.</p>
 <p><strong>원형</strong>이라고 부르는 이유는 이것이 아직 실행할 수 있는 함수 값이 아니라 함수의 "틀"이기 때문이다. 실행 중에 <code>CLOSURE</code> 명령이 이 틀과 붙잡은 값을 묶어 진짜 함수 값(클로저)을 만든다(9장).</p>
 <h2 id="reading">dump bytecode 읽기</h2>
 <p>이제 이 책의 두 줄을 읽어 보자.</p>
@@ -170,16 +200,18 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0009  1:1   RETURN
 
 == double ==
-0000  1:16  MOVELOCAL    0
+params:   x
+0000  1:16  MOVELOCAL    0    ; x
 0001  1:20  CONST        0    ; 2
 0002  1:18  MUL
 0003  1:14  RETURN</code></pre></div>
 <ul>
 <li><code>== &lt;main&gt; ==</code>, <code>== double ==</code>: 원형 하나에 절 하나. 파일 본문 다음에 안쪽 함수들이 차례로 나온다.</li>
+<li><code>params:</code>: 그 함수의 매개변수. 차례가 곧 칸 번호다(<code>x</code>가 0번 칸). 기본값이 있으면 <code>= ?</code>, 타입 표기가 있으면 <code>x: int</code>로 적힌다. 반환 타입이 있으면 <code>returns:</code>, 바깥 값을 붙잡는 함수면 <code>captures:</code> 줄이 더 나온다(9장).</li>
 <li>첫 열 <code>0000</code>: 명령 번호. 점프는 이 번호로 간다.</li>
 <li>둘째 열 <code>1:16</code>: 그 명령의 소스 위치(줄:칸). 호출(<code>CALL</code>)은 여는 괄호 <code>(</code>의 자리, 연산은 연산자의 자리를 갖는다. 그래서 <code>double(21)</code>의 호출은 2:13, <code>print(…)</code>의 호출은 2:6이다.</li>
 <li>셋째, 넷째 열: 명령 이름과 피연산자.</li>
-<li><code>;</code> 뒤: 피연산자를 풀어 쓴 설명. 상수 번호면 그 상수의 값(<code>; 21</code>, <code>; &lt;fn print&gt;</code>), 전역 번호면 그 이름(<code>; double</code>), <code>CALL</code>이면 위치 인자 수와 이름 인자 수.</li>
+<li><code>;</code> 뒤: 피연산자를 풀어 쓴 설명. 명령의 일부가 아니라 <code>fung dump</code>가 번호가 가리키는 것을 찾아 적어 준 것이다. 상수 번호면 그 상수의 값(<code>; 21</code>, <code>; &lt;fn print&gt;</code>), 전역 번호나 칸 번호면 그 변수의 이름(<code>; double</code>, <code>; x</code>), <code>CALL</code>이면 위치 인자 수와 이름 인자 수.</li>
 </ul>
 <p><code>print</code>가 <code>CONST 0 ; &lt;fn print&gt;</code>인 것을 눈여겨보자. 6장에서 <code>print</code>는 <code>(prelude print)</code>로 해석되었고, 컴파일러는 그 내장 함수 자체를 상수 풀에 넣었다. 실행 중에 "print라는 이름의 함수"를 찾는 일이 없다.</p>
 <h2 id="follow">따라가기: 명령 하나씩</h2>
@@ -279,7 +311,8 @@ print(sign(-3))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0009  1:1   RETURN
 
 == sign ==
-0000  1:14  MOVELOCAL    0
+params:   n
+0000  1:14  MOVELOCAL    0    ; n
 0001  1:18  CONST        0    ; 0
 0002  1:16  LT
 0003  1:16  JUMPIFFALSE  6
@@ -312,20 +345,21 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 0009  1:1   RETURN
 
 == report ==
+params:   xs
 0000  2:11  CONST        0    ; &lt;fn sum&gt;
-0001  2:15  LOADLOCAL    0
+0001  2:15  LOADLOCAL    0    ; xs
 0002  2:14  CALL         1 0    ; 1 positional, 0 named
-0003  2:3   STORELOCAL   1
-0004  3:9   LOADLOCAL    1
+0003  2:3   STORELOCAL   1    ; total
+0004  3:9   LOADLOCAL    1    ; total
 0005  3:17  CONST        1    ; &lt;fn len&gt;
-0006  3:21  MOVELOCAL    0
+0006  3:21  MOVELOCAL    0    ; xs
 0007  3:20  CALL         1 0    ; 1 positional, 0 named
 0008  3:15  DIV
-0009  3:3   STORELOCAL   2
+0009  3:3   STORELOCAL   2    ; avg
 0010  4:3   CONST        2    ; &quot;total &quot;
-0011  4:12  MOVELOCAL    1
+0011  4:12  MOVELOCAL    1    ; total
 0012  4:3   CONST        3    ; &quot;, avg &quot;
-0013  4:26  MOVELOCAL    2
+0013  4:26  MOVELOCAL    2    ; avg
 0014  4:3   CONCAT       4
 0015  1:1   RETURN</code></pre></div>
 <p>몇 가지가 보인다.</p>
@@ -371,7 +405,7 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 <ul>
 <li><code>crates/fung-front/src/bytecode/op.rs</code>: 명령 표 <code>instructions!</code>가 만드는 명령 종류 <code>Op</code>(번호는 표의 자리), 명령마다의 사실 <code>Info</code>(피연산자의 뜻 <code>Operand</code>, 스택 효과 <code>Effect</code>, 흐름 <code>Flow</code>), 명령 단어 <code>Instr</code>(<code>Instr::new</code>, <code>Instr::with</code>, <code>Instr::op</code>, <code>Instr::arg</code>, 둘째 피연산자 <code>Instr::b</code>와 그 뜻 <code>Op::second</code>), 이름 <code>Op::name</code>. VM은 링크 때 <code>Instr</code>를 <code>vm/link.rs</code>의 <code>Code</code>(<code>op</code>·<code>arg</code> 필드와 <code>Code::b</code>, 8바이트)로 한 번 푼다.</li>
 <li><code>crates/fung-front/src/bytecode.rs</code>: 함수 원형 <code>Proto</code>와 <code>Proto::emit</code>(명령과 위치를 함께 넣는다), <code>Proto::patch</code>(점프를 나중에 채운다), <code>Proto::thread_jumps</code>(점프로 가는 점프 고치기), <code>Proto::add_const</code>(같은 상수 다시 쓰기).</li>
-<li><code>crates/fung-front/src/bytecode/disasm.rs</code>: <code>disassemble</code>, 곧 <code>fung dump bytecode</code>의 출력.</li>
+<li><code>crates/fung-front/src/bytecode/disasm.rs</code>: <code>disassemble</code>, 곧 <code>fung dump bytecode</code>의 출력과, 표를 모두 적는 <code>describe</code>(<code>fung dump proto</code>). 칸의 이름은 실행에 쓰이지 않는다. 이름 해석이 "어느 이름이 어느 칸을 얻었는가"를 함수마다 적어 두고(<code>FnInfo::locals</code>), 컴파일러가 명령을 내며 "이 명령부터 이 칸은 이 이름"을 원형의 <code>locals</code>에 남긴 것을 역어셈블러가 읽을 뿐이다. 디버거가 변수 이름을 보이려고 쓰는 디버그 정보와 같은 생각이다.</li>
 <li><code>crates/fung-front/src/bytecode/verify.rs</code>: 바이트코드 검증기 <code>verify</code>(위 일곱 검사, 최대 스택 높이 <code>Verified::max_stack</code>).</li>
 <li><code>crates/fung-front/src/compiler.rs</code>: <code>compile</code>과 <code>Compiler::block</code>(문장, <code>POP</code>, <code>CLEARLOCAL</code>), <code>Compiler::expr</code>(코어 형태마다 명령 내기), <code>Compiler::op</code>, <code>Compiler::if_expr</code>(점프 둘), <code>Compiler::let_stmt</code>. 함수와 호출은 <code>crates/fung-front/src/compiler/fn_.rs</code>의 <code>Compiler::function</code>과 <code>Compiler::call</code>.</li>
 <li><code>crates/fung-vm/src/vm/link.rs</code>: 원형을 실행용 <code>RtProto</code>로 바꾸며 상수를 실제 값으로 채우는 <code>link</code>.</li>
@@ -405,13 +439,14 @@ print(grade(95), grade(85), grade(10))</code></pre><pre class="out dump plain"><
 0015  1:1   RETURN
 
 == grade ==
-0000  1:19  LOADLOCAL    0
+params:   score
+0000  1:19  LOADLOCAL    0    ; score
 0001  1:28  CONST        0    ; 90
 0002  1:25  GE
 0003  1:25  JUMPIFFALSE  6
 0004  1:36  CONST        1    ; &quot;A&quot;
 0005  1:17  RETURN
-0006  1:45  MOVELOCAL    0
+0006  1:45  MOVELOCAL    0    ; score
 0007  1:54  CONST        2    ; 80
 0008  1:51  GE
 0009  1:51  JUMPIFFALSE  12

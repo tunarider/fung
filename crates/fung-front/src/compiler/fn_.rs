@@ -96,6 +96,7 @@ impl Compiler<'_> {
             num_locals: info.num_locals,
             held: info.held.clone(),
             captures: info.captures.clone(),
+            capture_names: info.capture_names.clone(),
             ..Proto::default()
         };
         for prm in &info.params {
@@ -122,7 +123,22 @@ impl Compiler<'_> {
             lives: fn_lives(n, info),
             stubs: Vec::new(),
             ret_pos: n.kids.last().expect("fn has a body").pos,
+            decls: &info.locals,
+            named: vec![0; info.params.len()],
         };
+        // The parameters have their slots and names from the start.
+        for (d, (slot, name)) in info.locals.iter().enumerate() {
+            if cc.named.get(*slot) == Some(&0) && info.params[*slot].name == *name {
+                cc.named[*slot] = d as u32 + 1;
+            }
+        }
+        for (slot, prm) in info.params.iter().enumerate() {
+            cc.proto.locals.push(crate::bytecode::Local {
+                slot,
+                name: prm.name.clone(),
+                from: 0,
+            });
+        }
 
         // Prologue: defaults, then type checks.
         let mut di = 0;

@@ -163,6 +163,7 @@ impl Resolver<'_> {
             index: self.globals.len(),
             constant: true,
             module: true,
+            ..Binding::default()
         };
         self.bind_import(name, pos, len, b);
         self.module_names.insert(name.to_string(), info.clone());
@@ -188,7 +189,7 @@ impl Resolver<'_> {
             global: true,
             index: self.globals.len(),
             constant: true,
-            module: false,
+            ..Binding::default()
         };
         self.bind_import(name, pos, rune_len(name), b);
         Some(b)

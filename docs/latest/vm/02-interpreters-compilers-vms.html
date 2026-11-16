@@ -55,6 +55,7 @@
 <li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
 <li class="sub">부록</li>
 <li><a href="../vm/internals.html">18. 내부 구조</a></li>
+<li><a href="../vm/instructions.html">19. 명령 레퍼런스</a></li>
 </ol>
 </li>
 </ol></nav>
@@ -113,7 +114,8 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
 0009  2:1   POP
 0010  2:1   CONST        4    ; nil
 0011  1:1   RETURN</code></pre></div>
-<p>트리 대신 위에서 아래로 읽는 목록이다. VM은 반복문 하나로 이 목록을 돈다. "명령을 하나 읽는다 → 종류에 따라 할 일을 한다 → 다음 명령으로"의 반복이다. 이것을 <strong>디스패치 루프</strong>(dispatch loop), 또는 실행 루프라고 한다.</p>
+<p>트리 대신 위에서 아래로 읽는 목록이다. 한 줄이 명령 하나다. <code>CONST 0</code>처럼 명령 뒤에 붙은 수는 값이 아니라 번호다. 컴파일러가 프로그램에 나온 상수를 표 하나에 모아 두고 명령에는 그 표의 칸 번호만 적기 때문에, <code>CONST 0</code>은 "상수 0번을 올려라"다. <code>;</code> 뒤는 명령의 일부가 아니라 <code>fung dump</code>가 그 칸에 든 값(여기서는 2)을 옆에 적어 준 설명이다. 줄마다의 뜻은 8장에서 본다.</p>
+<p>VM은 반복문 하나로 이 목록을 돈다. "명령을 하나 읽는다 → 종류에 따라 할 일을 한다 → 다음 명령으로"의 반복이다. 이것을 <strong>디스패치 루프</strong>(dispatch loop), 또는 실행 루프라고 한다.</p>
 <p>트리 순회와 비교하면 이렇게 달라진다.</p>
 <ul>
 <li>명령이 배열에 나란히 있어서 다음 명령이 바로 옆에 있다. 노드 종류를 묻는 대신 명령 번호 하나로 갈래를 탄다.</li>
@@ -193,7 +195,8 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0009  1:1   RETURN
 
 == double ==
-0000  1:16  MOVELOCAL    0
+params:   x
+0000  1:16  MOVELOCAL    0    ; x
 0001  1:20  CONST        0    ; 2
 0002  1:18  MUL
 0003  1:14  RETURN</code></pre></div>
@@ -229,21 +232,22 @@ print(sum_to(200000))</code></pre><pre class="out dump plain"><code>$ fung dump 
 0009  1:1   RETURN
 
 == sum_to ==
-0000  1:1   JUMPIFSET    3 1
+params:   n, acc = ?
+0000  1:1   JUMPIFSET    3 1    ; acc
 0001  1:20  CONST        0    ; 0
-0002  1:1   STORELOCAL   1
-0003  1:25  LOADLOCAL    0
+0002  1:1   STORELOCAL   1    ; acc
+0003  1:25  LOADLOCAL    0    ; n
 0004  1:30  CONST        0    ; 0
 0005  1:27  EQ
 0006  1:27  JUMPIFFALSE  9
-0007  1:37  MOVELOCAL    1
+0007  1:37  MOVELOCAL    1    ; acc
 0008  1:23  RETURN
 0009  1:46  LOADSELF
-0010  1:53  LOADLOCAL    0
+0010  1:53  LOADLOCAL    0    ; n
 0011  1:57  CONST        1    ; 1
 0012  1:55  SUB
-0013  1:60  MOVELOCAL    1
-0014  1:66  MOVELOCAL    0
+0013  1:60  MOVELOCAL    1    ; acc
+0014  1:66  MOVELOCAL    0    ; n
 0015  1:64  ADD
 0016  1:52  TAILCALL     2 0    ; 2 positional, 0 named</code></pre></div>
 </details>

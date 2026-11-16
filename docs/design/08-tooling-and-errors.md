@@ -105,6 +105,7 @@ fung check script.fung                     # 실행 없이 문법·의미 검사
 fung fmt script.fung                       # 코드 정리
 fung test [path]                           # 테스트 실행
 fung dump ast|core|bytecode script.fung    # 내부 단계 출력
+fung dump proto script.fung                # 바이트코드와 함수마다의 표(상수 풀, 칸 이름 등)
 fung version
 ```
 

@@ -232,6 +232,11 @@ pub struct Node {
     /// that, which no analysis records anything for. A copy keeps the
     /// number of what it copies.
     pub id: u32,
+    /// A `(local n)`: which binding of its function gave the slot the
+    /// name this node was written with (`FnInfo::locals`, from 1); 0
+    /// for the others. `fung dump` names slots by it; it does not show
+    /// in `fung dump core`.
+    pub decl: u32,
 }
 
 impl Node {
@@ -288,6 +293,7 @@ impl Node {
             end: 0,
             paren: false,
             id: 0,
+            decl: 0,
         }
     }
 
@@ -498,6 +504,8 @@ mod tests {
             num_locals: 0,
             held: vec![],
             captures: vec![],
+            locals: vec![],
+            capture_names: vec![],
         }
     }
 

@@ -401,7 +401,7 @@ impl Parser<'_> {
             ["fung", "run", rest @ ..] => (Kind::Run, rest),
             ["fung", "check"] => (Kind::Check, &[][..]),
             ["fung", "frag"] => (Kind::Frag, &[][..]),
-            ["dump", stage, rest @ ..] if ["ast", "core", "bytecode"].contains(stage) => {
+            ["dump", stage, rest @ ..] if ["ast", "core", "bytecode", "proto"].contains(stage) => {
                 (Kind::Dump(stage.to_string()), rest)
             }
             ["shell"] => (Kind::Shell, &[][..]),
@@ -441,7 +441,7 @@ impl Parser<'_> {
             }
             _ => {
                 return Err(at(format!(
-                    "unknown fence `{info}`: fung run|check|frag, dump ast|core|bytecode, shell, plain, core, file NAME, expect [check]"
+                    "unknown fence `{info}`: fung run|check|frag, dump ast|core|bytecode|proto, shell, plain, core, file NAME, expect [check]"
                 )));
             }
         };

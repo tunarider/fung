@@ -37,6 +37,8 @@ impl Resolver<'_> {
             num_locals: 0,
             held: Vec::new(),
             captures: Vec::new(),
+            locals: Vec::new(),
+            capture_names: Vec::new(),
         };
         let mut f = FnScope::new(&decl.name);
         if !decl.name.is_empty() {
@@ -134,7 +136,12 @@ impl Resolver<'_> {
         }
         info.num_locals = f.max_slot;
         info.held = f.held;
+        info.capture_names = vec![String::new(); f.captures.len()];
+        for (name, i) in f.cap_index {
+            info.capture_names[i] = name;
+        }
         info.captures = f.captures;
+        info.locals = f.decls;
         Node::with_lit(Head::Fn, n.pos, Lit::Fn(Box::new(info)), kids)
     }
 

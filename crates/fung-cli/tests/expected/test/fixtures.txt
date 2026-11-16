@@ -654,8 +654,8 @@
 |   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
-|   fung dump ast|core|bytecode <script>    print an internal stage
-|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung dump <stage> <script>              print an internal stage: ast, core, bytecode, proto
+|   fung dump <stage> -e '<code>'           the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
@@ -682,8 +682,8 @@
 |   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
-|   fung dump ast|core|bytecode <script>    print an internal stage
-|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung dump <stage> <script>              print an internal stage: ast, core, bytecode, proto
+|   fung dump <stage> -e '<code>'           the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
@@ -697,8 +697,8 @@
 |   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
-|   fung dump ast|core|bytecode <script>    print an internal stage
-|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung dump <stage> <script>              print an internal stage: ast, core, bytecode, proto
+|   fung dump <stage> -e '<code>'           the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- stderr

@@ -179,6 +179,18 @@ impl Compiler<'_> {
     /// Registers a pattern constant and returns its index.
     pub(super) fn add_pattern(&mut self, n: &Node) -> Result<usize, Diag> {
         let p = build(n)?;
+        // the slots it binds have their names from the instruction that
+        // matches it, which follows
+        let mut todo = vec![n];
+        while let Some(k) = todo.pop() {
+            if matches!(k.head, Head::Pbind | Head::Prest) {
+                if let Some(r) = k.kids.first().filter(|r| r.head == Head::Local) {
+                    self.name_slot(r);
+                }
+            } else {
+                todo.extend(k.kids.iter().rev());
+            }
+        }
         self.proto.patterns.push(p);
         Ok(self.proto.patterns.len() - 1)
     }

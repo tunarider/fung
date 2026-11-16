@@ -185,6 +185,7 @@ impl Compiler<'_> {
         if always_matches(arm) {
             if pat.head == Head::Pbind {
                 if self.lives.subject_moves.contains(&arm.id) {
+                    self.name_slot(subject);
                     self.proto
                         .emit(Op::MoveLocal, super::lit_index(subject), subject.pos);
                 } else {

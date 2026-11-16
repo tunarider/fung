@@ -76,6 +76,8 @@ pub struct Resolved {
     pub num_locals: usize,
     /// The main frame's slots whose names are never read (`FnInfo::held`).
     pub held: Vec<usize>,
+    /// The names of the main frame's slots (`FnInfo::locals`).
+    pub locals: Vec<(usize, String)>,
     /// The file's globals, in index order.
     pub globals: Vec<String>,
     /// Module keys this file imports, in order.
@@ -175,6 +177,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         core: out,
         num_locals: r.fns[0].max_slot,
         held: std::mem::take(&mut r.fns[0].held),
+        locals: std::mem::take(&mut r.fns[0].decls),
         globals: r.globals,
         imports: r.imports,
         exports,
@@ -306,7 +309,9 @@ fn fn_stmt(n: &Node) -> Option<&str> {
 
 fn ref_node(pos: Pos, b: Binding) -> Node {
     let head = if b.global { Head::Global } else { Head::Local };
-    Node::leaf(head, pos, Lit::Int(b.index as i64))
+    let mut n = Node::leaf(head, pos, Lit::Int(b.index as i64));
+    n.decl = b.decl;
+    n
 }
 
 impl Resolver<'_> {
@@ -342,13 +347,18 @@ impl Resolver<'_> {
     }
 
     /// Binds name in the innermost block of the current function.
-    fn bind_in_block(&mut self, name: &str, b: Binding) {
+    fn bind_in_block(&mut self, name: &str, mut b: Binding) -> Binding {
         let root = self.fns.len() == 1 && self.cur().blocks.len() == 1;
         let f = self.cur_mut();
         let i = f.blocks.len() - 1;
+        if !b.global {
+            f.decls.push((b.index, name.to_string()));
+            b.decl = f.decls.len() as u32;
+        }
         if f.bind(i, name, b) && !root {
             *self.open.entry(name.to_string()).or_default() += 1;
         }
+        b
     }
 
     /// The file scope.
@@ -417,7 +427,7 @@ impl Resolver<'_> {
                 global: true,
                 index: self.globals.len(),
                 constant: true,
-                module: false,
+                ..Binding::default()
             };
             self.fns[0].bind(0, name, b);
             self.root_scope().pos.insert(name.to_string(), at);
@@ -730,7 +740,7 @@ impl Resolver<'_> {
                 ..Binding::default()
             }
         };
-        self.bind_in_block(name, b);
+        let b = self.bind_in_block(name, b);
         self.cur_block().pos.insert(name.to_string(), pos);
         b
     }

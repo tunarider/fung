@@ -55,6 +55,7 @@
 <li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
 <li class="sub">부록</li>
 <li><a href="../vm/internals.html">18. 내부 구조</a></li>
+<li><a href="../vm/instructions.html">19. 명령 레퍼런스</a></li>
 </ol>
 </li>
 </ol></nav>
@@ -98,7 +99,8 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0009  1:1   RETURN
 
 == double ==
-0000  1:16  MOVELOCAL    0
+params:   x
+0000  1:16  MOVELOCAL    0    ; x
 0001  1:20  CONST        0    ; 2
 0002  1:18  MUL
 0003  1:14  RETURN</code></pre></div>
@@ -150,12 +152,13 @@ print(greet(&quot;fung&quot;, greeting: &quot;hi&quot;))</code></pre><pre class=
 0017  1:1   RETURN
 
 == greet ==
-0000  1:1   JUMPIFSET    3 1
+params:   name, greeting = ?
+0000  1:1   JUMPIFSET    3 1    ; greeting
 0001  1:27  CONST        0    ; &quot;hello&quot;
-0002  1:1   STORELOCAL   1
-0003  1:41  MOVELOCAL    1
+0002  1:1   STORELOCAL   1    ; greeting
+0003  1:41  MOVELOCAL    1    ; greeting
 0004  1:38  CONST        1    ; &quot;, &quot;
-0005  1:54  MOVELOCAL    0
+0005  1:54  MOVELOCAL    0    ; name
 0006  1:38  CONCAT       3
 0007  1:36  RETURN</code></pre></div>
 <p>VM이 인자를 묶는 길은 둘이다(<code>crates/fung-vm/src/vm/call.rs</code>의 <code>call_op</code>).</p>
@@ -243,18 +246,21 @@ print(adder(5)(1))</code></pre><pre class="out dump plain"><code>$ fung dump byt
 0011  1:1   RETURN
 
 == adder ==
+params:   n
 0000  1:15  CLOSURE      0    ; &lt;lambda&gt;
 0001  1:13  RETURN
 
 == &lt;lambda&gt; ==
-0000  1:20  MOVELOCAL    0
-0001  1:24  LOADCAPTURED 0
+params:   x
+captures: n
+0000  1:20  MOVELOCAL    0    ; x
+0001  1:24  LOADCAPTURED 0    ; n
 0002  1:22  ADD
 0003  1:17  RETURN</code></pre></div>
 <ul>
-<li>컴파일러는 람다를 <code>adder</code>의 <strong>자식 원형</strong>(<code>== &lt;lambda&gt; ==</code>)으로 따로 컴파일하고, 그 원형에 "무엇을 붙잡는가" 목록(<code>captures</code>)을 적어 둔다. 여기서는 "만드는 프레임의 슬롯 0"(<code>n</code>) 하나다.</li>
+<li>컴파일러는 람다를 <code>adder</code>의 <strong>자식 원형</strong>(<code>== &lt;lambda&gt; ==</code>)으로 따로 컴파일하고, 그 원형에 "무엇을 붙잡는가" 목록(<code>captures</code>)을 적어 둔다. 여기서는 "만드는 프레임의 슬롯 0"(<code>n</code>) 하나다. 출력의 <code>== &lt;lambda&gt; ==</code> 아래 <code>captures: n</code> 줄이 그 목록의 이름이고, 어디서 복사하는지까지 보려면 <code>fung dump proto</code>를 쓴다(<code>n  (local 0)</code>).</li>
 <li>실행 중 <code>adder</code>의 <code>CLOSURE 0</code>은 자식 원형 0번을 꺼내 그 목록대로 값을 <strong>복사</strong>해 <code>Closure{원형, 붙잡은 값들, 전역 표}</code>를 만든다(실제 구조체에는 원형의 명령 배열을 가까이 둔 <code>code</code> 칸이 하나 더 있다)(<code>crates/fung-vm/src/vm.rs</code>의 <code>make_closure</code>).</li>
-<li>람다 안의 <code>LOADCAPTURED 0</code>은 실행 중인 클로저의 붙잡은 값 0번을 읽는다. 바깥 프레임이 이미 사라졌어도 상관없다. 값은 클로저 안에 있다.</li>
+<li>람다 안의 <code>LOADCAPTURED 0</code>은 실행 중인 클로저의 붙잡은 값 0번을 읽는다(<code>;</code> 뒤의 <code>n</code>이 그 이름이다). 바깥 프레임이 이미 사라졌어도 상관없다. 값은 클로저 안에 있다.</li>
 <li>아무것도 붙잡지 않는 함수(<code>map(xs, x =&gt; x + 1)</code>의 람다)는 만들 때마다 같은 값이다. 그래서 <code>CLOSURE</code>는 그런 함수를 모듈마다 한 번 만들어 부모 원형에 기억해 두고 다시 쓴다(<code>RtProto::made</code>, 2026-11-11 점검 VM20). 함수끼리 <code>==</code>로 견줄 수 없으므로(E0501) 프로그램은 차이를 볼 수 없고, 람다를 루프에서 만드는 비용(할당 하나)이 사라진다.</li>
 </ul>
 <p>붙잡는 출처는 네 가지다(<code>fung-front</code>의 <code>tree::CaptureKind</code>).</p>
@@ -289,26 +295,28 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0009  1:1   RETURN
 
 == countdown ==
+params:   n
 0000  2:3   CLOSURE      0    ; go
-0001  2:3   STORELOCAL   1
-0002  3:3   MOVELOCAL    1
-0003  3:6   MOVELOCAL    0
+0001  2:3   STORELOCAL   1    ; go
+0002  3:3   MOVELOCAL    1    ; go
+0003  3:6   MOVELOCAL    0    ; n
 0004  3:9   CONST        0    ; []
 0005  3:5   TAILCALL     2 0    ; 2 positional, 0 named
 
 == go ==
-0000  2:19  LOADLOCAL    0
+params:   i, acc
+0000  2:19  LOADLOCAL    0    ; i
 0001  2:24  CONST        0    ; 0
 0002  2:21  EQ
 0003  2:21  JUMPIFFALSE  6
-0004  2:31  MOVELOCAL    1
+0004  2:31  MOVELOCAL    1    ; acc
 0005  2:17  RETURN
 0006  2:40  LOADSELF
-0007  2:43  LOADLOCAL    0
+0007  2:43  LOADLOCAL    0    ; i
 0008  2:47  CONST        1    ; 1
 0009  2:45  SUB
-0010  2:50  MOVELOCAL    1
-0011  2:57  MOVELOCAL    0
+0010  2:50  MOVELOCAL    1    ; acc
+0011  2:57  MOVELOCAL    0    ; i
 0012  2:56  LIST         1
 0013  2:54  ADD
 0014  2:42  TAILCALL     2 0    ; 2 positional, 0 named</code></pre></div>
@@ -341,7 +349,8 @@ print(small(2))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0011  1:1   RETURN
 
 == small ==
-0000  3:15  MOVELOCAL    0
+params:   n
+0000  3:15  MOVELOCAL    0    ; n
 0001  3:19  LOADGLOBAL   1
 0002  3:17  LT
 0003  3:13  RETURN</code></pre></div>
@@ -416,23 +425,25 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0016  1:1   RETURN
 
 == count ==
-0000  1:20  LOADLOCAL    0
+params:   n, acc
+0000  1:20  LOADLOCAL    0    ; n
 0001  1:25  CONST        0    ; 0
 0002  1:22  EQ
 0003  1:22  JUMPIFFALSE  6
-0004  1:32  MOVELOCAL    1
+0004  1:32  MOVELOCAL    1    ; acc
 0005  1:18  RETURN
 0006  1:41  LOADSELF
-0007  1:47  MOVELOCAL    0
+0007  1:47  MOVELOCAL    0    ; n
 0008  1:51  CONST        1    ; 1
 0009  1:49  SUB
-0010  1:54  MOVELOCAL    1
+0010  1:54  MOVELOCAL    1    ; acc
 0011  1:60  CONST        1    ; 1
 0012  1:58  ADD
 0013  1:46  TAILCALL     2 0    ; 2 positional, 0 named
 
 == depth ==
-0000  2:15  LOADLOCAL    0
+params:   n
+0000  2:15  LOADLOCAL    0    ; n
 0001  2:20  CONST        0    ; 0
 0002  2:17  EQ
 0003  2:17  JUMPIFFALSE  6
@@ -440,7 +451,7 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0005  2:13  RETURN
 0006  2:34  CONST        1    ; 1
 0007  2:38  LOADSELF
-0008  2:44  MOVELOCAL    0
+0008  2:44  MOVELOCAL    0    ; n
 0009  2:48  CONST        1    ; 1
 0010  2:46  SUB
 0011  2:43  CALL         1 0    ; 1 positional, 0 named
@@ -492,7 +503,9 @@ print(down(5))</code></pre><pre class="out err plain" data-code="1"><code>error[
 fn odd(n) -&gt; bool = n == 0 then false else even(n - 1)
 print(even(10))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
 == even ==
-0000  1:22  LOADLOCAL    0
+params:   n
+returns:  bool
+0000  1:22  LOADLOCAL    0    ; n
 0001  1:27  CONST        0    ; 0
 0002  1:24  EQ
 0003  1:24  JUMPIFFALSE  7
@@ -500,7 +513,7 @@ print(even(10))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0005  1:20  CHECKRETURN  0    ; -&gt; bool
 0006  1:20  RETURN
 0007  1:44  LOADGLOBAL   1
-0008  1:48  MOVELOCAL    0
+0008  1:48  MOVELOCAL    0    ; n
 0009  1:52  CONST        2    ; 1
 0010  1:50  SUB
 0011  1:20  TAILCHECK    0    ; -&gt; bool

@@ -81,6 +81,7 @@ fn bare(mut core: Node) -> Resolved {
         core,
         num_locals: 0,
         held: Vec::new(),
+        locals: Vec::new(),
         globals: vec![],
         imports: vec![],
         exports: vec![],
@@ -730,6 +731,7 @@ fn locals_are_cleared_after_their_last_read() {
         let f = b.split("== f ==\n").nth(1).expect("f's code").to_string();
         f.lines()
             .take_while(|l| !l.is_empty())
+            .filter(|l| l.starts_with(|c: char| c.is_ascii_digit()))
             .map(|l| {
                 let w: Vec<&str> = l.split_whitespace().skip(2).take(2).collect();
                 w.iter()
@@ -791,6 +793,7 @@ fn local_loads(src: &str) -> Vec<String> {
     let f = b.split("== f ==\n").nth(1).expect("f's code").to_string();
     f.lines()
         .take_while(|l| !l.is_empty())
+        .filter(|l| l.starts_with(|c: char| c.is_ascii_digit()))
         .filter_map(|l| {
             let w: Vec<&str> = l.split_whitespace().skip(2).take(2).collect();
             matches!(w[0], "LOADLOCAL" | "MOVELOCAL").then(|| w.join(" "))
@@ -964,6 +967,7 @@ fn fn_ops(src: &str, name: &str) -> Vec<String> {
         .to_string();
     f.lines()
         .take_while(|l| !l.is_empty())
+        .filter(|l| l.starts_with(|c: char| c.is_ascii_digit()))
         .map(|l| {
             let w: Vec<&str> = l.split_whitespace().skip(2).take(2).collect();
             w.iter()
@@ -1044,4 +1048,190 @@ fn a_returning_if_statement_drops_nothing() {
     assert!(!ops(f).contains("POP"), "{}", ops(f));
     let p = comp("fn f(c, x):\n  if c: print(x) ;;\n  0\n;;\nprint(f)");
     assert!(ops(&p.protos[0]).contains("POP"));
+}
+
+// ---- names in the dump (`fung dump bytecode`, `fung dump proto`) ----
+
+/// What a number in the dump stands for is written after it: a local
+/// slot, a parameter and a captured value by the name the source gives
+/// it, as a global and a constant are. A function's parameters and what
+/// it captures stand under its header.
+#[test]
+fn the_dump_names_locals_parameters_and_captures() {
+    let src = "fn scale(x, by: int = 2, ...rest):\n  k = x * by\n  f = fn(y): y + k ;;\n  _hold = rest\n  f(1)\n;;\nprint(scale(3))";
+    let b = bytecode(src);
+    let from = b.find("== scale ==").expect("scale's code");
+    assert_eq!(
+        &b[from..],
+        "== scale ==\n\
+         params:   x, by: int = ?, ...rest\n\
+         0000  1:1   JUMPIFSET    3 1    ; by\n\
+         0001  1:23  CONST        0    ; 2\n\
+         0002  1:1   STORELOCAL   1    ; by\n\
+         0003  1:13  CHECKTYPE    1 0    ; by: int\n\
+         0004  2:7   MOVELOCAL    0    ; x\n\
+         0005  2:11  MOVELOCAL    1    ; by\n\
+         0006  2:9   MUL\n\
+         0007  2:3   STORELOCAL   3    ; k\n\
+         0008  3:7   CLOSURE      0    ; <lambda>\n\
+         0009  3:7   CLEARLOCAL   3    ; k\n\
+         0010  3:3   STORELOCAL   4    ; f\n\
+         0011  4:11  MOVELOCAL    2    ; rest\n\
+         0012  4:3   STORELOCAL   5    ; _hold\n\
+         0013  5:3   MOVELOCAL    4    ; f\n\
+         0014  5:5   CONST        1    ; 1\n\
+         0015  5:4   TAILCALL     1 0    ; 1 positional, 0 named\n\
+         \n== <lambda> ==\n\
+         params:   y\n\
+         captures: k\n\
+         0000  3:14  MOVELOCAL    0    ; y\n\
+         0001  3:18  LOADCAPTURED 0    ; k\n\
+         0002  3:16  ADD\n\
+         0003  3:7   RETURN\n"
+    );
+}
+
+/// A slot a later block uses again has the name that block gives it
+/// from there on.
+#[test]
+fn a_slot_used_again_has_its_new_name() {
+    let src = "fn f(c):\n  if c: a = 1; print(a) ;;\n  if c: b = 2; print(b) ;;\n  c\n;;";
+    let b = bytecode(src);
+    let named: Vec<&str> = b
+        .lines()
+        .filter(|l| l.contains("LOCAL") && l.contains(" 1    ; "))
+        .map(|l| l.split("  ").last().unwrap_or(""))
+        .collect();
+    assert_eq!(named, ["; a", "; a", "; b", "; b"], "{b}");
+}
+
+/// The names a pattern binds are known from the MATCH that binds them.
+#[test]
+fn the_dump_names_what_a_pattern_binds() {
+    let src = "fn f(p):\n  match p:\n    (a, b) => a + b\n    [h, ...] => h\n  ;;\n;;";
+    let b = bytecode(src);
+    for want in [
+        "LOCAL    1    ; a",
+        "LOCAL    2    ; b",
+        "LOCAL    1    ; h",
+    ] {
+        assert!(b.contains(want), "{want}\n{b}");
+    }
+}
+
+/// A return type stands under the header as the parameters do.
+#[test]
+fn the_dump_shows_the_return_type() {
+    let b = bytecode("fn f() -> int = 1");
+    assert!(b.contains("== f ==\nreturns:  int\n"), "{b}");
+}
+
+/// `fung dump proto`: every table of a function before its code, each
+/// only when it has something in it.
+#[test]
+fn the_proto_dump_shows_every_table() {
+    let src = "fn scale(x, by: int = 2, ...rest):\n  k = x * by\n  f = fn(y): y + k ;;\n  _hold = rest\n  f(1)\n;;\nprint(scale(3))";
+    let mut sm = SourceMap::new();
+    let f = sm.add("-e", src);
+    let (toks, _) = lex(f, src).unwrap();
+    let names = builtins().prelude_names();
+    let r = resolve(
+        &desugar(&parse(&toks).unwrap(), true).unwrap(),
+        &names,
+        &ROpts::default(),
+    )
+    .unwrap();
+    let set = names.into_iter().collect();
+    let got = crate::bytecode::describe(&compile(&r, &set, &opts(src, false)).unwrap());
+    assert_eq!(
+        got,
+        "== <main> ==\n\
+         slots: 0\n\
+         constants:\n\
+         \x20  0  <fn print>\n\
+         \x20  1  3\n\
+         functions:\n\
+         \x20  0  scale\n\
+         globals:\n\
+         \x20  0  scale\n\
+         exports: scale\n\
+         code:\n\
+         0000  1:1   CLOSURE      0    ; scale\n\
+         0001  1:1   STOREGLOBAL  0    ; scale\n\
+         0002  7:1   CONST        0    ; <fn print>\n\
+         0003  7:7   LOADGLOBAL   0    ; scale\n\
+         0004  7:13  CONST        1    ; 3\n\
+         0005  7:12  CALL         1 0    ; 1 positional, 0 named\n\
+         0006  7:6   CALL         1 0    ; 1 positional, 0 named\n\
+         0007  1:1   RETURN\n\
+         \n== scale ==\n\
+         params:\n\
+         \x20  0  x\n\
+         \x20  1  by: int = ?\n\
+         \x20  2  ...rest\n\
+         slots: 6\n\
+         held: 5\n\
+         locals:\n\
+         \x20  0  x  (from 0000)\n\
+         \x20  1  by  (from 0000)\n\
+         \x20  2  rest  (from 0000)\n\
+         \x20  3  k  (from 0007)\n\
+         \x20  4  f  (from 0010)\n\
+         \x20  5  _hold  (from 0012)\n\
+         constants:\n\
+         \x20  0  2\n\
+         \x20  1  1\n\
+         types:\n\
+         \x20  0  int\n\
+         functions:\n\
+         \x20  0  <lambda>\n\
+         body: 0003\n\
+         code:\n\
+         0000  1:1   JUMPIFSET    3 1    ; by\n\
+         0001  1:23  CONST        0    ; 2\n\
+         0002  1:1   STORELOCAL   1    ; by\n\
+         0003  1:13  CHECKTYPE    1 0    ; by: int\n\
+         0004  2:7   MOVELOCAL    0    ; x\n\
+         0005  2:11  MOVELOCAL    1    ; by\n\
+         0006  2:9   MUL\n\
+         0007  2:3   STORELOCAL   3    ; k\n\
+         0008  3:7   CLOSURE      0    ; <lambda>\n\
+         0009  3:7   CLEARLOCAL   3    ; k\n\
+         0010  3:3   STORELOCAL   4    ; f\n\
+         0011  4:11  MOVELOCAL    2    ; rest\n\
+         0012  4:3   STORELOCAL   5    ; _hold\n\
+         0013  5:3   MOVELOCAL    4    ; f\n\
+         0014  5:5   CONST        1    ; 1\n\
+         0015  5:4   TAILCALL     1 0    ; 1 positional, 0 named\n\
+         \n== <lambda> ==\n\
+         params:\n\
+         \x20  0  y\n\
+         slots: 1\n\
+         locals:\n\
+         \x20  0  y  (from 0000)\n\
+         captures:\n\
+         \x20  0  k  (local 3)\n\
+         code:\n\
+         0000  3:14  MOVELOCAL    0    ; y\n\
+         0001  3:18  LOADCAPTURED 0    ; k\n\
+         0002  3:16  ADD\n\
+         0003  3:7   RETURN\n"
+    );
+}
+
+/// The proto dump's other tables: a return type, patterns and asserts.
+#[test]
+fn the_proto_dump_shows_patterns_asserts_and_the_return_type() {
+    let src = "fn f(p) -> int:\n  match p:\n    (a, b) => a + b\n    _ => 0\n  ;;\n;;\nassert f((1, 2)) == 3";
+    let r = resolved(src, &["print"], &ROpts::default());
+    let p = compile(&r, &set(&["print"]), &opts(src, false)).unwrap();
+    let got = crate::bytecode::describe(&p);
+    for want in [
+        "asserts:\n   0  f((1, 2)) == 3\n",
+        "returns: int\n",
+        "patterns:\n   0  ($1, $2)\n",
+        "types:\n   0  int\n",
+    ] {
+        assert!(got.contains(want), "{want}\n{got}");
+    }
 }

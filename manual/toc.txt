@@ -108,3 +108,4 @@ page vm/16-repl.md
 page vm/17-test-runner.md
 group 부록
 page vm/internals.md
+page vm/instructions.md

@@ -150,6 +150,12 @@ pub struct FnInfo {
     /// No other name has such a slot.
     pub held: Vec<usize>,
     pub captures: Vec<Capture>,
+    /// Every name the function gives a slot, with the slot, in the order
+    /// they are bound (`Node::decl` counts into it from 1). `fung dump`
+    /// shows them; nothing else reads them.
+    pub locals: Vec<(usize, String)>,
+    /// The name each of `captures` has in the source.
+    pub capture_names: Vec<String>,
 }
 
 /// The signature for dumps: `add(a, b=?)->int`, `(x)` for lambdas.

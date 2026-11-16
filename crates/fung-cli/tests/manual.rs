@@ -331,3 +331,79 @@ fn signatures_are_read_like_the_manual_writes_them() {
     let e = fung_entries("fn h(a,\n  b = [1,\n    2], c = \"x  y\"):\n  a\n;;\n");
     assert_eq!(e["h"].sig, "h(a, b = [1, 2], c = \"x  y\")");
 }
+
+/// What the instruction reference writes for an operand.
+fn operand_text(o: fung_front::bytecode::Operand) -> &'static str {
+    use fung_front::bytecode::Operand::*;
+    match o {
+        None => "없음",
+        Const => "상수 번호",
+        Global => "전역 번호",
+        Local => "칸 번호",
+        Proto => "함수 번호",
+        Captured => "붙잡은 값 번호",
+        Type => "타입 번호",
+        Pattern => "패턴 번호",
+        Assert => "assert 번호",
+        Target => "명령 번호",
+        Count => "개수",
+        Flags => "플래그",
+    }
+}
+
+/// The instruction reference (`manual/vm/instructions.md`) against the
+/// front end's instruction table: every instruction has one row, and the
+/// row's operand and stack columns say what the table says. The last
+/// column is prose.
+#[test]
+fn the_instruction_reference_matches_the_instruction_table() {
+    use fung_front::bytecode::{Effect, Op, Operand};
+    let page = std::fs::read_to_string(common::repo().join("manual/vm/instructions.md")).unwrap();
+    let mut rows: BTreeMap<String, (String, String)> = BTreeMap::new();
+    let mut bad = Vec::new();
+    for l in page.lines() {
+        let Some(rest) = l.trim().strip_prefix("<tr><td><code>") else {
+            continue;
+        };
+        let cells: Vec<&str> = rest.split("</td><td>").collect();
+        let Some(name) = cells[0].strip_suffix("</code>") else {
+            continue;
+        };
+        if cells.len() < 4 || !name.chars().all(|c| c.is_ascii_uppercase()) {
+            continue;
+        }
+        let row = (cells[1].to_string(), cells[2].to_string());
+        if rows.insert(name.to_string(), row).is_some() {
+            bad.push(format!("{name} has two rows"));
+        }
+    }
+    for op in Op::ALL {
+        let info = op.info();
+        let operand = match op.second() {
+            Operand::None => operand_text(info.operand).to_string(),
+            b => format!("{}, {}", operand_text(info.operand), operand_text(b)),
+        };
+        let stack = match info.effect {
+            Effect::Fixed(a, b) => format!("{a} → {b}"),
+            Effect::Items => "n → 1".to_string(),
+            Effect::Sliced => "1~3 → 1".to_string(),
+            Effect::Called => "1 + 인자 → 1".to_string(),
+            Effect::Asserted => "1~2 → 0".to_string(),
+        };
+        match rows.remove(op.name()) {
+            None => bad.push(format!("{} has no row", op.name())),
+            Some(got) if got != (operand.clone(), stack.clone()) => bad.push(format!(
+                "{}: manual {got:?}, Rust {:?}",
+                op.name(),
+                (operand, stack)
+            )),
+            Some(_) => {}
+        }
+    }
+    for name in rows.keys() {
+        bad.push(format!("{name} is not an instruction"));
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    let count = format!("명령 {}가지", Op::ALL.len());
+    assert!(page.contains(&count), "want {count}");
+}

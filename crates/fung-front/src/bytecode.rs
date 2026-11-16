@@ -9,7 +9,7 @@ mod pattern;
 mod tests;
 mod verify;
 
-pub use disasm::disassemble;
+pub use disasm::{describe, disassemble};
 pub use op::{Effect, Flow, Info, Instr, MAX_OPERAND, Op, Operand};
 pub use pattern::{PatKind, Pattern};
 pub use verify::{Violation, verify};
@@ -56,6 +56,17 @@ pub enum Cmp {
     NotIn,
 }
 
+/// The name a local slot has from one instruction on, until the next
+/// entry of the same slot: a slot a later block uses again is named
+/// again there. Only `fung dump` reads these.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Local {
+    pub slot: usize,
+    pub name: String,
+    /// The first instruction where the slot has this name.
+    pub from: usize,
+}
+
 /// A compiled function body ("prototype"): code, its constant pool, one
 /// source position per instruction, the frame size, (for the module body)
 /// the globals in index order, and the function's parameters, child
@@ -77,6 +88,10 @@ pub struct Proto {
     pub protos: Vec<Proto>,
     /// What CLOSURE copies from the creating frame.
     pub captures: Vec<Capture>,
+    /// The name each of `captures` has in the source (`fung dump`).
+    pub capture_names: Vec<String>,
+    /// The names of the local slots, in the order of `from` (`fung dump`).
+    pub locals: Vec<Local>,
     /// Type specs referenced by CHECKTYPE/CHECKRETURN.
     pub types: Vec<Vec<String>>,
     /// Index into `types`, -1 for unchecked.
@@ -177,6 +192,8 @@ impl Default for Proto {
             params: Vec::new(),
             protos: Vec::new(),
             captures: Vec::new(),
+            capture_names: Vec::new(),
+            locals: Vec::new(),
             types: Vec::new(),
             return_type: -1,
             patterns: Vec::new(),

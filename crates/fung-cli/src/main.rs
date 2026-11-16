@@ -15,7 +15,7 @@ use std::io::Write;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 
 use args::{Spec, parse, unknown_option};
-use fung_front::bytecode::disassemble;
+use fung_front::bytecode::{describe, disassemble};
 use fung_front::diag::{self, EXIT_COMPILE, EXIT_OK, EXIT_USAGE};
 use fung_front::loader::{Loader, Stage};
 use fung_front::source::{decode_lossy, decode_source};
@@ -29,8 +29,8 @@ pub(crate) const USAGE: &str = "usage:
   fung check -e '<code>'                  the same for one line of code
   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
   fung test [path]                        run tests
-  fung dump ast|core|bytecode <script>    print an internal stage
-  fung dump ast|core|bytecode -e '<code>' the same for one line of code
+  fung dump <stage> <script>              print an internal stage: ast, core, bytecode, proto
+  fung dump <stage> -e '<code>'           the same for one line of code
   fung version                            print the version
   fung help                               print this text
 ";
@@ -281,18 +281,19 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
     };
     let (args, raw) = (&p.args, &p.raw);
     let Some(stage) = args.first() else {
-        return usage_error(b"dump needs a stage: ast, core or bytecode");
+        return usage_error(b"dump needs a stage: ast, core, bytecode or proto");
     };
     let up_to = match stage.as_str() {
-        "ast" => Stage::Ast,
-        "core" => Stage::Core,
-        "bytecode" => Stage::All,
+        "ast" => Show::Ast,
+        "core" => Show::Core,
+        "bytecode" => Show::Bytecode,
+        "proto" => Show::Proto,
         _ => {
             return usage_error(
                 &[
                     b"unknown dump stage `",
                     &raw[0][..],
-                    b"` (want ast, core or bytecode)",
+                    b"` (want ast, core, bytecode or proto)",
                 ]
                 .concat(),
             );
@@ -355,11 +356,26 @@ pub(crate) fn cannot_read(path: &[u8], reason: &[u8]) -> Vec<u8> {
     [b"cannot read `", path, b"`: ", reason].concat()
 }
 
+/// What `fung dump` prints: a stage's result, or the compiled functions
+/// with every table they hold (`proto`).
+#[derive(Clone, Copy)]
+enum Show {
+    Ast,
+    Core,
+    Bytecode,
+    Proto,
+}
+
 /// Prints one stage of a source text. `file` is the name as
 /// given; diagnostics compile under its decoded form, and the location
 /// lines of the entry file get the original bytes back.
-fn dump(up_to: Stage, file: &[u8], src: &str) -> Out {
+fn dump(show: Show, file: &[u8], src: &str) -> Out {
     let name = decode_lossy(file);
+    let up_to = match show {
+        Show::Ast => Stage::Ast,
+        Show::Core => Stage::Core,
+        Show::Bytecode | Show::Proto => Stage::All,
+    };
     let (b, errs) = Loader::default().compile(&name, src, up_to);
     if !errs.is_empty() {
         let text: String = errs.iter().map(|e| diag::format(e, &b.sources)).collect();
@@ -369,10 +385,11 @@ fn dump(up_to: Stage, file: &[u8], src: &str) -> Out {
             ..Out::default()
         };
     }
-    let stdout = match up_to {
-        Stage::Ast => b.surface.as_ref().map(|n| format!("{n}\n")),
-        Stage::Core => b.core.as_ref().map(|n| format!("{n}\n")),
-        Stage::All => b.proto.as_ref().map(disassemble),
+    let stdout = match show {
+        Show::Ast => b.surface.as_ref().map(|n| format!("{n}\n")),
+        Show::Core => b.core.as_ref().map(|n| format!("{n}\n")),
+        Show::Bytecode => b.proto.as_ref().map(disassemble),
+        Show::Proto => b.proto.as_ref().map(describe),
     };
     Out {
         stdout: stdout.unwrap_or_default().into_bytes(),
@@ -482,7 +499,7 @@ mod tests {
         }
         // The usage names `-e` for check and dump.
         assert!(USAGE.contains("fung check -e '<code>'"));
-        assert!(USAGE.contains("fung dump ast|core|bytecode -e '<code>'"));
+        assert!(USAGE.contains("fung dump <stage> -e '<code>'"));
     }
 
     /// One option parser for every command (TL7): `-h` and `--help` are

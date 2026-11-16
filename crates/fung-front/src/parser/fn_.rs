@@ -67,6 +67,8 @@ fn fn_info(name: String, name_pos: Pos) -> FnInfo {
         num_locals: 0,
         held: Vec::new(),
         captures: Vec::new(),
+        locals: Vec::new(),
+        capture_names: Vec::new(),
     }
 }
 
